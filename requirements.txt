@@ -16,3 +16,4 @@ seaborn
 huggingface-hub
 requests
 biopython
+pandas
