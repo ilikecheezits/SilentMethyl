@@ -111,3 +111,5 @@ data/
 
 # Analysis output
 *.png
+dnabert2_local/
+checkpoints/
