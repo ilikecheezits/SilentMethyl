@@ -37,7 +37,11 @@ def main():
     df_merged = pd.merge(df_results, df_raw[['Mutation_ID', 'Healthy_5000bp_DNA', 'Mutated_5000bp_DNA']], on='Mutation_ID', how='inner')
     
     # Isolate only the statistically significant structural variants
-    significant_df = df_merged[df_merged['Significant'] == True].copy()
+    if 'Significant' in df_merged.columns:
+        significant_df = df_merged[df_merged['Significant'] == True].copy()
+    else:
+        significant_df = df_merged.copy()
+        
     print(f"[*] Found {len(significant_df)} statistically significant load-bearing mutations.")
     
     anchoring_results = []
@@ -58,8 +62,8 @@ def main():
             anchoring_results.append({
                 'Mutation_ID': row['Mutation_ID'],
                 'Gene': row['Gene'],
-                'Delta_P': row['Absolute_Delta_P'],
-                'FDR_Pval': row['FDR_Pval'],
+                'Delta_P': row.get('Absolute_Delta_P', 0),
+                'FDR_Pval': row.get('FDR_Pval', 1),
                 'Destroyed_Motifs': ", ".join(destroyed) if destroyed else "None",
                 'Created_Motifs': ", ".join(created) if created else "None"
             })

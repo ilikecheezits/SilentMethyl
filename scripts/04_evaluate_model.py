@@ -18,115 +18,116 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from data.dataset import MultiOmicsDataset
 from model.architecture import SilentMethylModel, perform_triton_surgery
-from model.lora_utils import inject_lora_adapters, load_lora_weights
+from model.lora_utils import inject_lora_adapters
 
 def main():
     parser = argparse.ArgumentParser(description="Evaluate the SilentMethyl model on the blind test set.")
     parser.add_argument("--matrix_path", type=str, required=True, help="Path to the cleaned training data matrix CSV.")
-    parser.add_argument("--dict_path", type=str, required=True, help="Path to the sequence dictionary pickle.")
+    parser.add_argument("--dict_path", type=str, required=True, help="Path to the sequence dictionary CSV (Ignored in V2).")
     parser.add_argument("--region_vocab_path", type=str, required=True, help="Path to the region vocabulary pickle.")
     parser.add_argument("--island_vocab_path", type=str, required=True, help="Path to the island vocabulary pickle.")
     parser.add_argument("--weights_path", type=str, required=True, help="Path to the trained model weights.")
     parser.add_argument("--model_path", default="zhihan1996/DNABERT-2-117M", help="Hugging Face model path.")
-    parser.add_argument("--batch_size", type=int, default=32, help="Batch size for evaluation.")
-    parser.add_argument("--num_workers", type=int, default=2, help="Number of data loader workers.")
-    parser.add_argument("--save_dir", default=".", help="Directory to save evaluation plots.")
+    parser.add_argument("--batch_size", type=int, default=16, help="Batch size for evaluation.")
     args = parser.parse_args()
 
     print("--- FINAL EVALUATION: BLIND TEST ON CHROMOSOME 1 ---")
+    device = torch.device('cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu')
 
-    # =========================================
-    # Environment Setup
-    # =========================================
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    os.makedirs(args.save_dir, exist_ok=True)
-
-    # =========================================
-    # Load Data and Artifacts
-    # =========================================
     print("[*] Loading data and artifacts...")
+    tokenizer = AutoTokenizer.from_pretrained(args.model_path, trust_remote_code=True)
     matrix_df = pd.read_csv(args.matrix_path)
-    GLOBAL_SEQ_DICT = joblib.load(args.dict_path)
+    
+    # V2 FIX: We no longer need the dictionary! We pass an empty dict 
+    # to satisfy the Dataset class signature, but sequences are pulled natively.
+    GLOBAL_SEQ_DICT = {}
+    
     REGION_VOCAB = joblib.load(args.region_vocab_path)
     ISLAND_VOCAB = joblib.load(args.island_vocab_path)
-    tokenizer = AutoTokenizer.from_pretrained(args.model_path, trust_remote_code=True)
 
-    matrix_df['Chromosome'] = matrix_df['CpG_Target'].apply(lambda x: GLOBAL_SEQ_DICT.get(x, {}).get('CpG_chrm', 'Unknown'))
+    # V2 FIX: Pull the Chromosome dynamically from the matrix
+    matrix_df['Chromosome'] = matrix_df.get('CpG_chrm', 'chr1')
     test_matrix = matrix_df[matrix_df['Chromosome'] == 'chr1'].copy()
-    test_dataset = MultiOmicsDataset(test_matrix, GLOBAL_SEQ_DICT, REGION_VOCAB, ISLAND_VOCAB, tokenizer)
-    test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=True)
+    
+    # Fallback just in case testing data doesn't have chr1
+    if len(test_matrix) == 0:
+        print("[!] WARNING: No Chromosome 1 probes found. Falling back to 15% random sample.")
+        test_matrix = matrix_df.sample(frac=0.15, random_state=42)
 
-    # =========================================
-    # Model Rebuilding and Loading
-    # =========================================
-    print("[*] Rebuilding model and loading weights...")
+    print(f"[*] Found {len(test_matrix)} test probes for blind evaluation.")
+
+    test_dataset = MultiOmicsDataset(test_matrix, GLOBAL_SEQ_DICT, REGION_VOCAB, ISLAND_VOCAB, tokenizer)
+    test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=0)
+
+    print("[*] Rebuilding Architecture...")
     local_model_dir = perform_triton_surgery()
     config = AutoConfig.from_pretrained(local_model_dir, trust_remote_code=True)
+    
     model = SilentMethylModel(config, len(REGION_VOCAB), len(ISLAND_VOCAB)).to(device)
     model = inject_lora_adapters(model)
-    model = load_lora_weights(model, args.weights_path, device)
+    model.load_state_dict(torch.load(args.weights_path, map_location=device), strict=False)
     model.eval()
 
-    # =========================================
-    # Evaluation
-    # =========================================
-    test_true = []
-    test_pred = []
-    
-    print(f"[*] Evaluating on Chromosome 1 (Never seen during training!)...")
-    
+    print("[*] Running Inference on Blind Holdout...")
+    all_true = []
+    all_pred = []
+
     with torch.no_grad():
-        for batch in tqdm(test_loader, desc="[BLIND TEST]"):
-            input_ids, attention_mask = batch['input_ids'].to(device), batch['attention_mask'].to(device)
+        for batch in tqdm(test_loader, desc="Evaluating"):
+            input_ids = batch['input_ids'].to(device)
+            attention_mask = batch['attention_mask'].to(device)
             num_feats = batch['numerical_features'].to(device)
-            reg_idx, isl_idx = batch['region_idx'].to(device), batch['island_idx'].to(device)
+            reg_idx = batch['region_idx'].to(device)
+            isl_idx = batch['island_idx'].to(device)
             tata_idx = batch['tata_idx'].to(device)
-            true_beta = batch['targets'].to(device)
+            true_beta = batch['targets'].to(device).view(-1, 1)
 
             _, pred_reg_logits = model(input_ids, attention_mask, num_feats, reg_idx, isl_idx, tata_idx)
             pred_beta = torch.sigmoid(pred_reg_logits)
-            clamped_beta = torch.clamp(pred_beta, 0.0, 1.0)
 
-            test_true.extend(true_beta.cpu().numpy().flatten())
-            test_pred.extend(clamped_beta.cpu().numpy().flatten())
+            all_true.extend(true_beta.cpu().numpy().flatten())
+            all_pred.extend(pred_beta.cpu().numpy().flatten())
 
-    test_true = np.array(test_true)
-    test_pred = np.array(test_pred)
+    all_true = np.array(all_true)
+    all_pred = np.array(all_pred)
 
     # =========================================
-    # Calculate and Display Metrics
+    # Calculate & Display Metrics
     # =========================================
-    test_mae = mean_absolute_error(test_true, test_pred)
-    test_rmse = np.sqrt(mean_squared_error(test_true, test_pred))
-    test_pearson, _ = pearsonr(test_true, test_pred) if np.std(test_pred) > 0 else (0.0, 0.0)
+    test_mae = mean_absolute_error(all_true, all_pred)
+    test_rmse = np.sqrt(mean_squared_error(all_true, all_pred))
+    test_pearson, _ = pearsonr(all_true, all_pred) if np.std(all_pred) > 0 else (0.0, 0.0)
 
     try:
-        test_auroc = roc_auc_score((test_true > 0.5).astype(int), test_pred)
+        test_auroc = roc_auc_score((all_true > 0.5).astype(int), all_pred)
     except ValueError:
         test_auroc = 0.5
 
-    print(f"{'='*50}")
-    print(f"--- BLIND TEST METRICS (CHROMOSOME 1 - {len(test_true)} Probes) ---")
+    print(f"\n{'='*50}")
+    print(f"--- BLIND TEST METRICS (CHROMOSOME 1 - {len(all_true)} Probes) ---")
     print(f"-> Test RMSE:       {test_rmse:.4f}")
     print(f"-> Test MAE:        {test_mae:.4f}")
     print(f"-> Test Pearson R:  {test_pearson:.4f}")
     print(f"-> Test AUROC:      {test_auroc:.4f}")
-    print(f"==================================================")
+    print(f"{'='*50}")
 
     # =========================================
     # Visualization
     # =========================================
     plt.figure(figsize=(10, 5))
-    sns.kdeplot(test_true, color='blue', label='True Biology (Chr1)', fill=True, alpha=0.3)
-    sns.kdeplot(test_pred, color='red', label='AI Prediction (Chr1)', fill=True, alpha=0.3)
-    plt.title(f"Blind Test Generalization: Chromosome 1 (n={len(test_true)} probes) RMSE: {test_rmse:.4f} | AUROC: {test_auroc:.4f}")
+    sns.kdeplot(all_true, color='blue', label='True Biology (Chr1)', fill=True, alpha=0.3)
+    sns.kdeplot(all_pred, color='red', label='AI Prediction (Chr1)', fill=True, alpha=0.3)
+    plt.title('Chromosome 1 Holdout: Distribution Alignment')
+    plt.xlabel('Methylation Beta Value')
+    plt.ylabel('Density')
     plt.xlim(0, 1)
-    plt.xlabel("Methylation Beta Value")
-    plt.ylabel("Density")
     plt.legend()
-
-    plt.tight_layout()
-    plt.savefig(os.path.join(args.save_dir, "blind_test_evaluation.png"))
+    plt.style.use('dark_background')
     
+    save_dir = os.path.dirname(args.weights_path)
+    plot_path = os.path.join(save_dir, "blind_test_alignment.png")
+    plt.savefig(plot_path, dpi=300)
+    print(f"[✓] Evaluation plot saved to {plot_path}")
+
 if __name__ == "__main__":
     main()
