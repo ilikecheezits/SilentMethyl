@@ -3,7 +3,7 @@ torchvision
 torchaudio
 transformers
 einops
-#triton
+triton
 scikit-learn
 pandas
 numpy

@@ -74,10 +74,6 @@ def main():
     REGION_VOCAB = joblib.load(args.region_vocab_path)
     ISLAND_VOCAB = joblib.load(args.island_vocab_path)
 
-    print(f"  -> [DIAGNOSTIC] First 3 Matrix IDs: {matrix_df['Mutation_ID'].head(3).tolist()}")
-    print(f"  -> [DIAGNOSTIC] First 3 Dict IDs: {list(GLOBAL_SEQ_DICT.keys())[:3]}")
-    print(f"  -> [DIAGNOSTIC] Matrix ID Type: {type(matrix_df['Mutation_ID'].iloc[0])}, Dict ID Type: {type(list(GLOBAL_SEQ_DICT.keys())[0])}")
-    
     # =========================================
     # Model Initialization
     # =========================================
