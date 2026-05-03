@@ -1,60 +1,55 @@
 #!/bin/bash
-# ==============================================================================
-# Slurm Job Configuration
-# ==============================================================================
 #SBATCH --job-name=SilentMethyl_Train
-#SBATCH --output=logs/training_output_%j.log   # Standard output/error log (%j is jobID)
-#SBATCH --error=logs/training_error_%j.log     # Separate file for errors
-#SBATCH --partition=gpu                        # Target the GPU nodes (adjust for your cluster)
-#SBATCH --gres=gpu:1                           # Request 1 GPU (e.g., A100 or V100)
-#SBATCH --cpus-per-task=8                      # Request 8 CPU threads (Matches num_workers)
-#SBATCH --mem=64G                              # Request 64GB of RAM (To handle dataset generation)
-#SBATCH --time=12:00:00                        # Max time limit (12 hours)
+#SBATCH --output=logs/training_output_%j.log
+#SBATCH --error=logs/training_error_%j.log
+#SBATCH --partition=gpu
+#SBATCH --gres=gpu:1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=64G
+#SBATCH --time=12:00:00
 
-# ==============================================================================
-# 1. Environment Setup
-# ==============================================================================
 echo "========================================"
 echo "Starting Job: $SLURM_JOB_ID"
 echo "Running on node: $SLURMD_NODENAME"
 echo "========================================"
 
-# Load your Anaconda/Miniconda module (uncomment and edit based on your cluster's setup)
-# module load anaconda/2023a
-# source activate silentmethyl_env
+# --- 1. ENVIRONMENT SETUP ---
+# Load Python module if required by your cluster
+# module load python/3.10 
 
-# Ensure the output directories exist
-mkdir -p data/processed
-mkdir -p checkpoints
-mkdir -p logs
+# Activate your virtual environment
+# If you uploaded your .venv, use this. If you use Conda, use 'conda activate'
+source .venv/bin/activate
 
-# ==============================================================================
-# 2. Build the Training Data
-# ==============================================================================
+# Ensure directories exist
+mkdir -p data/processed checkpoints logs
+
+# (Optional) Prevent HuggingFace download warnings/limits
+# export HF_TOKEN=your_token_here
+
+# --- 2. BUILD THE TRAINING DATA ---
 echo "[*] Step 1: Executing 01_build_data.py..."
 
-# Note: Update data/raw/... paths to exactly where your raw data sits on the cluster
+# FIXED: Pointing to the REAL matrix and dictionary
 python scripts/01_build_data.py \
-    --matrix_path data/raw/Patient_Omics_Matrix.csv \
-    --dict_path data/raw/Sequence_Dictionary.csv \
+    --matrix_path data/raw/Final_Discovery_Dataset_MultiOmnics.csv \
+    --dict_path data/raw/DNA_Sequence_Dictionary.csv \
     --base_dir data/processed
 
 if [ $? -ne 0 ]; then
     echo "[!] ERROR: Data build failed. Aborting pipeline."
     exit 1
 fi
-echo "[✓] Step 1 Complete."
 
-# ==============================================================================
-# 3. Train the Model & Secure Weights
-# ==============================================================================
+# --- 3. TRAIN THE MODEL ---
 echo "[*] Step 2: Executing 02_train_model.py..."
 
+# FIXED: Updated vocab paths to match the actual output of Step 1
 python scripts/02_train_model.py \
     --matrix_path data/processed/cleaned_training_data.csv \
-    --dict_path data/raw/Sequence_Dictionary.csv \
-    --region_vocab_path data/processed/region_vocab.pkl \
-    --island_vocab_path data/processed/island_vocab.pkl \
+    --dict_path data/raw/DNA_Sequence_Dictionary.csv \
+    --region_vocab_path data/processed/SilentMethyl_RegionVocab.pkl \
+    --island_vocab_path data/processed/SilentMethyl_IslandVocab.pkl \
     --save_dir ./checkpoints \
     --batch_size 32 \
     --num_workers 8 \
@@ -66,5 +61,6 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-echo "[✓] Step 2 Complete. Model weights successfully saved to ./checkpoints/"
+echo "========================================"
 echo "Pipeline finished at $(date)"
+echo "========================================"
