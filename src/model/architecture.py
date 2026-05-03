@@ -14,7 +14,7 @@ def perform_triton_surgery():
     model_path = "zhihan1996/DNABERT-2-117M"
     model_cache_path = snapshot_download(model_path)
 
-    local_model_dir = "/content/DNABERT-2-Fixed"
+    local_model_dir = "./dnabert2_local"
     if os.path.exists(local_model_dir):
         shutil.rmtree(local_model_dir)
     os.makedirs(local_model_dir, exist_ok=True)
@@ -31,8 +31,7 @@ def perform_triton_surgery():
     triton_file = os.path.join(local_model_dir, "flash_attn_triton.py")
     if os.path.exists(triton_file):
         with open(triton_file, "w") as f:
-            f.write("def __getattr__(name):")
-    return None
+            f.write("def __getattr__(name):\n    return None\n")
 
     config_path = os.path.join(local_model_dir, "config.json")
     with open(config_path, "r") as f:

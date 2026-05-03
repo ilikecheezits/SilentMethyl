@@ -4,6 +4,8 @@ from torch.utils.data import Dataset
 class MultiOmicsDataset(Dataset):
     def __init__(self, matrix_df, seq_dict, region_vocab, island_vocab, tokenizer, max_length=512):
         self.matrix_df = matrix_df.reset_index(drop=True)
+        # We keep seq_dict in the init signature so we don't have to change 02_train_model.py, 
+        # but we won't actually use it since the matrix has everything natively.
         self.seq_dict = seq_dict
         self.tokenizer = tokenizer
         self.max_length = max_length
@@ -14,11 +16,12 @@ class MultiOmicsDataset(Dataset):
         return len(self.matrix_df)
 
     def __getitem__(self, idx):
+        # FIX 1: Use self.matrix_df instead of the undefined self.df
         row = self.matrix_df.iloc[idx]
-        probe_id = row['CpG_Target']
-        seq_data = self.seq_dict[probe_id]
         
-        dna_5000 = str(seq_data.get('Healthy_5000bp_DNA', '')).upper()
+        # FIX 2: Pull the mutated sequence directly from the matrix row
+        dna_5000 = str(row['Mutated_5000bp_DNA']).upper()
+        
         # DIVIDE AND CONQUER: Give Language Model the center 1000bp only
         dna_center = dna_5000[2000:3000] if len(dna_5000) >= 3000 else dna_5000
 
@@ -27,24 +30,36 @@ class MultiOmicsDataset(Dataset):
             padding='max_length', return_tensors='pt'
         )
 
+        # FIX 3: Pull all numerical features directly from the 'Mut_' columns in the matrix
         numerical_features = torch.tensor([
             row['Age'],
-            seq_data.get('GC_Content', 0), seq_data.get('CpG_Count', 0),
-            seq_data.get('CpG_OE_Ratio', 0), seq_data.get('GC_Skew', 0),
-            seq_data.get('Shore_Asymmetry', 0), seq_data.get('FOXA1_Motifs', 0),
-            seq_data.get('GATA3_Motifs', 0), seq_data.get('AP1_Motifs', 0),
-            seq_data.get('CTCF_Motifs', 0), seq_data.get('SP1_Motifs', 0),
-            seq_data.get('TpG_CpA_Clock', 0), seq_data.get('Poly_A_Tracts', 0),
-            seq_data.get('Alu_Proxy', 0), seq_data.get('G4_Quadruplex_Proxy', 0),
-            seq_data.get('ERE_Motifs', 0), seq_data.get('E_Box_Motifs', 0),
-            seq_data.get('YY1_Motifs', 0), seq_data.get('HRE_Motifs', 0)
+            row.get('Mut_GC_Content', 0), 
+            row.get('Mut_CpG_Count', 0),
+            row.get('Mut_CpG_OE_Ratio', 0), 
+            row.get('Mut_GC_Skew', 0),
+            row.get('Mut_Shore_Asymmetry', 0), 
+            row.get('Mut_FOXA1_Motifs', 0),
+            row.get('Mut_GATA3_Motifs', 0), 
+            row.get('Mut_AP1_Motifs', 0),
+            row.get('Mut_CTCF_Motifs', 0), 
+            row.get('Mut_SP1_Motifs', 0),
+            row.get('Mut_TpG_CpA_Clock', 0), 
+            row.get('Mut_Poly_A_Tracts', 0),
+            row.get('Mut_Alu_Proxy', 0), 
+            row.get('Mut_G4_Quadruplex_Proxy', 0),
+            row.get('Mut_ERE_Motifs', 0), 
+            row.get('Mut_E_Box_Motifs', 0),
+            row.get('Mut_YY1_Motifs', 0), 
+            row.get('Mut_HRE_Motifs', 0)
         ], dtype=torch.float32)
 
-        region_idx = torch.tensor(self.region_vocab.get(seq_data.get('Gene_Region', 'Unknown'), 0), dtype=torch.long)
-        island_idx = torch.tensor(self.island_vocab.get(seq_data.get('CpG_Island_Status', 'Unknown'), 0), dtype=torch.long)
-        tata_idx = torch.tensor(seq_data.get('TATA_Box_Present', 0), dtype=torch.long)
+        # FIX 4: Pull vocabulary columns directly from the row
+        region_idx = torch.tensor(self.region_vocab.get(row.get('Gene_Region', 'Unknown'), 0), dtype=torch.long)
+        island_idx = torch.tensor(self.island_vocab.get(row.get('CpG_Island_Status', 'Unknown'), 0), dtype=torch.long)
+        tata_idx = torch.tensor(row.get('Mut_TATA_Box_Present', 0), dtype=torch.long)
         
-        target_beta = torch.tensor([row['Beta']], dtype=torch.float32)
+        # FIX 5: Target the correct True_Mutated_Beta column
+        target_beta = torch.tensor([row['True_Mutated_Beta']], dtype=torch.float32)
 
         return {
             'input_ids': encoding['input_ids'].squeeze(0),

@@ -58,10 +58,26 @@ def main():
     print("[*] Loading preprocessed data...")
     tokenizer = AutoTokenizer.from_pretrained(args.model_path, trust_remote_code=True)
     matrix_df = pd.read_csv(args.matrix_path)
-    GLOBAL_SEQ_DICT = joblib.load(args.dict_path)
+    print("[*] Parsing Sequence Dictionary from CSV...")
+    
+    # 1. Read CSV normally (without forcing an index yet)
+    dict_df = pd.read_csv(args.dict_path)
+    
+    # 2. Destroy the invisible row-number column if Excel/Pandas added it
+    dict_df = dict_df.loc[:, ~dict_df.columns.str.contains('^Unnamed')]
+    
+    # 3. Now that the garbage is gone, the FIRST remaining column is the true ID column
+    id_column = dict_df.columns[0]
+    
+    # 4. Set that specific column as the index and convert to dictionary
+    GLOBAL_SEQ_DICT = dict_df.set_index(id_column).to_dict('index')
     REGION_VOCAB = joblib.load(args.region_vocab_path)
     ISLAND_VOCAB = joblib.load(args.island_vocab_path)
 
+    print(f"  -> [DIAGNOSTIC] First 3 Matrix IDs: {matrix_df['Mutation_ID'].head(3).tolist()}")
+    print(f"  -> [DIAGNOSTIC] First 3 Dict IDs: {list(GLOBAL_SEQ_DICT.keys())[:3]}")
+    print(f"  -> [DIAGNOSTIC] Matrix ID Type: {type(matrix_df['Mutation_ID'].iloc[0])}, Dict ID Type: {type(list(GLOBAL_SEQ_DICT.keys())[0])}")
+    
     # =========================================
     # Model Initialization
     # =========================================
@@ -84,13 +100,11 @@ def main():
     # Data Splitting
     # =========================================
     print("[*] Implementing Competition-Grade Splitting...")
-    initial_len = len(matrix_df)
-    valid_probes = set(GLOBAL_SEQ_DICT.keys())
-    matrix_df = matrix_df[matrix_df['CpG_Target'].isin(valid_probes)].copy()
-    print(f"  -> [!] Orphan Interceptor: Dropped {initial_len - len(matrix_df)} probes lacking sequence data.")
 
-    matrix_df['Chromosome'] = matrix_df['CpG_Target'].apply(lambda x: GLOBAL_SEQ_DICT.get(x, {}).get('CpG_chrm', 'Unknown'))
-    matrix_df['True_Pos'] = matrix_df['CpG_Target'].apply(lambda x: GLOBAL_SEQ_DICT.get(x, {}).get('CpG_pos', 0))
+    # Pull directly from the matrix column instead of the dictionary
+    matrix_df['Chromosome'] = matrix_df['CpG_chrm']
+    # Force the fallback to Sequential Binning (since exact position isn't in the matrix)
+    matrix_df['True_Pos'] = None
 
     test_matrix = matrix_df[matrix_df['Chromosome'] == 'chr1'].copy()
     discovery_matrix = matrix_df[matrix_df['Chromosome'] != 'chr1'].copy()
@@ -105,10 +119,13 @@ def main():
         discovery_matrix['Block_ID'] = discovery_matrix['Chromosome'] + "_MB_" + (discovery_matrix['True_Pos'] // BLOCK_SIZE).astype(str)
 
     unique_blocks = discovery_matrix['Block_ID'].unique()
-    train_blocks, val_blocks = train_test_split(unique_blocks, test_size=0.15, random_state=args.seed)
-
-    train_matrix = discovery_matrix[discovery_matrix['Block_ID'].isin(train_blocks)].copy()
-    val_matrix = discovery_matrix[discovery_matrix['Block_ID'].isin(val_blocks)].copy()
+    if len(unique_blocks) < 2:
+        print("  -> [!] Smoke Test Detected: Too few blocks. Engaging probe-level fallback split.")
+        train_matrix, val_matrix = train_test_split(discovery_matrix, test_size=0.15, random_state=args.seed)
+    else:
+        train_blocks, val_blocks = train_test_split(unique_blocks, test_size=0.15, random_state=args.seed)
+        train_matrix = discovery_matrix[discovery_matrix['Block_ID'].isin(train_blocks)].copy()
+        val_matrix = discovery_matrix[discovery_matrix['Block_ID'].isin(val_blocks)].copy()
 
     print(f"  -> Training Probes: {len(train_matrix)}")
     print(f"  -> Validation Probes: {len(val_matrix)}")
