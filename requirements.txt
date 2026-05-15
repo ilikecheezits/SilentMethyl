@@ -7,7 +7,7 @@ accelerate
 safetensors    
 huggingface-hub
 einops
-triton
+#triton
 numpy
 pandas
 scikit-learn

@@ -15,7 +15,10 @@ class MultiOmicsDataset(Dataset):
 
     def __getitem__(self, idx):
         row = self.matrix_df.iloc[idx]
-        dna_5000 = str(row['Mutated_5000bp_DNA']).upper()
+        
+        # Pull the DNA we injected into the matrix
+        dna_5000 = str(row.get('Mutated_5000bp_DNA', '')).upper()
+        # Crop to the center 1000bp as defined in your architecture
         dna_center = dna_5000[2000:3000] if len(dna_5000) >= 3000 else dna_5000
 
         encoding = self.tokenizer(
@@ -23,23 +26,32 @@ class MultiOmicsDataset(Dataset):
             padding='max_length', return_tensors='pt'
         )
 
+        # 1 (Age) + 1 (mRNA_Z) + 18 (Motifs) = 20 Numerical Features
         numerical_features = torch.tensor([
-            row.get('Age', 0),
+            row.get('Age', 0), 
+            row.get('mRNA_Z', 0), # <--- mRNA_Z SUCCESSFULLY ADDED HERE
             row.get('Mut_GC_Content', 0), row.get('Mut_CpG_Count', 0),
             row.get('Mut_CpG_OE_Ratio', 0), row.get('Mut_GC_Skew', 0),
             row.get('Mut_Shore_Asymmetry', 0), row.get('Mut_FOXA1_Motifs', 0),
             row.get('Mut_GATA3_Motifs', 0), row.get('Mut_AP1_Motifs', 0),
-            row.get('Mut_CTCF_Motifs', 0), row.get('Mut_SP1_Motifs', 0),
-            row.get('Mut_TpG_CpA_Clock', 0), row.get('Mut_Poly_A_Tracts', 0),
+            row.get('Mut_CTCF_Motifs', 0), row.get('Mut_SP1_Motifs', 0), 
+            row.get('Mut_TpG_CpA_Clock', 0), row.get('Mut_Poly_A_Tracts', 0), 
             row.get('Mut_Alu_Proxy', 0), row.get('Mut_G4_Quadruplex_Proxy', 0),
-            row.get('Mut_ERE_Motifs', 0), row.get('Mut_E_Box_Motifs', 0),
+            row.get('Mut_ERE_Motifs', 0), row.get('Mut_E_Box_Motifs', 0), 
             row.get('Mut_YY1_Motifs', 0), row.get('Mut_HRE_Motifs', 0)
         ], dtype=torch.float32)
 
-        region_idx = torch.tensor(self.region_vocab.get(row.get('Gene_Region', 'Unknown'), 0), dtype=torch.long)
-        island_idx = torch.tensor(self.island_vocab.get(row.get('CpG_Island_Status', 'Unknown'), 0), dtype=torch.long)
-        tata_idx = torch.tensor(row.get('Mut_TATA_Box_Present', 0), dtype=torch.long)
-        target_beta = torch.tensor([row.get('True_Mutated_Beta', 0.0)], dtype=torch.float32)
+        # Safe region lookups
+        region_str = str(row.get('Gene_Region', 'Unknown'))
+        region_idx = torch.tensor(self.region_vocab.get(region_str, 0), dtype=torch.long)
+        
+        island_str = str(row.get('CpG_Island_Status', 'Unknown'))
+        island_idx = torch.tensor(self.island_vocab.get(island_str, 0), dtype=torch.long)
+        
+        tata_idx = torch.tensor(int(row.get('Mut_TATA_Box_Present', 0)), dtype=torch.long)
+
+        # The Training script expects 'targets' representing your real Beta values
+        target_val = float(row.get('Beta', 0.0))
 
         return {
             'input_ids': encoding['input_ids'].squeeze(0),
@@ -48,7 +60,7 @@ class MultiOmicsDataset(Dataset):
             'region_idx': region_idx,
             'island_idx': island_idx,
             'tata_idx': tata_idx,
-            'targets': target_beta
+            'targets': torch.tensor(target_val, dtype=torch.float32)
         }
 
 class GenomicVariantDataset(Dataset):

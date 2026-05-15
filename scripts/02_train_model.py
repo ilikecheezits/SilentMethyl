@@ -53,24 +53,48 @@ def main():
     os.makedirs(args.save_dir, exist_ok=True)
 
     # =========================================
-    # Data Loading
+    # Data Loading (With Proven DNA Injection Fix)
     # =========================================
     print("[*] Loading preprocessed data...")
     tokenizer = AutoTokenizer.from_pretrained(args.model_path, trust_remote_code=True)
     matrix_df = pd.read_csv(args.matrix_path)
-    print("[*] Parsing Sequence Dictionary from CSV...")
     
-    # 1. Read CSV normally (without forcing an index yet)
+    print("[*] Parsing Sequence Dictionary from CSV...")
     dict_df = pd.read_csv(args.dict_path)
     
-    # 2. Destroy the invisible row-number column if Excel/Pandas added it
+    # Clean columns and find the true ID
     dict_df = dict_df.loc[:, ~dict_df.columns.str.contains('^Unnamed')]
+    id_col = 'probeID' if 'probeID' in dict_df.columns else dict_df.columns[0]
     
-    # 3. Now that the garbage is gone, the FIRST remaining column is the true ID column
-    id_column = dict_df.columns[0]
-    
-    # 4. Set that specific column as the index and convert to dictionary
-    GLOBAL_SEQ_DICT = dict_df.set_index(id_column).to_dict('index')
+    # =========================================
+    # ALIAS FIX: Map Healthy Columns to Dataset Expectations
+    # =========================================
+    if 'Healthy_5000bp_DNA' in dict_df.columns:
+        print("  -> [✓] Mapping 'Healthy_5000bp_DNA' to 'Mutated_5000bp_DNA'")
+        dict_df['Mutated_5000bp_DNA'] = dict_df['Healthy_5000bp_DNA']
+        
+        # Map all the biological metadata so the Dataset doesn't feed zeros!
+        meta_features = [
+            'GC_Content', 'CpG_Count', 'CpG_OE_Ratio', 'GC_Skew', 
+            'Shore_Asymmetry', 'FOXA1_Motifs', 'GATA3_Motifs', 'AP1_Motifs',
+            'CTCF_Motifs', 'SP1_Motifs', 'TpG_CpA_Clock', 'Poly_A_Tracts',
+            'Alu_Proxy', 'G4_Quadruplex_Proxy', 'ERE_Motifs', 'E_Box_Motifs',
+            'YY1_Motifs', 'HRE_Motifs'
+        ]
+        
+        for feat in meta_features:
+            if feat in dict_df.columns:
+                dict_df[f'Mut_{feat}'] = dict_df[feat]
+                
+        print("  -> [✓] Mapped 18 Biological Metadata features to 'Mut_' prefix.")
+    # Build the dictionary for O(1) lookup
+    print("[*] Building Master Sequence Dictionary...")
+    GLOBAL_SEQ_DICT = {}
+    for _, row in tqdm(dict_df.iterrows(), total=len(dict_df), desc="Building Dict"):
+        row_dict = row.to_dict()
+        pid = str(row_dict[id_col]).strip()
+        GLOBAL_SEQ_DICT[pid] = row_dict
+
     REGION_VOCAB = joblib.load(args.region_vocab_path)
     ISLAND_VOCAB = joblib.load(args.island_vocab_path)
 
@@ -91,42 +115,47 @@ def main():
     model = inject_lora_adapters(model)
     print("[✓] Surgery Complete! Model Architecture Built Successfully.")
 
-
     # =========================================
-    # Data Splitting
+    # Data Splitting (With DNA Merge)
     # =========================================
-    print("[*] Implementing Competition-Grade Splitting...")
+    print("[*] Implementing Competition-Grade Splitting (Gene-Level Leakage Prevention)...")
+    unique_genes = matrix_df['Gene'].unique()
+    train_val_genes, test_genes = train_test_split(unique_genes, test_size=0.10, random_state=42)
+    train_genes, val_genes = train_test_split(train_val_genes, test_size=0.15, random_state=42)
+    train_df = matrix_df[matrix_df['Gene'].isin(train_genes)].reset_index(drop=True)
+    val_df = matrix_df[matrix_df['Gene'].isin(val_genes)].reset_index(drop=True)
+    test_df = matrix_df[matrix_df['Gene'].isin(test_genes)].reset_index(drop=True)
+    
+    print(f"  -> Training Probes: {len(train_df)}")
+    print(f"  -> Validation Probes: {len(val_df)}")
+    print(f"  -> BLIND TEST Probes: {len(test_df)}")
+    # =========================================
+    # Data Splitting (With DNA Merge)
+    # =========================================
+    print("[*] Injecting DNA and Coordinates from Sequence Dictionary...")
+    dna_map = dict_df[[id_col, 'CpG_chrm', 'Mutated_5000bp_DNA']].copy()
+    dna_map.columns = ['CpG_Target', 'Chromosome', 'Mutated_5000bp_DNA']
 
-    # Pull directly from the matrix column instead of the dictionary
-    matrix_df['Chromosome'] = matrix_df['CpG_chrm']
-    # Force the fallback to Sequential Binning (since exact position isn't in the matrix)
-    matrix_df['True_Pos'] = None
+    matrix_df = matrix_df.merge(dna_map, on='CpG_Target', how='inner')
+    matrix_df['True_Pos'] = np.nan 
+    
+    print(f"  -> [✓] Coordinates & DNA merged. Samples: {len(matrix_df)}")
+    
+    print("[*] Implementing Competition-Grade Splitting (Gene-Level Leakage Prevention)...")
+    unique_genes = matrix_df['Gene'].dropna().unique() 
+    
+    train_val_genes, test_genes = train_test_split(unique_genes, test_size=0.10, random_state=42)
+    train_genes, val_genes = train_test_split(train_val_genes, test_size=0.15, random_state=42)
 
-    test_matrix = matrix_df[matrix_df['Chromosome'] == 'chr1'].copy()
-    discovery_matrix = matrix_df[matrix_df['Chromosome'] != 'chr1'].copy()
-
-    if discovery_matrix['True_Pos'].isnull().any():
-        print("  -> [!] Exact positions not found. Engaging Sequential Index Binning.")
-        discovery_matrix = discovery_matrix.sort_values(by='Chromosome').reset_index(drop=True)
-        discovery_matrix['Block_ID'] = discovery_matrix['Chromosome'] + "_Block_" + (discovery_matrix.index // 50).astype(str)
-    else:
-        print("  -> [✓] Exact positions found. Engaging 1-Megabase Binning.")
-        BLOCK_SIZE = 1_000_000
-        discovery_matrix['Block_ID'] = discovery_matrix['Chromosome'] + "_MB_" + (discovery_matrix['True_Pos'] // BLOCK_SIZE).astype(str)
-
-    unique_blocks = discovery_matrix['Block_ID'].unique()
-    if len(unique_blocks) < 2:
-        print("  -> [!] Smoke Test Detected: Too few blocks. Engaging probe-level fallback split.")
-        train_matrix, val_matrix = train_test_split(discovery_matrix, test_size=0.15, random_state=args.seed)
-    else:
-        train_blocks, val_blocks = train_test_split(unique_blocks, test_size=0.15, random_state=args.seed)
-        train_matrix = discovery_matrix[discovery_matrix['Block_ID'].isin(train_blocks)].copy()
-        val_matrix = discovery_matrix[discovery_matrix['Block_ID'].isin(val_blocks)].copy()
-
+    train_matrix = matrix_df[matrix_df['Gene'].isin(train_genes)].reset_index(drop=True)
+    val_matrix = matrix_df[matrix_df['Gene'].isin(val_genes)].reset_index(drop=True)
+    test_matrix = matrix_df[matrix_df['Gene'].isin(test_genes)].reset_index(drop=True)
+    
     print(f"  -> Training Probes: {len(train_matrix)}")
     print(f"  -> Validation Probes: {len(val_matrix)}")
-    print(f"  -> BLIND TEST Probes (Chr1): {len(test_matrix)}")
+    print(f"  -> BLIND TEST Probes: {len(test_matrix)}")
 
+    # Pass the perfectly split matrices to the dataset
     train_dataset = MultiOmicsDataset(train_matrix, GLOBAL_SEQ_DICT, REGION_VOCAB, ISLAND_VOCAB, tokenizer)
     val_dataset = MultiOmicsDataset(val_matrix, GLOBAL_SEQ_DICT, REGION_VOCAB, ISLAND_VOCAB, tokenizer)
 
@@ -136,13 +165,19 @@ def main():
     # =========================================
     # Training Setup
     # =========================================
-    print("[*] Configuring Differential Optimizers (LoRA Boost Active)...")
-    lora_params = [p for n, p in model.named_parameters() if 'lora' in n and p.requires_grad]
-    head_params = [p for n, p in model.named_parameters() if 'lora' not in n and p.requires_grad]
+    print("[*] Configuring Differential Optimizers (DNA/LoRA Boost vs Throttled Metadata)...")
+    dna_params = [
+        p for n, p in model.named_parameters() 
+        if p.requires_grad and ('lora' in n or 'dna_head' in n or 'dna_weight' in n)
+    ]
+    meta_params = [
+        p for n, p in model.named_parameters() 
+        if p.requires_grad and ('meta_head' in n or 'emb' in n or 'meta_weight' in n)
+    ]
 
     optimizer = optim.AdamW([
-        {'params': lora_params, 'lr': args.lr, 'weight_decay': 0.01},
-        {'params': head_params, 'lr': args.lr, 'weight_decay': 0.00}
+        {'params': dna_params, 'lr': args.lr, 'weight_decay': 0.01},       # Fast: 1e-4
+        {'params': meta_params, 'lr': args.lr * 0.1, 'weight_decay': 0.01} # Slow: 1e-5
     ])
 
     criterion_class = FocalLossWithLogits(alpha=0.5, gamma=2.0)
@@ -152,7 +187,7 @@ def main():
     best_val_loss = float('inf')
 
     TOTAL_STEPS = args.steps_per_epoch * args.epochs
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=TOTAL_STEPS)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=TOTAL_STEPS // args.grad_accum_steps)
     
     # =========================================
     # Training Loop
@@ -179,14 +214,37 @@ def main():
             tata_idx = batch['tata_idx'].to(device)
             true_beta = batch['targets'].to(device).view(-1, 1)
 
-            pred_class_logits, pred_reg_logits = model(input_ids, attention_mask, num_feats, reg_idx, isl_idx, tata_idx)
+            dropout_prob = 0.75 
+            global_step = (epoch - 1) * args.steps_per_epoch + step
+            is_warmup = global_step < 1000
+
+            if not is_warmup:
+                # Post-Warmup: 75% Modality Dropout
+                dropout_prob = 0.75 
+                batch_size_current = num_feats.size(0)
+                modality_mask = (torch.rand(batch_size_current, 1, device=device) > dropout_prob).float()
+                num_feats = num_feats * modality_mask
+                mask_long = modality_mask.squeeze(-1).long()
+                reg_idx = reg_idx * mask_long
+                isl_idx = isl_idx * mask_long
+                tata_idx = tata_idx * mask_long
+            else:
+                num_feats = num_feats * 0
+                reg_idx = reg_idx * 0
+                isl_idx = isl_idx * 0
+                tata_idx = tata_idx * 0
+
+            pred_class_logits, pred_reg_logits = model(
+                input_ids, attention_mask, num_feats, reg_idx, isl_idx, tata_idx, dna_only=is_warmup
+            )
+            
             pred_beta = torch.sigmoid(pred_reg_logits)
             target_class = (true_beta > 0.5).float()
 
             loss_class = criterion_class(pred_class_logits, target_class)
             loss_reg = criterion_reg(pred_beta, true_beta)
 
-            loss = (0.25 * loss_class + 0.75 * loss_reg) / args.grad_accum_steps
+            loss = (0.25 * loss_class + 0.75 * loss_reg)    / args.grad_accum_steps
 
             if torch.isnan(loss):
                 raise ValueError("Training halted to prevent weight corruption.")
@@ -228,7 +286,7 @@ def main():
                 tata_idx = batch['tata_idx'].to(device)
                 true_beta = batch['targets'].to(device).view(-1, 1)
 
-                pred_class_logits, pred_reg_logits = model(input_ids, attention_mask, num_feats, reg_idx, isl_idx, tata_idx)
+                pred_class_logits, pred_reg_logits = model(input_ids, attention_mask, num_feats, reg_idx, isl_idx, tata_idx, dna_only=False)
                 pred_beta = torch.sigmoid(pred_reg_logits)
 
                 loss_class = criterion_class(pred_class_logits, (true_beta > 0.5).float())
@@ -254,7 +312,7 @@ def main():
         history['train_loss'].append(avg_train_loss)
         history['val_loss'].append(avg_val_loss)
 
-        print(f"{'='*50}")
+        print(f"\n{'='*50}")
         print(f"--- SUB-EPOCH {epoch} COMPETITION TELEMETRY ---")
         print(f"-> Train Loss:     {avg_train_loss:.4f}")
         print(f"-> Val Loss:       {avg_val_loss:.4f}")
@@ -293,8 +351,8 @@ def main():
 
         plt.tight_layout()
         plt.savefig(os.path.join(args.save_dir, f"training_history_epoch_{epoch}.png"))
-        #plt.show()
-        print(f"{'='*50}")
+        plt.close() # Close the figure to save memory
+        print(f"{'='*50}\n")
 
 if __name__ == "__main__":
     main()

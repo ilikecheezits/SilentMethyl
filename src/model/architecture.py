@@ -46,45 +46,54 @@ def perform_triton_surgery():
     return local_model_dir
 
 class SilentMethylModel(nn.Module):
-    def __init__(self, patched_config, region_vocab_size, island_vocab_size, meta_dim=19):
+    def __init__(self, patched_config, region_vocab_size, island_vocab_size, meta_dim=20):
         super().__init__()
+        
+        # 1. DNA BRANCH (The Residual)
         self.bert = AutoModel.from_config(patched_config, trust_remote_code=True)
         self.seq_out_dim = self.bert.config.hidden_size
-
-        self.reg_emb = nn.Embedding(num_embeddings=region_vocab_size, embedding_dim=8)
-        self.isl_emb = nn.Embedding(num_embeddings=island_vocab_size, embedding_dim=8)
-        self.tata_emb = nn.Embedding(num_embeddings=2, embedding_dim=4)
-
-        self.meta_out_dim = meta_dim + 8 + 8 + 4
-        self.seq_proj = nn.Linear(self.seq_out_dim, 128)
-        self.meta_proj = nn.Sequential(
-            nn.Linear(self.meta_out_dim, 256),
+        self.dna_head = nn.Sequential(
+            nn.Linear(self.seq_out_dim, 256),
+            nn.LayerNorm(256),
             nn.GELU(),
-            nn.Dropout(0.1),
-            nn.Linear(256, 128)
+            nn.Linear(256, 1) 
+        )
+        
+        # 2. METADATA BRANCH (The Global Mean)
+        self.reg_emb = nn.Embedding(region_vocab_size, 16)
+        self.isl_emb = nn.Embedding(island_vocab_size, 16)
+        self.tata_emb = nn.Embedding(2, 4)
+        
+        self.meta_total_dim = meta_dim + 16 + 16 + 4
+        self.meta_head = nn.Sequential(
+            nn.Linear(self.meta_total_dim, 128),
+            nn.LayerNorm(128),
+            nn.GELU(),
+            nn.Linear(128, 1)
         )
 
-        self.classifier = nn.Linear(128, 1)
-        self.regressor = nn.Linear(128, 1)
+        # 3. LEARNABLE SCALERS
+        self.dna_weight = nn.Parameter(torch.ones(1) * 0.5)
+        self.meta_weight = nn.Parameter(torch.ones(1) * 0.5)
 
-    def forward(self, input_ids, attention_mask, num_feats, reg_idx, isl_idx, tata_idx):
+    def forward(self, input_ids, attention_mask, num_feats, reg_idx, isl_idx, tata_idx, dna_only=False):
+        # A. Sequence Processing with Mean Pooling
         outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
-        if isinstance(outputs, tuple):
-            seq_emb = outputs[0][:, 0, :]
-        else:
-            seq_emb = outputs.last_hidden_state[:, 0, :]
+        # Mean pooling is mathematically better for finding motifs anywhere in the 1kb
+        seq_emb = torch.topk(outputs[0], k=3, dim=1).values.mean(dim=1)
+        dna_logits = self.dna_head(seq_emb)
 
-        seq_proj = self.seq_proj(seq_emb)
-        reg_embedded = self.reg_emb(reg_idx)
-        isl_embedded = self.isl_emb(isl_idx)
-        tata_embedded = self.tata_emb(tata_idx)
+        # WARMUP TRAP: If in warmup, return DNA predictions immediately
+        if dna_only:
+            return dna_logits, dna_logits
 
-        meta_concat = torch.cat([num_feats, reg_embedded, isl_embedded, tata_embedded], dim=1)
-        meta_gate = torch.sigmoid(self.meta_proj(meta_concat))
+        # B. Metadata Processing
+        reg_e = self.reg_emb(reg_idx)
+        isl_e = self.isl_emb(isl_idx)
+        tata_e = self.tata_emb(tata_idx)
+        meta_input = torch.cat([num_feats, reg_e, isl_e, tata_e], dim=1)
+        meta_logits = self.meta_head(meta_input)
 
-        fused = seq_proj + (seq_proj * meta_gate)
-
-        class_logits = self.classifier(fused)
-        reg_logits = self.regressor(fused)
-
-        return class_logits, reg_logits
+        # C. ADDITIVE DECOMPOSITION
+        combined = (self.dna_weight * dna_logits) + (self.meta_weight * meta_logits)
+        return combined, combined
