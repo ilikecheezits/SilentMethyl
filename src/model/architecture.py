@@ -80,7 +80,8 @@ class SilentMethylModel(nn.Module):
         # A. Sequence Processing with Mean Pooling
         outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
         # Mean pooling is mathematically better for finding motifs anywhere in the 1kb
-        seq_emb = torch.topk(outputs[0], k=3, dim=1).values.mean(dim=1)
+        k_val = min(3, outputs[0].size(1))
+        seq_emb = torch.topk(outputs[0], k=k_val, dim=1).values.mean(dim=1)
         dna_logits = self.dna_head(seq_emb)
 
         # WARMUP TRAP: If in warmup, return DNA predictions immediately
