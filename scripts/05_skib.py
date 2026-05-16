@@ -144,6 +144,5 @@ def main():
         print(f"-> Evaluated {len(actual_patient_betas)} real clinical mutations.")
         print(f"-> Mean Absolute Error (MAE): {final_mae:.4f}")
         print("="*80 + "\n")
-        
 if __name__ == "__main__":
     main()

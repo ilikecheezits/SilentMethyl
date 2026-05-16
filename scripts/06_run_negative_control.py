@@ -45,26 +45,22 @@ def get_synonymous_mutation(sequence, pos):
     return new_codon[mutation_idx_in_codon]
 
 def main():
-    parser = argparse.ArgumentParser(description="Run Negative Control Specificity Test.")
-    parser.add_argument("--data_path", type=str, required=True, help="Path to the cleaned inference data CSV.")
+    parser = argparse.ArgumentParser(description="Monte Carlo Logit Distribution Test.")
+    parser.add_argument("--data_path", type=str, required=True, help="Path to cleaned inference data CSV.")
     parser.add_argument("--base_dir", type=str, default="./checkpoints", help="Base directory for artifacts.")
     parser.add_argument("--weights_path", type=str, required=True, help="Path to trained model weights.")
-    parser.add_argument("--n_permutations", type=int, default=100, help="Number of synonymous permutations.")
+    parser.add_argument("--n_permutations", type=int, default=1000, help="Number of Monte Carlo iterations.")
     args = parser.parse_args()
 
-    print("--- RUNNING NEGATIVE CONTROL SPECIFICITY TEST ---")
+    print("--- RUNNING MONTE CARLO NULL DISTRIBUTION TEST ---")
     device = torch.device('cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu')
     
-    # 1. Load the first stable/benign sequence from the dataset
+    # 1. Load the dataset (excluding our Golden Controls so they don't bias the background)
     df = pd.read_csv(args.data_path)
-    # Assume the first row is our negative control baseline
-    baseline_row = df.iloc[0]
-    wt_seq_full = str(baseline_row['Healthy_5000bp_DNA']).upper()
-    wt_center = wt_seq_full[2000:3000] if len(wt_seq_full) >= 3000 else wt_seq_full
+    df_real = df[~df['Mutation_ID'].str.startswith('GOLDEN')].copy()
     
-    print(f"[*] Selected Baseline Gene: {baseline_row.get('Gene', 'Unknown')}")
-
     # 2. Rebuild Architecture
+    print("[*] Initializing AI Architecture...")
     REGION_VOCAB = joblib.load(os.path.join("data", "processed", "SilentMethyl_RegionVocab.pkl"))
     ISLAND_VOCAB = joblib.load(os.path.join("data", "processed", "SilentMethyl_IslandVocab.pkl"))
     tokenizer = AutoTokenizer.from_pretrained("zhihan1996/DNABERT-2-117M", trust_remote_code=True)
@@ -76,86 +72,112 @@ def main():
     model.load_state_dict(torch.load(args.weights_path, map_location=device), strict=False)
     model.eval()
 
-    # 3. Extract baseline tensors (Static for all permutations)
-    wt_inputs = tokenizer(wt_center, return_tensors="pt", truncation=True, max_length=512, padding="max_length")
-    input_ids = wt_inputs['input_ids'].to(device)
-    attention_mask = wt_inputs['attention_mask'].to(device)
-    
-    # Extract numericals exactly as dataset.py does
-    num_tensor = torch.tensor([[
-        baseline_row.get('Age', 0), baseline_row.get('WT_GC_Content', 0), baseline_row.get('WT_CpG_Count', 0), 
-        baseline_row.get('WT_CpG_OE_Ratio', 0), baseline_row.get('WT_GC_Skew', 0), baseline_row.get('WT_Shore_Asymmetry', 0), 
-        baseline_row.get('WT_FOXA1_Motifs', 0), baseline_row.get('WT_GATA3_Motifs', 0), baseline_row.get('WT_AP1_Motifs', 0), 
-        baseline_row.get('WT_CTCF_Motifs', 0), baseline_row.get('WT_SP1_Motifs', 0), baseline_row.get('WT_TpG_CpA_Clock', 0), 
-        baseline_row.get('WT_Poly_A_Tracts', 0), baseline_row.get('WT_Alu_Proxy', 0), baseline_row.get('WT_G4_Quadruplex_Proxy', 0), 
-        baseline_row.get('WT_ERE_Motifs', 0), baseline_row.get('WT_E_Box_Motifs', 0), baseline_row.get('WT_YY1_Motifs', 0), 
-        baseline_row.get('WT_HRE_Motifs', 0)
-    ]], dtype=torch.float32).to(device)
-    
-    region_idx = torch.tensor([REGION_VOCAB.get(baseline_row.get('Gene_Region', 'Unknown'), 0)], dtype=torch.long).to(device)
-    island_idx = torch.tensor([ISLAND_VOCAB.get(baseline_row.get('CpG_Island_Status', 'Unknown'), 0)], dtype=torch.long).to(device)
-    tata_idx = torch.tensor([baseline_row.get('WT_TATA_Box_Present', 0)], dtype=torch.long).to(device)
+    print(f"[*] Generating {args.n_permutations} Synonymous Permutations across random patient backgrounds...")
 
-    # 4. Calculate True WT Baseline Probability
-    with torch.no_grad():
-        _, wt_logits = model(input_ids, attention_mask, num_tensor, region_idx, island_idx, tata_idx)
-        wt_prob = torch.sigmoid(wt_logits).item()
-
-    print(f"[*] Established WT Baseline Probability: {wt_prob:.4f}")
-    print(f"[*] Generating {args.n_permutations} Synonymous Permutations...")
-
-    # 5. Permutation Loop
-    delta_p_results = []
+    logit_delta_results = []
     attempts = 0
     
     with torch.no_grad():
         pbar = tqdm(total=args.n_permutations)
-        while len(delta_p_results) < args.n_permutations and attempts < 10000:
+        while len(logit_delta_results) < args.n_permutations and attempts < (args.n_permutations * 10):
             attempts += 1
+            
+            # Sample a random patient background
+            row = df_real.sample(1).iloc[0]
+            wt_seq_full = str(row['Healthy_5000bp_DNA']).upper()
+            wt_center = wt_seq_full[2000:3000] if len(wt_seq_full) >= 3000 else wt_seq_full
+            
             # Pick a random pos in the center 1000bp
             pos = random.randint(100, 900) 
             new_base = get_synonymous_mutation(wt_center, pos)
 
             if new_base:
+                # Build mutant sequence
                 seq_list = list(wt_center)
                 seq_list[pos] = new_base
-                mut_seq = "".join(seq_list)
+                mut_center = "".join(seq_list)
 
-                mut_inputs = tokenizer(mut_seq, return_tensors="pt", truncation=True, max_length=512, padding="max_length")
-                mut_ids = mut_inputs['input_ids'].to(device)
-                mut_mask = mut_inputs['attention_mask'].to(device)
-
-                _, mut_logits = model(mut_ids, mut_mask, num_tensor, region_idx, island_idx, tata_idx)
-                mut_prob_val = torch.sigmoid(mut_logits).item()
+                # Tokenize
+                wt_inputs = tokenizer(wt_center, return_tensors="pt", truncation=True, max_length=512, padding="max_length")
+                mut_inputs = tokenizer(mut_center, return_tensors="pt", truncation=True, max_length=512, padding="max_length")
                 
-                delta_p_results.append(mut_prob_val - wt_prob)
+                # Extract numericals safely
+                num_tensor = torch.tensor([[
+                    row.get('Age', 0), row.get('WT_GC_Content', 0), row.get('WT_CpG_Count', 0), 
+                    row.get('WT_CpG_OE_Ratio', 0), row.get('WT_GC_Skew', 0), row.get('WT_Shore_Asymmetry', 0), 
+                    row.get('WT_FOXA1_Motifs', 0), row.get('WT_GATA3_Motifs', 0), row.get('WT_AP1_Motifs', 0), 
+                    row.get('WT_CTCF_Motifs', 0), row.get('WT_SP1_Motifs', 0), row.get('WT_TpG_CpA_Clock', 0), 
+                    row.get('WT_Poly_A_Tracts', 0), row.get('WT_Alu_Proxy', 0), row.get('WT_G4_Quadruplex_Proxy', 0), 
+                    row.get('WT_ERE_Motifs', 0), row.get('WT_E_Box_Motifs', 0), row.get('WT_YY1_Motifs', 0), 
+                    row.get('WT_HRE_Motifs', 0)
+                ]], dtype=torch.float32).to(device)
+                
+                region_idx = torch.tensor([REGION_VOCAB.get(row.get('Gene_Region', 'Unknown'), 0)], dtype=torch.long).to(device)
+                island_idx = torch.tensor([ISLAND_VOCAB.get(row.get('CpG_Island_Status', 'Unknown'), 0)], dtype=torch.long).to(device)
+                tata_idx = torch.tensor([row.get('WT_TATA_Box_Present', 0)], dtype=torch.long).to(device)
+
+                # Run WT Inference
+                out_wt = model(wt_inputs['input_ids'].to(device), wt_inputs['attention_mask'].to(device), num_tensor, region_idx, island_idx, tata_idx)
+                # Safely parse tuple return
+                debug_wt = out_wt[1] if isinstance(out_wt[1], dict) else out_wt[0]
+
+                # Run MUT Inference
+                out_mut = model(mut_inputs['input_ids'].to(device), mut_inputs['attention_mask'].to(device), num_tensor, region_idx, island_idx, tata_idx)
+                debug_mut = out_mut[1] if isinstance(out_mut[1], dict) else out_mut[0]
+                
+                # --- THE PURE ESTIMATOR ---
+                wt_dna_logit = debug_wt['dna_logits'][0].item()
+                mut_dna_logit = debug_mut['dna_logits'][0].item()
+                dna_weight = debug_wt['dna_weight_val']
+                
+                true_logit_delta = (mut_dna_logit - wt_dna_logit) * dna_weight
+                logit_delta_results.append(true_logit_delta)
+                
                 pbar.update(1)
         pbar.close()
 
     # 6. Statistical Proof & Plotting
-    mean_noise = np.mean(delta_p_results)
-    std_noise = np.std(delta_p_results)
+    mean_noise = np.mean(logit_delta_results)
+    std_noise = np.std(logit_delta_results)
+    
+    # Calculate Statistical Boundaries
+    p_01_bound = 2.58 * std_noise
+    p_001_bound = 3.29 * std_noise
 
-    print("\n--- STATISTICAL TOPOLOGY & VISUAL PROOF ---")
+    print("\n--- MONTE CARLO STATISTICAL TOPOLOGY ---")
     print(f"Empirical Mean (μ): {mean_noise:.6f}")
     print(f"Empirical Std Dev (σ): {std_noise:.6f}")
+    print(f"p < 0.01 Boundary (2.58σ): ±{p_01_bound:.6f}")
+    print(f"p < 0.001 Boundary (3.29σ): ±{p_001_bound:.6f}")
 
-    if std_noise < 0.01:
-        print("🚨 SUCCESS: Latent manifold is highly stable. Model exhibits ~zero erratic hallucination.")
-
-    plt.figure(figsize=(8, 5))
-    sns.histplot(delta_p_results, bins=30, kde=True, color='#00FFFF', stat='density')
-    plt.axvline(0, color='white', linestyle='--', linewidth=1.5, label='Zero Shift (Perfect Stability)')
-    plt.xlim(-0.15, 0.15)
-    plt.title(f'Negative Control Topology (n={args.n_permutations})\nProving Strict Model Specificity')
-    plt.xlabel('Absolute Probability Shift (ΔP)')
-    plt.ylabel('Density')
-    plt.legend()
-    plt.style.use('dark_background')
+    # Plot the True Delta Z Distribution
+    plt.figure(figsize=(10, 6))
+    sns.histplot(logit_delta_results, bins=50, kde=True, color='#00FFFF', stat='density')
     
-    plot_path = os.path.join(args.base_dir, 'negative_control_specificity.png')
+    # Add Statistical Boundaries
+    plt.axvline(0, color='white', linestyle='-', linewidth=2, label='Zero Shift (Mean)')
+    plt.axvline(p_01_bound, color='#FF3333', linestyle='--', linewidth=1.5, label=f'p < 0.01 (+{p_01_bound:.4f})')
+    plt.axvline(-p_01_bound, color='#FF3333', linestyle='--', linewidth=1.5)
+    plt.axvline(p_001_bound, color='#FF00FF', linestyle=':', linewidth=1.5, label=f'p < 0.001 (+{p_001_bound:.4f})')
+    plt.axvline(-p_001_bound, color='#FF00FF', linestyle=':', linewidth=1.5)
+
+    # Styling
+    plt.title(f'Monte Carlo Null Distribution of Logit Difference (ΔZ)\nn={args.n_permutations} Synonymous Mutations', pad=15)
+    plt.xlabel('Unbiased Causal Shift (ΔZ)')
+    plt.ylabel('Density')
+    plt.legend(loc='upper right')
+    plt.style.use('dark_background')
+    plt.tight_layout()
+    
+    plot_path = os.path.join(args.base_dir, 'Monte_Carlo_Null_Distribution.png')
     plt.savefig(plot_path, dpi=300)
-    print(f"[✓] Specificity proof saved to {plot_path}")
+    
+    # Save the raw data
+    csv_path = os.path.join(args.base_dir, 'Monte_Carlo_Raw_Logits.csv')
+    pd.DataFrame({'Logit_Delta': logit_delta_results}).to_csv(csv_path, index=False)
+    
+    print(f"[✓] Visual proof saved to {plot_path}")
+    print(f"[✓] Raw data saved to {csv_path}")
 
 if __name__ == "__main__":
     main()
