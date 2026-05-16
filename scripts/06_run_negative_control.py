@@ -87,8 +87,11 @@ def main():
             wt_seq_full = str(row['Healthy_5000bp_DNA']).upper()
             wt_center = wt_seq_full[2000:3000] if len(wt_seq_full) >= 3000 else wt_seq_full
             
-            # Pick a random pos in the center 1000bp
-            pos = random.randint(100, 900) 
+            # --- FIX: SAFE BOUNDARIES ---
+            # Prevent IndexError by bounding the random choice strictly to the actual sequence length
+            upper_bound = min(900, len(wt_center) - 4)
+            lower_bound = min(100, max(0, upper_bound - 1))
+            pos = random.randint(lower_bound, upper_bound)
             new_base = get_synonymous_mutation(wt_center, pos)
 
             if new_base:
