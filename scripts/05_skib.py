@@ -1,6 +1,7 @@
 import os
 import sys
 import argparse
+import math
 import torch
 import joblib
 import pandas as pd
@@ -21,6 +22,7 @@ def main():
     parser.add_argument("--region_vocab", type=str, default="data/processed/SilentMethyl_RegionVocab.pkl", help="Path to region vocab.")
     parser.add_argument("--island_vocab", type=str, default="data/processed/SilentMethyl_IslandVocab.pkl", help="Path to island vocab.")
     parser.add_argument("--save_dir", type=str, default="checkpoints", help="Where to save the ISM results.")
+    parser.add_argument("--batch_size", type=int, default=32, help="Number of sequences to process simultaneously on the GPU.")
     args = parser.parse_args()
 
     # --- SETUP RIGOROUS LOGGING ---
@@ -28,7 +30,7 @@ def main():
     logger = logging.getLogger(__name__)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    logger.info(f"[*] ISM Engine Online. Running on: {device}")
+    logger.info(f"[*] ISM Engine Online. Running on: {device} with Batch Size: {args.batch_size}")
 
     # 1. LOAD DATA
     logger.info(f"[*] Loading Data: {args.mutation_matrix}")
@@ -53,91 +55,132 @@ def main():
     model.eval()
     logger.info("[✓] Brain Loaded Successfully.")
 
-    # 5. RUN ISM OVER ALL VARIANTS
+    # 5. RUN ISM OVER ALL VARIANTS (BATCHED)
     results = []
     actual_patient_betas = []
     predicted_patient_betas = []
     
-    logger.info("\n[*] Commencing Variant Effect Prediction (VEP)...")
+    logger.info("\n[*] Commencing HIGH-THROUGHPUT Variant Effect Prediction (VEP)...")
     
+    num_batches = math.ceil(len(ism_df) / args.batch_size)
+
     with torch.no_grad():
-        for idx, row in tqdm(ism_df.iterrows(), total=len(ism_df), desc="Scanning"):
-            
-            # --- FROZEN METADATA VECTOR ---
-            wt_num_feats = torch.tensor([[
-                row.get('Age', 0), row.get('WT_mRNA_ZScore', row.get('mRNA_Z', 0)),
-                row.get('WT_GC_Content', 0), row.get('WT_CpG_Count', 0),
-                row.get('WT_CpG_OE_Ratio', 0), row.get('WT_GC_Skew', 0),
-                row.get('WT_Shore_Asymmetry', 0), row.get('WT_FOXA1_Motifs', 0),
-                row.get('WT_GATA3_Motifs', 0), row.get('WT_AP1_Motifs', 0),
-                row.get('WT_CTCF_Motifs', 0), row.get('WT_SP1_Motifs', 0), 
-                row.get('WT_TpG_CpA_Clock', 0), row.get('WT_Poly_A_Tracts', 0), 
-                row.get('WT_Alu_Proxy', 0), row.get('WT_G4_Quadruplex_Proxy', 0),
-                row.get('WT_ERE_Motifs', 0), row.get('WT_E_Box_Motifs', 0), 
-                row.get('WT_YY1_Motifs', 0), row.get('WT_HRE_Motifs', 0)
-            ]], dtype=torch.float32).to(device)
+        for i in tqdm(range(num_batches), desc="Processing Batches"):
+            batch_df = ism_df.iloc[i * args.batch_size : (i + 1) * args.batch_size]
 
-            reg_idx = torch.tensor([REGION_VOCAB.get(str(row.get('Gene_Region', 'Unknown')), 0)], dtype=torch.long).to(device)
-            isl_idx = torch.tensor([ISLAND_VOCAB.get(str(row.get('CpG_Island_Status', 'Unknown')), 0)], dtype=torch.long).to(device)
-            tata_idx = torch.tensor([int(row.get('WT_TATA_Box_Present', 0))], dtype=torch.long).to(device)
+            wt_seqs, mut_seqs = [], []
+            num_feats_list, reg_idx_list, isl_idx_list, tata_idx_list = [], [], [], []
 
-            # --- RUN WILD-TYPE ---
-            wt_seq = str(row.get('Healthy_5000bp_DNA', '')).upper()
-            mid_wt = len(wt_seq) // 2
-            start_wt = max(0, mid_wt - 500)
-            wt_center = wt_seq[start_wt:start_wt+1000]
-            
-            wt_tokens = tokenizer(wt_center, return_tensors='pt', truncation=True, max_length=512, padding='max_length')
-            wt_logits, wt_debug = model(
-                wt_tokens['input_ids'].to(device), wt_tokens['attention_mask'].to(device), 
-                wt_num_feats, reg_idx, isl_idx, tata_idx
-            )
-            wt_prob = torch.sigmoid(wt_logits).item()
+            for _, row in batch_df.iterrows():
+                # Extract numerical features
+                num_feats_list.append([
+                    row.get('Age', 0), row.get('WT_mRNA_ZScore', row.get('mRNA_Z', 0)),
+                    row.get('WT_GC_Content', 0), row.get('WT_CpG_Count', 0),
+                    row.get('WT_CpG_OE_Ratio', 0), row.get('WT_GC_Skew', 0),
+                    row.get('WT_Shore_Asymmetry', 0), row.get('WT_FOXA1_Motifs', 0),
+                    row.get('WT_GATA3_Motifs', 0), row.get('WT_AP1_Motifs', 0),
+                    row.get('WT_CTCF_Motifs', 0), row.get('WT_SP1_Motifs', 0), 
+                    row.get('WT_TpG_CpA_Clock', 0), row.get('WT_Poly_A_Tracts', 0), 
+                    row.get('WT_Alu_Proxy', 0), row.get('WT_G4_Quadruplex_Proxy', 0),
+                    row.get('WT_ERE_Motifs', 0), row.get('WT_E_Box_Motifs', 0), 
+                    row.get('WT_YY1_Motifs', 0), row.get('WT_HRE_Motifs', 0)
+                ])
 
-            # --- RUN MUTATED ---
-            mut_seq = str(row.get('Mutated_5000bp_DNA', '')).upper()
-            mid_mut = len(mut_seq) // 2
-            start_mut = max(0, mid_mut - 500)
-            mut_center = mut_seq[start_mut:start_mut+1000]
+                reg_idx_list.append(REGION_VOCAB.get(str(row.get('Gene_Region', 'Unknown')), 0))
+                isl_idx_list.append(ISLAND_VOCAB.get(str(row.get('CpG_Island_Status', 'Unknown')), 0))
+                tata_idx_list.append(int(row.get('WT_TATA_Box_Present', 0)))
 
-            mut_tokens = tokenizer(mut_center, return_tensors='pt', truncation=True, max_length=512, padding='max_length')
-            mut_logits, mut_debug = model(
-                mut_tokens['input_ids'].to(device), mut_tokens['attention_mask'].to(device), 
-                wt_num_feats, reg_idx, isl_idx, tata_idx
-            )
-            mut_prob = torch.sigmoid(mut_logits).item()
-            
-            # --- RIGOROUS INSPECTION LOGGING ---
-            mut_id = row.get('Mutation_ID', f"Var_{idx}")
-            if idx < 3 or "CTRL" in mut_id.upper():  
-                logger.info(f"\n[🔍 DEBUG] Inspecting: {mut_id}")
-                logger.info(f"   -> Meta Logits (WT vs MUT): {wt_debug['meta_logits'][0].item():.4f} vs {mut_debug['meta_logits'][0].item():.4f}  <-- THESE MUST BE IDENTICAL!")
-                logger.info(f"   -> DNA Logits  (WT vs MUT): {wt_debug['dna_logits'][0].item():.4f} vs {mut_debug['dna_logits'][0].item():.4f}  <-- THIS IS THE TRUE DELTA")
-                logger.info(f"   -> Active DNA Weight Scaler : {wt_debug['dna_weight_val']:.4f}")
-                logger.info(f"   -> Active Meta Weight Scaler: {wt_debug['meta_weight_val']:.4f}")
+                # Extract WT Sequence
+                wt_seq = str(row.get('Healthy_5000bp_DNA', '')).upper()
+                mid_wt = len(wt_seq) // 2
+                start_wt = max(0, mid_wt - 500)
+                wt_seqs.append(wt_seq[start_wt:start_wt+1000])
 
-            delta_p = mut_prob - wt_prob
+                # Extract Mutated Sequence
+                mut_seq = str(row.get('Mutated_5000bp_DNA', '')).upper()
+                mid_mut = len(mut_seq) // 2
+                start_mut = max(0, mid_mut - 500)
+                mut_seqs.append(mut_seq[start_mut:start_mut+1000])
 
-            true_logit_delta = (mut_debug['dna_logits'][0].item() - wt_debug['dna_logits'][0].item()) * wt_debug['dna_weight_val']
-            true_beta = row.get('True_Mutated_Beta', np.nan)
+            # Convert to tensors
+            wt_num_feats = torch.tensor(num_feats_list, dtype=torch.float32).to(device)
+            reg_idx = torch.tensor(reg_idx_list, dtype=torch.long).to(device)
+            isl_idx = torch.tensor(isl_idx_list, dtype=torch.long).to(device)
+            tata_idx = torch.tensor(tata_idx_list, dtype=torch.long).to(device)
 
-            results.append({
-                'Mutation_ID': mut_id,
-                'Gene': row.get('Gene', 'Unknown'),
-                'True_Beta': true_beta,
-                'WT_Prob': wt_prob,
-                'Mut_Prob': mut_prob,
-                'Raw_Delta': delta_p,
-                'Relative_Shift_%': (delta_p / wt_prob * 100) if wt_prob > 0 else 0.0,
-                'Abs_Delta': abs(delta_p),
-                'Logit_Delta': true_logit_delta,
-                'Abs_Logit_Delta': abs(true_logit_delta)
-            })
+            # Tokenize batches (padding dynamically applied up to max_length)
+            wt_tokens = tokenizer(wt_seqs, return_tensors='pt', truncation=True, max_length=512, padding=True).to(device)
+            mut_tokens = tokenizer(mut_seqs, return_tensors='pt', truncation=True, max_length=512, padding=True).to(device)
 
-            # Track for MAE only if it's a real patient mutation (Not a control)
-            if not str(mut_id).startswith("GOLDEN") and not pd.isna(true_beta):
-                actual_patient_betas.append(true_beta)
-                predicted_patient_betas.append(mut_prob)
+            # Run Inferences in Parallel
+            wt_logits, wt_debug = model(wt_tokens['input_ids'], wt_tokens['attention_mask'], wt_num_feats, reg_idx, isl_idx, tata_idx)
+            mut_logits, mut_debug = model(mut_tokens['input_ids'], mut_tokens['attention_mask'], wt_num_feats, reg_idx, isl_idx, tata_idx)
+
+            # Flatten output tensors safely
+            wt_probs = torch.sigmoid(wt_logits).reshape(-1).cpu().numpy()
+            mut_probs = torch.sigmoid(mut_logits).reshape(-1).cpu().numpy()
+
+            wt_dna_logits = wt_debug['dna_logits'].reshape(-1).cpu().numpy()
+            mut_dna_logits = mut_debug['dna_logits'].reshape(-1).cpu().numpy()
+            wt_meta_logits = wt_debug['meta_logits'].reshape(-1).cpu().numpy()
+            mut_meta_logits = mut_debug['meta_logits'].reshape(-1).cpu().numpy()
+
+            # Helper to extract scalar weights regardless of tensor shape
+            def extract_weight(weight_val, batch_len):
+                if isinstance(weight_val, torch.Tensor):
+                    w = weight_val.reshape(-1).cpu().numpy()
+                    if len(w) == 1 and batch_len > 1:
+                        return np.repeat(w, batch_len)
+                    return w
+                return np.full(batch_len, float(weight_val))
+
+            dna_weights = extract_weight(wt_debug['dna_weight_val'], len(batch_df))
+            meta_weights = extract_weight(wt_debug['meta_weight_val'], len(batch_df))
+
+            # Store Results
+            for j in range(len(batch_df)):
+                row = batch_df.iloc[j]
+                mut_id = row.get('Mutation_ID', f"Var_{i * args.batch_size + j}")
+                true_beta = row.get('True_Mutated_Beta', np.nan)
+
+                wt_p = wt_probs[j]
+                mut_p = mut_probs[j]
+                delta_p = mut_p - wt_p
+
+                wt_dna_log = wt_dna_logits[j]
+                mut_dna_log = mut_dna_logits[j]
+                w_dna = dna_weights[j]
+
+                wt_meta_log = wt_meta_logits[j]
+                mut_meta_log = mut_meta_logits[j]
+                w_meta = meta_weights[j]
+
+                true_logit_delta = (mut_dna_log - wt_dna_log) * w_dna
+
+                # Print debug telemetry only for the Golden Controls or the very first couple of variants
+                if "CTRL" in str(mut_id).upper() or (i == 0 and j < 3):
+                    logger.info(f"\n[🔍 DEBUG] Inspecting: {mut_id}")
+                    logger.info(f"   -> Meta Logits (WT vs MUT): {wt_meta_log:.4f} vs {mut_meta_log:.4f}  <-- THESE MUST BE IDENTICAL!")
+                    logger.info(f"   -> DNA Logits  (WT vs MUT): {wt_dna_log:.4f} vs {mut_dna_log:.4f}  <-- THIS IS THE TRUE DELTA")
+                    logger.info(f"   -> Active DNA Weight Scaler : {w_dna:.4f}")
+                    logger.info(f"   -> Active Meta Weight Scaler: {w_meta:.4f}")
+
+                results.append({
+                    'Mutation_ID': mut_id,
+                    'Gene': row.get('Gene', 'Unknown'),
+                    'True_Beta': true_beta,
+                    'WT_Prob': wt_p,
+                    'Mut_Prob': mut_p,
+                    'Raw_Delta': delta_p,
+                    'Relative_Shift_%': (delta_p / wt_p * 100) if wt_p > 0 else 0.0,
+                    'Abs_Delta': abs(delta_p),
+                    'Logit_Delta': true_logit_delta,
+                    'Abs_Logit_Delta': abs(true_logit_delta)
+                })
+
+                if not str(mut_id).startswith("GOLDEN") and not pd.isna(true_beta):
+                    actual_patient_betas.append(true_beta)
+                    predicted_patient_betas.append(mut_p)
 
     # 6. SAVE RESULTS
     results_df = pd.DataFrame(results).sort_values(by='Abs_Logit_Delta', ascending=False)
