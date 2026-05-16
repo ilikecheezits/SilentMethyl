@@ -7,9 +7,6 @@ from transformers import AutoConfig, AutoModel
 from huggingface_hub import snapshot_download
 
 def perform_triton_surgery():
-    """
-    Downloads the DNABERT-2 model, patches it to disable Triton, and returns the path to the patched model.
-    """
     print("[*] 1. Downloading raw files locally to perform surgery...")
     model_path = "zhihan1996/DNABERT-2-117M"
     model_cache_path = snapshot_download(model_path)
@@ -49,7 +46,7 @@ class SilentMethylModel(nn.Module):
     def __init__(self, patched_config, region_vocab_size, island_vocab_size, meta_dim=20):
         super().__init__()
         
-        # 1. DNA BRANCH (The Residual)
+        # 1. DNA BRANCH
         self.bert = AutoModel.from_config(patched_config, trust_remote_code=True)
         self.seq_out_dim = self.bert.config.hidden_size
         self.dna_head = nn.Sequential(
@@ -59,7 +56,7 @@ class SilentMethylModel(nn.Module):
             nn.Linear(256, 1) 
         )
         
-        # 2. METADATA BRANCH (The Global Mean)
+        # 2. METADATA BRANCH
         self.reg_emb = nn.Embedding(region_vocab_size, 16)
         self.isl_emb = nn.Embedding(island_vocab_size, 16)
         self.tata_emb = nn.Embedding(2, 4)
@@ -77,16 +74,11 @@ class SilentMethylModel(nn.Module):
         self.meta_weight = nn.Parameter(torch.ones(1) * 0.5)
 
     def forward(self, input_ids, attention_mask, num_feats, reg_idx, isl_idx, tata_idx, dna_only=False):
-        # A. Sequence Processing with Mean Pooling
+        # A. Sequence Processing
         outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
-        # Mean pooling is mathematically better for finding motifs anywhere in the 1kb
         k_val = min(3, outputs[0].size(1))
         seq_emb = torch.topk(outputs[0], k=k_val, dim=1).values.mean(dim=1)
         dna_logits = self.dna_head(seq_emb)
-
-        # WARMUP TRAP: If in warmup, return DNA predictions immediately
-        if dna_only:
-            return dna_logits, dna_logits
 
         # B. Metadata Processing
         reg_e = self.reg_emb(reg_idx)
@@ -95,6 +87,19 @@ class SilentMethylModel(nn.Module):
         meta_input = torch.cat([num_feats, reg_e, isl_e, tata_e], dim=1)
         meta_logits = self.meta_head(meta_input)
 
+        # --- RIGOROUS ARCHITECTURE DEBUGGING ---
+        # Expose internal states safely so scripts can verify behavior
+        debug_dict = {
+            'dna_logits': dna_logits.detach(),
+            'meta_logits': meta_logits.detach(),
+            'dna_weight_val': self.dna_weight.item(),
+            'meta_weight_val': self.meta_weight.item()
+        }
+
+        # WARMUP TRAP
+        if dna_only:
+            return dna_logits, debug_dict
+
         # C. ADDITIVE DECOMPOSITION
         combined = (self.dna_weight * dna_logits) + (self.meta_weight * meta_logits)
-        return combined, combined
+        return combined, debug_dict

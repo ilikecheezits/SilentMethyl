@@ -1,5 +1,8 @@
 import torch
 from torch.utils.data import Dataset
+import logging
+
+logger = logging.getLogger(__name__)
 
 class MultiOmicsDataset(Dataset):
     def __init__(self, matrix_df, seq_dict, region_vocab, island_vocab, tokenizer, max_length=512):
@@ -9,6 +12,7 @@ class MultiOmicsDataset(Dataset):
         self.max_length = max_length
         self.region_vocab = region_vocab
         self.island_vocab = island_vocab
+        self._debug_printed = False  # Ensure we only spam the console once
 
     def __len__(self):
         return len(self.matrix_df)
@@ -16,20 +20,24 @@ class MultiOmicsDataset(Dataset):
     def __getitem__(self, idx):
         row = self.matrix_df.iloc[idx]
         
-        # Pull the DNA we injected into the matrix
         dna_5000 = str(row.get('Mutated_5000bp_DNA', '')).upper()
-        # Crop to the center 1000bp as defined in your architecture
-        dna_center = dna_5000[2000:3000] if len(dna_5000) >= 3000 else dna_5000
+        
+        # Robust dynamic center crop
+        dna_len = len(dna_5000)
+        mid = dna_len // 2
+        start = max(0, mid - 500)
+        end = min(dna_len, start + 1000)
+        dna_center = dna_5000[start:end]
 
         encoding = self.tokenizer(
             dna_center, truncation=True, max_length=self.max_length,
             padding='max_length', return_tensors='pt'
         )
 
-        # 1 (Age) + 1 (mRNA_Z) + 18 (Motifs) = 20 Numerical Features
+        # 20 Numerical Features
         numerical_features = torch.tensor([
             row.get('Age', 0), 
-            row.get('mRNA_Z', 0), # <--- mRNA_Z SUCCESSFULLY ADDED HERE
+            row.get('mRNA_Z', 0),
             row.get('Mut_GC_Content', 0), row.get('Mut_CpG_Count', 0),
             row.get('Mut_CpG_OE_Ratio', 0), row.get('Mut_GC_Skew', 0),
             row.get('Mut_Shore_Asymmetry', 0), row.get('Mut_FOXA1_Motifs', 0),
@@ -41,7 +49,6 @@ class MultiOmicsDataset(Dataset):
             row.get('Mut_YY1_Motifs', 0), row.get('Mut_HRE_Motifs', 0)
         ], dtype=torch.float32)
 
-        # Safe region lookups
         region_str = str(row.get('Gene_Region', 'Unknown'))
         region_idx = torch.tensor(self.region_vocab.get(region_str, 0), dtype=torch.long)
         
@@ -49,9 +56,20 @@ class MultiOmicsDataset(Dataset):
         island_idx = torch.tensor(self.island_vocab.get(island_str, 0), dtype=torch.long)
         
         tata_idx = torch.tensor(int(row.get('Mut_TATA_Box_Present', 0)), dtype=torch.long)
-
-        # The Training script expects 'targets' representing your real Beta values
         target_val = float(row.get('Beta', 0.0))
+
+        # --- RIGOROUS DATASET DEBUGGING (Fires on the first sequence extracted) ---
+        if not self._debug_printed:
+            print("\n" + "="*60)
+            print("🚨 DATASET EXTRACTION TELEMETRY (Sample 0) 🚨")
+            print(f"-> Original Sequence Length: {dna_len}bp")
+            print(f"-> Cropping Math: Center={mid}, Start={start}, End={end}")
+            print(f"-> Cropped Length Fed to Tokenizer: {len(dna_center)}bp")
+            print(f"-> Sequence Preview (First 50bp): {dna_center[:50]}...")
+            print(f"-> Extracted Meta Vector Length: {len(numerical_features)}")
+            print(f"-> Sample Meta Values (Age, mRNA, GC, CpG Count): {numerical_features[:4].tolist()}")
+            print("="*60 + "\n")
+            self._debug_printed = True
 
         return {
             'input_ids': encoding['input_ids'].squeeze(0),
@@ -62,7 +80,7 @@ class MultiOmicsDataset(Dataset):
             'tata_idx': tata_idx,
             'targets': torch.tensor(target_val, dtype=torch.float32)
         }
-
+    
 class GenomicVariantDataset(Dataset):
     def __init__(self, df, tokenizer, region_vocab, island_vocab, max_length=512):
         self.df = df.reset_index(drop=True)

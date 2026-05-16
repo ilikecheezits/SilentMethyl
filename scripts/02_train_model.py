@@ -15,6 +15,7 @@ import pandas as pd
 from transformers import AutoTokenizer, AutoConfig
 import argparse
 import sys
+import logging
 
 # Add src to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
@@ -27,7 +28,7 @@ from model.lora_utils import inject_lora_adapters, load_lora_weights
 def main():
     parser = argparse.ArgumentParser(description="Train SilentMethyl Model")
     parser.add_argument("--matrix_path", type=str, required=True, help="Path to the cleaned training data matrix CSV.")
-    parser.add_argument("--dict_path", type=str, required=True, help="Path to the sequence dictionary pickle.")
+    parser.add_argument("--dict_path", type=str, required=True, help="Path to the sequence dictionary pickle or CSV.")
     parser.add_argument("--region_vocab_path", type=str, required=True, help="Path to the region vocabulary pickle.")
     parser.add_argument("--island_vocab_path", type=str, required=True, help="Path to the island vocabulary pickle.")
     parser.add_argument("--save_dir", default="./checkpoints", help="Directory to save model checkpoints.")
@@ -41,54 +42,53 @@ def main():
     parser.add_argument("--seed", type=int, default=42, help="Random seed.")
     args = parser.parse_args()
 
-    print("--- EPIGENETICS MASTER LOOP (COMPETITION MODE) ---")
+    os.makedirs(args.save_dir, exist_ok=True)
 
-    # =========================================
-    # Environment Setup
-    # =========================================
+    # --- RIGOROUS LOGGING SETUP ---
+    log_file = os.path.join(args.save_dir, "training_debug.log")
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(message)s',
+        handlers=[logging.FileHandler(log_file), logging.StreamHandler()]
+    )
+    logger = logging.getLogger(__name__)
+
+    logger.info("--- EPIGENETICS MASTER LOOP (TRANSPARENT DEBUG MODE) ---")
+
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     torch.manual_seed(args.seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.seed)
-    os.makedirs(args.save_dir, exist_ok=True)
 
     # =========================================
-    # Data Loading (With Proven DNA Injection Fix)
+    # Data Loading
     # =========================================
-    print("[*] Loading preprocessed data...")
+    logger.info("[*] Loading preprocessed data and tokenizer...")
     tokenizer = AutoTokenizer.from_pretrained(args.model_path, trust_remote_code=True)
     matrix_df = pd.read_csv(args.matrix_path)
-    
-    print("[*] Parsing Sequence Dictionary from CSV...")
     dict_df = pd.read_csv(args.dict_path)
     
-    # Clean columns and find the true ID
     dict_df = dict_df.loc[:, ~dict_df.columns.str.contains('^Unnamed')]
     id_col = 'probeID' if 'probeID' in dict_df.columns else dict_df.columns[0]
     
-    # =========================================
-    # ALIAS FIX: Map Healthy Columns to Dataset Expectations
-    # =========================================
     if 'Healthy_5000bp_DNA' in dict_df.columns:
-        print("  -> [✓] Mapping 'Healthy_5000bp_DNA' to 'Mutated_5000bp_DNA'")
+        logger.info("  -> [✓] Mapping 'Healthy_5000bp_DNA' to 'Mutated_5000bp_DNA'")
         dict_df['Mutated_5000bp_DNA'] = dict_df['Healthy_5000bp_DNA']
         
-        # Map all the biological metadata so the Dataset doesn't feed zeros!
-        meta_features = [
-            'GC_Content', 'CpG_Count', 'CpG_OE_Ratio', 'GC_Skew', 
-            'Shore_Asymmetry', 'FOXA1_Motifs', 'GATA3_Motifs', 'AP1_Motifs',
-            'CTCF_Motifs', 'SP1_Motifs', 'TpG_CpA_Clock', 'Poly_A_Tracts',
-            'Alu_Proxy', 'G4_Quadruplex_Proxy', 'ERE_Motifs', 'E_Box_Motifs',
-            'YY1_Motifs', 'HRE_Motifs'
-        ]
-        
-        for feat in meta_features:
-            if feat in dict_df.columns:
-                dict_df[f'Mut_{feat}'] = dict_df[feat]
-                
-        print("  -> [✓] Mapped 18 Biological Metadata features to 'Mut_' prefix.")
-    # Build the dictionary for O(1) lookup
-    print("[*] Building Master Sequence Dictionary...")
+    meta_features = [
+        'GC_Content', 'CpG_Count', 'CpG_OE_Ratio', 'GC_Skew', 
+        'Shore_Asymmetry', 'FOXA1_Motifs', 'GATA3_Motifs', 'AP1_Motifs',
+        'CTCF_Motifs', 'SP1_Motifs', 'TpG_CpA_Clock', 'Poly_A_Tracts',
+        'Alu_Proxy', 'G4_Quadruplex_Proxy', 'ERE_Motifs', 'E_Box_Motifs',
+        'YY1_Motifs', 'HRE_Motifs', 'TATA_Box_Present'
+    ]
+    
+    for feat in meta_features:
+        if feat in dict_df.columns:
+            dict_df[f'Mut_{feat}'] = dict_df[feat]
+            
+    logger.info(f"  -> [✓] Mapped Biological Metadata features to 'Mut_' prefix.")
+    
     GLOBAL_SEQ_DICT = {}
     for _, row in tqdm(dict_df.iterrows(), total=len(dict_df), desc="Building Dict"):
         row_dict = row.to_dict()
@@ -101,7 +101,7 @@ def main():
     # =========================================
     # Model Initialization
     # =========================================
-    print("--- INITIALIZING ARCHITECTURE (WITH LOCAL SURGERY) ---")
+    logger.info("--- INITIALIZING ARCHITECTURE ---")
     local_model_dir = perform_triton_surgery()
     config = AutoConfig.from_pretrained(local_model_dir, trust_remote_code=True)
     
@@ -113,49 +113,31 @@ def main():
     model.bert.load_state_dict(pretrained_state_dict, strict=False)
     
     model = inject_lora_adapters(model)
-    print("[✓] Surgery Complete! Model Architecture Built Successfully.")
+    logger.info("[✓] Model Architecture Built Successfully.")
 
     # =========================================
-    # Data Splitting (With DNA Merge)
+    # Data Merging & Splitting
     # =========================================
-    print("[*] Implementing Competition-Grade Splitting (Gene-Level Leakage Prevention)...")
-    unique_genes = matrix_df['Gene'].unique()
-    train_val_genes, test_genes = train_test_split(unique_genes, test_size=0.10, random_state=42)
-    train_genes, val_genes = train_test_split(train_val_genes, test_size=0.15, random_state=42)
-    train_df = matrix_df[matrix_df['Gene'].isin(train_genes)].reset_index(drop=True)
-    val_df = matrix_df[matrix_df['Gene'].isin(val_genes)].reset_index(drop=True)
-    test_df = matrix_df[matrix_df['Gene'].isin(test_genes)].reset_index(drop=True)
+    logger.info("[*] Injecting DNA and Metadata from Sequence Dictionary...")
     
-    print(f"  -> Training Probes: {len(train_df)}")
-    print(f"  -> Validation Probes: {len(val_df)}")
-    print(f"  -> BLIND TEST Probes: {len(test_df)}")
-    # =========================================
-    # Data Splitting (With DNA Merge)
-    # =========================================
-    print("[*] Injecting DNA and Coordinates from Sequence Dictionary...")
-    dna_map = dict_df[[id_col, 'CpG_chrm', 'Mutated_5000bp_DNA']].copy()
-    dna_map.columns = ['CpG_Target', 'Chromosome', 'Mutated_5000bp_DNA']
+    mut_cols = [c for c in dict_df.columns if c.startswith('Mut_')]
+    cols_to_extract = [id_col, 'CpG_chrm', 'Mutated_5000bp_DNA'] + mut_cols
+    
+    dna_map = dict_df[cols_to_extract].copy()
+    dna_map.rename(columns={id_col: 'CpG_Target', 'CpG_chrm': 'Chromosome'}, inplace=True)
 
     matrix_df = matrix_df.merge(dna_map, on='CpG_Target', how='inner')
     matrix_df['True_Pos'] = np.nan 
     
-    print(f"  -> [✓] Coordinates & DNA merged. Samples: {len(matrix_df)}")
+    logger.info(f"  -> [✓] Coordinates, DNA & Metadata merged. Samples: {len(matrix_df)}")
     
-    print("[*] Implementing Competition-Grade Splitting (Gene-Level Leakage Prevention)...")
     unique_genes = matrix_df['Gene'].dropna().unique() 
-    
     train_val_genes, test_genes = train_test_split(unique_genes, test_size=0.10, random_state=42)
     train_genes, val_genes = train_test_split(train_val_genes, test_size=0.15, random_state=42)
 
     train_matrix = matrix_df[matrix_df['Gene'].isin(train_genes)].reset_index(drop=True)
     val_matrix = matrix_df[matrix_df['Gene'].isin(val_genes)].reset_index(drop=True)
-    test_matrix = matrix_df[matrix_df['Gene'].isin(test_genes)].reset_index(drop=True)
     
-    print(f"  -> Training Probes: {len(train_matrix)}")
-    print(f"  -> Validation Probes: {len(val_matrix)}")
-    print(f"  -> BLIND TEST Probes: {len(test_matrix)}")
-
-    # Pass the perfectly split matrices to the dataset
     train_dataset = MultiOmicsDataset(train_matrix, GLOBAL_SEQ_DICT, REGION_VOCAB, ISLAND_VOCAB, tokenizer)
     val_dataset = MultiOmicsDataset(val_matrix, GLOBAL_SEQ_DICT, REGION_VOCAB, ISLAND_VOCAB, tokenizer)
 
@@ -165,19 +147,12 @@ def main():
     # =========================================
     # Training Setup
     # =========================================
-    print("[*] Configuring Differential Optimizers (DNA/LoRA Boost vs Throttled Metadata)...")
-    dna_params = [
-        p for n, p in model.named_parameters() 
-        if p.requires_grad and ('lora' in n or 'dna_head' in n or 'dna_weight' in n)
-    ]
-    meta_params = [
-        p for n, p in model.named_parameters() 
-        if p.requires_grad and ('meta_head' in n or 'emb' in n or 'meta_weight' in n)
-    ]
+    dna_params = [p for n, p in model.named_parameters() if p.requires_grad and ('lora' in n or 'dna_head' in n or 'dna_weight' in n)]
+    meta_params = [p for n, p in model.named_parameters() if p.requires_grad and ('meta_head' in n or 'emb' in n or 'meta_weight' in n)]
 
     optimizer = optim.AdamW([
-        {'params': dna_params, 'lr': args.lr, 'weight_decay': 0.01},       # Fast: 1e-4
-        {'params': meta_params, 'lr': args.lr * 0.1, 'weight_decay': 0.01} # Slow: 1e-5
+        {'params': dna_params, 'lr': args.lr, 'weight_decay': 0.01},
+        {'params': meta_params, 'lr': args.lr * 0.1, 'weight_decay': 0.01}
     ])
 
     criterion_class = FocalLossWithLogits(alpha=0.5, gamma=2.0)
@@ -192,8 +167,8 @@ def main():
     # =========================================
     # Training Loop
     # =========================================
-    print("[*] LAUNCHING TRAINING WITH LIVE DIAGNOSTICS...")
-    history = {'train_loss': [], 'val_loss': [], 'val_rmse': [], 'val_auroc': [], 'val_pearson': [], 'batch_loss': []}
+    logger.info("[*] LAUNCHING TRAINING WITH LIVE DIAGNOSTICS...")
+    history = {'train_loss': [], 'val_loss': [], 'val_rmse': [], 'val_auroc': [], 'batch_loss': []}
 
     for epoch in range(1, args.epochs + 1):
         model.train()
@@ -214,12 +189,10 @@ def main():
             tata_idx = batch['tata_idx'].to(device)
             true_beta = batch['targets'].to(device).view(-1, 1)
 
-            dropout_prob = 0.75 
             global_step = (epoch - 1) * args.steps_per_epoch + step
             is_warmup = global_step < 1000
-
+            
             if not is_warmup:
-                # Post-Warmup: 75% Modality Dropout
                 dropout_prob = 0.75 
                 batch_size_current = num_feats.size(0)
                 modality_mask = (torch.rand(batch_size_current, 1, device=device) > dropout_prob).float()
@@ -230,24 +203,32 @@ def main():
                 tata_idx = tata_idx * mask_long
             else:
                 num_feats = num_feats * 0
-                reg_idx = reg_idx * 0
-                isl_idx = isl_idx * 0
-                tata_idx = tata_idx * 0
 
-            pred_class_logits, pred_reg_logits = model(
+            # --- MODEL FORWARD PASS ---
+            combined_logits, debug_dict = model(
                 input_ids, attention_mask, num_feats, reg_idx, isl_idx, tata_idx, dna_only=is_warmup
             )
             
-            pred_beta = torch.sigmoid(pred_reg_logits)
+            # --- TELEMETRY CHECK (Runs exactly once at the start of each Epoch) ---
+            if step == 0:
+                logger.info(f"\n[🔬 EPOCH {epoch} MODEL TELEMETRY 🔬]")
+                logger.info(f"Is Warmup Active? {is_warmup}")
+                logger.info(f"Learnable DNA Weight  : {debug_dict['dna_weight_val']:.4f}")
+                logger.info(f"Learnable Meta Weight : {debug_dict['meta_weight_val']:.4f}")
+                if not is_warmup:
+                    logger.info(f"Tabular Min/Max/Mean  : [{num_feats.min():.2f}, {num_feats.max():.2f}, {num_feats.float().mean():.2f}] (Proves data isn't starved!)")
+                    logger.info(f"Sample DNA Logit      : {debug_dict['dna_logits'][0].item():.4f}")
+                    logger.info(f"Sample Meta Logit     : {debug_dict['meta_logits'][0].item():.4f}")
+                logger.info(f"Target True Beta      : {true_beta[0].item():.4f}")
+                logger.info("-" * 40)
+
+            pred_beta = torch.sigmoid(combined_logits)
             target_class = (true_beta > 0.5).float()
 
-            loss_class = criterion_class(pred_class_logits, target_class)
+            loss_class = criterion_class(combined_logits, target_class)
             loss_reg = criterion_reg(pred_beta, true_beta)
 
-            loss = (0.25 * loss_class + 0.75 * loss_reg)    / args.grad_accum_steps
-
-            if torch.isnan(loss):
-                raise ValueError("Training halted to prevent weight corruption.")
+            loss = (0.25 * loss_class + 0.75 * loss_reg) / args.grad_accum_steps
 
             loss.backward()
 
@@ -270,13 +251,11 @@ def main():
         model.eval()
         val_total_loss = 0
         VAL_STEPS = min(500, len(val_loader))
-        val_pbar = tqdm(range(VAL_STEPS), desc=f"Epoch {epoch} [VALIDATION]", leave=False)
         val_iter = iter(val_loader)
-
         all_true, all_pred = [], []
 
         with torch.no_grad():
-            for step in val_pbar:
+            for _ in range(VAL_STEPS):
                 try: batch = next(val_iter)
                 except StopIteration: break
 
@@ -286,10 +265,10 @@ def main():
                 tata_idx = batch['tata_idx'].to(device)
                 true_beta = batch['targets'].to(device).view(-1, 1)
 
-                pred_class_logits, pred_reg_logits = model(input_ids, attention_mask, num_feats, reg_idx, isl_idx, tata_idx, dna_only=False)
-                pred_beta = torch.sigmoid(pred_reg_logits)
+                combined_logits, _ = model(input_ids, attention_mask, num_feats, reg_idx, isl_idx, tata_idx, dna_only=False)
+                pred_beta = torch.sigmoid(combined_logits)
 
-                loss_class = criterion_class(pred_class_logits, (true_beta > 0.5).float())
+                loss_class = criterion_class(combined_logits, (true_beta > 0.5).float())
                 loss_reg = criterion_reg(pred_beta, true_beta)
                 val_total_loss += (0.25 * loss_class + 0.75 * loss_reg).item()
 
@@ -302,57 +281,18 @@ def main():
 
         val_mae = mean_absolute_error(all_true, all_pred)
         val_rmse = np.sqrt(mean_squared_error(all_true, all_pred))
-        val_pearson, _ = pearsonr(all_true, all_pred) if np.std(all_pred) > 0 else (0.0, 0.0)
 
-        try:
-            val_auroc = roc_auc_score((all_true > 0.5).astype(int), all_pred)
-        except ValueError:
-            val_auroc = 0.5
-
-        history['train_loss'].append(avg_train_loss)
-        history['val_loss'].append(avg_val_loss)
-
-        print(f"\n{'='*50}")
-        print(f"--- SUB-EPOCH {epoch} COMPETITION TELEMETRY ---")
-        print(f"-> Train Loss:     {avg_train_loss:.4f}")
-        print(f"-> Val Loss:       {avg_val_loss:.4f}")
-        print(f"-> Val RMSE:       {val_rmse:.4f}")
-        print(f"-> Val MAE:        {val_mae:.4f}")
-        print(f"-> Val Pearson R:  {val_pearson:.4f}")
-        print(f"-> Val AUROC:      {val_auroc:.4f}")
+        logger.info(f"\n{'='*50}")
+        logger.info(f"--- SUB-EPOCH {epoch} SUMMARY ---")
+        logger.info(f"-> Train Loss:     {avg_train_loss:.4f}")
+        logger.info(f"-> Val Loss:       {avg_val_loss:.4f}")
+        logger.info(f"-> Val RMSE:       {val_rmse:.4f}")
 
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
             torch.save(model.state_dict(), SAVE_PATH)
-            print(f"[✓] NEW HIGH SCORE! Weights secured.")
-
-        fig, axes = plt.subplots(1, 3, figsize=(18, 4))
-
-        sns.kdeplot(all_true, color='blue', label='True Biology', fill=True, alpha=0.3, ax=axes[0])
-        sns.kdeplot(all_pred, color='red', label='AI Prediction', fill=True, alpha=0.3, ax=axes[0])
-        axes[0].set_title(f"Distribution Alignment")
-        axes[0].set_xlim(0, 1)
-        axes[0].legend()
-
-        epochs_range = range(1, epoch + 1)
-        axes[1].plot(epochs_range, history['train_loss'], color='blue', marker='o', label='Train Loss')
-        axes[1].plot(epochs_range, history['val_loss'], color='red', marker='s', label='Val Loss')
-        axes[1].set_title(f"Macro Learning Curves")
-        axes[1].set_xlabel("Sub-Epoch")
-        axes[1].legend()
-
-        axes[2].plot(history['batch_loss'], color='gray', alpha=0.3, label='Raw Batch Loss')
-        if len(history['batch_loss']) > 50:
-            smoothed = np.convolve(history['batch_loss'], np.ones(50)/50, mode='valid')
-            axes[2].plot(np.arange(49, len(history['batch_loss'])), smoothed, color='blue', label='Smoothed (n=50)')
-        axes[2].set_title(f"Micro Batch Telemetry")
-        axes[2].set_xlabel("Global Batch Step")
-        axes[2].legend()
-
-        plt.tight_layout()
-        plt.savefig(os.path.join(args.save_dir, f"training_history_epoch_{epoch}.png"))
-        plt.close() # Close the figure to save memory
-        print(f"{'='*50}\n")
+            logger.info(f"[✓] NEW HIGH SCORE! Weights secured.")
+        logger.info(f"{'='*50}\n")
 
 if __name__ == "__main__":
     main()
