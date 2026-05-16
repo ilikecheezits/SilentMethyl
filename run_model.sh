@@ -1,4 +1,4 @@
-#!/bin/bash
+c#!/bin/bash
 #SBATCH --job-name=SilentMethyl
 #SBATCH --partition=GPU-shared
 #SBATCH --nodes=1
