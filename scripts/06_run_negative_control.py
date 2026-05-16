@@ -102,8 +102,9 @@ def main():
                 mut_inputs = tokenizer(mut_center, return_tensors="pt", truncation=True, max_length=512, padding="max_length")
                 
                 # Extract numericals safely
+                # Extract numericals safely (Now including mRNA_Z!)
                 num_tensor = torch.tensor([[
-                    row.get('Age', 0), row.get('WT_GC_Content', 0), row.get('WT_CpG_Count', 0), 
+                    row.get('Age', 0), row.get('mRNA_Z', 0), row.get('WT_GC_Content', 0), row.get('WT_CpG_Count', 0), 
                     row.get('WT_CpG_OE_Ratio', 0), row.get('WT_GC_Skew', 0), row.get('WT_Shore_Asymmetry', 0), 
                     row.get('WT_FOXA1_Motifs', 0), row.get('WT_GATA3_Motifs', 0), row.get('WT_AP1_Motifs', 0), 
                     row.get('WT_CTCF_Motifs', 0), row.get('WT_SP1_Motifs', 0), row.get('WT_TpG_CpA_Clock', 0), 
