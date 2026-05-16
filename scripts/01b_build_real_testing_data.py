@@ -229,14 +229,30 @@ def main(args):
     
     df = pd.concat([pd.DataFrame(golden_rows), df], ignore_index=True)
 
-    print("--- STEP 5: CALCULATING SPATIAL FEATURES ---")
-    feat_cols = ['GC_Content', 'CpG_Count', 'CpG_OE_Ratio', 'TATA_Box_Present', 'GC_Skew', 'Shore_Asymmetry', 'FOXA1_Motifs', 'GATA3_Motifs', 'AP1_Motifs', 'CTCF_Motifs', 'SP1_Motifs', 'TpG_CpA_Clock', 'Poly_A_Tracts', 'Alu_Proxy', 'G4_Quadruplex_Proxy', 'ERE_Motifs', 'E_Box_Motifs', 'YY1_Motifs', 'HRE_Motifs']
+    print("--- STEP 5: CALCULATING & SCALING SPATIAL FEATURES ---")
+    feat_cols = ['GC_Content', 'CpG_Count', 'CpG_OE_Ratio', 'GC_Skew', 'Shore_Asymmetry', 'FOXA1_Motifs', 'GATA3_Motifs', 'AP1_Motifs', 'CTCF_Motifs', 'SP1_Motifs', 'TpG_CpA_Clock', 'Poly_A_Tracts', 'Alu_Proxy', 'G4_Quadruplex_Proxy', 'ERE_Motifs', 'E_Box_Motifs', 'YY1_Motifs', 'HRE_Motifs']
     
+    # Calculate raw features
     wt_feats = pd.DataFrame(df['Healthy_5000bp_DNA'].apply(calculate_spatial_features).tolist(), columns=[f"WT_{c}" for c in feat_cols])
     mut_feats = pd.DataFrame(df['Mutated_5000bp_DNA'].apply(calculate_spatial_features).tolist(), columns=[f"Mut_{c}" for c in feat_cols])
     
     final_df = pd.concat([df.drop(columns=['Healthy_5000bp_DNA', 'Mutated_5000bp_DNA']), 
                           df[['Healthy_5000bp_DNA', 'Mutated_5000bp_DNA']], wt_feats, mut_feats], axis=1)
+
+    # --- CRITICAL FIX: APPLY TRAINING SCALERS TO INFERENCE DATA ---
+    print("[*] Applying Training Scalers to Inference Data...")
+    import joblib
+    try:
+        scaler_age = joblib.load("checkpoints/Scaler_Age.pkl") # Update path to where 01_build_data.py saves it
+        scaler_seq = joblib.load("checkpoints/Scaler_Seq.pkl")
+        
+        final_df['Age'] = scaler_age.transform(final_df[['Age']])
+        
+        wt_feat_names = [f"WT_{c}" for c in feat_cols]
+        final_df[wt_feat_names] = scaler_seq.transform(final_df[wt_feat_names])
+        print("[✓] Inference features successfully scaled to match training distribution.")
+    except Exception as e:
+        print(f"[!] WARNING: Could not find/apply scalers. Ensure models are trained first. Error: {e}")
 
     final_df.to_csv(args.output_csv, index=False)
     print(f"[✓] Pipeline complete! High-performance dataset ({len(final_df)} rows) saved to {args.output_csv}")
