@@ -30,32 +30,38 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logger.info(f"[*] ISM Engine Online. Running on: {device}")
 
+    # 1. LOAD DATA
     logger.info(f"[*] Loading Data: {args.mutation_matrix}")
     ism_df = pd.read_csv(args.mutation_matrix)
-    ism_df = ism_df.dropna(subset=['Healthy_5000bp_DNA', 'Mutated_5000bp_DNA']).reset_index(drop=True)
 
+    # 2. LOAD VOCABS
     REGION_VOCAB = joblib.load(args.region_vocab)
     ISLAND_VOCAB = joblib.load(args.island_vocab)
-    tokenizer = AutoTokenizer.from_pretrained("zhihan1996/DNABERT-2-117M", trust_remote_code=True)
 
+    # 3. INITIALIZE MODEL & TOKENIZER
     logger.info("[*] Initializing AI Architecture...")
+    tokenizer = AutoTokenizer.from_pretrained("zhihan1996/DNABERT-2-117M", trust_remote_code=True)
+    
     local_model_dir = perform_triton_surgery()
     config = AutoConfig.from_pretrained(local_model_dir, trust_remote_code=True)
     
     model = SilentMethylModel(config, len(REGION_VOCAB), len(ISLAND_VOCAB)).to(device)
-    model = inject_lora_adapters(model) 
+    model = inject_lora_adapters(model)
+
+    # 4. LOAD WEIGHTS
     model.load_state_dict(torch.load(args.weights_path, map_location=device), strict=False)
     model.eval()
     logger.info("[✓] Brain Loaded Successfully.")
 
+    # 5. RUN ISM OVER ALL VARIANTS
     results = []
+    actual_patient_betas = []
+    predicted_patient_betas = []
+    
     logger.info("\n[*] Commencing Variant Effect Prediction (VEP)...")
     
     with torch.no_grad():
         for idx, row in tqdm(ism_df.iterrows(), total=len(ism_df), desc="Scanning"):
-            actual_patient_betas = []
-            predicted_patient_betas = []
-            results = []
             
             # --- FROZEN METADATA VECTOR ---
             wt_num_feats = torch.tensor([[
@@ -101,9 +107,9 @@ def main():
             )
             mut_prob = torch.sigmoid(mut_logits).item()
             
-            # --- 🚨 RIGOROUS INSPECTION LOGGING (Shows exactly what shifted) 🚨 ---
+            # --- RIGOROUS INSPECTION LOGGING ---
             mut_id = row.get('Mutation_ID', f"Var_{idx}")
-            if idx < 3 or "CTRL" in mut_id.upper():  # Only print first few and controls to avoid console flood
+            if idx < 3 or "CTRL" in mut_id.upper():  
                 logger.info(f"\n[🔍 DEBUG] Inspecting: {mut_id}")
                 logger.info(f"   -> Meta Logits (WT vs MUT): {wt_debug['meta_logits'][0].item():.4f} vs {mut_debug['meta_logits'][0].item():.4f}  <-- THESE MUST BE IDENTICAL!")
                 logger.info(f"   -> DNA Logits  (WT vs MUT): {wt_debug['dna_logits'][0].item():.4f} vs {mut_debug['dna_logits'][0].item():.4f}  <-- THIS IS THE TRUE DELTA")
@@ -118,22 +124,33 @@ def main():
             results.append({
                 'Mutation_ID': mut_id,
                 'Gene': row.get('Gene', 'Unknown'),
-                'True_Beta': true_beta,          # <--- Added True Beta
+                'True_Beta': true_beta,
                 'WT_Prob': wt_prob,
                 'Mut_Prob': mut_prob,
                 'Raw_Delta': delta_p,
                 'Relative_Shift_%': (delta_p / wt_prob * 100) if wt_prob > 0 else 0.0,
-                'Abs_Delta': abs(delta_p)
+                'Abs_Delta': abs(delta_p),
+                'Logit_Delta': true_logit_delta,
+                'Abs_Logit_Delta': abs(true_logit_delta)
             })
-            actual_patient_betas.append(true_beta)
-            predicted_patient_betas.append(mut_prob)
+
+            # Track for MAE only if it's a real patient mutation (Not a control)
+            if not str(mut_id).startswith("GOLDEN") and not pd.isna(true_beta):
+                actual_patient_betas.append(true_beta)
+                predicted_patient_betas.append(mut_prob)
 
     # 6. SAVE RESULTS
-    # 6. SAVE RESULTS
-    results_df = pd.DataFrame(results).sort_values(by='Abs_Delta', ascending=False)
+    results_df = pd.DataFrame(results).sort_values(by='Abs_Logit_Delta', ascending=False)
     out_file = os.path.join(args.save_dir, "Top_Synonymous_Mutations_Impact.csv")
     results_df.to_csv(out_file, index=False)
-    logger.info(f"[*] Done! Results saved to {out_file}")
+    logger.info(f"\n[*] Done! Results saved to {out_file}")
+
+    # Print the new true Logit Leaderboard
+    print("\n" + "="*80)
+    print("🚨 TOP SYNONYMOUS VARIANTS (SORTED BY TRUE LOGIT DELTA ΔZ) 🚨")
+    print("="*80)
+    display_df = results_df[['Mutation_ID', 'Gene', 'Logit_Delta', 'WT_Prob', 'Mut_Prob']].head(15)
+    print(display_df.to_string(index=False))
 
     # --- THE FINAL MAE REVEAL ---
     if len(actual_patient_betas) > 0:
@@ -144,5 +161,6 @@ def main():
         print(f"-> Evaluated {len(actual_patient_betas)} real clinical mutations.")
         print(f"-> Mean Absolute Error (MAE): {final_mae:.4f}")
         print("="*80 + "\n")
+
 if __name__ == "__main__":
     main()
