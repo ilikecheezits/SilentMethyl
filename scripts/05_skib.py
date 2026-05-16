@@ -8,6 +8,7 @@ import numpy as np
 from tqdm import tqdm
 import logging
 from transformers import AutoTokenizer, AutoConfig
+from sklearn.metrics import mean_absolute_error
 
 sys.path.append(os.path.join(os.getcwd(), 'src'))
 from model.architecture import SilentMethylModel, perform_triton_surgery
@@ -52,6 +53,9 @@ def main():
     
     with torch.no_grad():
         for idx, row in tqdm(ism_df.iterrows(), total=len(ism_df), desc="Scanning"):
+            actual_patient_betas = []
+            predicted_patient_betas = []
+            results = []
             
             # --- FROZEN METADATA VECTOR ---
             wt_num_feats = torch.tensor([[
@@ -107,26 +111,39 @@ def main():
                 logger.info(f"   -> Active Meta Weight Scaler: {wt_debug['meta_weight_val']:.4f}")
 
             delta_p = mut_prob - wt_prob
+
+            true_logit_delta = (mut_debug['dna_logits'][0].item() - wt_debug['dna_logits'][0].item()) * wt_debug['dna_weight_val']
+            true_beta = row.get('True_Mutated_Beta', np.nan)
+
             results.append({
                 'Mutation_ID': mut_id,
                 'Gene': row.get('Gene', 'Unknown'),
+                'True_Beta': true_beta,          # <--- Added True Beta
                 'WT_Prob': wt_prob,
                 'Mut_Prob': mut_prob,
                 'Raw_Delta': delta_p,
                 'Relative_Shift_%': (delta_p / wt_prob * 100) if wt_prob > 0 else 0.0,
                 'Abs_Delta': abs(delta_p)
             })
+            actual_patient_betas.append(true_beta)
+            predicted_patient_betas.append(mut_prob)
 
+    # 6. SAVE RESULTS
     # 6. SAVE RESULTS
     results_df = pd.DataFrame(results).sort_values(by='Abs_Delta', ascending=False)
     out_file = os.path.join(args.save_dir, "Top_Synonymous_Mutations_Impact.csv")
     results_df.to_csv(out_file, index=False)
+    logger.info(f"[*] Done! Results saved to {out_file}")
 
-    print("\n" + "="*80)
-    print("🚨 TOP 15 SYNONYMOUS VARIANTS (MASSIVE EPIGENETIC DISRUPTIONS) 🚨")
-    print("="*80)
-    display_cols = ['Mutation_ID', 'Gene', 'WT_Prob', 'Mut_Prob', 'Raw_Delta', 'Relative_Shift_%']
-    print(results_df.head(15)[display_cols].to_string(index=False))
-
+    # --- THE FINAL MAE REVEAL ---
+    if len(actual_patient_betas) > 0:
+        final_mae = mean_absolute_error(actual_patient_betas, predicted_patient_betas)
+        print("\n" + "="*80)
+        print("🎯 MODEL ACCURACY ON UNSEEN TCGA PATIENTS 🎯")
+        print("="*80)
+        print(f"-> Evaluated {len(actual_patient_betas)} real clinical mutations.")
+        print(f"-> Mean Absolute Error (MAE): {final_mae:.4f}")
+        print("="*80 + "\n")
+        
 if __name__ == "__main__":
     main()
