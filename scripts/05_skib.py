@@ -192,6 +192,7 @@ def main():
     print("\n" + "="*80)
     print("🚨 TOP SYNONYMOUS VARIANTS (SORTED BY TRUE LOGIT DELTA ΔZ) 🚨")
     print("="*80)
+    print(f"{len(results_df)} variants analyzed. Displaying top 15 with highest absolute logit shifts:\n")
     display_df = results_df[['Mutation_ID', 'Gene', 'Logit_Delta', 'WT_Prob', 'Mut_Prob']].head(15)
     print(display_df.to_string(index=False))
 
