@@ -6,19 +6,18 @@ from tqdm import tqdm
 # ==============================================================================
 # CONFIGURATION & PATHS
 # ==============================================================================
-INPUT_CSV = "actual_data/training_data.csv"
-OUTPUT_CSV = "actual_data/training_data_phase2.csv"
-FASTA_OUT = "reference/wt_101bp.fasta"
+INPUT_CSV = "actual_data/held_out_test_data.csv"
+OUTPUT_CSV = "actual_data/held_out_test_data_full.csv"
+FASTA_OUT = "reference/held_out_test_wt_101bp.fasta"
 
 BW_PATHS = {
-    "Ref_ATAC_Signal": "reference/MCF10A_ATAC_Signal.bw",
-    "Ref_H3K4me3_Signal": "reference/H3K4me3.bigWig",
-    "Ref_H3K27ac_Signal": "reference/H3K27ac.bigWig",
-    "Ref_H3K27me3_Signal": "reference/H3K27me3.bigWig",
-    "Ref_H3K9me3_Signal": "reference/H3K9me3.bigWig",
+    "Ref_ATAC_Signal": "reference/ATAC_seq.bw",
+    "Ref_H3K4me3_Signal": "reference/H3K4me3.bw",
+    "Ref_H3K27ac_Signal": "reference/H3K27ac.bw",
+    "Ref_H3K27me3_Signal": "reference/H3K27me3.bw",
+    "Ref_H3K9me3_Signal": "reference/H3K9me3.bw",
     "Target_Base_PhyloP_100way": "reference/hg38.phyloP100way.bw"
 }
-
 # ==============================================================================
 # HELPER FUNCTIONS
 # ==============================================================================

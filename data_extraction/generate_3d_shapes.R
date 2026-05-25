@@ -46,22 +46,18 @@ extract_3d_tensor <- function(fasta_path, output_filename) {
 # --- EXECUTION PIPELINE ---
 
 # 1. Process Training Data
-if (file.exists("train_healthy_101bp.fasta")) {
-    extract_3d_tensor("train_healthy_101bp.fasta", "training_wild_type_3d_shapes.tsv")
+if (file.exists("train_val_healthy_101bp.fasta")) {
+    extract_3d_tensor("train_val_healthy_101bp.fasta", "train_val_3d_shapes.tsv")
     # Force RAM garbage collection to free memory and keep the script fast
     gc() 
 }
 
-# 2. Process Testing Data
-if (file.exists("test_healthy_101bp.fasta")) {
-    extract_3d_tensor("test_healthy_101bp.fasta", "testing_wild_type_3d_shapes.tsv")
+if (file.exists("held_out_test_healthy_101bp.fasta")) {
+    extract_3d_tensor("held_out_test_healthy_101bp.fasta", "held_out_test_3d_shapes.tsv")
+    # Force RAM garbage collection to free memory and keep the script fast
     gc()
 }
 
-if (file.exists("test_mutated_101bp.fasta")) {
-    extract_3d_tensor("test_mutated_101bp.fasta", "testing_mutated_3d_shapes.tsv")
-    gc()
-}
 
 cat("[*] Phase 2 Geometry Engine tasks complete.\n")
 
