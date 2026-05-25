@@ -52,10 +52,7 @@ Below are the commands for the entire pipeline.
 
 **Local & Production Command:**
 ```bash
-python scripts/01_build_data.py \
-    --matrix_path data/raw/Final_Discovery_Dataset_MultiOmnics.csv \
-    --dict_path data/raw/DNA_Sequence_Dictionary.csv \
-    --base_dir data/processed
+python scripts/01_build_data.py \ --matrix_path data/raw/training_data.csv \ --dict_path data/raw/DNA_Sequence_Dictionary.csv \ --base_dir data/processed
 ```
 
 *(Optional API Fetcher): If you need to build a brand new testing dataset directly from TCGA:*

@@ -112,4 +112,11 @@ data/
 # Analysis output
 *.png
 dnabert2_local/
+dnabert2_patched/
+runs/
 checkpoints/
+checkpoints_baseline/
+
+sus.txt
+training_log.txt
+
