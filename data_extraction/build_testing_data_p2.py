@@ -67,7 +67,8 @@ filt = {
     "op": "and",
     "content": [
         {"op": "in", "content": {"field": "cases.project.project_id", "value": ["TCGA-BRCA"]}},
-        {"op": "in", "content": {"field": "consequence.transcript.consequence_type", "value": ["synonymous_variant"]}}
+        {"op": "in", "content": {"field": "consequence.transcript.consequence_type", "value": ["synonymous_variant"]}},
+        {"op": "in", "content": {"field": "occurrence.case.samples.sample_type", "value": ["Solid Tissue Normal"]}}
     ]
 }
 
@@ -148,26 +149,40 @@ def fetch_patient_data(item):
     if not entrez_id: return []
 
     try:
+        # Generate the normal barcodes (-11) to ask for them simultaneously
+        normal_barcodes = [p[:-2] + "11" for p in item['patients']]
+        combined_search = item['patients'] + normal_barcodes
+
         meth_data = requests.post(f"{CBIO_URL}/molecular-profiles/{METH_PROFILE}/molecular-data/fetch",
-                                  json={"entrezGeneIds": [int(entrez_id)], "sampleIds": item['patients']}).json()
+                                  json={"entrezGeneIds": [int(entrez_id)], "sampleIds": combined_search}).json()
 
         if meth_data:
             meth_dict = {d['sampleId']: d.get('value', np.nan) for d in meth_data if 'sampleId' in d and 'value' in d}
 
             for patient in item['patients']:
-                meth_val = meth_dict.get(patient, np.nan)
+                tumor_beta = meth_dict.get(patient, np.nan)
+                normal_barcode = patient[:-2] + "11"
+                normal_beta = meth_dict.get(normal_barcode, np.nan) # Try to get the matched normal
                 
-                if pd.notna(meth_val):
-                    # M-Value conversion
-                    beta_safe = max(0.0001, min(0.9999, meth_val))
+                if pd.notna(tumor_beta):
+                    # M-Value conversion for Tumor
+                    beta_safe = max(0.0001, min(0.9999, tumor_beta))
                     m_val = np.log2(beta_safe / (1 - beta_safe))
+                    
+                    # M-Value conversion for Normal (if it exists)
+                    wt_m_val = np.nan
+                    if pd.notna(normal_beta):
+                        wt_beta_safe = max(0.0001, min(0.9999, normal_beta))
+                        wt_m_val = np.log2(wt_beta_safe / (1 - wt_beta_safe))
                     
                     local_hits.append({
                         "Gene": gene_symbol,
                         "GDC_Genomic_DNA_Change": item['dna_change'],
                         "TCGA_Patient_Barcode": patient,
-                        "True_Mutated_Beta": meth_val,
-                        "True_Mutated_M_Value": m_val
+                        "True_Mutated_Beta": tumor_beta,
+                        "True_Mutated_M_Value": m_val,
+                        "True_Wild_Type_Beta": normal_beta,
+                        "True_Wild_Type_M_Value": wt_m_val
                     })
     except Exception:
         pass
@@ -296,7 +311,7 @@ final_columns = [
     # Metadata
     'probeID', 'chr', 'pos', 'Mutation_ID', 'Gene', 'Mutation_Type_SNV_Indel', 'CADD_Phred_Score',
     'Gene_Region', 'CpG_Island_Status', 'Is_TAD_Boundary', 'Distance_To_Nearest_TSS',
-    'True_Wild_Type_M_Value', 'True_Mutated_M_Value', 'True_Mutated_Beta',
+    'True_Wild_Type_Beta', 'True_Wild_Type_M_Value', 'True_Mutated_Beta', 'True_Mutated_M_Value', 
     # Sequence
     'Healthy_5000bp_DNA', 'Mutated_5000bp_DNA',
     # Tabular
