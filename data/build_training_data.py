@@ -77,21 +77,24 @@ def main():
     
     seqs = []
     valid_mask = []
-    
     num_faulty = 0
     for idx, row in tqdm(df_manifest.iterrows(), total=len(df_manifest), desc="Extracting DNA"):
         chrom, pos = row['chr'], row['pos']
-        start_idx = (pos + 1) - HALF_WINDOW
-        end_idx = start_idx + WINDOW_SIZE
+        cpg_0based = pos - 1 
+        
+        start_idx = cpg_0based - 2499
+        end_idx = start_idx + 5000 
     
         if start_idx < 0 or end_idx > len(genome[chrom]):
             valid_mask.append(False)
             seqs.append(np.nan)
             continue
-        if str(genome[chrom][2499:2501]).upper() != "CG":
+            
+        seq = str(genome[chrom][start_idx:end_idx]).upper()
+        if seq[2499:2501] != "CG":
             num_faulty += 1
-        print(str(genome[chrom][2490:2510]).upper())     
-        seqs.append(str(genome[chrom][start_idx:end_idx]).upper())
+
+        seqs.append(seq)
         valid_mask.append(True)
     
     df_manifest['Healthy_5000bp_DNA'] = seqs
@@ -100,7 +103,8 @@ def main():
     
     del df_manifest, seqs
     gc.collect()
-    print(f"num faulty:{num_faulty}")
+    print(f"[*] Extraction complete. Number of off-center/faulty sequences: {num_faulty}")
+    
     print("\n==========================================")
     print("--- STEP 2: EPIGENETIC TARGET CALCULATION ---")
     print("==========================================")
