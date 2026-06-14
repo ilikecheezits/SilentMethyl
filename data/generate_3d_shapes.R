@@ -21,7 +21,7 @@ extract_3d_tensor <- function(fasta_path, output_filename) {
     sample_count <- nrow(pred[[1]])
     
     # Pre-allocating the matrix makes R lightning fast
-    compiled_data <- matrix(0, nrow = sample_count, ncol = 14 * 101)
+    compiled_data <- matrix(0, nrow = sample_count, ncol = 14 * 100)
 
     for (i in 1:length(SHAPE_TYPES)) {
         shape_name <- SHAPE_TYPES[i]
@@ -31,8 +31,8 @@ extract_3d_tensor <- function(fasta_path, output_filename) {
             shape_matrix <- cbind(shape_matrix, NA)
         }
 	
-        col_start <- ((i - 1) * 101) + 1
-        col_end <- i * 101
+        col_start <- ((i - 1) * 100) + 1
+        col_end <- i * 100
         compiled_data[, col_start:col_end] <- shape_matrix
 
         unlink(paste0(fasta_path, ".", shape_name))
@@ -43,18 +43,14 @@ extract_3d_tensor <- function(fasta_path, output_filename) {
     cat(paste0("[+] Exported matrix to: ", output_filename, "\n\n"))
 }
 
-# --- EXECUTION PIPELINE ---
 
-# 1. Process Training Data
 if (file.exists("train_val_healthy_101bp.fasta")) {
     extract_3d_tensor("train_val_healthy_101bp.fasta", "train_val_3d_shapes.tsv")
-    # Force RAM garbage collection to free memory and keep the script fast
     gc() 
 }
 
 if (file.exists("held_out_test_healthy_101bp.fasta")) {
     extract_3d_tensor("held_out_test_healthy_101bp.fasta", "held_out_test_3d_shapes.tsv")
-    # Force RAM garbage collection to free memory and keep the script fast
     gc()
 }
 

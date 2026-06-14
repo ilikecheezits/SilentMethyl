@@ -1,15 +1,15 @@
 import pandas as pd
 
-print("[*] Loading testing_data_phase2.csv...")
+print("[*] Loading actual_testing_data.csv...")
 df = pd.read_csv("actual_testing_data.csv")
 
-with open("test_healthy_101bp.fasta", "w") as f_wt, open("test_mutated_101bp.fasta", "w") as f_mut:
+with open("test_healthy_100p.fasta", "w") as f_wt, open("test_mutated_100bp.fasta", "w") as f_mut:
     for idx, row in df.iterrows():
         header = f">{row['probeID']}"
-        wt_101 = str(row['Healthy_5000bp_DNA'])[2450:2551]
-        mut_101 = str(row['Mutated_5000bp_DNA'])[2450:2551]
+        wt_100 = str(row['Healthy_5000bp_DNA'])[2450:2550]
+        mut_100 = str(row['Mutated_5000bp_DNA'])[2450:2550]
         
-        f_wt.write(f"{header}\n{wt_101}\n")
-        f_mut.write(f"{header}\n{mut_101}\n")
+        f_wt.write(f"{header}\n{wt_100}\n")
+        f_mut.write(f"{header}\n{mut_100}\n")
 
 print("[✓] Generated test FASTAs using probeID headers.")

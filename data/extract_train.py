@@ -1,34 +1,30 @@
 import pandas as pd
 
+print("[*] Loading train.csv...")
 df = pd.read_csv("train.csv")
 
-with open("test_healthy_100bp.fasta", "w") as f_wt, open("test_mutated_101bp.fasta", "w") as f_mut:
+with open("train_100p.fasta", "w") as f_wt:
     for idx, row in df.iterrows():
         header = f">{row['probeID']}"
-        wt_101 = str(row['Healthy_5000bp_DNA'])[2450:2551]
-        mut_101 = str(row['Mutated_5000bp_DNA'])[2450:2551]
+        seq_100 = str(row['Healthy_5000bp_DNA'])[2450:2550]
+        f_wt.write(f"{header}\n{seq_100}\n")
 
-        f_wt.write(f"{header}\n{wt_101}\n")
-        f_mut.write(f"{header}\n{mut_101}\n")
+print("[*] Loading val.csv...")
+df = pd.read_csv("val.csv")
 
-df = pd.read_csv("train.csv")
-
-with open("test_healthy_101bp.fasta", "w") as f_wt, open("test_mutated_101bp.fasta", "w") as f_mut:
+with open("val_100p.fasta", "w") as f_wt:
     for idx, row in df.iterrows():
         header = f">{row['probeID']}"
-        wt_101 = str(row['Healthy_5000bp_DNA'])[2450:2551]
-        mut_101 = str(row['Mutated_5000bp_DNA'])[2450:2551]
+        seq_100 = str(row['Healthy_5000bp_DNA'])[2450:2550]
+        f_wt.write(f"{header}\n{seq_100}\n")
 
-        f_wt.write(f"{header}\n{wt_101}\n")
-        f_mut.write(f"{header}\n{mut_101}\n")
-df = pd.read_csv("train.csv")
+print("[*] Loading test.csv...")
+df = pd.read_csv("test.csv")
 
-with open("test_healthy_101bp.fasta", "w") as f_wt, open("test_mutated_101bp.fasta", "w") as f_mut:
+with open("test_100p.fasta", "w") as f_wt:
     for idx, row in df.iterrows():
         header = f">{row['probeID']}"
-        wt_101 = str(row['Healthy_5000bp_DNA'])[2450:2551]
-        mut_101 = str(row['Mutated_5000bp_DNA'])[2450:2551]
+        seq_100 = str(row['Healthy_5000bp_DNA'])[2450:2550]
+        f_wt.write(f"{header}\n{seq_100}\n")
 
-        f_wt.write(f"{header}\n{wt_101}\n")
-        f_mut.write(f"{header}\n{mut_101}\n")
-
+print("[✓] Generated FASTAs using probeID headers.")
