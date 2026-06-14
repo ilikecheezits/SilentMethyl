@@ -117,7 +117,5 @@ dnabert2_local/
 runs/
 checkpoints/
 checkpoints_baseline/
-
-sus.txt
-training_log.txt
+.DS_Store
 
