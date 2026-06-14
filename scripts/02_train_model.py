@@ -24,7 +24,7 @@ from peft import LoraConfig, get_peft_model
 # =========================================
 def patch_and_load_dnabert(model_path="zhihan1996/DNABERT-2-117M", local_dir="./dnabert2_local"):
     """
-    Bypasses the 'device meta' PyTorch bug by downloading the remote code locally,
+∑    Bypasses the 'device meta' PyTorch bug by downloading the remote code locally,
     disabling the broken Triton Flash Attention, and manually loading weights to CPU.
     """
     logging.info("--- Performing DNABERT-2 Surgery & Patching ---")
@@ -77,19 +77,15 @@ def patch_and_load_dnabert(model_path="zhihan1996/DNABERT-2-117M", local_dir="./
 # 2. Multi-Modal Dataset (DYNAMICALLY ANCHORED)
 # =========================================
 class MultiModalLateFusionDataset(Dataset):
-    def __init__(self, df, shape_tsv, tokenizer, window_size=101, debug_cpg=False):
+    def __init__(self, df, shape_data_array, tokenizer, window_size=101, debug_cpg=False):
         self.df = df.reset_index(drop=True)
         self.tokenizer = tokenizer
         self.window_size = window_size
         self.debug_cpg = debug_cpg
+        self.shape_data = shape_data_array
 
-        logging.info(f"[*] Loading 3D shape tensor from {shape_tsv}...")
-        # header=None ensures pandas counts all 370,109 lines as data
-        self.shape_data = pd.read_csv(shape_tsv, sep='\t', header=None, dtype=np.float32).values
-        
-        logging.info(f"[✓] Verification: CSV Rows = {len(self.df)}, TSV Rows = {len(self.shape_data)}")
+        logging.info(f"[✓] Verification: CSV Rows = {len(self.df)}, TSV Array Rows = {len(self.shape_data)}")
         assert len(self.df) == len(self.shape_data), "CRITICAL ERROR: CSV and TSV row counts do not match!"
-
         self.tabular_features = [
             'Ref_ATAC_Signal', 'Ref_H3K4me3_Signal', 'Ref_H3K27ac_Signal', 
             'Ref_H3K27me3_Signal', 'Ref_H3K9me3_Signal', 'Target_Base_PhyloP_100way'
@@ -310,24 +306,54 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logger.info(f"[*] Starting Multimodal Training on {device} | Window Size: {args.window_size}bp")
 
-    logger.info("[*] Loading CSV Data...")
+    logger.info("[*] Loading CSV and TSV Data simultaneously...")
     df = pd.read_csv(args.data_path)
-    df = df.sample(frac=1)
+    
+    # Load the TSV here so we can filter them together
+    shape_data_full = pd.read_csv(args.shape_tsv, sep='\t', header=None, dtype=np.float32).values
+    
     before = len(df)
-    df = df[df['probeID'].str.startswith('cg')].reset_index(drop=True)
+    
+    # Create a boolean mask for the filtering
+    mask = df['probeID'].str.startswith('cg')
+    
+    # Apply the EXACT SAME mask to both the CSV and the TSV array
+    df = df[mask].reset_index(drop=True)
+    shape_data_filtered = shape_data_full[mask.values]
+    
     print(f'[*] Filtered non-CpG probes: {before - len(df)} removed, {len(df)} remaining.')
-    train_df, val_df = train_test_split(df, test_size=0.15, random_state=42)
+    
+    # Split both the DataFrame and the TSV array simultaneously (this ensures they shuffle together!)
+    train_df, val_df, train_shapes, val_shapes = train_test_split(
+        df, shape_data_filtered, test_size=0.15, random_state=42
+    )
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_path, trust_remote_code=True)
     
-    train_dataset = MultiModalLateFusionDataset(train_df, args.shape_tsv, tokenizer, window_size=args.window_size, debug_cpg=args.debug_cpg)
-    val_dataset = MultiModalLateFusionDataset(val_df, args.shape_tsv, tokenizer, window_size=args.window_size, debug_cpg=args.debug_cpg)
-    
+    # Pass the perfectly aligned arrays into the datasets
+    train_dataset = MultiModalLateFusionDataset(train_df, train_shapes, tokenizer, window_size=args.window_size, debug_cpg=args.debug_cpg)
+    val_dataset = MultiModalLateFusionDataset(val_df, val_shapes, tokenizer, window_size=args.window_size, debug_cpg=args.debug_cpg)    
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4)
 
     model = SilentMethylModel(args.model_path).to(device)
-    optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=0.01)
+    bert_params = []
+    new_head_params = []
+    
+    for name, param in model.named_parameters():
+        if not param.requires_grad:
+            continue # Skip frozen core weights
+            
+        if "bert" in name:
+            bert_params.append(param)
+        else:
+            new_head_params.append(param)
+
+    # 2. Assign different learning rates
+    optimizer = optim.AdamW([
+        {'params': bert_params, 'lr': 5e-5},       # Gentle fine-tuning for DNABERT LoRA
+        {'params': new_head_params, 'lr': 1e-3}    # Aggressive learning for the new from-scratch layers
+    ], weight_decay=1e-4)
     
     total_steps = (len(train_loader) // args.grad_accum_steps) * args.epochs
     scheduler = get_linear_schedule_with_warmup(

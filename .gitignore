@@ -104,7 +104,9 @@ venv.bak/
 .mypy_cache/
 
 # Data files
-data/
+data/*
+!data/*.py 
+!data/*.R
 *.csv
 *.pkl
 *.pth
@@ -112,7 +114,6 @@ data/
 # Analysis output
 *.png
 dnabert2_local/
-dnabert2_patched/
 runs/
 checkpoints/
 checkpoints_baseline/

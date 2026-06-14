@@ -44,7 +44,7 @@ class SequenceOnlyBaselineDataset(Dataset):
         search_end = min(seq_len, approx_center + search_radius)
         search_window = full_sequence[search_start : search_end]
         
-        # 2. Lock onto the exact index of the 'C' in the 'CG'
+∑        # 2. Lock onto the exact index of the 'C' in the 'CG'
         if "CG" in search_window:
             cg_local_idx = search_window.index("CG")
             true_c_idx = search_start + cg_local_idx
