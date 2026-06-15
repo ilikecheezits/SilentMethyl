@@ -153,13 +153,13 @@ def main():
         end = pos + 51
         
         for feature_name, bw_obj in bw_files.items():
-            if "PhyloP" in feature_name:
-                if "1" in feature_name:
-                    val = get_bw_signal(bw_obj, chrom, pos, pos + 1) 
-                else: 
-                    val = get_bw_signal(bw_obj, chrom, pos + 1, pos + 2)  
+            if feature_name == "Target_Base_PhyloP_100way_1":
+                val = get_bw_signal(bw_obj, chrom, pos - 1, pos)
+            elif feature_name == "Target_Base_PhyloP_100way_2":
+                val = get_bw_signal(bw_obj, chrom, pos, pos + 1)
             else:
                 val = get_bw_signal(bw_obj, chrom, start, end)  
+                
             new_features[feature_name].append(val)
             
     for feature_name, values in new_features.items():
