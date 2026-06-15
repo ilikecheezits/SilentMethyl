@@ -3,7 +3,7 @@ import pandas as pd
 print("[*] Loading train.csv...")
 df = pd.read_csv("train.csv")
 
-with open("train_100p.fasta", "w") as f_wt:
+with open("train_100bp.fasta", "w") as f_wt:
     for idx, row in df.iterrows():
         header = f">{row['probeID']}"
         seq_100 = str(row['Healthy_5000bp_DNA'])[2450:2550]
@@ -12,7 +12,7 @@ with open("train_100p.fasta", "w") as f_wt:
 print("[*] Loading val.csv...")
 df = pd.read_csv("val.csv")
 
-with open("val_100p.fasta", "w") as f_wt:
+with open("val_100bp.fasta", "w") as f_wt:
     for idx, row in df.iterrows():
         header = f">{row['probeID']}"
         seq_100 = str(row['Healthy_5000bp_DNA'])[2450:2550]
@@ -21,7 +21,7 @@ with open("val_100p.fasta", "w") as f_wt:
 print("[*] Loading test.csv...")
 df = pd.read_csv("test.csv")
 
-with open("test_100p.fasta", "w") as f_wt:
+with open("test_100bp.fasta", "w") as f_wt:
     for idx, row in df.iterrows():
         header = f">{row['probeID']}"
         seq_100 = str(row['Healthy_5000bp_DNA'])[2450:2550]
