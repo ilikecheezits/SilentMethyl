@@ -8,18 +8,13 @@ from tqdm import tqdm
 from pyfaidx import Fasta
 from sklearn.model_selection import train_test_split
 
-# ==============================================================================
-# CONFIGURATION & PATHS
-# ==============================================================================
 BASE_DIR = "/ocean/projects/med250012p/szhang37/SilentMethyl/data/"
 os.makedirs(BASE_DIR, exist_ok=True)
 
-# Output paths
 TRAIN_OUT = os.path.join(BASE_DIR, "train_data.csv")
 VAL_OUT = os.path.join(BASE_DIR, "val_data.csv")
 TEST_OUT = os.path.join(BASE_DIR, "test_data.csv")
 
-# Input/Reference paths
 FASTA_PATH = os.path.join(BASE_DIR, "hg38.fa")
 MANIFEST_PATH = os.path.join(BASE_DIR, "HM450.hg38.manifest.tsv.gz")
 METH_PATH = os.path.join(BASE_DIR, "TCGA-BRCA.methylation450.tsv.gz")
@@ -31,15 +26,13 @@ BW_PATHS = {
     "Ref_H3K27ac_Signal": BASE_REF + "H3K27ac.bw",
     "Ref_H3K27me3_Signal": BASE_REF + "H3K27me3.bw",
     "Ref_H3K9me3_Signal": BASE_REF + "H3K9me3.bw",
-    "Target_Base_PhyloP_100way": BASE_REF + "hg38.phyloP100way.bw"
+    "Target_Base_PhyloP_100way_1": BASE_REF + "hg38.phyloP100way.bw",
+    "Target_Base_PhyloP_100way_2": BASE_REF + "hg38.phyloP100way.bw"    
 }
 
 WINDOW_SIZE = 5000
 HALF_WINDOW = WINDOW_SIZE // 2
 
-# ==============================================================================
-# HELPER FUNCTIONS
-# ==============================================================================
 def get_bw_signal(bw_obj, chrom, start, end):
     """Safely extracts mean signal from a BigWig file."""
     try:
@@ -56,9 +49,6 @@ def get_bw_signal(bw_obj, chrom, start, end):
     except Exception:
         return 0.0
 
-# ==============================================================================
-# MAIN EXECUTION
-# ==============================================================================
 def main():
     print("==========================================")
     print("--- STEP 1: DNA SEQUENCE EXTRACTION ---")
@@ -80,9 +70,8 @@ def main():
     num_faulty = 0
     for idx, row in tqdm(df_manifest.iterrows(), total=len(df_manifest), desc="Extracting DNA"):
         chrom, pos = row['chr'], row['pos']
-        cpg_0based = pos - 1 
         
-        start_idx = cpg_0based - 2499
+        start_idx = pos - 2499
         end_idx = start_idx + 5000 
     
         if start_idx < 0 or end_idx > len(genome[chrom]):
@@ -93,7 +82,9 @@ def main():
         seq = str(genome[chrom][start_idx:end_idx]).upper()
         if seq[2499:2501] != "CG":
             num_faulty += 1
-
+            seqs.append(np.nan)
+            valid_mask.append(False)
+            continue
         seqs.append(seq)
         valid_mask.append(True)
     
@@ -113,7 +104,7 @@ def main():
         meth_header = f.readline().strip().split('\t')
     
     probe_col_name = meth_header[0]
-    healthy_cols = [col for col in meth_header if '-11' in col]  # Only Solid Tissue Normal 
+    healthy_cols = [col for col in meth_header if '-11' in col]  
     
     chunk_list = []
     print("[*] Processing methylation data in chunks to preserve RAM...")
@@ -129,7 +120,6 @@ def main():
                 beta_vals = chunk[healthy_cols].values
                 chunk['Median_Beta'] = np.nanmedian(beta_vals, axis=1)
                 
-                # Clip values to prevent log(0) errors 
                 beta_clipped = np.clip(chunk['Median_Beta'].values, 0.0001, 0.9999)
                 chunk['M_Value_Target'] = np.log2(beta_clipped / (1.0 - beta_clipped))
                 chunk['Binary_State_Target'] = (chunk['Median_Beta'] > 0.5).astype(int)
@@ -159,14 +149,17 @@ def main():
         chrom = str(row['chr'])
         pos = int(row['pos'])
         
-        start = max(0, pos - 50)
+        start = max(0, pos - 49)
         end = pos + 51
         
         for feature_name, bw_obj in bw_files.items():
             if "PhyloP" in feature_name:
-                val = get_bw_signal(bw_obj, chrom, pos, pos + 1) # Single base for PhyloP 
+                if "1" in feature_name:
+                    val = get_bw_signal(bw_obj, chrom, pos, pos + 1) 
+                else: 
+                    val = get_bw_signal(bw_obj, chrom, pos + 1, pos + 2)  
             else:
-                val = get_bw_signal(bw_obj, chrom, start, end) # 101bp window for Epigenetics 
+                val = get_bw_signal(bw_obj, chrom, start, end)  
             new_features[feature_name].append(val)
             
     for feature_name, values in new_features.items():
@@ -179,8 +172,6 @@ def main():
     print("--- STEP 4: TRAIN/VAL/TEST SPLIT & SAVE ---")
     print("==========================================")
     
-    # Shuffle and split: 80% Train, 10% Validation, 10% Test
-    # Using stratify on Binary_State_Target to ensure balanced classes across splits
     print("[*] Splitting data (80/10/10) with stratification...")
     train_df, temp_df = train_test_split(
         df_master, test_size=0.20, random_state=42, stratify=df_master['Binary_State_Target']
