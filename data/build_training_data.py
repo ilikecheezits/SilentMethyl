@@ -154,9 +154,9 @@ def main():
         
         for feature_name, bw_obj in bw_files.items():
             if feature_name == "Target_Base_PhyloP_100way_1":
-                val = get_bw_signal(bw_obj, chrom, pos - 1, pos)
-            elif feature_name == "Target_Base_PhyloP_100way_2":
                 val = get_bw_signal(bw_obj, chrom, pos, pos + 1)
+            elif feature_name == "Target_Base_PhyloP_100way_2":
+                val = get_bw_signal(bw_obj, chrom, pos + 1, pos + 2)
             else:
                 val = get_bw_signal(bw_obj, chrom, start, end)  
                 
