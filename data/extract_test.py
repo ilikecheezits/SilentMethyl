@@ -1,7 +1,7 @@
 import pandas as pd
 
 print("[*] Loading actual_testing_data.csv...")
-df = pd.read_csv("actual_testing_data.csv")
+df = pd.read_csv("testing_data.csv")
 
 with open("test_healthy_100p.fasta", "w") as f_wt, open("test_mutated_100bp.fasta", "w") as f_mut:
     for idx, row in df.iterrows():
