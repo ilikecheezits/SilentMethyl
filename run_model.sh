@@ -14,10 +14,15 @@ module load cuda/12.4.0
 conda activate silentmethyl
 set -e
 
-python -u scripts/02_train_model.py \
-    --data_path data/processed/train_val_data.csv \
-    --epochs 5 \
-    --batch_size 16 \
-    --grad_accum_steps 2 \
-    --window_size 1000
+echo "[*] Starting Phase 1 Baseline Training on V100 GPU..."
 
+# Execute the training script on the full dataset
+python scripts/02_train_model_baseline.py \
+  --train_path "data/datafiles/train.csv" \
+  --val_path "data/datafiles/val.csv" \
+  --save_dir "checkpoints_baseline" \
+  --batch_size 8 \
+  --grad_accum_steps 4 \
+  --epochs 10
+
+echo "[✓] Training Job Complete!"
