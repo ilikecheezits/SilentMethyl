@@ -119,6 +119,7 @@ class BaselineDNABert(nn.Module):
         return class_logits, m_value_pred
 
 def main():
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
     parser = argparse.ArgumentParser()
     parser.add_argument("--train_path", type=str, default="data/datafiles/train.csv")
     parser.add_argument("--val_path", type=str, default="data/datafiles/val.csv")
@@ -129,12 +130,20 @@ def main():
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--window_size", type=int, default=1000)
+    parser.add_argument("--patience", type=int, default=3, help="Early stopping patience")
     args = parser.parse_args()
     
     os.makedirs(args.save_dir, exist_ok=True)
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
-    writer = SummaryWriter(log_dir="runs/phase1_baseline")
+    
+    tb_log_dir = os.path.join(args.save_dir, "tensorboard_logs")
+    writer = SummaryWriter(log_dir=tb_log_dir)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    val_stats_path = os.path.join(args.save_dir, "validation_statistics.csv")
+    if not os.path.exists(val_stats_path):
+        with open(val_stats_path, "w") as f:
+            f.write("Epoch,Train_Loss,Val_Loss,M_Value_RMSE,Beta_MAE,Binarized_AUC\n")
     
     train_df = pd.read_csv(args.train_path)
     val_df = pd.read_csv(args.val_path)
@@ -145,8 +154,8 @@ def main():
     train_dataset = SequenceOnlyBaselineDataset(train_df, tokenizer, window_size=args.window_size)
     val_dataset = SequenceOnlyBaselineDataset(val_df, tokenizer, window_size=args.window_size)
     
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4, pin_memory=True)
+    val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4, pin_memory=True)
 
     model = BaselineDNABert(args.model_path).to(device)
     optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=0.01)
@@ -160,6 +169,7 @@ def main():
     scaler = torch.amp.GradScaler('cuda')
     
     best_val_loss = float('inf')
+    epochs_no_improve = 0
     global_step = 0 
 
     for epoch in range(1, args.epochs + 1):
@@ -214,6 +224,7 @@ def main():
                 all_beta_prob.extend(torch.sigmoid(class_logits).cpu().float().numpy().flatten().tolist())
                 all_beta_true.extend(beta_target.cpu().float().numpy().flatten().tolist())
 
+        avg_train_loss = train_loss / len(train_loader)
         avg_val_loss = val_loss / len(val_loader)
         val_rmse = np.sqrt(mean_squared_error(all_m_true, all_m_pred))
         val_mae_beta = mean_absolute_error(all_beta_true, all_beta_prob)
@@ -225,7 +236,7 @@ def main():
             val_auc = float('nan')
 
         logging.info(f"\n--- EPOCH {epoch} SUMMARY ---")
-        logging.info(f"  Train Loss : {train_loss / len(train_loader):.4f} | Val Loss : {avg_val_loss:.4f}")
+        logging.info(f"  Train Loss : {avg_train_loss:.4f} | Val Loss : {avg_val_loss:.4f}")
         logging.info(f"  Regression : M-Value RMSE={val_rmse:.4f}")
         logging.info(f"  Classify   : Beta MAE={val_mae_beta:.4f} | Binarized AUC={val_auc:.4f}")
         
@@ -234,10 +245,20 @@ def main():
         writer.add_scalar("Val/MAE_Beta", val_mae_beta, epoch)
         writer.add_scalar("Val/AUC", val_auc, epoch)
         
+        with open(val_stats_path, "a") as f:
+            f.write(f"{epoch},{avg_train_loss:.4f},{avg_val_loss:.4f},{val_rmse:.4f},{val_mae_beta:.4f},{val_auc:.4f}\n")
+        
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
-            torch.save(model.state_dict(), os.path.join(args.save_dir, "baseline_best_weights_smoketest.pth"))
+            epochs_no_improve = 0
+            torch.save(model.state_dict(), os.path.join(args.save_dir, "baseline_best_weights.pth"))
             logging.info(f"[✓] New Best Model Saved to {args.save_dir}/baseline_best_weights.pth!")
+        else:
+            epochs_no_improve += 1
+            logging.info(f"[!] Validation loss did not improve. Early stopping counter: {epochs_no_improve}/{args.patience}")
+            if epochs_no_improve >= args.patience:
+                logging.info(f"[X] Early stopping triggered after {epoch} epochs. Training halted to prevent overfitting.")
+                break
 
 if __name__ == "__main__":
     main()
