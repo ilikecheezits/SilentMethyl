@@ -4,47 +4,56 @@ import json
 import pandas as pd
 import numpy as np
 import re
+import gzip
 from tqdm import tqdm
 from pyfaidx import Fasta
 import concurrent.futures
 import pyBigWig
 
-# ==========================================
-# CONFIGURATION
-# ==========================================
-BASE_DIR = "actual_data"
+BASE_DIR = "/ocean/projects/med250012p/szhang37/SilentMethyl/data/"
 os.makedirs(BASE_DIR, exist_ok=True)
 
 GDC_URL = "https://api.gdc.cancer.gov/ssms"
 CBIO_URL = "https://www.cbioportal.org/api"
 STUDY_ID = "brca_tcga"
-MAX_THREADS = 16  # The old reliable thread count
+MAX_THREADS = 16
 
-# Absolute paths for Bridges-2
-BASE_REF = "/ocean/projects/med250012p/szhang37/SilentMethyl/data/reference/"
-EPIGENETIC_PATHS = {
-    'Ref_ATAC_Signal': BASE_REF + "ATAC_seq.bw",
-    'Ref_H3K4me3_Signal': BASE_REF + "H3K4me3.bw",
-    'Ref_H3K27ac_Signal': BASE_REF + "H3K27ac.bw",
-    'Ref_H3K27me3_Signal': BASE_REF + "H3K27me3.bw",
-    'Ref_H3K9me3_Signal': BASE_REF + "H3K9me3.bw",
-    'Target_Base_PhyloP_100way': BASE_REF + "hg38.phyloP100way.bw"
+FASTA_PATH = os.path.join(BASE_DIR, "hg38.fa")
+MANIFEST_PATH = os.path.join(BASE_DIR, "HM450.hg38.manifest.tsv.gz")
+
+BASE_REF = os.path.join(BASE_DIR, "reference/")
+BW_PATHS = {
+    "Ref_ATAC_Signal": BASE_REF + "ATAC_seq.bw",
+    "Ref_H3K4me3_Signal": BASE_REF + "H3K4me3.bw",
+    "Ref_H3K27ac_Signal": BASE_REF + "H3K27ac.bw",
+    "Ref_H3K27me3_Signal": BASE_REF + "H3K27me3.bw",
+    "Ref_H3K9me3_Signal": BASE_REF + "H3K9me3.bw",
+    "Target_Base_PhyloP_100way_1": BASE_REF + "hg38.phyloP100way.bw",
+    "Target_Base_PhyloP_100way_2": BASE_REF + "hg38.phyloP100way.bw"    
 }
+
+def get_bw_signal(bw_obj, chrom, start, end):
+    """Safely extracts mean signal from a BigWig file."""
+    try:
+        if chrom not in bw_obj.chroms():
+            if chrom.replace('chr', '') in bw_obj.chroms():
+                chrom = chrom.replace('chr', '')
+            else:
+                return 0.0
+        stat = bw_obj.stats(chrom, start, end, type="mean")
+        return float(stat[0]) if stat and stat[0] is not None else 0.0
+    except Exception:
+        return 0.0
 
 print("==========================================")
 print("--- STEP 1: ENVIRONMENT & GENOME SETUP ---")
 print("==========================================")
 
-if not os.path.exists('hg38.fa'):
-    print("[*] Downloading Human Genome hg38.fa...")
-    os.system('wget -q -O hg38.fa.gz https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz')
-    os.system('gunzip hg38.fa.gz')
-
 print("[*] Loading Human Genome into Memory...")
-genome = Fasta('hg38.fa')
+genome = Fasta(FASTA_PATH)
 
 bw_handles = {}
-for name, path in EPIGENETIC_PATHS.items():
+for name, path in BW_PATHS.items():
     if os.path.exists(path):
         bw_handles[name] = pyBigWig.open(path)
     else:
@@ -62,7 +71,7 @@ except Exception as e:
     print(f"[!] Setup Error: {e}")
     raise SystemExit
 
-print("[*] Pinging NIH GDC Supercomputers...")
+print("[*] Pinging NIH GDC Supercomputers for sSNVs...")
 filt = {
     "op": "and",
     "content": [
@@ -77,7 +86,7 @@ params = {
     "expand": "occurrence.case,consequence.transcript.gene",
     "fields": "genomic_dna_change,occurrence.case.submitter_id,consequence.transcript.gene.symbol,consequence.transcript.hgvsp",
     "format": "JSON",
-    "size": "500000"  # Note: increasing this pulls more raw data, but takes longer overall. 
+    "size": "500000"
 }
 
 mutations = requests.get(GDC_URL, params=params).json().get('data', {}).get('hits', [])
@@ -87,7 +96,6 @@ mutation_groups = {}
 for m in mutations:
     dna_change = m.get('genomic_dna_change', 'Unknown')
     gene_symbol = "Unknown"
-    
     consequences = m.get('consequence', [])
     if consequences:
         transcript = consequences[0].get('transcript', {})
@@ -104,25 +112,19 @@ for m in mutations:
             for match in [s for s in cbio_samples if s.startswith(barcode)]:
                 mutation_groups[dna_change]['patients'].add(match)
 
-# Clean up list and prep for mapping
 unique_genes = list(set([v['gene'] for v in mutation_groups.values() if v['gene'] != 'Unknown']))
 
-# INSTANT HGNC MAPPING
-# INSTANT HGNC MAPPING (With Compute Node Fallback)
-print(f"[*] Attempting to download HGNC database to map {len(unique_genes)} genes instantly...")
+print(f"[*] Attempting to map {len(unique_genes)} genes instantly...")
 gene_to_entrez = {}
 
 try:
-    # The updated HGNC server path
     hgnc_url = "https://www.genenames.org/cgi-bin/download/custom?col=gd_app_sym&col=md_eg_id&status=Approved&hgnc_dbt=dic&order_by=gd_app_sym_sort&format=text&submit=submit"
     hgnc_df = pd.read_csv(hgnc_url, sep='\t', low_memory=False)
-    # The columns in this custom export are named slightly differently:
     valid_hgnc = hgnc_df.dropna(subset=['Approved symbol', 'NCBI Gene ID'])
     gene_to_entrez = dict(zip(valid_hgnc['Approved symbol'], valid_hgnc['NCBI Gene ID'].astype(int)))
     print(f"[+] HGNC instant mapping successful!")
-    
 except Exception as e:
-    print(f"[!] Direct download failed ({e}). Falling back to cBioPortal API...")
+    print(f"[!] HGNC mapping failed. Using cBioPortal API fallback...")
     
     def get_entrez(gene):
         try:
@@ -139,8 +141,6 @@ except Exception as e:
 
 processing_list = [{"dna_change": k, "gene": v['gene'], "patients": list(v['patients'])}
                    for k, v in mutation_groups.items() if v['patients'] and v['gene'] in gene_to_entrez]
-print(f"[*] Blasting cBioPortal with {MAX_THREADS} Parallel Threads (Using the reliable method)...")
-
 def fetch_patient_data(item):
     local_hits = []
     gene_symbol = item['gene']
@@ -149,7 +149,6 @@ def fetch_patient_data(item):
     if not entrez_id: return []
 
     try:
-        # Generate the normal barcodes (-11) to ask for them simultaneously
         normal_barcodes = [p[:-2] + "11" for p in item['patients']]
         combined_search = item['patients'] + normal_barcodes
 
@@ -162,14 +161,12 @@ def fetch_patient_data(item):
             for patient in item['patients']:
                 tumor_beta = meth_dict.get(patient, np.nan)
                 normal_barcode = patient[:-2] + "11"
-                normal_beta = meth_dict.get(normal_barcode, np.nan) # Try to get the matched normal
+                normal_beta = meth_dict.get(normal_barcode, np.nan) 
                 
                 if pd.notna(tumor_beta):
-                    # M-Value conversion for Tumor
                     beta_safe = max(0.0001, min(0.9999, tumor_beta))
                     m_val = np.log2(beta_safe / (1 - beta_safe))
                     
-                    # M-Value conversion for Normal (if it exists)
                     wt_m_val = np.nan
                     if pd.notna(normal_beta):
                         wt_beta_safe = max(0.0001, min(0.9999, normal_beta))
@@ -181,8 +178,8 @@ def fetch_patient_data(item):
                         "TCGA_Patient_Barcode": patient,
                         "True_Mutated_Beta": tumor_beta,
                         "True_Mutated_M_Value": m_val,
-                        "True_Wild_Type_Beta": normal_beta,
-                        "True_Wild_Type_M_Value": wt_m_val
+                        "Matched_Normal_Beta": normal_beta, 
+                        "Matched_Normal_M_Value": wt_m_val
                     })
     except Exception:
         pass
@@ -198,32 +195,19 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
 
 df = pd.DataFrame(real_world_hits)
 if df.empty:
-    print("\n[!] 0 hits. No patients had complete data.")
+    print("\n[!] 0 hits. No patients had complete paired data.")
     raise SystemExit
 
 print("\n==========================================")
 print("--- STEP 3: SEQUENCE & EPIGENETIC INJECTION ---")
 print("==========================================")
 
-GEO_PATH = "GPL13534_HumanMethylation450.csv.gz"
-if not os.path.exists(GEO_PATH):
-    print("[*] Downloading Official Illumina Map for Structural Annotations...")
-    GEO_URL = "https://www.ncbi.nlm.nih.gov/geo/download/?acc=GPL13534&format=file&file=GPL13534_HumanMethylation450_15017482_v.1.1.csv.gz"
-    os.system(f'wget -q -O {GEO_PATH} "{GEO_URL}"')
-
-print("[*] Parsing Illumina Manifest...")
-df_official = pd.read_csv(GEO_PATH, compression='gzip', skiprows=7, low_memory=False)
-id_col = 'ID' if 'ID' in df_official.columns else 'IlmnID' if 'IlmnID' in df_official.columns else 'Name'
-df_annotations = df_official[['CHR', 'MAPINFO', 'UCSC_RefGene_Group', 'Relation_to_UCSC_CpG_Island', id_col]].copy()
-df_annotations = df_annotations.rename(columns={id_col: 'TargetID'})
-
-df_annotations['CHR'] = 'chr' + df_annotations['CHR'].astype(str)
-df_annotations['MAPINFO'] = pd.to_numeric(df_annotations['MAPINFO'], errors='coerce')
-df_annotations = df_annotations.dropna(subset=['MAPINFO'])
-
-df_annotations['Gene_Region'] = df_annotations['UCSC_RefGene_Group'].astype(str).str.split(';').str[0].replace('nan', 'Intergenic')
-df_annotations['CpG_Island_Status'] = df_annotations['Relation_to_UCSC_CpG_Island'].astype(str).str.split(';').str[0].replace('nan', 'OpenSea')
-df_annotations = df_annotations.sort_values(['CHR', 'MAPINFO']).reset_index(drop=True)
+print("[*] Loading Wanding Zhou hg38 Manifest...")
+df_manifest = pd.read_csv(MANIFEST_PATH, sep='\t', usecols=['probeID', 'CpG_chrm', 'CpG_beg'])
+df_manifest.rename(columns={'CpG_chrm': 'chr', 'CpG_beg': 'pos'}, inplace=True)
+valid_chrs = set([f'chr{i}' for i in range(1, 23)] + ['chrX', 'chrY'])
+df_manifest = df_manifest[df_manifest['chr'].isin(valid_chrs)].dropna().reset_index(drop=True)
+df_manifest['pos'] = df_manifest['pos'].astype(int)
 
 mutation_regex = re.compile(r'(chr[0-9XY]+):g\.(\d+)([A-Z]+)>([A-Z]+)')
 
@@ -233,53 +217,54 @@ def extract_and_build(row):
 
     chrom, mut_pos, ref_allele, mut_allele = match.groups()
     mut_pos = int(mut_pos)
+    mut_pos_0based = mut_pos - 1 
 
-    # 1. Find the target CpG site closest to the mutation
-    chrm_data = df_annotations[df_annotations['CHR'] == chrom]
+    chrm_data = df_manifest[df_manifest['chr'] == chrom]
     if chrm_data.empty: return None
-    idx = (np.abs(chrm_data['MAPINFO'] - mut_pos)).argmin()
+    idx = (np.abs(chrm_data['pos'] - mut_pos_0based)).argmin()
     closest_probe = chrm_data.iloc[idx]
     
-    cpg_pos = int(closest_probe['MAPINFO'])
-    probe_id = closest_probe['TargetID']
-    region = closest_probe['Gene_Region']
-    island = closest_probe['CpG_Island_Status']
+    cpg_pos = int(closest_probe['pos'])
+    probe_id = closest_probe['probeID']
 
-    # 2. Strict Boundary Check
-    offset = mut_pos - cpg_pos
-    if abs(offset) > 499:
+    offset = mut_pos_0based - cpg_pos
+    if abs(offset) > 2499:
         return None
-
-    # 3. Build Centered Sequences
-    start_pos = cpg_pos - 2500
-    end_pos = cpg_pos + 2499
     
-    if chrom not in genome: return None
-    healthy_seq = str(genome[chrom][start_pos-1:end_pos]).upper()
+    start_idx = cpg_pos - 2499
+    end_idx = start_idx + 5000 
     
-    if len(healthy_seq) != 5000: return None
+    if start_idx < 0 or end_idx > len(genome[chrom]): return None
     
-    mut_idx = 2500 + offset
-    if healthy_seq[mut_idx:mut_idx+len(ref_allele)] != ref_allele:
+    healthy_seq = str(genome[chrom][start_idx:end_idx]).upper()
+    
+    if healthy_seq[2499:2501] != "CG":
+        return None
+    
+    mut_idx = 2499 + offset
+    if healthy_seq[mut_idx : mut_idx + len(ref_allele)] != ref_allele:
         return None 
         
-    mutated_seq = healthy_seq[:mut_idx] + mut_allele + healthy_seq[mut_idx+len(ref_allele):]
+    mutated_seq = healthy_seq[:mut_idx] + mut_allele + healthy_seq[mut_idx + len(ref_allele):]
 
-    # 4. Extract Tabular Epigenetics at the CpG
+
+    start_100 = max(0, cpg_pos - 49)
+    end_100 = cpg_pos + 51
+    
     bw_features = {}
     for name, bw in bw_handles.items():
-        try:
-            val = bw.stats(chrom, cpg_pos, cpg_pos + 1, type="mean")[0]
-            bw_features[name] = float(val) if val is not None else 0.0
-        except:
-            bw_features[name] = 0.0
+        if name == "Target_Base_PhyloP_100way_1":
+            val = get_bw_signal(bw, chrom, cpg_pos, cpg_pos + 1)
+        elif name == "Target_Base_PhyloP_100way_2":
+            val = get_bw_signal(bw, chrom, cpg_pos + 1, cpg_pos + 2)
+        else:
+            val = get_bw_signal(bw, chrom, start_100, end_100)
+        bw_features[name] = val
 
     return {
         'probeID': probe_id,
         'chr': chrom,
         'pos': cpg_pos,
-        'Gene_Region': region,
-        'CpG_Island_Status': island,
         'Healthy_5000bp_DNA': healthy_seq,
         'Mutated_5000bp_DNA': mutated_seq,
         **bw_features
@@ -295,35 +280,60 @@ for idx, row in tqdm(df.iterrows(), total=len(df)):
 
 df_final = pd.DataFrame(results)
 
-# ==========================================
-# STEP 4: FINAL METADATA FORMATTING
-# ==========================================
-# Generate required missing metadata placeholders
-df_final['Mutation_ID'] = df_final['GDC_Genomic_DNA_Change'] + "_" + df_final['TCGA_Patient_Barcode']
-df_final['Mutation_Type_SNV_Indel'] = np.where(df_final['GDC_Genomic_DNA_Change'].str.contains('del|ins'), 'Indel', 'SNV')
-df_final['CADD_Phred_Score'] = 0.0 # Placeholder for downstream processing
-df_final['Is_TAD_Boundary'] = 0    # Placeholder
-df_final['Distance_To_Nearest_TSS'] = 0 # Placeholder
-df_final['True_Wild_Type_M_Value'] = np.nan # TCGA rarely provides matched normal; using NaN fallback
+METH_PATH = os.path.join(BASE_DIR, "TCGA-BRCA.methylation450.tsv.gz")
 
-# Reorder columns strictly to your specification
+print("\n==========================================")
+print("--- STEP 3.5: FETCHING COHORT NORMAL BASELINES ---")
+print("==========================================")
+relevant_probes = set(df_final['probeID'])
+print(f"[*] Mining local TCGA file for {len(relevant_probes)} cohort-average normal baselines...")
+
+with gzip.open(METH_PATH, 'rt') as f:
+    meth_header = f.readline().strip().split('\t')
+
+probe_col_name = meth_header[0]
+healthy_cols = [col for col in meth_header if '-11' in col]
+
+probe_to_normal = {}
+for chunk in pd.read_csv(METH_PATH, sep='\t', usecols=[probe_col_name] + healthy_cols, chunksize=50000):
+    chunk.rename(columns={probe_col_name: 'probeID'}, inplace=True)
+    chunk = chunk[chunk['probeID'].isin(relevant_probes)]
+    if not chunk.empty:
+        for _, row in chunk.iterrows():
+            vals = pd.to_numeric(row[healthy_cols], errors='coerce').dropna()
+            if not vals.empty:
+                probe_to_normal[row['probeID']] = np.median(vals)
+
+def get_cohort_m_val(beta):
+    if pd.isna(beta): return np.nan
+    b_safe = max(0.0001, min(0.9999, beta))
+    return np.log2(b_safe / (1 - b_safe))
+
+
+df_final['Cohort_Normal_Beta'] = df_final['probeID'].map(probe_to_normal)
+df_final['True_Wild_Type_Beta'] = df_final['Matched_Normal_Beta'].combine_first(df_final['Cohort_Normal_Beta'])
+df_final['True_Wild_Type_M_Value'] = df_final['True_Wild_Type_Beta'].apply(get_cohort_m_val)
+
+df_final = df_final.dropna(subset=['True_Wild_Type_Beta'])
+print(f"[✓] Baselines secured. {len(df_final)} fully matched pairs remain.")
+
 final_columns = [
-    # Metadata
-    'probeID', 'chr', 'pos', 'Mutation_ID', 'Gene', 'Mutation_Type_SNV_Indel', 'CADD_Phred_Score',
-    'Gene_Region', 'CpG_Island_Status', 'Is_TAD_Boundary', 'Distance_To_Nearest_TSS',
-    'True_Wild_Type_Beta', 'True_Wild_Type_M_Value', 'True_Mutated_Beta', 'True_Mutated_M_Value', 
-    # Sequence
+    'chr', 'pos', 'probeID', 'Gene', 'GDC_Genomic_DNA_Change', 'TCGA_Patient_Barcode',
     'Healthy_5000bp_DNA', 'Mutated_5000bp_DNA',
-    # Tabular
-    'Ref_ATAC_Signal', 'Ref_H3K4me3_Signal', 'Ref_H3K27ac_Signal', 'Ref_H3K27me3_Signal', 
-    'Ref_H3K9me3_Signal', 'Target_Base_PhyloP_100way'
+    'True_Wild_Type_Beta', 'True_Wild_Type_M_Value',
+    'True_Mutated_Beta', 'True_Mutated_M_Value',
+    'Ref_ATAC_Signal', 'Ref_H3K4me3_Signal', 'Ref_H3K27ac_Signal', 
+    'Ref_H3K27me3_Signal', 'Ref_H3K9me3_Signal', 
+    'Target_Base_PhyloP_100way_1', 'Target_Base_PhyloP_100way_2'
 ]
 
-# Drop anything not explicitly requested to keep it perfectly clean
 df_final = df_final[[col for col in final_columns if col in df_final.columns]]
 
-OUTPUT_PATH = os.path.join(BASE_DIR, "testing_data_phase2.csv")
+OUTPUT_PATH = os.path.join(BASE_DIR, "testing_data.csv")
 df_final.to_csv(OUTPUT_PATH, index=False)
 
+for bw in bw_handles.values():
+    bw.close()
+
 print(f"\n[✓] EXTRACTION COMPLETE!")
-print(f"[✓] Saved {len(df_final)} strictly aligned pairings to: {OUTPUT_PATH}")
+print(f"[✓] Saved {len(df_final)} precisely aligned, matched test pairings to: {OUTPUT_PATH}")

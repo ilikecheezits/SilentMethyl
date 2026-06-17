@@ -11,9 +11,9 @@ from sklearn.model_selection import train_test_split
 BASE_DIR = "/ocean/projects/med250012p/szhang37/SilentMethyl/data/"
 os.makedirs(BASE_DIR, exist_ok=True)
 
-TRAIN_OUT = os.path.join(BASE_DIR, "train_data.csv")
-VAL_OUT = os.path.join(BASE_DIR, "val_data.csv")
-TEST_OUT = os.path.join(BASE_DIR, "test_data.csv")
+TRAIN_OUT = os.path.join(BASE_DIR, "train.csv")
+VAL_OUT = os.path.join(BASE_DIR, "val.csv")
+TEST_OUT = os.path.join(BASE_DIR, "test.csv")
 
 FASTA_PATH = os.path.join(BASE_DIR, "hg38.fa")
 MANIFEST_PATH = os.path.join(BASE_DIR, "HM450.hg38.manifest.tsv.gz")
