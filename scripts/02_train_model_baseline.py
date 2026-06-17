@@ -88,7 +88,7 @@ class BaselineDNABert(nn.Module):
         lora_config = LoraConfig(
             r=32,
             lora_alpha=64,
-            target_modules=["query", "key", "value"],
+            target_modules=["Wqkv"],
             lora_dropout=0.1,
             bias="none"
         )
@@ -108,7 +108,7 @@ class BaselineDNABert(nn.Module):
         spatial_features = F.relu(self.spatial_conv(hidden_states_t)).permute(0, 2, 1)
         
         attn_weights = self.attention_pool(spatial_features).squeeze(-1)
-        attn_weights = attn_weights.masked_fill(attention_mask == 0, -1e9)
+        attn_weights = attn_weights.masked_fill(attention_mask == 0, -1e4)
         attn_weights = F.softmax(attn_weights, dim=-1)
         
         pooled_output = torch.sum(spatial_features * attn_weights.unsqueeze(-1), dim=1)
@@ -120,8 +120,8 @@ class BaselineDNABert(nn.Module):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--train_path", type=str, default="data/baseline_data/train.csv")
-    parser.add_argument("--val_path", type=str, default="data/baseline_data/val.csv")
+    parser.add_argument("--train_path", type=str, default="data/datafiles/train.csv")
+    parser.add_argument("--val_path", type=str, default="data/datafiles/val.csv")
     parser.add_argument("--save_dir", default="checkpoints_baseline")
     parser.add_argument("--model_path", default="zhihan1996/DNABERT-2-117M")
     parser.add_argument("--batch_size", type=int, default=8) 
@@ -236,7 +236,7 @@ def main():
         
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
-            torch.save(model.state_dict(), os.path.join(args.save_dir, "baseline_best_weights.pth"))
+            torch.save(model.state_dict(), os.path.join(args.save_dir, "baseline_best_weights_smoketest.pth"))
             logging.info(f"[✓] New Best Model Saved to {args.save_dir}/baseline_best_weights.pth!")
 
 if __name__ == "__main__":
