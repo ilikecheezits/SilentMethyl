@@ -118,6 +118,21 @@ class BaselineDNABert(nn.Module):
         
         return class_logits, m_value_pred
 
+class FocalLossWithLogits(nn.Module):
+    def __init__(self, alpha=0.5, gamma=2.0, reduction='mean'):
+        super(FocalLossWithLogits, self).__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.reduction = reduction
+
+    def forward(self, inputs, targets):
+        bce_loss = F.binary_cross_entropy_with_logits(inputs, targets, reduction='none')
+        pt = torch.exp(-bce_loss)
+        focal_term = (1 - pt) ** self.gamma
+        alpha_t = self.alpha * targets + (1 - self.alpha) * (1 - targets)
+        loss = alpha_t * focal_term * bce_loss
+        return loss.mean() if self.reduction == 'mean' else loss.sum()
+    
 def main():
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     parser = argparse.ArgumentParser()
@@ -163,12 +178,15 @@ def main():
     total_steps = (len(train_loader) // args.grad_accum_steps) * args.epochs
     scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=int(0.1 * total_steps), num_training_steps=total_steps)
     
-    criterion_bce = nn.BCEWithLogitsLoss()
-    criterion_huber = nn.HuberLoss(delta=0.5)
-    lambda_reg = 0.5
+    criterion_focal = FocalLossWithLogits(alpha=0.5, gamma=2.0)
+    criterion_huber = nn.HuberLoss(delta=1.345)
+    
+    # 1.0 ensures regression (continuous distance) is just as critical as binary accuracy
+    lambda_reg = 1.0 
     scaler = torch.amp.GradScaler('cuda')
     
-    best_val_loss = float('inf')
+    # MAE-Driven Early Stopping Setup (Lower is better)
+    best_val_mae = float('inf')
     epochs_no_improve = 0
     global_step = 0 
 
@@ -185,7 +203,7 @@ def main():
 
             with torch.amp.autocast('cuda'):
                 class_logits, m_value_pred = model(input_ids, attention_mask)
-                loss_clf = criterion_bce(class_logits, beta_target)
+                loss_clf = criterion_focal(class_logits, beta_target)
                 loss_huber = criterion_huber(m_value_pred, m_value_target)
                 loss = (loss_clf + (lambda_reg * loss_huber)) / args.grad_accum_steps
 
@@ -216,7 +234,7 @@ def main():
                 
                 with torch.amp.autocast('cuda'):
                     class_logits, m_value_pred = model(input_ids, attention_mask)
-                    batch_loss = criterion_bce(class_logits, beta_target) + (lambda_reg * criterion_huber(m_value_pred, m_value_target))
+                    batch_loss = criterion_focal(class_logits, beta_target) + (lambda_reg * criterion_huber(m_value_pred, m_value_target))
                     
                 val_loss += batch_loss.item()
                 all_m_true.extend(m_value_target.cpu().float().numpy().flatten().tolist())
@@ -248,14 +266,15 @@ def main():
         with open(val_stats_path, "a") as f:
             f.write(f"{epoch},{avg_train_loss:.4f},{avg_val_loss:.4f},{val_rmse:.4f},{val_mae_beta:.4f},{val_auc:.4f}\n")
         
-        if avg_val_loss < best_val_loss:
-            best_val_loss = avg_val_loss
+        # MAE-DRIVEN SAVING LOGIC (Minimizing error)
+        if val_mae_beta < best_val_mae:
+            best_val_mae = val_mae_beta
             epochs_no_improve = 0
             torch.save(model.state_dict(), os.path.join(args.save_dir, "baseline_best_weights.pth"))
-            logging.info(f"[✓] New Best Model Saved to {args.save_dir}/baseline_best_weights.pth!")
+            logging.info(f"[✓] New Best Model Saved! (Beta MAE: {best_val_mae:.4f})")
         else:
             epochs_no_improve += 1
-            logging.info(f"[!] Validation loss did not improve. Early stopping counter: {epochs_no_improve}/{args.patience}")
+            logging.info(f"[!] Validation Beta MAE did not improve. Early stopping counter: {epochs_no_improve}/{args.patience}")
             if epochs_no_improve >= args.patience:
                 logging.info(f"[X] Early stopping triggered after {epoch} epochs. Training halted to prevent overfitting.")
                 break
