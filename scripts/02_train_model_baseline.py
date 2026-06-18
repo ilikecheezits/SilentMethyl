@@ -15,7 +15,6 @@ from tqdm import tqdm
 from transformers import AutoTokenizer, AutoModel, AutoConfig, get_linear_schedule_with_warmup
 from huggingface_hub import snapshot_download, hf_hub_download
 from sklearn.metrics import mean_squared_error, mean_absolute_error, roc_auc_score
-from peft import LoraConfig, get_peft_model
 
 class SequenceOnlyBaselineDataset(Dataset):
     def __init__(self, df, tokenizer, window_size=5000):
@@ -30,6 +29,7 @@ class SequenceOnlyBaselineDataset(Dataset):
         row = self.df.iloc[idx]
         seq = str(row['Healthy_5000bp_DNA']).upper()
         
+        # Simple static cropping based on assumed perfect upstream centering
         true_c_idx = len(seq) // 2
         start_idx = true_c_idx - (self.window_size // 2)
         end_idx = start_idx + self.window_size
@@ -43,11 +43,16 @@ class SequenceOnlyBaselineDataset(Dataset):
             padding='max_length', return_tensors='pt'
         )
         
+        # Enforce strict binary state for Focal Loss
+        beta = float(row['Median_Beta'])
+        binary_state = 1.0 if beta > 0.5 else 0.0
+        
         return {
             'input_ids': encoding['input_ids'].flatten(),
             'attention_mask': encoding['attention_mask'].flatten(),
             'm_value': torch.tensor(row['M_Value_Target'], dtype=torch.float32),
-            'beta_value': torch.tensor(row['Median_Beta'], dtype=torch.float32),
+            'beta_value': torch.tensor(beta, dtype=torch.float32),
+            'binary_state': torch.tensor(binary_state, dtype=torch.float32),
             'probe_id': row['probeID']
         }
 
@@ -82,17 +87,9 @@ def patch_and_load_dnabert(model_path="zhihan1996/DNABERT-2-117M", local_dir="dn
 class BaselineDNABert(nn.Module):
     def __init__(self, model_path="zhihan1996/DNABERT-2-117M"):
         super(BaselineDNABert, self).__init__()
-        self.config, base_model = patch_and_load_dnabert(model_path)
+        # Load the base model directly. No LoRA wrappers.
+        self.config, self.bert = patch_and_load_dnabert(model_path)
         hidden_size = self.config.hidden_size
-        
-        lora_config = LoraConfig(
-            r=32,
-            lora_alpha=64,
-            target_modules=["Wqkv"],
-            lora_dropout=0.1,
-            bias="none"
-        )
-        self.bert = get_peft_model(base_model, lora_config)
         
         self.spatial_conv = nn.Conv1d(in_channels=hidden_size, out_channels=hidden_size, kernel_size=3, padding=1)
         self.attention_pool = nn.Sequential(nn.Linear(hidden_size, 1), nn.Tanh())
@@ -143,9 +140,9 @@ def main():
     parser.add_argument("--batch_size", type=int, default=8) 
     parser.add_argument("--grad_accum_steps", type=int, default=4) 
     parser.add_argument("--epochs", type=int, default=10)
-    parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument("--lr", type=float, default=2e-5) # Slightly lower LR for Full Fine-Tuning
     parser.add_argument("--window_size", type=int, default=1000)
-    parser.add_argument("--patience", type=int, default=3, help="Early stopping patience")
+    parser.add_argument("--patience", type=int, default=3)
     args = parser.parse_args()
     
     os.makedirs(args.save_dir, exist_ok=True)
@@ -178,14 +175,17 @@ def main():
     total_steps = (len(train_loader) // args.grad_accum_steps) * args.epochs
     scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=int(0.1 * total_steps), num_training_steps=total_steps)
     
+    # -----------------------------------------------------------
+    # LOSS FUNCTIONS FOR SMOKE TESTING
+    # -----------------------------------------------------------
     criterion_focal = FocalLossWithLogits(alpha=0.5, gamma=2.0)
-    criterion_huber = nn.HuberLoss(delta=1.345)
-    
-    # 1.0 ensures regression (continuous distance) is just as critical as binary accuracy
-    lambda_reg = 1.0 
+    criterion_regression = nn.MSELoss() # You can swap this with nn.HuberLoss(delta=X) for testing
+    lambda_reg = 1.0 # Regression holds equal mathematical weight to classification
+    # -----------------------------------------------------------
+
     scaler = torch.amp.GradScaler('cuda')
     
-    # MAE-Driven Early Stopping Setup (Lower is better)
+    # Strictly monitoring Beta MAE for single-nucleotide sensitivity
     best_val_mae = float('inf')
     epochs_no_improve = 0
     global_step = 0 
@@ -199,13 +199,13 @@ def main():
         for step, batch in enumerate(pbar):
             input_ids, attention_mask = batch['input_ids'].to(device), batch['attention_mask'].to(device)
             m_value_target = batch['m_value'].to(device).view(-1, 1)
-            beta_target = batch['beta_value'].to(device).view(-1, 1)
+            binary_target = batch['binary_state'].to(device).view(-1, 1)
 
             with torch.amp.autocast('cuda'):
                 class_logits, m_value_pred = model(input_ids, attention_mask)
-                loss_clf = criterion_focal(class_logits, beta_target)
-                loss_huber = criterion_huber(m_value_pred, m_value_target)
-                loss = (loss_clf + (lambda_reg * loss_huber)) / args.grad_accum_steps
+                loss_clf = criterion_focal(class_logits, binary_target)
+                loss_reg = criterion_regression(m_value_pred, m_value_target)
+                loss = (loss_clf + (lambda_reg * loss_reg)) / args.grad_accum_steps
 
             scaler.scale(loss).backward()
             train_loss += (loss.item() * args.grad_accum_steps)
@@ -220,6 +220,7 @@ def main():
                 global_step += 1
                 
                 writer.add_scalar("Train/Total_Loss", loss.item() * args.grad_accum_steps, global_step)
+                writer.add_scalar("Train/Regression_Loss", loss_reg.item(), global_step)
                 pbar.set_postfix({'Loss': f"{loss.item() * args.grad_accum_steps:.4f}"})
 
         model.eval()
@@ -231,10 +232,11 @@ def main():
                 input_ids, attention_mask = batch['input_ids'].to(device), batch['attention_mask'].to(device)
                 m_value_target = batch['m_value'].to(device).view(-1, 1)
                 beta_target = batch['beta_value'].to(device).view(-1, 1)
+                binary_target = batch['binary_state'].to(device).view(-1, 1)
                 
                 with torch.amp.autocast('cuda'):
                     class_logits, m_value_pred = model(input_ids, attention_mask)
-                    batch_loss = criterion_focal(class_logits, beta_target) + (lambda_reg * criterion_huber(m_value_pred, m_value_target))
+                    batch_loss = criterion_focal(class_logits, binary_target) + (lambda_reg * criterion_regression(m_value_pred, m_value_target))
                     
                 val_loss += batch_loss.item()
                 all_m_true.extend(m_value_target.cpu().float().numpy().flatten().tolist())
@@ -266,7 +268,6 @@ def main():
         with open(val_stats_path, "a") as f:
             f.write(f"{epoch},{avg_train_loss:.4f},{avg_val_loss:.4f},{val_rmse:.4f},{val_mae_beta:.4f},{val_auc:.4f}\n")
         
-        # MAE-DRIVEN SAVING LOGIC (Minimizing error)
         if val_mae_beta < best_val_mae:
             best_val_mae = val_mae_beta
             epochs_no_improve = 0
