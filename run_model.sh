@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=4
 #SBATCH --gres=gpu:v100-32:1
-#SBATCH --time=24:00:00
+#SBATCH --time=48:00:00
 #SBATCH --output=training_log.txt
 #SBATCH --error=sus.txt
 
