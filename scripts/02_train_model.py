@@ -84,10 +84,11 @@ def patch_and_load_dnabert(model_path="zhihan1996/DNABERT-2-117M", local_dir="./
 # 2. Multi-Modal Dataset (STATICALLY ANCHORED)
 # =========================================
 class MultiModalLateFusionDataset(Dataset):
-    def __init__(self, df, shape_data_array, tokenizer, window_size=101):
+    def __init__(self, df, shape_data_array, tokenizer, seq_window_size=1000, shape_window_size=100):
         self.df = df.reset_index(drop=True)
         self.tokenizer = tokenizer
-        self.window_size = window_size
+        self.seq_window_size = seq_window_size
+        self.shape_window_size = shape_window_size
         self.shape_data = shape_data_array
 
         logging.info(f"[✓] Verification: CSV Rows = {len(self.df)}, TSV Array Rows = {len(self.shape_data)}")
@@ -117,24 +118,24 @@ class MultiModalLateFusionDataset(Dataset):
         
         # Perfect match to the baseline static cropping
         true_c_idx = len(full_sequence) // 2
-        start_idx = true_c_idx - (self.window_size // 2)
-        end_idx = start_idx + self.window_size
+        start_idx = true_c_idx - (self.seq_window_size // 2)
+        end_idx = start_idx + self.seq_window_size
         
-        if start_idx < 0: sequence = full_sequence[:self.window_size]
-        elif end_idx > len(full_sequence): sequence = full_sequence[-self.window_size:]
+        if start_idx < 0: sequence = full_sequence[:self.seq_window_size]
+        elif end_idx > len(full_sequence): sequence = full_sequence[-self.seq_window_size:]
         else: sequence = full_sequence[start_idx : end_idx]
             
         encoding = self.tokenizer(
             sequence,
             truncation=True,
-            max_length=self.window_size, 
+            max_length=self.seq_window_size, 
             padding='max_length',
             return_tensors='pt'
         )
         
         # --- 3. PHYSICAL ANCHOR (3D DNA Shape with Mask) ---
         shape_flat = self.shape_data[idx]
-        shape_tensor = torch.tensor(shape_flat).view(14, self.window_size)
+        shape_tensor = torch.tensor(shape_flat).view(14, self.shape_window_size)
         shape_mask = ~torch.isnan(shape_tensor)
         shape_tensor = torch.nan_to_num(shape_tensor, nan=0.0)
 
@@ -273,7 +274,8 @@ def main():
     parser.add_argument("--batch_size", type=int, default=4) 
     parser.add_argument("--grad_accum_steps", type=int, default=8) 
     parser.add_argument("--epochs", type=int, default=10)
-    parser.add_argument("--window_size", type=int, default=101, help="Must match 3D Shape geometry array dimension")
+    parser.add_argument("--seq_window_size", type=int, default=1000, help="Size of centered DNA sequence crop")
+    parser.add_argument("--shape_window_size", type=int, default=100, help="Size of 3D Shape geometry array dimension")
     args = parser.parse_args()
     
     writer = SummaryWriter(log_dir="runs/phase2_multimodal")
@@ -282,7 +284,7 @@ def main():
     logger = logging.getLogger(__name__)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    logger.info(f"[*] Starting Multimodal Training on {device} | Window Size: {args.window_size}bp")
+    logger.info(f"[*] Starting Multimodal Training on {device} | Seq Window: {args.seq_window_size}bp | Shape Window: {args.shape_window_size}bp")
 
     logger.info("[*] Loading Pre-Split CSV and TSV Data simultaneously...")
     train_df = pd.read_csv(args.train_path)
@@ -303,8 +305,8 @@ def main():
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_path, trust_remote_code=True)
     
-    train_dataset = MultiModalLateFusionDataset(train_df, train_shapes, tokenizer, window_size=args.window_size)
-    val_dataset = MultiModalLateFusionDataset(val_df, val_shapes, tokenizer, window_size=args.window_size)    
+    train_dataset = MultiModalLateFusionDataset(train_df, train_shapes, tokenizer, seq_window_size=args.seq_window_size, shape_window_size=args.shape_window_size)
+    val_dataset = MultiModalLateFusionDataset(val_df, val_shapes, tokenizer, seq_window_size=args.seq_window_size, shape_window_size=args.shape_window_size)    
     
     g = torch.Generator()
     g.manual_seed(42)
@@ -501,58 +503,3 @@ def main():
         fig_scatter_m, ax_scatter_m = plt.subplots(figsize=(8, 8))
         ax_scatter_m.scatter(all_m_true, all_m_pred, alpha=0.3, edgecolors='none')
         min_m = min(min(all_m_true), min(all_m_pred))
-        max_m = max(max(all_m_true), max(all_m_pred))
-        ax_scatter_m.plot([min_m, max_m], [min_m, max_m], 'r--', lw=2, label="Perfect Prediction")
-        ax_scatter_m.set_xlabel("True M-Value")
-        ax_scatter_m.set_ylabel("Predicted M-Value")
-        ax_scatter_m.set_title(f"Epoch {epoch} M-Value Accuracy")
-        ax_scatter_m.legend()
-        writer.add_figure("Plots/M_Value_Scatter", fig_scatter_m, epoch)
-        plt.close(fig_scatter_m)
-        
-        # Graph 2: Beta-Value Scatter Plot
-        fig_scatter_beta, ax_scatter_beta = plt.subplots(figsize=(8, 8))
-        ax_scatter_beta.scatter(all_beta_true, all_beta_prob, alpha=0.3, edgecolors='none', color='green')
-        ax_scatter_beta.plot([0, 1], [0, 1], 'r--', lw=2, label="Perfect Prediction")
-        ax_scatter_beta.set_xlabel("True Beta-Value")
-        ax_scatter_beta.set_ylabel("Predicted Beta Probability")
-        ax_scatter_beta.set_title(f"Epoch {epoch} Beta-Value Accuracy")
-        ax_scatter_beta.legend()
-        writer.add_figure("Plots/Beta_Scatter", fig_scatter_beta, epoch)
-        plt.close(fig_scatter_beta)
-        
-        # Graph 3: Classification ROC Curve
-        if not np.isnan(val_auc):
-            fpr, tpr, _ = roc_curve(all_binary_true, all_beta_prob)
-            fig_roc, ax_roc = plt.subplots(figsize=(8, 8))
-            ax_roc.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (AUC = {val_auc:.4f})')
-            ax_roc.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
-            ax_roc.set_xlim([0.0, 1.0])
-            ax_roc.set_ylim([0.0, 1.05])
-            ax_roc.set_xlabel('False Positive Rate')
-            ax_roc.set_ylabel('True Positive Rate')
-            ax_roc.set_title(f'Epoch {epoch} Receiver Operating Characteristic')
-            ax_roc.legend(loc="lower right")
-            writer.add_figure("Plots/ROC_Curve", fig_roc, epoch)
-            plt.close(fig_roc)
-
-        # SAVE LOGIC (Continuous Checkpointing + Best Tracker)
-        checkpoint = {
-            'epoch': epoch + 1,
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'scheduler_state_dict': scheduler.state_dict(),
-            'scaler_state_dict': scaler.state_dict(),
-            'best_val_mae': best_val_mae
-        }
-        torch.save(checkpoint, os.path.join(args.save_dir, "latest_checkpoint.pt"))
-        logger.info(f"[✓] Full Training State backed up for Epoch {epoch}.")
-
-        if val_beta_mae < best_val_mae:
-            best_val_mae = val_beta_mae
-            best_save_path = os.path.join(args.save_dir, "multimodal_best_weights.pth")
-            torch.save(model.state_dict(), best_save_path)
-            logger.info(f"[★] New Best Model (Beta MAE: {best_val_mae:.4f}) saved!")
-
-if __name__ == "__main__":
-    main()
