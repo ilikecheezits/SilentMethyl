@@ -188,7 +188,6 @@ def main():
     args = parser.parse_args()
     
     writer = SummaryWriter(log_dir="runs/phase1_baseline")
-    global_step = 0 
     os.makedirs(args.save_dir, exist_ok=True)
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
     logger = logging.getLogger(__name__)
@@ -248,9 +247,28 @@ def main():
     criterion_huber = nn.HuberLoss(delta=1.345)
     scaler = torch.amp.GradScaler('cuda')
     
+    # --- RESUME LOGIC (SLURM SAFETY) ---
+    start_epoch = 1
     best_val_mae = float('inf')
+    global_step = 0
+    latest_ckpt_path = os.path.join(args.save_dir, "latest_checkpoint.pt")
+    
+    if os.path.exists(latest_ckpt_path):
+        logger.info(f"[*] Found interrupted run at {latest_ckpt_path}. Restoring state...")
+        checkpoint = torch.load(latest_ckpt_path, map_location=device, weights_only=False)
+        
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        scaler.load_state_dict(checkpoint['scaler_state_dict'])
+        
+        start_epoch = checkpoint['epoch']
+        best_val_mae = checkpoint.get('best_val_mae', float('inf'))
+        global_step = (start_epoch - 1) * (len(train_loader) // args.grad_accum_steps)
+        logger.info(f"[✓] Successfully resumed! Fast-forwarding to Epoch {start_epoch}...")
+    # -----------------------------------
 
-    for epoch in range(1, args.epochs + 1):
+    for epoch in range(start_epoch, args.epochs + 1):
         model.train()
         train_loss = 0.0
         optimizer.zero_grad()
@@ -406,15 +424,23 @@ def main():
             writer.add_figure("Plots/ROC_Curve", fig_roc, epoch)
             plt.close(fig_roc)
 
-        # SAVE LOGIC (Every Epoch + Best Tracker)
-        epoch_save_path = os.path.join(args.save_dir, f"weights_epoch_{epoch}.pth")
-        torch.save(model.state_dict(), epoch_save_path)
-        logger.info(f"[✓] Epoch {epoch} weights safely backed up.")
+        # SAVE LOGIC (Continuous Checkpointing + Best Tracker)
+        checkpoint = {
+            'epoch': epoch + 1,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'scheduler_state_dict': scheduler.state_dict(),
+            'scaler_state_dict': scaler.state_dict(),
+            'best_val_mae': best_val_mae
+        }
+        torch.save(checkpoint, os.path.join(args.save_dir, "latest_checkpoint.pt"))
+        logger.info(f"[✓] Full Training State backed up for Epoch {epoch}.")
 
         if val_beta_mae < best_val_mae:
             best_val_mae = val_beta_mae
             best_save_path = os.path.join(args.save_dir, "baseline_best_weights.pth")
             torch.save(model.state_dict(), best_save_path)
             logger.info(f"[★] New Best Model (Beta MAE: {best_val_mae:.4f}) saved!")
+
 if __name__ == "__main__":
     main()

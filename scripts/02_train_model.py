@@ -10,23 +10,30 @@ import numpy as np
 import os
 import shutil
 import json
+import random
 import pandas as pd
 from transformers import AutoTokenizer, AutoModel, AutoConfig, get_linear_schedule_with_warmup
 from huggingface_hub import snapshot_download, hf_hub_download
 import argparse
 import logging
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error, mean_absolute_error, roc_auc_score
-from peft import LoraConfig, get_peft_model
+import matplotlib.pyplot as plt
+from sklearn.metrics import mean_squared_error, mean_absolute_error, roc_auc_score, roc_curve
+
+# =========================================
+# 0. Strict Reproducibility
+# =========================================
+def set_seed(seed=42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 # =========================================
 # 1. The Triton Neutralizer & Model Loader
 # =========================================
 def patch_and_load_dnabert(model_path="zhihan1996/DNABERT-2-117M", local_dir="./dnabert2_local"):
-    """
-∑    Bypasses the 'device meta' PyTorch bug by downloading the remote code locally,
-    disabling the broken Triton Flash Attention, and manually loading weights to CPU.
-    """
     logging.info("--- Performing DNABERT-2 Surgery & Patching ---")
     if not os.path.exists(local_dir):
         os.makedirs(local_dir, exist_ok=True)
@@ -74,22 +81,25 @@ def patch_and_load_dnabert(model_path="zhihan1996/DNABERT-2-117M", local_dir="./
     return config, base_model
 
 # =========================================
-# 2. Multi-Modal Dataset (DYNAMICALLY ANCHORED)
+# 2. Multi-Modal Dataset (STATICALLY ANCHORED)
 # =========================================
 class MultiModalLateFusionDataset(Dataset):
-    def __init__(self, df, shape_data_array, tokenizer, window_size=101, debug_cpg=False):
+    def __init__(self, df, shape_data_array, tokenizer, window_size=101):
         self.df = df.reset_index(drop=True)
         self.tokenizer = tokenizer
         self.window_size = window_size
-        self.debug_cpg = debug_cpg
         self.shape_data = shape_data_array
 
         logging.info(f"[✓] Verification: CSV Rows = {len(self.df)}, TSV Array Rows = {len(self.shape_data)}")
         assert len(self.df) == len(self.shape_data), "CRITICAL ERROR: CSV and TSV row counts do not match!"
+        
+        # 7 Features based on the provided header
         self.tabular_features = [
             'Ref_ATAC_Signal', 'Ref_H3K4me3_Signal', 'Ref_H3K27ac_Signal', 
-            'Ref_H3K27me3_Signal', 'Ref_H3K9me3_Signal', 'Target_Base_PhyloP_100way'
+            'Ref_H3K27me3_Signal', 'Ref_H3K9me3_Signal', 
+            'Target_Base_PhyloP_100way_1', 'Target_Base_PhyloP_100way_2'
         ]
+
     def __len__(self):
         return len(self.df)
 
@@ -102,30 +112,16 @@ class MultiModalLateFusionDataset(Dataset):
         tab_mask = ~torch.isnan(tab_tensor)
         tab_tensor = torch.nan_to_num(tab_tensor, nan=0.0)
         
-        # --- 2. PHYSICAL ANCHOR (DNABERT-2 Sequence) ---
+        # --- 2. PHYSICAL ANCHOR (DNABERT-2 Sequence - STATIC CROP) ---
         full_sequence = str(row['Healthy_5000bp_DNA']).upper()
-        seq_len = len(full_sequence)
         
-        approx_center = seq_len // 2
-        search_radius = 50 
-        search_start = max(0, approx_center - search_radius)
-        search_end = min(seq_len, approx_center + search_radius)
-        search_window = full_sequence[search_start : search_end]
-        
-        if "CG" in search_window:
-            cg_local_idx = search_window.index("CG")
-            true_c_idx = search_start + cg_local_idx
-        else:
-            if self.debug_cpg:
-                raise ValueError(f"CRITICAL: No 'CG' found for index {idx}. Window: {search_window}")
-            true_c_idx = approx_center 
-            
-        half_window = self.window_size // 2
-        start_idx = true_c_idx - half_window
+        # Perfect match to the baseline static cropping
+        true_c_idx = len(full_sequence) // 2
+        start_idx = true_c_idx - (self.window_size // 2)
         end_idx = start_idx + self.window_size
         
         if start_idx < 0: sequence = full_sequence[:self.window_size]
-        elif end_idx > seq_len: sequence = full_sequence[-self.window_size:]
+        elif end_idx > len(full_sequence): sequence = full_sequence[-self.window_size:]
         else: sequence = full_sequence[start_idx : end_idx]
             
         encoding = self.tokenizer(
@@ -142,9 +138,10 @@ class MultiModalLateFusionDataset(Dataset):
         shape_mask = ~torch.isnan(shape_tensor)
         shape_tensor = torch.nan_to_num(shape_tensor, nan=0.0)
 
-        # Targets
+        # Targets (BCE / Huber specific mapping)
         m_value = torch.tensor(row['M_Value_Target'], dtype=torch.float32)
-        binary_state = torch.tensor(row['Binary_State_Target'], dtype=torch.float32)
+        beta = float(row['Median_Beta'])
+        binary_state = 1.0 if beta > 0.5 else 0.0
         
         return {
             'tab': tab_tensor,
@@ -154,7 +151,8 @@ class MultiModalLateFusionDataset(Dataset):
             'shape': shape_tensor,
             'shape_mask': shape_mask.float(),
             'm_value': m_value,
-            'binary_state': binary_state,
+            'beta_value': torch.tensor(beta, dtype=torch.float32),
+            'binary_state': torch.tensor(binary_state, dtype=torch.float32),
             'probe_id': row['probeID']
         }
 
@@ -162,7 +160,7 @@ class MultiModalLateFusionDataset(Dataset):
 # 3. Late Fusion Multi-Modal Architecture
 # =========================================
 class SilentMethylModel(nn.Module):
-    def __init__(self, model_path="zhihan1996/DNABERT-2-117M", tabular_dim=6):
+    def __init__(self, model_path="zhihan1996/DNABERT-2-117M", tabular_dim=7):
         super(SilentMethylModel, self).__init__()
         
         # A. Spatial Anchor (Epigenetic MLP)
@@ -172,21 +170,16 @@ class SilentMethylModel(nn.Module):
             nn.Linear(32, 32)
         )
         
-        # B. Physical Anchor (DNABERT-2 with PEFT/LoRA)
-        self.config, base_bert = patch_and_load_dnabert(model_path)
+        # B. Physical Anchor (FULL FINE-TUNING DNABERT-2 + SPATIAL CONV)
+        self.config, self.bert = patch_and_load_dnabert(model_path)
+        hidden_size = self.config.hidden_size
         
-        lora_config = LoraConfig(
-            r=8,
-            lora_alpha=32,
-            target_modules=["query", "key", "value", "dense"],
-            lora_dropout=0.05,
-            bias="none"
-        )
-        self.bert = get_peft_model(base_bert, lora_config)
-        self.bert.print_trainable_parameters()
+        # Exact match to baseline sequence processing
+        self.spatial_conv = nn.Conv1d(in_channels=hidden_size, out_channels=hidden_size, kernel_size=3, padding=1)
+        self.attention_pool = nn.Sequential(nn.Linear(hidden_size, 1), nn.Tanh())
         
         self.text_fc = nn.Sequential(
-            nn.Linear(self.config.hidden_size, 128),
+            nn.Linear(hidden_size, 128),
             nn.GELU()
         )
         
@@ -204,7 +197,7 @@ class SilentMethylModel(nn.Module):
             nn.GELU()
         )
         
-        # D. Late Fusion Synthesis Heads (Match Baseline Outputs)
+        # D. Late Fusion Synthesis Heads
         self.classification_head = nn.Sequential(
             nn.Linear(224, 256),
             nn.GELU(),
@@ -224,14 +217,18 @@ class SilentMethylModel(nn.Module):
         tab_in = torch.cat([tab, tab_mask], dim=1)
         tab_out = self.tab_mlp(tab_in)
         
-        # 2. Process Sequence
+        # 2. Process Sequence (Spatial Conv + Attention Pool matching baseline)
         bert_out = self.bert(input_ids=input_ids, attention_mask=attention_mask, output_attentions=True)
         hidden_states = bert_out[0] if isinstance(bert_out, tuple) else bert_out.last_hidden_state
         
-        mask_expanded = attention_mask.unsqueeze(-1).expand(hidden_states.size()).float()
-        sum_embeddings = torch.sum(hidden_states * mask_expanded, 1)
-        sum_mask = torch.clamp(mask_expanded.sum(1), min=1e-9)
-        seq_pooled = sum_embeddings / sum_mask
+        hidden_states_t = hidden_states.permute(0, 2, 1)
+        spatial_features = F.relu(self.spatial_conv(hidden_states_t)).permute(0, 2, 1)
+        
+        attn_weights = self.attention_pool(spatial_features).squeeze(-1)
+        attn_weights = attn_weights.masked_fill(attention_mask == 0, -1e4)
+        attn_weights = F.softmax(attn_weights, dim=-1)
+        
+        seq_pooled = torch.sum(spatial_features * attn_weights.unsqueeze(-1), dim=1)
         text_out = self.text_fc(seq_pooled)
         
         # 3. Process 3D Geometry
@@ -260,45 +257,26 @@ class SilentMethylModel(nn.Module):
         
         return class_logits, m_value_pred, attentions
 
-class FocalLossWithLogits(nn.Module):
-    def __init__(self, alpha=0.25, gamma=2.0, reduction='mean'):
-        super(FocalLossWithLogits, self).__init__()
-        self.alpha = alpha
-        self.gamma = gamma
-        self.reduction = reduction
-
-    def forward(self, inputs, targets):
-        bce_loss = F.binary_cross_entropy_with_logits(inputs, targets, reduction='none')
-        pt = torch.exp(-bce_loss)
-        focal_term = (1 - pt) ** self.gamma
-        if self.alpha is not None:
-            alpha_t = self.alpha * targets + (1 - self.alpha) * (1 - targets)
-            focal_term = alpha_t * focal_term
-            
-        loss = focal_term * bce_loss
-        if self.reduction == 'mean': return loss.mean()
-        elif self.reduction == 'sum': return loss.sum()
-        else: return loss
-
 # =========================================
 # 4. Training Loop
 # =========================================
 def main():
+    set_seed(42)
+    
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data_path", type=str, default="data/processed/baseline_phase1_final.csv")
-    parser.add_argument("--shape_tsv", type=str, default="training_wild_type_3d_shapes.tsv")
+    parser.add_argument("--train_path", type=str, default="data/datafiles/train.csv")
+    parser.add_argument("--val_path", type=str, default="data/datafiles/val.csv")
+    parser.add_argument("--train_shape_tsv", type=str, required=True, help="Must match train.csv perfectly")
+    parser.add_argument("--val_shape_tsv", type=str, required=True, help="Must match val.csv perfectly")
     parser.add_argument("--save_dir", default="./checkpoints_multimodal")
     parser.add_argument("--model_path", default="zhihan1996/DNABERT-2-117M")
     parser.add_argument("--batch_size", type=int, default=4) 
     parser.add_argument("--grad_accum_steps", type=int, default=8) 
     parser.add_argument("--epochs", type=int, default=10)
-    parser.add_argument("--lr", type=float, default=2e-5)
-    parser.add_argument("--window_size", type=int, default=101, help="Must match 3D Shape geometry")
-    parser.add_argument("--debug_cpg", action="store_true", help="Assert the exact center of sequence is CG")
+    parser.add_argument("--window_size", type=int, default=101, help="Must match 3D Shape geometry array dimension")
     args = parser.parse_args()
     
     writer = SummaryWriter(log_dir="runs/phase2_multimodal")
-    global_step = 0 
     os.makedirs(args.save_dir, exist_ok=True)
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
     logger = logging.getLogger(__name__)
@@ -306,53 +284,48 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logger.info(f"[*] Starting Multimodal Training on {device} | Window Size: {args.window_size}bp")
 
-    logger.info("[*] Loading CSV and TSV Data simultaneously...")
-    df = pd.read_csv(args.data_path)
+    logger.info("[*] Loading Pre-Split CSV and TSV Data simultaneously...")
+    train_df = pd.read_csv(args.train_path)
+    val_df = pd.read_csv(args.val_path)
     
-    # Load the TSV here so we can filter them together
-    shape_data_full = pd.read_csv(args.shape_tsv, sep='\t', header=None, dtype=np.float32).values
+    train_shapes = pd.read_csv(args.train_shape_tsv, sep='\t', header=None, dtype=np.float32).values
+    val_shapes = pd.read_csv(args.val_shape_tsv, sep='\t', header=None, dtype=np.float32).values
     
-    before = len(df)
+    # Filter non-CpG dynamically alongside the arrays
+    train_mask = train_df['probeID'].str.startswith('cg')
+    val_mask = val_df['probeID'].str.startswith('cg')
     
-    # Create a boolean mask for the filtering
-    mask = df['probeID'].str.startswith('cg')
+    train_df = train_df[train_mask].reset_index(drop=True)
+    train_shapes = train_shapes[train_mask.values]
     
-    # Apply the EXACT SAME mask to both the CSV and the TSV array
-    df = df[mask].reset_index(drop=True)
-    shape_data_filtered = shape_data_full[mask.values]
-    
-    print(f'[*] Filtered non-CpG probes: {before - len(df)} removed, {len(df)} remaining.')
-    
-    # Split both the DataFrame and the TSV array simultaneously (this ensures they shuffle together!)
-    train_df, val_df, train_shapes, val_shapes = train_test_split(
-        df, shape_data_filtered, test_size=0.15, random_state=42
-    )
+    val_df = val_df[val_mask].reset_index(drop=True)
+    val_shapes = val_shapes[val_mask.values]
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_path, trust_remote_code=True)
     
-    # Pass the perfectly aligned arrays into the datasets
-    train_dataset = MultiModalLateFusionDataset(train_df, train_shapes, tokenizer, window_size=args.window_size, debug_cpg=args.debug_cpg)
-    val_dataset = MultiModalLateFusionDataset(val_df, val_shapes, tokenizer, window_size=args.window_size, debug_cpg=args.debug_cpg)    
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)
-    val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4)
+    train_dataset = MultiModalLateFusionDataset(train_df, train_shapes, tokenizer, window_size=args.window_size)
+    val_dataset = MultiModalLateFusionDataset(val_df, val_shapes, tokenizer, window_size=args.window_size)    
+    
+    g = torch.Generator()
+    g.manual_seed(42)
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4, pin_memory=True, generator=g)
+    val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4, pin_memory=True)
 
-    model = SilentMethylModel(args.model_path).to(device)
+    model = SilentMethylModel(args.model_path, tabular_dim=7).to(device)
+    
+    # Split Optimizer Params
     bert_params = []
     new_head_params = []
     
     for name, param in model.named_parameters():
-        if not param.requires_grad:
-            continue # Skip frozen core weights
-            
-        if "bert" in name:
-            bert_params.append(param)
-        else:
-            new_head_params.append(param)
+        if not param.requires_grad: continue
+        if "bert" in name: bert_params.append(param)
+        else: new_head_params.append(param)
 
-    # 2. Assign different learning rates
+    # 2. Assign different learning rates based on pre-training status
     optimizer = optim.AdamW([
-        {'params': bert_params, 'lr': 5e-5},       # Gentle fine-tuning for DNABERT LoRA
-        {'params': new_head_params, 'lr': 1e-3}    # Aggressive learning for the new from-scratch layers
+        {'params': bert_params, 'lr': 5e-5},       # Gentle Full Fine-tuning for DNABERT
+        {'params': new_head_params, 'lr': 1e-3}    # Aggressive learning for scratch layers
     ], weight_decay=1e-4)
     
     total_steps = (len(train_loader) // args.grad_accum_steps) * args.epochs
@@ -362,12 +335,33 @@ def main():
         num_training_steps=total_steps
     )
     
-    criterion_focal = FocalLossWithLogits(alpha=0.5, gamma=2.0)
-    criterion_huber = nn.MSELoss()
+    # 3. Transferred Baseline Loss Configuration
+    criterion_bce = nn.BCEWithLogitsLoss()
+    criterion_huber = nn.HuberLoss(delta=1.345)
     scaler = torch.amp.GradScaler('cuda')
-    best_val_loss = float('inf')
+    
+    # --- RESUME LOGIC (SLURM SAFETY) ---
+    start_epoch = 1
+    best_val_mae = float('inf')
+    global_step = 0
+    latest_ckpt_path = os.path.join(args.save_dir, "latest_checkpoint.pt")
+    
+    if os.path.exists(latest_ckpt_path):
+        logger.info(f"[*] Found interrupted run at {latest_ckpt_path}. Restoring state...")
+        checkpoint = torch.load(latest_ckpt_path, map_location=device, weights_only=False)
+        
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        scaler.load_state_dict(checkpoint['scaler_state_dict'])
+        
+        start_epoch = checkpoint['epoch']
+        best_val_mae = checkpoint.get('best_val_mae', float('inf'))
+        global_step = (start_epoch - 1) * (len(train_loader) // args.grad_accum_steps)
+        logger.info(f"[✓] Successfully resumed! Fast-forwarding to Epoch {start_epoch}...")
+    # -----------------------------------
 
-    for epoch in range(1, args.epochs + 1):
+    for epoch in range(start_epoch, args.epochs + 1):
         model.train()
         train_loss = 0.0
         optimizer.zero_grad()
@@ -390,7 +384,7 @@ def main():
                     tab, tab_mask, input_ids, attention_mask, shape, shape_mask
                 )
                 
-                loss_focal = criterion_focal(class_logits, binary_target)
+                loss_bce = criterion_bce(class_logits, binary_target)
                 loss_huber = criterion_huber(m_value_pred, m_value_target)
                 
                 loss_sparsity = 0.0
@@ -398,7 +392,7 @@ def main():
                     last_layer_attn = attentions[-1] 
                     loss_sparsity = torch.mean(torch.abs(last_layer_attn))
                 
-                loss = loss_focal + loss_huber + (0.01 * loss_sparsity)
+                loss = loss_bce + loss_huber + (0.01 * loss_sparsity)
                 loss = loss / args.grad_accum_steps
 
             scaler.scale(loss).backward()
@@ -407,22 +401,28 @@ def main():
             if (step + 1) % args.grad_accum_steps == 0:
                 scaler.unscale_(optimizer)
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                
+                # AMP / Scheduler Bug Fix
+                scale_before = scaler.get_scale()
                 scaler.step(optimizer)
                 scaler.update()
-                scheduler.step()
+                if scale_before <= scaler.get_scale():
+                    scheduler.step()
+                    
                 optimizer.zero_grad()
                 global_step += 1
                 
                 writer.add_scalar("Train/Total_Loss", loss.item() * args.grad_accum_steps, global_step)
-                writer.add_scalar("Train/MSE_Loss", loss_huber.item(), global_step)
-                writer.add_scalar("Train/Focal_Loss", loss_focal.item(), global_step)
-                writer.add_scalar("Train/Learning_Rate", scheduler.get_last_lr()[0], global_step)
+                writer.add_scalar("Train/Huber_Loss", loss_huber.item(), global_step)
+                writer.add_scalar("Train/BCE_Loss", loss_bce.item(), global_step)
+                writer.add_scalar("Train/Learning_Rate_Heads", optimizer.param_groups[1]['lr'], global_step)
                 pbar.set_postfix({'Loss': f"{loss.item() * args.grad_accum_steps:.4f}"})
 
         model.eval()
         val_loss = 0.0
         all_m_true, all_m_pred = [], []
-        all_binary_true, all_binary_prob = [], []
+        all_beta_true, all_beta_prob = [], []
+        all_binary_true = []
 
         with torch.no_grad():
             for batch in tqdm(val_loader, desc=f"Epoch {epoch}/{args.epochs} [VAL]"):
@@ -434,57 +434,125 @@ def main():
                 shape_mask = batch['shape_mask'].to(device)
                 
                 m_value_target = batch['m_value'].to(device).view(-1, 1)
+                beta_target = batch['beta_value'].to(device).view(-1, 1)
                 binary_target = batch['binary_state'].to(device).view(-1, 1)
                 
                 with torch.amp.autocast('cuda'):
                     class_logits, m_value_pred, _ = model(
                         tab, tab_mask, input_ids, attention_mask, shape, shape_mask
                     )
-                    loss_focal = criterion_focal(class_logits, binary_target)
+                    loss_bce = criterion_bce(class_logits, binary_target)
                     loss_huber = criterion_huber(m_value_pred, m_value_target)
-                    batch_loss = loss_focal + loss_huber
+                    batch_loss = loss_bce + loss_huber
                     
                 val_loss += batch_loss.item()
+                
                 all_m_true.extend(m_value_target.cpu().float().numpy().flatten().tolist())
                 all_m_pred.extend(m_value_pred.cpu().float().numpy().flatten().tolist())
-                all_binary_prob.extend(torch.sigmoid(class_logits).cpu().float().numpy().flatten().tolist())
+                
+                all_beta_true.extend(beta_target.cpu().float().numpy().flatten().tolist())
+                all_beta_prob.extend(torch.sigmoid(class_logits).cpu().float().numpy().flatten().tolist())
+                
                 all_binary_true.extend(binary_target.cpu().float().numpy().flatten().tolist())
 
         avg_val_loss = val_loss / len(val_loader)
-        val_rmse = np.sqrt(mean_squared_error(all_m_true, all_m_pred))
-        val_mae  = mean_absolute_error(all_m_true, all_m_pred)
-
+        
+        # Calculate M-Value Metrics
+        val_m_rmse = np.sqrt(mean_squared_error(all_m_true, all_m_pred))
+        val_m_mae  = mean_absolute_error(all_m_true, all_m_pred)
+        
+        # Calculate Beta Metrics
+        val_beta_rmse = np.sqrt(mean_squared_error(all_beta_true, all_beta_prob))
+        val_beta_mae  = mean_absolute_error(all_beta_true, all_beta_prob)
+        
         unique_classes = set(all_binary_true)
         if len(unique_classes) == 2:
-            val_auc = roc_auc_score(all_binary_true, all_binary_prob)
+            val_auc = roc_auc_score(all_binary_true, all_beta_prob)
         else:
             val_auc = float('nan')
             logger.warning(f"[!] AUC skipped -- only class(es) {unique_classes} present in val set")
 
         m_pred_arr = np.array(all_m_pred)
-        prob_arr   = np.array(all_binary_prob)
+        beta_prob_arr = np.array(all_beta_prob)
 
         logger.info(f"\n--- EPOCH {epoch} SUMMARY ---")
         logger.info(f"  Train Loss : {train_loss / len(train_loader):.4f}")
         logger.info(f"  Val Loss   : {avg_val_loss:.4f}")
-        logger.info(f"  [Regression]     RMSE={val_rmse:.4f}  MAE={val_mae:.4f}")
-        logger.info(f"  [Regression]     pred range=[{m_pred_arr.min():.3f}, {m_pred_arr.max():.3f}]  mean={m_pred_arr.mean():.3f}  std={m_pred_arr.std():.3f}")
-        logger.info(f"  [Regression]     true range=[{min(all_m_true):.3f}, {max(all_m_true):.3f}]  mean={np.mean(all_m_true):.3f}")
+        logger.info(f"  [M-Value]        RMSE={val_m_rmse:.4f}  MAE={val_m_mae:.4f}")
+        logger.info(f"  [M-Value]        pred range=[{m_pred_arr.min():.3f}, {m_pred_arr.max():.3f}]  mean={m_pred_arr.mean():.3f}  std={m_pred_arr.std():.3f}")
+        logger.info(f"  [Beta-Value]     RMSE={val_beta_rmse:.4f}  MAE={val_beta_mae:.4f}")
         logger.info(f"  [Classification] AUC={val_auc:.4f}")
-        logger.info(f"  [Classification] prob range=[{prob_arr.min():.3f}, {prob_arr.max():.3f}]  mean={prob_arr.mean():.3f}  std={prob_arr.std():.3f}")
+        logger.info(f"  [Classification] prob range=[{beta_prob_arr.min():.3f}, {beta_prob_arr.max():.3f}]  mean={beta_prob_arr.mean():.3f}  std={beta_prob_arr.std():.3f}")
         
+        # Core TensorBoard Scalars
         writer.add_scalar("Val/Epoch_Total_Loss", avg_val_loss, epoch)
-        writer.add_scalar("Val/RMSE", val_rmse, epoch)
+        writer.add_scalar("Val/M_Value_RMSE", val_m_rmse, epoch)
+        writer.add_scalar("Val/M_Value_MAE", val_m_mae, epoch)
+        writer.add_scalar("Val/Beta_RMSE", val_beta_rmse, epoch)
+        writer.add_scalar("Val/Beta_MAE", val_beta_mae, epoch)
         writer.add_scalar("Val/AUC", val_auc, epoch)
         
-        writer.add_histogram("Distributions/Predictions", m_pred_arr, epoch)
-        writer.add_histogram("Distributions/True_Targets", np.array(all_m_true), epoch)
+        # Histograms
+        writer.add_histogram("Distributions/M_Value_Predictions", m_pred_arr, epoch)
+        writer.add_histogram("Distributions/M_Value_True", np.array(all_m_true), epoch)
+        writer.add_histogram("Distributions/Beta_Probabilities", beta_prob_arr, epoch)
         
-        if avg_val_loss < best_val_loss:
-            best_val_loss = avg_val_loss
-            save_path = os.path.join(args.save_dir, "multimodal_best_weights.pth")
-            torch.save(model.state_dict(), save_path)
-            logger.info(f"[✓] New Best Model Saved!")
+        # Graph 1: M-Value Regression Scatter Plot
+        fig_scatter_m, ax_scatter_m = plt.subplots(figsize=(8, 8))
+        ax_scatter_m.scatter(all_m_true, all_m_pred, alpha=0.3, edgecolors='none')
+        min_m = min(min(all_m_true), min(all_m_pred))
+        max_m = max(max(all_m_true), max(all_m_pred))
+        ax_scatter_m.plot([min_m, max_m], [min_m, max_m], 'r--', lw=2, label="Perfect Prediction")
+        ax_scatter_m.set_xlabel("True M-Value")
+        ax_scatter_m.set_ylabel("Predicted M-Value")
+        ax_scatter_m.set_title(f"Epoch {epoch} M-Value Accuracy")
+        ax_scatter_m.legend()
+        writer.add_figure("Plots/M_Value_Scatter", fig_scatter_m, epoch)
+        plt.close(fig_scatter_m)
+        
+        # Graph 2: Beta-Value Scatter Plot
+        fig_scatter_beta, ax_scatter_beta = plt.subplots(figsize=(8, 8))
+        ax_scatter_beta.scatter(all_beta_true, all_beta_prob, alpha=0.3, edgecolors='none', color='green')
+        ax_scatter_beta.plot([0, 1], [0, 1], 'r--', lw=2, label="Perfect Prediction")
+        ax_scatter_beta.set_xlabel("True Beta-Value")
+        ax_scatter_beta.set_ylabel("Predicted Beta Probability")
+        ax_scatter_beta.set_title(f"Epoch {epoch} Beta-Value Accuracy")
+        ax_scatter_beta.legend()
+        writer.add_figure("Plots/Beta_Scatter", fig_scatter_beta, epoch)
+        plt.close(fig_scatter_beta)
+        
+        # Graph 3: Classification ROC Curve
+        if not np.isnan(val_auc):
+            fpr, tpr, _ = roc_curve(all_binary_true, all_beta_prob)
+            fig_roc, ax_roc = plt.subplots(figsize=(8, 8))
+            ax_roc.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (AUC = {val_auc:.4f})')
+            ax_roc.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+            ax_roc.set_xlim([0.0, 1.0])
+            ax_roc.set_ylim([0.0, 1.05])
+            ax_roc.set_xlabel('False Positive Rate')
+            ax_roc.set_ylabel('True Positive Rate')
+            ax_roc.set_title(f'Epoch {epoch} Receiver Operating Characteristic')
+            ax_roc.legend(loc="lower right")
+            writer.add_figure("Plots/ROC_Curve", fig_roc, epoch)
+            plt.close(fig_roc)
+
+        # SAVE LOGIC (Continuous Checkpointing + Best Tracker)
+        checkpoint = {
+            'epoch': epoch + 1,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'scheduler_state_dict': scheduler.state_dict(),
+            'scaler_state_dict': scaler.state_dict(),
+            'best_val_mae': best_val_mae
+        }
+        torch.save(checkpoint, os.path.join(args.save_dir, "latest_checkpoint.pt"))
+        logger.info(f"[✓] Full Training State backed up for Epoch {epoch}.")
+
+        if val_beta_mae < best_val_mae:
+            best_val_mae = val_beta_mae
+            best_save_path = os.path.join(args.save_dir, "multimodal_best_weights.pth")
+            torch.save(model.state_dict(), best_save_path)
+            logger.info(f"[★] New Best Model (Beta MAE: {best_val_mae:.4f}) saved!")
 
 if __name__ == "__main__":
     main()
