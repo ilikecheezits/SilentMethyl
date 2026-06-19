@@ -503,3 +503,58 @@ def main():
         fig_scatter_m, ax_scatter_m = plt.subplots(figsize=(8, 8))
         ax_scatter_m.scatter(all_m_true, all_m_pred, alpha=0.3, edgecolors='none')
         min_m = min(min(all_m_true), min(all_m_pred))
+        max_m = max(max(all_m_true), max(all_m_pred))
+        ax_scatter_m.plot([min_m, max_m], [min_m, max_m], 'r--', lw=2, label="Perfect Prediction")
+        ax_scatter_m.set_xlabel("True M-Value")
+        ax_scatter_m.set_ylabel("Predicted M-Value")
+        ax_scatter_m.set_title(f"Epoch {epoch} M-Value Accuracy")
+        ax_scatter_m.legend()
+        writer.add_figure("Plots/M_Value_Scatter", fig_scatter_m, epoch)
+        plt.close(fig_scatter_m)
+        
+        # Graph 2: Beta-Value Scatter Plot
+        fig_scatter_beta, ax_scatter_beta = plt.subplots(figsize=(8, 8))
+        ax_scatter_beta.scatter(all_beta_true, all_beta_prob, alpha=0.3, edgecolors='none', color='green')
+        ax_scatter_beta.plot([0, 1], [0, 1], 'r--', lw=2, label="Perfect Prediction")
+        ax_scatter_beta.set_xlabel("True Beta-Value")
+        ax_scatter_beta.set_ylabel("Predicted Beta Probability")
+        ax_scatter_beta.set_title(f"Epoch {epoch} Beta-Value Accuracy")
+        ax_scatter_beta.legend()
+        writer.add_figure("Plots/Beta_Scatter", fig_scatter_beta, epoch)
+        plt.close(fig_scatter_beta)
+        
+        # Graph 3: Classification ROC Curve
+        if not np.isnan(val_auc):
+            fpr, tpr, _ = roc_curve(all_binary_true, all_beta_prob)
+            fig_roc, ax_roc = plt.subplots(figsize=(8, 8))
+            ax_roc.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (AUC = {val_auc:.4f})')
+            ax_roc.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+            ax_roc.set_xlim([0.0, 1.0])
+            ax_roc.set_ylim([0.0, 1.05])
+            ax_roc.set_xlabel('False Positive Rate')
+            ax_roc.set_ylabel('True Positive Rate')
+            ax_roc.set_title(f'Epoch {epoch} Receiver Operating Characteristic')
+            ax_roc.legend(loc="lower right")
+            writer.add_figure("Plots/ROC_Curve", fig_roc, epoch)
+            plt.close(fig_roc)
+
+        # SAVE LOGIC (Continuous Checkpointing + Best Tracker)
+        checkpoint = {
+            'epoch': epoch + 1,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'scheduler_state_dict': scheduler.state_dict(),
+            'scaler_state_dict': scaler.state_dict(),
+            'best_val_mae': best_val_mae
+        }
+        torch.save(checkpoint, os.path.join(args.save_dir, "latest_checkpoint.pt"))
+        logger.info(f"[✓] Full Training State backed up for Epoch {epoch}.")
+
+        if val_beta_mae < best_val_mae:
+            best_val_mae = val_beta_mae
+            best_save_path = os.path.join(args.save_dir, "multimodal_best_weights.pth")
+            torch.save(model.state_dict(), best_save_path)
+            logger.info(f"[★] New Best Model (Beta MAE: {best_val_mae:.4f}) saved!")
+
+if __name__ == "__main__":
+    main()
