@@ -3,7 +3,6 @@ import re
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
-from pyfaidx import Fasta
 from pyjaspar import jaspardb
 from Bio.Seq import Seq
 import multiprocessing as mp
@@ -17,8 +16,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 # =============================================================================
 # 1. CONFIGURATION
 # =============================================================================
-TEST_CSV_PATH = 'data/datafiles/testing_data.csv'
-HG38_PATH = 'data/hg38.fa' 
+TEST_CSV_PATH = 'data/actual_data/actual_testing_data.csv'
 OUTPUT_CSV = 'results/baseline/jaspar_motif_disruptions.csv'
 
 # Motif configuration
@@ -68,35 +66,42 @@ for motif in motifs:
 # =============================================================================
 # 4. PARSING THE DATASET
 # =============================================================================
-logging.info("[*] Loading Genome and Test CSV...")
-genome = Fasta(HG38_PATH)
+logging.info("[*] Loading Test CSV and cropping 41bp windows...")
 df = pd.read_csv(TEST_CSV_PATH)
 
 valid_pairs = []
 for idx, row in df.iterrows():
-    chrom = str(row['chr']).strip()
-    mut_id = row['Mutation_ID']
+    cpg_pos = int(row['pos'])
+    mut_id = row['GDC_Genomic_DNA_Change']
     gene = str(row['Gene']) if pd.notna(row['Gene']) else f"Intergenic"
-    
-    if chrom not in genome: continue
     
     mut_pos, ref_base, alt_base = parse_mutation_id(mut_id)
     if not mut_pos: continue
         
-    start_idx = (mut_pos - 1) - 20
-    end_idx = start_idx + WINDOW_SIZE
+    wt_full = str(row['Healthy_5000bp_DNA']).upper()
+    mut_full = str(row['Mutated_5000bp_DNA']).upper()
     
-    if start_idx < 0 or end_idx > len(genome[chrom]): continue
+    # The CpG target is perfectly centered at index 2500 in the 5000bp string.
+    # Map the mutation's relative position into string indices
+    mut_idx_in_5000 = 2500 + (mut_pos - cpg_pos)
+    
+    # We want 20bp flanking the mutation: [mut_idx - 20 : mut_idx + 21]
+    start_idx = mut_idx_in_5000 - 20
+    end_idx = mut_idx_in_5000 + 21
+    
+    # Boundary safety checks
+    if start_idx < 0 or end_idx > len(wt_full): continue
         
-    wt_seq = str(genome[chrom][start_idx:end_idx]).upper()
+    wt_seq = wt_full[start_idx:end_idx]
+    mut_seq = mut_full[start_idx:end_idx]
     
+    # Validation constraint checks
     if wt_seq[20] != ref_base: continue 
-        
-    mut_seq = wt_seq[:20] + alt_base + wt_seq[21:]
+    if mut_seq[20] != alt_base: continue
     
     valid_pairs.append({
         'Gene': gene,
-        'Mutation_ID': mut_id,
+        'GDC_Genomic_DNA_Change': mut_id,
         'WT_Seq': wt_seq,
         'MUT_Seq': mut_seq
     })
@@ -107,10 +112,6 @@ logging.info(f"[*] Successfully extracted {len(valid_pairs)} sequence pairs for 
 # 5. WORKER FUNCTION FOR MULTIPROCESSING
 # =============================================================================
 def scan_sequence_pair(item):
-    """
-    Scans a single WT and MUT sequence pair against all JASPAR motifs.
-    Returns the TF with the most violent thermodynamic disruption.
-    """
     wt_seq = Seq(item['WT_Seq'])
     mut_seq = Seq(item['MUT_Seq'])
     
@@ -145,13 +146,13 @@ def scan_sequence_pair(item):
             
     delta_score = mut_max_score - wt_max_score
     
-    # NEW: Calculate Percentage Loss/Gain (relative to the max possible score found)
+    # Calculate Percentage Loss/Gain
     max_possible = max(wt_max_score, mut_max_score)
     percent_change = (delta_score / max_possible) * 100 if max_possible > 0 else 0
     
     return {
         'Gene': item['Gene'],
-        'Mutation_ID': item['Mutation_ID'],
+        'GDC_Genomic_DNA_Change': item['GDC_Genomic_DNA_Change'],
         'Top_Disrupted_TF': top_tf,
         'WT_Motif_Score': round(wt_max_score, 2),
         'MUT_Motif_Score': round(mut_max_score, 2),
@@ -177,7 +178,6 @@ if __name__ == '__main__':
     # =============================================================================
     df_results = pd.DataFrame(results)
     
-    # Sort by the most massive Percentage disruptions (destroying a motif entirely)
     df_results['Abs_Percentage'] = df_results['Percentage_Change'].abs()
     df_results = df_results.sort_values(by='Abs_Percentage', ascending=False).drop(columns=['Abs_Percentage'])
     
