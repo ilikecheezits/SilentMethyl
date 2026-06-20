@@ -118,4 +118,5 @@ runs/
 checkpoints/
 checkpoints_baseline/
 .DS_Store
-
+error_log*
+training_log*
