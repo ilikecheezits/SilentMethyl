@@ -243,6 +243,7 @@ def main():
     )
     
     # Locked in from the golden file
+    criterion_bce = nn.BCEWithLogitsLoss()
     criterion_huber = nn.HuberLoss(delta=1.345)
     scaler = torch.amp.GradScaler('cuda')
     
@@ -282,6 +283,7 @@ def main():
 
             with torch.amp.autocast('cuda'):
                 class_logits, m_value_pred, attentions = model(input_ids, attention_mask)
+                loss_bce = criterion_bce(class_logits, binary_target)
                 loss_huber = criterion_huber(m_value_pred, m_value_target)
                 
                 loss_sparsity = 0.0
@@ -289,7 +291,7 @@ def main():
                     last_layer_attn = attentions[-1] 
                     loss_sparsity = torch.mean(torch.abs(last_layer_attn))
                 
-                loss = loss_huber + (0.01 * loss_sparsity)
+                loss = loss_bce + loss_huber + (0.01 * loss_sparsity)
                 loss = loss / args.grad_accum_steps
 
             scaler.scale(loss).backward()
@@ -307,6 +309,7 @@ def main():
                 global_step += 1
                 writer.add_scalar("Train/Total_Loss", loss.item() * args.grad_accum_steps, global_step)
                 writer.add_scalar("Train/Huber_Loss", loss_huber.item(), global_step)
+                writer.add_scalar("Train/BCE_Loss", loss_bce.item(), global_step)
                 writer.add_scalar("Train/Learning_Rate", scheduler.get_last_lr()[0], global_step)
                 pbar.set_postfix({'Loss': f"{loss.item() * args.grad_accum_steps:.4f}"})
 
@@ -326,8 +329,9 @@ def main():
                 
                 with torch.amp.autocast('cuda'):
                     class_logits, m_value_pred, _ = model(input_ids, attention_mask)
+                    loss_bce = criterion_bce(class_logits, binary_target)
                     loss_huber = criterion_huber(m_value_pred, m_value_target)
-                    batch_loss = loss_huber
+                    batch_loss = loss_bce + loss_huber
                     
                 val_loss += batch_loss.item()
                 
@@ -429,12 +433,12 @@ def main():
             'scaler_state_dict': scaler.state_dict(),
             'best_val_mae': best_val_mae
         }
-        torch.save(checkpoint, os.path.join(args.save_dir, "latest_checkpoint.pt"))
+        torch.save(checkpoint, os.path.join(args.save_dir, f"latest_checkpoint_{epoch + 1}.pt"))
         logger.info(f"[✓] Full Training State backed up for Epoch {epoch}.")
 
         if val_beta_mae < best_val_mae:
             best_val_mae = val_beta_mae
-            best_save_path = os.path.join(args.save_dir, "baseline_best_weights.pth")
+            best_save_path = os.path.join(args.save_dir, f"baseline_best_weights_{epoch + 1}.pth")
             torch.save(model.state_dict(), best_save_path)
             logger.info(f"[★] New Best Model (Beta MAE: {best_val_mae:.4f}) saved!")
 
