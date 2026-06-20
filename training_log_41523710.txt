@@ -1,0 +1,4 @@
+[*] Starting Phase 1 Baseline Training on V100 GPU...
+[*] Train filtering: 0 non-CpG removed, 334788 remaining.
+[*] Val filtering: 0 non-CpG removed, 41849 remaining.
+[✓] Training Job Complete!
