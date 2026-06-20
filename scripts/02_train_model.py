@@ -547,12 +547,12 @@ def main():
             'scaler_state_dict': scaler.state_dict(),
             'best_val_mae': best_val_mae
         }
-        torch.save(checkpoint, os.path.join(args.save_dir, "latest_checkpoint.pt"))
+        torch.save(checkpoint, os.path.join(args.save_dir, f"latest_checkpoint_{epoch + 1}.pt"))
         logger.info(f"[✓] Full Training State backed up for Epoch {epoch}.")
 
         if val_beta_mae < best_val_mae:
             best_val_mae = val_beta_mae
-            best_save_path = os.path.join(args.save_dir, "multimodal_best_weights.pth")
+            best_save_path = os.path.join(args.save_dir, f"multimodal_best_weights_{epoch + 1}.pth")
             torch.save(model.state_dict(), best_save_path)
             logger.info(f"[★] New Best Model (Beta MAE: {best_val_mae:.4f}) saved!")
 
