@@ -214,13 +214,12 @@ def main():
         })
 
         if rank < 3:
+            # --- Existing Histogram Code ---
             plt.figure(figsize=(10, 6))
             sns.histplot(mc_deltas, bins=50, kde=True, color='#94a3b8', edgecolor='black', label="Random Sequence Background")
-
             plt.axvline(0, color='black', linestyle='-', linewidth=1.5)
             plt.axvline(noise_std, color='gray', linestyle=':')
             plt.axvline(-noise_std, color='gray', linestyle=':')
-
             plt.axvline(target_tagged_delta, color='#ef4444' if target_tagged_delta > 0 else '#22c55e', 
                         linestyle='-', linewidth=3, label=f"Tagged Variant (\u0394={target_tagged_delta:.4f})")
 
@@ -237,6 +236,24 @@ def main():
             output_file = f'single_probe_mc_top{rank+1}_{target_gene}.png'
             plt.savefig(os.path.join(BASE_DIR, output_file), dpi=300)
             plt.close() 
+
+            # ==========================================================
+            # NEW: NORMALITY CHECK (Shapiro-Wilk & Q-Q Plot)
+            # ==========================================================
+            # 1. Mathematical Test
+            stat, p_value_normality = stats.shapiro(mc_deltas)
+            logging.info(f"        -> Normality (Shapiro-Wilk) for {target_gene}: Stat={stat:.4f}, p-value={p_value_normality:.4e}")
+            
+            # 2. Visual Proof (Q-Q Plot)
+            plt.figure(figsize=(6, 6))
+            stats.probplot(mc_deltas, dist="norm", plot=plt)
+            plt.title(f'Q-Q Plot: Monte Carlo Background for {target_gene}')
+            plt.xlabel('Theoretical Normal Quantiles')
+            plt.ylabel('Empirical Monte Carlo Quantiles (\u0394\u03B2)')
+            plt.tight_layout()
+            plt.savefig(os.path.join(BASE_DIR, f'qq_plot_top{rank+1}_{target_gene}.png'), dpi=300)
+            plt.close()
+            # ==========================================================
         
     df_export = pd.DataFrame(mc_results)
     csv_out = os.path.join(BASE_DIR, 'monte_carlo_statistics.csv')
