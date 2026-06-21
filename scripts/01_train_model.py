@@ -94,7 +94,6 @@ class MultiModalLateFusionDataset(Dataset):
         logging.info(f"[✓] Verification: CSV Rows = {len(self.df)}, TSV Array Rows = {len(self.shape_data)}")
         assert len(self.df) == len(self.shape_data), "CRITICAL ERROR: CSV and TSV row counts do not match!"
         
-        # 7 Features based on the provided header
         self.tabular_features = [
             'Ref_ATAC_Signal', 'Ref_H3K4me3_Signal', 'Ref_H3K27ac_Signal', 
             'Ref_H3K27me3_Signal', 'Ref_H3K9me3_Signal', 
@@ -107,16 +106,14 @@ class MultiModalLateFusionDataset(Dataset):
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
         
-        # --- 1. SPATIAL ANCHOR (Tabular Epigenetics with Mask) ---
+        # --- 1. SPATIAL ANCHOR (Tabular Epigenetics) ---
         tab_raw = row[self.tabular_features].values.astype(np.float32)
         tab_tensor = torch.tensor(tab_raw)
         tab_mask = ~torch.isnan(tab_tensor)
         tab_tensor = torch.nan_to_num(tab_tensor, nan=0.0)
         
-        # --- 2. PHYSICAL ANCHOR (DNABERT-2 Sequence - STATIC CROP) ---
+        # --- 2. PHYSICAL ANCHOR (Sequence - Exact Baseline Crop) ---
         full_sequence = str(row['Healthy_5000bp_DNA']).upper()
-        
-        # Perfect match to the baseline static cropping
         true_c_idx = len(full_sequence) // 2
         start_idx = true_c_idx - (self.seq_window_size // 2)
         end_idx = start_idx + self.seq_window_size
@@ -126,20 +123,16 @@ class MultiModalLateFusionDataset(Dataset):
         else: sequence = full_sequence[start_idx : end_idx]
             
         encoding = self.tokenizer(
-            sequence,
-            truncation=True,
-            max_length=self.seq_window_size, 
-            padding='max_length',
-            return_tensors='pt'
+            sequence, truncation=True, max_length=self.seq_window_size, 
+            padding='max_length', return_tensors='pt'
         )
         
-        # --- 3. PHYSICAL ANCHOR (3D DNA Shape with Mask) ---
+        # --- 3. GEOMETRIC ANCHOR (3D Shape) ---
         shape_flat = self.shape_data[idx]
         shape_tensor = torch.tensor(shape_flat).view(14, self.shape_window_size)
         shape_mask = ~torch.isnan(shape_tensor)
         shape_tensor = torch.nan_to_num(shape_tensor, nan=0.0)
 
-        # Targets (BCE / Huber specific mapping)
         m_value = torch.tensor(row['M_Value_Target'], dtype=torch.float32)
         beta = float(row['Median_Beta'])
         binary_state = 1.0 if beta > 0.5 else 0.0
@@ -158,67 +151,73 @@ class MultiModalLateFusionDataset(Dataset):
         }
 
 # =========================================
-# 3. Late Fusion Multi-Modal Architecture
+# 3. Robust Late Fusion Architecture
 # =========================================
 class SilentMethylModel(nn.Module):
     def __init__(self, model_path="zhihan1996/DNABERT-2-117M", tabular_dim=7):
         super(SilentMethylModel, self).__init__()
         
-        # A. Spatial Anchor (Epigenetic MLP)
+        # A. Spatial Anchor (Epigenetic MLP with Norm to prevent collapse)
         self.tab_mlp = nn.Sequential(
-            nn.Linear(tabular_dim * 2, 32),
+            nn.Linear(tabular_dim * 2, 64),
+            nn.LayerNorm(64),
             nn.GELU(),
-            nn.Linear(32, 32)
+            nn.Dropout(0.1),
+            nn.Linear(64, 32),
+            nn.LayerNorm(32)
         )
         
-        # B. Physical Anchor (FULL FINE-TUNING DNABERT-2 + SPATIAL CONV)
+        # B. Physical Anchor (Baseline sequence logic + Compression)
         self.config, self.bert = patch_and_load_dnabert(model_path)
         hidden_size = self.config.hidden_size
         
-        # Exact match to baseline sequence processing
         self.spatial_conv = nn.Conv1d(in_channels=hidden_size, out_channels=hidden_size, kernel_size=3, padding=1)
         self.attention_pool = nn.Sequential(nn.Linear(hidden_size, 1), nn.Tanh())
         
         self.text_fc = nn.Sequential(
             nn.Linear(hidden_size, 128),
+            nn.LayerNorm(128),
             nn.GELU()
         )
         
-        # C. Physical Anchor (1D-CNN for 3D Shape)
+        # C. Geometric Anchor (Deepened 1D-CNN)
         self.shape_cnn = nn.Sequential(
-            nn.Conv1d(in_channels=28, out_channels=32, kernel_size=3, padding=1),
+            nn.Conv1d(in_channels=28, out_channels=64, kernel_size=5, padding=2),
+            nn.BatchNorm1d(64),
             nn.GELU(),
             nn.MaxPool1d(2),
-            nn.Conv1d(in_channels=32, out_channels=64, kernel_size=3, padding=1),
+            nn.Conv1d(in_channels=64, out_channels=128, kernel_size=3, padding=1),
+            nn.BatchNorm1d(128),
             nn.GELU(),
             nn.AdaptiveMaxPool1d(1) 
         )
         self.shape_fc = nn.Sequential(
-            nn.Linear(64, 64),
+            nn.Linear(128, 64),
+            nn.LayerNorm(64),
             nn.GELU()
         )
         
-        # D. Late Fusion Synthesis Heads
+        # D. Fusion Synthesis Heads
         self.classification_head = nn.Sequential(
             nn.Linear(224, 256),
             nn.GELU(),
-            nn.Dropout(0.2), 
+            nn.Dropout(0.3), 
             nn.Linear(256, 1)
         )
         
         self.regression_head = nn.Sequential(
             nn.Linear(224, 256),
             nn.GELU(),
-            nn.Dropout(0.2),
+            nn.Dropout(0.3),
             nn.Linear(256, 1)
         )
 
     def forward(self, tab, tab_mask, input_ids, attention_mask, shape, shape_mask):
-        # 1. Process Spatial Topology
+        # 1. Epigenetics
         tab_in = torch.cat([tab, tab_mask], dim=1)
         tab_out = self.tab_mlp(tab_in)
         
-        # 2. Process Sequence (Spatial Conv + Attention Pool matching baseline)
+        # 2. Sequence (Exact Baseline Match)
         bert_out = self.bert(input_ids=input_ids, attention_mask=attention_mask, output_attentions=True)
         hidden_states = bert_out[0] if isinstance(bert_out, tuple) else bert_out.last_hidden_state
         
@@ -232,30 +231,28 @@ class SilentMethylModel(nn.Module):
         seq_pooled = torch.sum(spatial_features * attn_weights.unsqueeze(-1), dim=1)
         text_out = self.text_fc(seq_pooled)
         
-        # 3. Process 3D Geometry
+        # 3. 3D Shape Topology
         shape_in = torch.cat([shape, shape_mask], dim=1)
         shape_out = self.shape_cnn(shape_in).squeeze(-1)
         shape_out = self.shape_fc(shape_out)
 
-        # 4. EXPLICIT MODALITY DROPOUT
+        # 4. Asymmetric Modality Dropout (Forces network to learn all modalities)
         if self.training:
             rand_val = torch.rand(1).item()
-            if rand_val < 0.15: 
+            # 10% chance to drop epigenetics/shape (rely on DNA)
+            if rand_val < 0.10: 
                 tab_out = torch.zeros_like(tab_out)
-            elif rand_val < 0.30: 
-                text_out = torch.zeros_like(text_out)
                 shape_out = torch.zeros_like(shape_out)
+            # 15% chance to drop DNA entirely! (Forces reliance on epigenetics/shape)
+            elif rand_val < 0.25: 
+                text_out = torch.zeros_like(text_out)
         
-        # 5. Synthesize
+        # 5. Fused Synthesis (32 + 128 + 64 = 224)
         fused_features = torch.cat((tab_out, text_out, shape_out), dim=1)
         class_logits = self.classification_head(fused_features)
         m_value_pred = self.regression_head(fused_features)
         
-        if isinstance(bert_out, tuple):
-            attentions = bert_out[-1] if len(bert_out) > 1 else None
-        else:
-            attentions = bert_out.attentions if hasattr(bert_out, 'attentions') else None
-        
+        attentions = bert_out[-1] if isinstance(bert_out, tuple) and len(bert_out) > 1 else getattr(bert_out, 'attentions', None)
         return class_logits, m_value_pred, attentions
 
 # =========================================
@@ -274,8 +271,8 @@ def main():
     parser.add_argument("--batch_size", type=int, default=4) 
     parser.add_argument("--grad_accum_steps", type=int, default=8) 
     parser.add_argument("--epochs", type=int, default=10)
-    parser.add_argument("--seq_window_size", type=int, default=1000, help="Size of centered DNA sequence crop")
-    parser.add_argument("--shape_window_size", type=int, default=100, help="Size of 3D Shape geometry array dimension")
+    parser.add_argument("--seq_window_size", type=int, default=1000)
+    parser.add_argument("--shape_window_size", type=int, default=100)
     args = parser.parse_args()
     
     writer = SummaryWriter(log_dir="runs/phase2_multimodal")
@@ -286,14 +283,13 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logger.info(f"[*] Starting Multimodal Training on {device} | Seq Window: {args.seq_window_size}bp | Shape Window: {args.shape_window_size}bp")
 
-    logger.info("[*] Loading Pre-Split CSV and TSV Data simultaneously...")
+    logger.info("[*] Loading Pre-Split CSV and TSV Data...")
     train_df = pd.read_csv(args.train_path)
     val_df = pd.read_csv(args.val_path)
     
     train_shapes = pd.read_csv(args.train_shape_tsv, sep='\t', header=None, dtype=np.float32).values
     val_shapes = pd.read_csv(args.val_shape_tsv, sep='\t', header=None, dtype=np.float32).values
     
-    # Filter non-CpG dynamically alongside the arrays
     train_mask = train_df['probeID'].str.startswith('cg')
     val_mask = val_df['probeID'].str.startswith('cg')
     
@@ -305,8 +301,8 @@ def main():
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_path, trust_remote_code=True)
     
-    train_dataset = MultiModalLateFusionDataset(train_df, train_shapes, tokenizer, seq_window_size=args.seq_window_size, shape_window_size=args.shape_window_size)
-    val_dataset = MultiModalLateFusionDataset(val_df, val_shapes, tokenizer, seq_window_size=args.seq_window_size, shape_window_size=args.shape_window_size)    
+    train_dataset = MultiModalLateFusionDataset(train_df, train_shapes, tokenizer, args.seq_window_size, args.shape_window_size)
+    val_dataset = MultiModalLateFusionDataset(val_df, val_shapes, tokenizer, args.seq_window_size, args.shape_window_size)    
     
     g = torch.Generator()
     g.manual_seed(42)
@@ -315,7 +311,6 @@ def main():
 
     model = SilentMethylModel(args.model_path, tabular_dim=7).to(device)
     
-    # Split Optimizer Params
     bert_params = []
     new_head_params = []
     
@@ -324,10 +319,9 @@ def main():
         if "bert" in name: bert_params.append(param)
         else: new_head_params.append(param)
 
-    # 2. Assign different learning rates based on pre-training status
     optimizer = optim.AdamW([
-        {'params': bert_params, 'lr': 5e-5},       # Gentle Full Fine-tuning for DNABERT
-        {'params': new_head_params, 'lr': 1e-3}    # Aggressive learning for scratch layers
+        {'params': bert_params, 'lr': 5e-5},     
+        {'params': new_head_params, 'lr': 1e-3}    
     ], weight_decay=1e-4)
     
     total_steps = (len(train_loader) // args.grad_accum_steps) * args.epochs
@@ -337,12 +331,11 @@ def main():
         num_training_steps=total_steps
     )
     
-    # 3. Transferred Baseline Loss Configuration
     criterion_bce = nn.BCEWithLogitsLoss()
     criterion_huber = nn.HuberLoss(delta=1.345)
     scaler = torch.amp.GradScaler('cuda')
     
-    # --- RESUME LOGIC (SLURM SAFETY) ---
+    # --- RESUME LOGIC ---
     start_epoch = 1
     best_val_mae = float('inf')
     global_step = 0
@@ -351,17 +344,14 @@ def main():
     if os.path.exists(latest_ckpt_path):
         logger.info(f"[*] Found interrupted run at {latest_ckpt_path}. Restoring state...")
         checkpoint = torch.load(latest_ckpt_path, map_location=device, weights_only=False)
-        
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
         scaler.load_state_dict(checkpoint['scaler_state_dict'])
-        
         start_epoch = checkpoint['epoch']
         best_val_mae = checkpoint.get('best_val_mae', float('inf'))
         global_step = (start_epoch - 1) * (len(train_loader) // args.grad_accum_steps)
         logger.info(f"[✓] Successfully resumed! Fast-forwarding to Epoch {start_epoch}...")
-    # -----------------------------------
 
     for epoch in range(start_epoch, args.epochs + 1):
         model.train()
@@ -404,7 +394,6 @@ def main():
                 scaler.unscale_(optimizer)
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                 
-                # AMP / Scheduler Bug Fix
                 scale_before = scaler.get_scale()
                 scaler.step(optimizer)
                 scaler.update()
@@ -458,12 +447,8 @@ def main():
                 all_binary_true.extend(binary_target.cpu().float().numpy().flatten().tolist())
 
         avg_val_loss = val_loss / len(val_loader)
-        
-        # Calculate M-Value Metrics
         val_m_rmse = np.sqrt(mean_squared_error(all_m_true, all_m_pred))
         val_m_mae  = mean_absolute_error(all_m_true, all_m_pred)
-        
-        # Calculate Beta Metrics
         val_beta_rmse = np.sqrt(mean_squared_error(all_beta_true, all_beta_prob))
         val_beta_mae  = mean_absolute_error(all_beta_true, all_beta_prob)
         
@@ -472,7 +457,6 @@ def main():
             val_auc = roc_auc_score(all_binary_true, all_beta_prob)
         else:
             val_auc = float('nan')
-            logger.warning(f"[!] AUC skipped -- only class(es) {unique_classes} present in val set")
 
         m_pred_arr = np.array(all_m_pred)
         beta_prob_arr = np.array(all_beta_prob)
@@ -486,7 +470,6 @@ def main():
         logger.info(f"  [Classification] AUC={val_auc:.4f}")
         logger.info(f"  [Classification] prob range=[{beta_prob_arr.min():.3f}, {beta_prob_arr.max():.3f}]  mean={beta_prob_arr.mean():.3f}  std={beta_prob_arr.std():.3f}")
         
-        # Core TensorBoard Scalars
         writer.add_scalar("Val/Epoch_Total_Loss", avg_val_loss, epoch)
         writer.add_scalar("Val/M_Value_RMSE", val_m_rmse, epoch)
         writer.add_scalar("Val/M_Value_MAE", val_m_mae, epoch)
@@ -494,12 +477,10 @@ def main():
         writer.add_scalar("Val/Beta_MAE", val_beta_mae, epoch)
         writer.add_scalar("Val/AUC", val_auc, epoch)
         
-        # Histograms
         writer.add_histogram("Distributions/M_Value_Predictions", m_pred_arr, epoch)
         writer.add_histogram("Distributions/M_Value_True", np.array(all_m_true), epoch)
         writer.add_histogram("Distributions/Beta_Probabilities", beta_prob_arr, epoch)
         
-        # Graph 1: M-Value Regression Scatter Plot
         fig_scatter_m, ax_scatter_m = plt.subplots(figsize=(8, 8))
         ax_scatter_m.scatter(all_m_true, all_m_pred, alpha=0.3, edgecolors='none')
         min_m = min(min(all_m_true), min(all_m_pred))
@@ -512,7 +493,6 @@ def main():
         writer.add_figure("Plots/M_Value_Scatter", fig_scatter_m, epoch)
         plt.close(fig_scatter_m)
         
-        # Graph 2: Beta-Value Scatter Plot
         fig_scatter_beta, ax_scatter_beta = plt.subplots(figsize=(8, 8))
         ax_scatter_beta.scatter(all_beta_true, all_beta_prob, alpha=0.3, edgecolors='none', color='green')
         ax_scatter_beta.plot([0, 1], [0, 1], 'r--', lw=2, label="Perfect Prediction")
@@ -523,7 +503,6 @@ def main():
         writer.add_figure("Plots/Beta_Scatter", fig_scatter_beta, epoch)
         plt.close(fig_scatter_beta)
         
-        # Graph 3: Classification ROC Curve
         if not np.isnan(val_auc):
             fpr, tpr, _ = roc_curve(all_binary_true, all_beta_prob)
             fig_roc, ax_roc = plt.subplots(figsize=(8, 8))
@@ -538,7 +517,6 @@ def main():
             writer.add_figure("Plots/ROC_Curve", fig_roc, epoch)
             plt.close(fig_roc)
 
-        # SAVE LOGIC (Continuous Checkpointing + Best Tracker)
         checkpoint = {
             'epoch': epoch + 1,
             'model_state_dict': model.state_dict(),
@@ -552,7 +530,7 @@ def main():
 
         if val_beta_mae < best_val_mae:
             best_val_mae = val_beta_mae
-            best_save_path = os.path.join(args.save_dir, f"multimodal_best_weights_{epoch + 1}.pth")
+            best_save_path = os.path.join(args.save_dir, f"multimodal_best_weights.pth")
             torch.save(model.state_dict(), best_save_path)
             logger.info(f"[★] New Best Model (Beta MAE: {best_val_mae:.4f}) saved!")
 
