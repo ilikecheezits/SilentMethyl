@@ -1,8 +1,8 @@
 import pandas as pd
 import time
 
-INPUT_CSV = "train.csv"
-OUTPUT_CSV = "train_sorted.csv"
+INPUT_CSV = "test.csv"
+OUTPUT_CSV = "test_sorted.csv"
 
 def main():
     print(f"[*] Loading {INPUT_CSV} into memory... (This may take a minute depending on file size)")
