@@ -15,8 +15,7 @@ from transformers import AutoTokenizer, AutoModel, AutoConfig, get_linear_schedu
 from huggingface_hub import snapshot_download, hf_hub_download
 import argparse
 import logging
-import matplotlib.pyplot as plt
-from sklearn.metrics import mean_squared_error, mean_absolute_error, roc_auc_score, roc_curve
+from sklearn.metrics import mean_squared_error, mean_absolute_error, roc_auc_score
 
 # =========================================
 # 0. Strict Reproducibility
@@ -45,8 +44,7 @@ def patch_and_load_dnabert(model_path="zhihan1996/DNABERT-2-117M", local_dir="./
 
         triton_file = os.path.join(local_dir, "flash_attn_triton.py")
         if os.path.exists(triton_file):
-            with open(triton_file, "w") as f:
-                f.write("def __getattr__(name):\n    return None\n")
+            with open(triton_file, "w") as f: f.write("def __getattr__(name):\n    return None\n")
 
         config_path = os.path.join(local_dir, "config.json")
         with open(config_path, "r") as f: config_data = json.load(f)
@@ -56,7 +54,7 @@ def patch_and_load_dnabert(model_path="zhihan1996/DNABERT-2-117M", local_dir="./
         with open(config_path, "w") as f: json.dump(config_data, f)
         
     config = AutoConfig.from_pretrained(local_dir, trust_remote_code=True)
-    config.output_attentions = False 
+    config.output_attentions = False # Disabled for VRAM
     base_model = AutoModel.from_config(config, trust_remote_code=True)
     
     weights_path = hf_hub_download(repo_id=model_path, filename="pytorch_model.bin")
@@ -123,29 +121,30 @@ class MultiModalLateFusionDataset(Dataset):
         }
 
 # =========================================
-# 3. Robust Late Fusion Architecture
+# 3. Dynamic Gated Fusion Architecture
 # =========================================
-class SilentMethylModel(nn.Module):
+class GatedFusionModel(nn.Module):
     def __init__(self, model_path="zhihan1996/DNABERT-2-117M", tabular_dim=9):
-        super(SilentMethylModel, self).__init__()
+        super(GatedFusionModel, self).__init__()
         
+        # --- MODEL X: The DNA Sequence Tower (Outputs 768) ---
+        self.config, self.bert = patch_and_load_dnabert(model_path)
+        hidden_size = self.config.hidden_size # 768
+        self.spatial_conv = nn.Conv1d(in_channels=hidden_size, out_channels=hidden_size, kernel_size=3, padding=1)
+        self.attention_pool = nn.Sequential(nn.Linear(hidden_size, 1), nn.Tanh())
+        
+        # --- MODEL Y: The Epigenetic & Shape Tower (Outputs 768) ---
         self.tab_mlp = nn.Sequential(
             nn.Linear(tabular_dim * 2, 128),
             nn.LayerNorm(128),
             nn.GELU(),
             nn.Dropout(0.2),
-            nn.Linear(128, 64),
-            nn.LayerNorm(64),
+            nn.Linear(128, 256),
+            nn.LayerNorm(256),
             nn.GELU(),
-            nn.Linear(64, 32)
+            nn.Dropout(0.2),
+            nn.Linear(256, 256)
         )
-        
-        self.config, self.bert = patch_and_load_dnabert(model_path)
-        hidden_size = self.config.hidden_size
-        
-        self.spatial_conv = nn.Conv1d(in_channels=hidden_size, out_channels=hidden_size, kernel_size=3, padding=1)
-        self.attention_pool = nn.Sequential(nn.Linear(hidden_size, 1), nn.Tanh())
-        self.text_fc = nn.Sequential(nn.Linear(hidden_size, 128), nn.LayerNorm(128), nn.GELU())
         
         self.shape_cnn = nn.Sequential(
             nn.Conv1d(in_channels=28, out_channels=64, kernel_size=5, padding=2),
@@ -157,54 +156,77 @@ class SilentMethylModel(nn.Module):
             nn.GELU(),
             nn.AdaptiveMaxPool1d(1) 
         )
-        self.shape_fc = nn.Sequential(nn.Linear(128, 64), nn.LayerNorm(64), nn.GELU())
+        self.shape_fc = nn.Sequential(nn.Linear(128, 512), nn.LayerNorm(512), nn.GELU())
+
+        # --- THE FUSION BLOCK (Learnable & Dynamic) ---
+        self.norm_dna = nn.LayerNorm(768)
+        self.norm_epi = nn.LayerNorm(768)
+        
+        # Takes the concatenated [DNA, EPI] (1536 dims) and outputs 2 Sigmoid weights
+        self.gate_network = nn.Sequential(
+            nn.Linear(768 * 2, 128),
+            nn.LayerNorm(128),
+            nn.GELU(),
+            nn.Linear(128, 2),
+            nn.Sigmoid() 
+        )
+        
+        # --- THE HEADS (Shared Output Logic) ---
         self.classification_head = nn.Sequential(
-            nn.Linear(224, 256),
+            nn.Linear(768, 256),
             nn.GELU(),
             nn.Dropout(0.2),
             nn.Linear(256, 1)
         )
         
         self.regression_head = nn.Sequential(
-            nn.Linear(224, 256),
+            nn.Linear(768, 256),
             nn.GELU(),
             nn.Dropout(0.2),
             nn.Linear(256, 1)
         )        
 
     def forward(self, tab, tab_mask, input_ids, attention_mask, shape, shape_mask):
-        tab_in = torch.cat([tab, tab_mask], dim=1)
-        tab_out = self.tab_mlp(tab_in)
-        
+        # 1. Extract DNA Embeddings [B, 768]
         bert_out = self.bert(input_ids=input_ids, attention_mask=attention_mask)
         hidden_states = bert_out[0] if isinstance(bert_out, tuple) else bert_out.last_hidden_state
-        
         hidden_states_t = hidden_states.permute(0, 2, 1)
         spatial_features = F.relu(self.spatial_conv(hidden_states_t)).permute(0, 2, 1)
-        
         attn_weights = self.attention_pool(spatial_features).squeeze(-1)
         attn_weights = attn_weights.masked_fill(attention_mask == 0, -1e4)
         attn_weights = F.softmax(attn_weights, dim=-1)
-        
-        seq_pooled = torch.sum(spatial_features * attn_weights.unsqueeze(-1), dim=1)
-        text_out = self.text_fc(seq_pooled)
+        dna_embeddings = torch.sum(spatial_features * attn_weights.unsqueeze(-1), dim=1)
+
+        # 2. Extract Epigenetic Embeddings [B, 768]
+        tab_in = torch.cat([tab, tab_mask], dim=1)
+        tab_out = self.tab_mlp(tab_in) # [B, 256]
         
         shape_in = torch.cat([shape, shape_mask], dim=1)
         shape_out = self.shape_cnn(shape_in).squeeze(-1)
-        shape_out = self.shape_fc(shape_out)
-        if self.training:
-           # rand_val = torch.rand(1).item()
-           # if rand_val < 0.5: 
-            text_out = torch.zeros_like(text_out)
-
-        fused_features = torch.cat((tab_out, text_out, shape_out), dim=1)
-        class_logits = self.classification_head(fused_features)
-        m_value_pred = self.regression_head(fused_features)
+        shape_out = self.shape_fc(shape_out) # [B, 512]
+        
+        epi_embeddings = torch.cat((tab_out, shape_out), dim=1) # [B, 768]
+        
+        # 3. The Gated Fusion
+        dna_norm = self.norm_dna(dna_embeddings)
+        epi_norm = self.norm_epi(epi_embeddings)
+        
+        concat_features = torch.cat([dna_norm, epi_norm], dim=1) # [B, 1536]
+        gates = self.gate_network(concat_features) # [B, 2]
+        
+        gate_dna = gates[:, 0].unsqueeze(1) # Weight for DNA (0 to 1)
+        gate_epi = gates[:, 1].unsqueeze(1) # Weight for Epigenetics (0 to 1)
+        
+        fused_embeddings = (dna_norm * gate_dna) + (epi_norm * gate_epi) # [B, 768]
+        
+        # 4. Predictions
+        class_logits = self.classification_head(fused_embeddings)
+        m_value_pred = self.regression_head(fused_embeddings)
         
         return class_logits, m_value_pred
 
 # =========================================
-# 4. Single-Stage Training Loop (Fully Frozen Anchor)
+# 4. Phase 1 Training Loop (Strict Freezing)
 # =========================================
 def main():
     set_seed(42)
@@ -214,23 +236,29 @@ def main():
     parser.add_argument("--val_path", type=str, default="data/datafiles/val.csv")
     parser.add_argument("--train_shape_tsv", type=str, required=True)
     parser.add_argument("--val_shape_tsv", type=str, required=True)
-    parser.add_argument("--phase1_weights", type=str, default="checkpoints_baseline/baseline_best_weights.pth")
-    parser.add_argument("--save_dir", default="checkpoints_multimodal_v3")
+    
+    # NEW: Expecting both champion weights
+    parser.add_argument("--baseline_weights", type=str, required=True, help="Path to best baseline DNABERT-2 weights")
+    parser.add_argument("--pure_nn_weights", type=str, required=True, help="Path to best Pure NN weights")
+    
+    parser.add_argument("--save_dir", default="checkpoints_multimodal_gated")
     parser.add_argument("--model_path", default="zhihan1996/DNABERT-2-117M")
     parser.add_argument("--batch_size", type=int, default=4) 
     parser.add_argument("--grad_accum_steps", type=int, default=8) 
+    parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--seq_window_size", type=int, default=1000)
     parser.add_argument("--shape_window_size", type=int, default=100)
     args = parser.parse_args()
     
-    writer = SummaryWriter(log_dir="runs/phase2_multimodal_frozen")
+    writer = SummaryWriter(log_dir="runs/phase3_gated_fusion")
     os.makedirs(args.save_dir, exist_ok=True)
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
     logger = logging.getLogger(__name__)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    logger.info(f"[*] Starting Multimodal Training on {device}")
+    logger.info(f"[*] Starting Gated Fusion Training on {device}")
 
+    # Load Data
     train_df = pd.read_csv(args.train_path)
     val_df = pd.read_csv(args.val_path)
     train_shapes = pd.read_csv(args.train_shape_tsv, sep='\t', header=None, dtype=np.float32).values
@@ -252,43 +280,50 @@ def main():
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4, pin_memory=True, generator=g)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4, pin_memory=True)
 
-    model = SilentMethylModel(args.model_path, tabular_dim=9).to(device)
+    model = GatedFusionModel(args.model_path, tabular_dim=9).to(device)
     
-    logger.info(f"[*] Injecting Phase 1 Baseline Weights from {args.phase1_weights}...")
-    baseline_ckpt = torch.load(args.phase1_weights, map_location=device, weights_only=False)
+    # --- WEIGHT INJECTION ---
+    logger.info("[*] Injecting Model X (DNABERT-2) Weights...")
+    baseline_ckpt = torch.load(args.baseline_weights, map_location=device, weights_only=False)
     if 'model_state_dict' in baseline_ckpt: baseline_ckpt = baseline_ckpt['model_state_dict']
-    bert_weights = {k: v for k, v in baseline_ckpt.items() if "bert." in k}
-    model.load_state_dict(bert_weights, strict=False)
-    logger.info("[✓] Sequence Anchor successfully pre-loaded!")
+    model.load_state_dict(baseline_ckpt, strict=False)
+
+    logger.info("[*] Injecting Model Y (Pure NN) Weights...")
+    nn_ckpt = torch.load(args.pure_nn_weights, map_location=device, weights_only=False)
+    if 'model_state_dict' in nn_ckpt: nn_ckpt = nn_ckpt['model_state_dict']
+    model.load_state_dict(nn_ckpt, strict=False)
+    
+    logger.info("[✓] Both Ancestor Models successfully loaded!")
+
+    # --- THE PERMANENT FREEZE ---
+    logger.info("--- LOCKING ANCESTORS: ONLY TRAINING FUSION & HEADS ---")
+    trainable_params = []
+    
+    for name, param in model.named_parameters():
+        # Only unfreeze the new specific layers
+        if "norm_" in name or "gate_network" in name or "head" in name:
+            param.requires_grad = True
+            trainable_params.append(param)
+        else:
+            param.requires_grad = False 
+            
+    # Count trainable params for sanity check
+    trainable_count = sum(p.numel() for p in trainable_params)
+    logger.info(f"[*] Trainable Parameters in Fusion Block: {trainable_count:,}")
 
     criterion_bce = nn.BCEWithLogitsLoss()
     criterion_huber = nn.HuberLoss(delta=1.345)
     scaler = torch.amp.GradScaler('cuda')
     
+    # Standard LR for new layers
+    optimizer = optim.AdamW(trainable_params, lr=5e-4, weight_decay=1e-4)
+    total_steps = (len(train_loader) // args.grad_accum_steps) * args.epochs
+    scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=int(0.1 * total_steps), num_training_steps=total_steps)
+
     start_epoch = 1
     best_val_mae = float('inf')
     global_step = 0
-    total_epochs = 10 
-    steps_per_epoch = len(train_loader) // args.grad_accum_steps
 
-    # ==========================================
-    # PERMANENT FREEZE & HIGH LR INITIALIZATION
-    # ==========================================
-    logger.info("--- LOCKING DNABERT-2: 100% FROZEN ---")
-    new_head_params = []
-    for name, param in model.named_parameters():
-        if "bert" in name:
-            param.requires_grad = False 
-        else:
-            param.requires_grad = True
-            new_head_params.append(param)
-    
-    # Aggressive 1e-3 learning rate exclusively for the new untrained layers
-    optimizer = optim.AdamW(new_head_params, lr=5e-4, weight_decay=1e-4)
-    total_steps = steps_per_epoch * total_epochs
-    scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=int(0.1 * total_steps), num_training_steps=total_steps)
-
-    # --- RESUME LOGIC ---
     latest_ckpt_path = os.path.join(args.save_dir, "latest_checkpoint.pt")
     if os.path.exists(latest_ckpt_path):
         logger.info(f"[*] Found interrupted run. Restoring state...")
@@ -299,20 +334,14 @@ def main():
         scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
         scaler.load_state_dict(checkpoint['scaler_state_dict'])
         best_val_mae = checkpoint.get('best_val_mae', float('inf'))
-        global_step = (start_epoch - 1) * steps_per_epoch
-        logger.info(f"[✓] Fast-forwarding to Epoch {start_epoch}...")
+        global_step = (start_epoch - 1) * (len(train_loader) // args.grad_accum_steps)
 
-    for epoch in range(start_epoch, total_epochs + 1):
-        if epoch == 1:
-            logger.info("\n==========================================")
-            logger.info(f"   STARTING 10-EPOCH RUN (LR: 1e-3)")
-            logger.info("==========================================\n")
-
+    for epoch in range(start_epoch, args.epochs + 1):
         model.train()
         train_loss = 0.0
         optimizer.zero_grad()
         
-        pbar = tqdm(train_loader, desc=f"Epoch {epoch}/{total_epochs} [TRAIN]")
+        pbar = tqdm(train_loader, desc=f"Epoch {epoch}/{args.epochs} [TRAIN]")
         for step, batch in enumerate(pbar):
             tab, tab_mask = batch['tab'].to(device), batch['tab_mask'].to(device)
             input_ids, attention_mask = batch['input_ids'].to(device), batch['attention_mask'].to(device)
@@ -343,8 +372,7 @@ def main():
                 global_step += 1
                 
                 writer.add_scalar("Train/Total_Loss", loss.item() * args.grad_accum_steps, global_step)
-                writer.add_scalar("Train/LR_Heads", optimizer.param_groups[0]['lr'], global_step)
-                
+                writer.add_scalar("Train/LR", optimizer.param_groups[0]['lr'], global_step)
                 pbar.set_postfix({'Loss': f"{loss.item() * args.grad_accum_steps:.4f}"})
 
         model.eval()
@@ -352,7 +380,7 @@ def main():
         all_m_true, all_m_pred, all_beta_true, all_beta_prob, all_binary_true = [], [], [], [], []
 
         with torch.no_grad():
-            for batch in tqdm(val_loader, desc=f"Epoch {epoch}/{total_epochs} [VAL]"):
+            for batch in tqdm(val_loader, desc=f"Epoch {epoch}/{args.epochs} [VAL]"):
                 tab, tab_mask = batch['tab'].to(device), batch['tab_mask'].to(device)
                 input_ids, attention_mask = batch['input_ids'].to(device), batch['attention_mask'].to(device)
                 shape, shape_mask = batch['shape'].to(device), batch['shape_mask'].to(device)
@@ -402,7 +430,7 @@ def main():
 
         if val_beta_mae < best_val_mae:
             best_val_mae = val_beta_mae
-            torch.save(model.state_dict(), os.path.join(args.save_dir, f"multimodal_v3_frozen_best.pth"))
+            torch.save(model.state_dict(), os.path.join(args.save_dir, f"gated_fusion_best.pth"))
             logger.info(f"[★] New Best Model (Beta MAE: {best_val_mae:.4f}) saved!")
 
 if __name__ == "__main__":
