@@ -77,25 +77,26 @@ class PureEpigeneticDataset(Dataset):
         }
 
 # =========================================
-# 2. Pure NN Architecture
+# 2. Pure NN Architecture (Perfect 768-Dim Alignment)
 # =========================================
 class PureEpigeneticNN(nn.Module):
     def __init__(self, tabular_dim=9):
         super(PureEpigeneticNN, self).__init__()
         
-        # Tabular Extractor (9 -> 18 -> 128 -> 64 -> 32)
+        # Tabular Extractor (Outputs 256)
         self.tab_mlp = nn.Sequential(
             nn.Linear(tabular_dim * 2, 128),
             nn.LayerNorm(128),
             nn.GELU(),
             nn.Dropout(0.2),
-            nn.Linear(128, 64),
-            nn.LayerNorm(64),
+            nn.Linear(128, 256),
+            nn.LayerNorm(256),
             nn.GELU(),
-            nn.Linear(64, 32)
+            nn.Dropout(0.2),
+            nn.Linear(256, 256)
         )
         
-        # 3D Shape Extractor (Outputs 64)
+        # 3D Shape Extractor (Outputs 512)
         self.shape_cnn = nn.Sequential(
             nn.Conv1d(in_channels=28, out_channels=64, kernel_size=5, padding=2),
             nn.BatchNorm1d(64),
@@ -107,24 +108,25 @@ class PureEpigeneticNN(nn.Module):
             nn.AdaptiveMaxPool1d(1) 
         )
         self.shape_fc = nn.Sequential(
-            nn.Linear(128, 64), 
-            nn.LayerNorm(64), 
+            nn.Linear(128, 512), 
+            nn.LayerNorm(512), 
             nn.GELU()
         )
         
-        # Pure NN Fusion Head (32 + 64 = 96 input dims)
+        # Pure NN Fusion Head (256 + 512 = exactly 768 input dims)
+        # Matches BaselineDNABert heads EXACTLY: 768 -> 256 -> 1
         self.classification_head = nn.Sequential(
-            nn.Linear(96, 128),
+            nn.Linear(768, 256),
             nn.GELU(),
             nn.Dropout(0.2),
-            nn.Linear(128, 1)
+            nn.Linear(256, 1)
         )
         
         self.regression_head = nn.Sequential(
-            nn.Linear(96, 128),
+            nn.Linear(768, 256),
             nn.GELU(),
             nn.Dropout(0.2),
-            nn.Linear(128, 1)
+            nn.Linear(256, 1)
         )        
 
     def forward(self, tab, tab_mask, shape, shape_mask):
@@ -137,8 +139,9 @@ class PureEpigeneticNN(nn.Module):
         shape_out = self.shape_cnn(shape_in).squeeze(-1)
         shape_out = self.shape_fc(shape_out)
 
-        #WE WANT THIS IF WE ARE DOING A MUTLIMODAL FUSION 
-        fused_features = torch.cat((tab_out, shape_out), dim=1)
+        # 3. WE WANT THIS IF WE ARE DOING A MULTIMODAL FUSION OR LATENT ENSEMBLE
+        fused_features = torch.cat((tab_out, shape_out), dim=1) # [Batch_Size, 768]
+        
         class_logits = self.classification_head(fused_features)
         m_value_pred = self.regression_head(fused_features)
         
@@ -156,9 +159,9 @@ def main():
     parser.add_argument("--train_shape_tsv", type=str, required=True)
     parser.add_argument("--val_shape_tsv", type=str, required=True)
     parser.add_argument("--save_dir", default="checkpoints_pure_nn")
-    parser.add_argument("--batch_size", type=int, default=16) # BUMPED: No sequence model means we can fit way more in VRAM!
+    parser.add_argument("--batch_size", type=int, default=128) 
     parser.add_argument("--epochs", type=int, default=15)
-    parser.add_argument("--lr", type=float, default=1e-3) # Aggressive learning rate
+    parser.add_argument("--lr", type=float, default=1e-3) 
     parser.add_argument("--shape_window_size", type=int, default=100)
     args = parser.parse_args()
     
