@@ -97,6 +97,7 @@ class MultiModalLateFusionDataset(Dataset):
         self.tabular_features = [
             'Ref_ATAC_Signal', 'Ref_H3K4me3_Signal', 'Ref_H3K27ac_Signal', 
             'Ref_H3K27me3_Signal', 'Ref_H3K9me3_Signal', 
+            'Ref_H3K36me3_Signal', 'Ref_H3K4me1_Signal',
             'Target_Base_PhyloP_100way_1', 'Target_Base_PhyloP_100way_2'
         ]
 
@@ -154,7 +155,7 @@ class MultiModalLateFusionDataset(Dataset):
 # 3. Robust Late Fusion Architecture
 # =========================================
 class SilentMethylModel(nn.Module):
-    def __init__(self, model_path="zhihan1996/DNABERT-2-117M", tabular_dim=7):
+    def __init__(self, model_path="zhihan1996/DNABERT-2-117M", tabular_dim=9):
         super(SilentMethylModel, self).__init__()
         
         # A. Spatial Anchor (Epigenetic MLP with Norm to prevent collapse)
@@ -309,7 +310,7 @@ def main():
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4, pin_memory=True, generator=g)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4, pin_memory=True)
 
-    model = SilentMethylModel(args.model_path, tabular_dim=7).to(device)
+    model = SilentMethylModel(args.model_path, tabular_dim=9).to(device)
     
     bert_params = []
     new_head_params = []

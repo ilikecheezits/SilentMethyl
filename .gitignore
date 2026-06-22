@@ -117,6 +117,7 @@ dnabert2_local/
 runs/
 checkpoints/
 checkpoints_baseline/
+checkpoints_multimodal/
 .DS_Store
 error_log*
 training_log*
