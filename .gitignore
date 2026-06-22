@@ -115,9 +115,7 @@ data/*
 *.png
 dnabert2_local/
 runs/
-checkpoints/
-checkpoints_baseline/
-checkpoints_multimodal/
+checkpoints*/
 .DS_Store
 error_log*
 training_log*
