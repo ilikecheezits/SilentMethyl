@@ -129,7 +129,6 @@ class SilentMethylModel(nn.Module):
     def __init__(self, model_path="zhihan1996/DNABERT-2-117M", tabular_dim=9):
         super(SilentMethylModel, self).__init__()
         
-        # UPGRADE 1: Deeper Tabular MLP
         self.tab_mlp = nn.Sequential(
             nn.Linear(tabular_dim * 2, 128),
             nn.LayerNorm(128),
@@ -160,7 +159,6 @@ class SilentMethylModel(nn.Module):
         )
         self.shape_fc = nn.Sequential(nn.Linear(128, 64), nn.LayerNorm(64), nn.GELU())
         
-        # UPGRADE 2: Deeper, Heavily Regularized Fusion Synthesis
         self.classification_head = nn.Sequential(
             nn.Linear(224, 512),
             nn.LayerNorm(512),
@@ -206,13 +204,12 @@ class SilentMethylModel(nn.Module):
         shape_out = self.shape_cnn(shape_in).squeeze(-1)
         shape_out = self.shape_fc(shape_out)
 
-        # UPGRADE 3: Aggressive Modality Dropout
         if self.training:
             rand_val = torch.rand(1).item()
-            if rand_val < 0.15: # 15% drop shape/epigenetics
+            if rand_val < 0.15: 
                 tab_out = torch.zeros_like(tab_out)
                 shape_out = torch.zeros_like(shape_out)
-            elif rand_val < 0.45: # 30% drop DNA! (Forces Tab/Shape heads to learn)
+            elif rand_val < 0.45: 
                 text_out = torch.zeros_like(text_out)
         
         fused_features = torch.cat((tab_out, text_out, shape_out), dim=1)
@@ -223,7 +220,7 @@ class SilentMethylModel(nn.Module):
         return class_logits, m_value_pred, attentions
 
 # =========================================
-# 4. Two-Stage Training Loop
+# 4. Single-Stage Training Loop (Fully Frozen Anchor)
 # =========================================
 def main():
     set_seed(42)
@@ -234,7 +231,7 @@ def main():
     parser.add_argument("--train_shape_tsv", type=str, required=True)
     parser.add_argument("--val_shape_tsv", type=str, required=True)
     parser.add_argument("--phase1_weights", type=str, default="checkpoints_baseline/baseline_best_weights.pth")
-    parser.add_argument("--save_dir", default="checkpoints_multimodal")
+    parser.add_argument("--save_dir", default="checkpoints_multimodal_v3")
     parser.add_argument("--model_path", default="zhihan1996/DNABERT-2-117M")
     parser.add_argument("--batch_size", type=int, default=4) 
     parser.add_argument("--grad_accum_steps", type=int, default=8) 
@@ -242,7 +239,7 @@ def main():
     parser.add_argument("--shape_window_size", type=int, default=100)
     args = parser.parse_args()
     
-    writer = SummaryWriter(log_dir="runs/phase2_multimodal")
+    writer = SummaryWriter(log_dir="runs/phase2_multimodal_frozen")
     os.makedirs(args.save_dir, exist_ok=True)
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
     logger = logging.getLogger(__name__)
@@ -273,7 +270,6 @@ def main():
 
     model = SilentMethylModel(args.model_path, tabular_dim=9).to(device)
     
-    # UPGRADE 4: Inject Phase 1 Weights
     logger.info(f"[*] Injecting Phase 1 Baseline Weights from {args.phase1_weights}...")
     baseline_ckpt = torch.load(args.phase1_weights, map_location=device, weights_only=False)
     if 'model_state_dict' in baseline_ckpt: baseline_ckpt = baseline_ckpt['model_state_dict']
@@ -288,33 +284,25 @@ def main():
     start_epoch = 1
     best_val_mae = float('inf')
     global_step = 0
-    total_epochs = 15
+    total_epochs = 10 
     steps_per_epoch = len(train_loader) // args.grad_accum_steps
 
-    # Helper function to dynamically map optimizer parameters
-    def get_stage_optimizer_and_scheduler(stage):
-        bert_params, new_head_params = [], []
-        for name, param in model.named_parameters():
-            if "bert" in name:
-                param.requires_grad = (stage == 2)
-                if stage == 2: bert_params.append(param)
-            else:
-                param.requires_grad = True
-                new_head_params.append(param)
-        
-        if stage == 1:
-            opt = optim.AdamW(new_head_params, lr=5e-4, weight_decay=1e-4)
-            warmup_steps = steps_per_epoch * 5
-            sched = get_linear_schedule_with_warmup(opt, num_warmup_steps=int(0.1 * warmup_steps), num_training_steps=warmup_steps)
+    # ==========================================
+    # PERMANENT FREEZE & HIGH LR INITIALIZATION
+    # ==========================================
+    logger.info("--- LOCKING DNABERT-2: 100% FROZEN ---")
+    new_head_params = []
+    for name, param in model.named_parameters():
+        if "bert" in name:
+            param.requires_grad = False 
         else:
-            opt = optim.AdamW([{'params': bert_params, 'lr': 1e-6}, {'params': new_head_params, 'lr': 1e-4}], weight_decay=1e-4)
-            thaw_steps = steps_per_epoch * 10
-            sched = get_linear_schedule_with_warmup(opt, num_warmup_steps=0, num_training_steps=thaw_steps)
-        return opt, sched
-
-    # Initialize Stage 1 before loop (in case we don't hit epoch 1 or 6 due to resume)
-    current_stage = 1 if start_epoch <= 5 else 2
-    optimizer, scheduler = get_stage_optimizer_and_scheduler(current_stage)
+            param.requires_grad = True
+            new_head_params.append(param)
+    
+    # Aggressive 1e-3 learning rate exclusively for the new untrained layers
+    optimizer = optim.AdamW(new_head_params, lr=1e-3, weight_decay=1e-4)
+    total_steps = steps_per_epoch * total_epochs
+    scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=int(0.1 * total_steps), num_training_steps=total_steps)
 
     # --- RESUME LOGIC ---
     latest_ckpt_path = os.path.join(args.save_dir, "latest_checkpoint.pt")
@@ -322,32 +310,19 @@ def main():
         logger.info(f"[*] Found interrupted run. Restoring state...")
         checkpoint = torch.load(latest_ckpt_path, map_location=device, weights_only=False)
         start_epoch = checkpoint['epoch']
-        current_stage = 1 if start_epoch <= 5 else 2
-        
-        # Must re-init the correct stage optimizer before loading state
-        optimizer, scheduler = get_stage_optimizer_and_scheduler(current_stage)
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
         scaler.load_state_dict(checkpoint['scaler_state_dict'])
         best_val_mae = checkpoint.get('best_val_mae', float('inf'))
         global_step = (start_epoch - 1) * steps_per_epoch
-        logger.info(f"[✓] Fast-forwarding to Epoch {start_epoch} (Stage {current_stage})...")
+        logger.info(f"[✓] Fast-forwarding to Epoch {start_epoch}...")
 
     for epoch in range(start_epoch, total_epochs + 1):
-        
-        # UPGRADE 5: Dynamic Stage Transitions
         if epoch == 1:
             logger.info("\n==========================================")
-            logger.info("   STAGE 1: WARMUP (Epochs 1-5)")
-            logger.info("   DNABERT-2 is FROZEN. Training Heads Only.")
+            logger.info(f"   STARTING 10-EPOCH RUN (LR: 1e-3)")
             logger.info("==========================================\n")
-        elif epoch == 6:
-            logger.info("\n==========================================")
-            logger.info("   STAGE 2: FUSION THAW (Epochs 6-15)")
-            logger.info("   DNABERT-2 UNFROZEN. Stitching Modalities.")
-            logger.info("==========================================\n")
-            optimizer, scheduler = get_stage_optimizer_and_scheduler(stage=2)
 
         model.train()
         train_loss = 0.0
@@ -366,12 +341,7 @@ def main():
                 loss_bce = criterion_bce(class_logits, binary_target)
                 loss_huber = criterion_huber(m_value_pred, m_value_target)
                 
-                loss_sparsity = 0.0
-                if attentions is not None:
-                    last_layer_attn = attentions[-1] 
-                    loss_sparsity = torch.mean(torch.abs(last_layer_attn))
-                
-                loss = loss_bce + loss_huber + (0.01 * loss_sparsity)
+                loss = loss_bce + loss_huber
                 loss = loss / args.grad_accum_steps
 
             scaler.scale(loss).backward()
@@ -389,13 +359,7 @@ def main():
                 global_step += 1
                 
                 writer.add_scalar("Train/Total_Loss", loss.item() * args.grad_accum_steps, global_step)
-                
-                # Dynamic LR tracking based on stage
-                if epoch <= 5:
-                    writer.add_scalar("Train/LR_Heads", optimizer.param_groups[0]['lr'], global_step)
-                else:
-                    writer.add_scalar("Train/LR_DNABERT", optimizer.param_groups[0]['lr'], global_step)
-                    writer.add_scalar("Train/LR_Heads", optimizer.param_groups[1]['lr'], global_step)
+                writer.add_scalar("Train/LR_Heads", optimizer.param_groups[0]['lr'], global_step)
                 
                 pbar.set_postfix({'Loss': f"{loss.item() * args.grad_accum_steps:.4f}"})
 
@@ -454,7 +418,7 @@ def main():
 
         if val_beta_mae < best_val_mae:
             best_val_mae = val_beta_mae
-            torch.save(model.state_dict(), os.path.join(args.save_dir, f"multimodal_v2_best.pth"))
+            torch.save(model.state_dict(), os.path.join(args.save_dir, f"multimodal_v3_frozen_best.pth"))
             logger.info(f"[★] New Best Model (Beta MAE: {best_val_mae:.4f}) saved!")
 
 if __name__ == "__main__":
