@@ -137,7 +137,7 @@ class PureEpigeneticNN(nn.Module):
         shape_out = self.shape_cnn(shape_in).squeeze(-1)
         shape_out = self.shape_fc(shape_out)
 
-        # 3. Fuse and Predict
+        #WE WANT THIS IF WE ARE DOING A MUTLIMODAL FUSION 
         fused_features = torch.cat((tab_out, shape_out), dim=1)
         class_logits = self.classification_head(fused_features)
         m_value_pred = self.regression_head(fused_features)
