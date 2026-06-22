@@ -161,7 +161,7 @@ class BaselineDNABert(nn.Module):
         attn_weights = self.attention_pool(spatial_features).squeeze(-1)
         attn_weights = attn_weights.masked_fill(attention_mask == 0, -1e4)
         attn_weights = F.softmax(attn_weights, dim=-1)
-        
+         
         pooled_output = torch.sum(spatial_features * attn_weights.unsqueeze(-1), dim=1)
 
         class_logits = self.classification_head(pooled_output)

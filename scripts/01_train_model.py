@@ -56,7 +56,7 @@ def patch_and_load_dnabert(model_path="zhihan1996/DNABERT-2-117M", local_dir="./
         with open(config_path, "w") as f: json.dump(config_data, f)
         
     config = AutoConfig.from_pretrained(local_dir, trust_remote_code=True)
-    config.output_attentions = True 
+    config.output_attentions = False 
     base_model = AutoModel.from_config(config, trust_remote_code=True)
     
     weights_path = hf_hub_download(repo_id=model_path, filename="pytorch_model.bin")
@@ -158,36 +158,25 @@ class SilentMethylModel(nn.Module):
             nn.AdaptiveMaxPool1d(1) 
         )
         self.shape_fc = nn.Sequential(nn.Linear(128, 64), nn.LayerNorm(64), nn.GELU())
-        
         self.classification_head = nn.Sequential(
-            nn.Linear(224, 512),
-            nn.LayerNorm(512),
+            nn.Linear(224, 256),
             nn.GELU(),
-            nn.Dropout(0.3), 
-            nn.Linear(512, 256),
-            nn.LayerNorm(256),
-            nn.GELU(),
-            nn.Dropout(0.3),
+            nn.Dropout(0.2),
             nn.Linear(256, 1)
         )
         
         self.regression_head = nn.Sequential(
-            nn.Linear(224, 512),
-            nn.LayerNorm(512),
+            nn.Linear(224, 256),
             nn.GELU(),
-            nn.Dropout(0.3),
-            nn.Linear(512, 256),
-            nn.LayerNorm(256),
-            nn.GELU(),
-            nn.Dropout(0.3),
+            nn.Dropout(0.2),
             nn.Linear(256, 1)
-        )
+        )        
 
     def forward(self, tab, tab_mask, input_ids, attention_mask, shape, shape_mask):
         tab_in = torch.cat([tab, tab_mask], dim=1)
         tab_out = self.tab_mlp(tab_in)
         
-        bert_out = self.bert(input_ids=input_ids, attention_mask=attention_mask, output_attentions=True)
+        bert_out = self.bert(input_ids=input_ids, attention_mask=attention_mask)
         hidden_states = bert_out[0] if isinstance(bert_out, tuple) else bert_out.last_hidden_state
         
         hidden_states_t = hidden_states.permute(0, 2, 1)
@@ -203,21 +192,16 @@ class SilentMethylModel(nn.Module):
         shape_in = torch.cat([shape, shape_mask], dim=1)
         shape_out = self.shape_cnn(shape_in).squeeze(-1)
         shape_out = self.shape_fc(shape_out)
-
         if self.training:
-            rand_val = torch.rand(1).item()
-            if rand_val < 0.15: 
-                tab_out = torch.zeros_like(tab_out)
-                shape_out = torch.zeros_like(shape_out)
-            elif rand_val < 0.45: 
-                text_out = torch.zeros_like(text_out)
-        
+           # rand_val = torch.rand(1).item()
+           # if rand_val < 0.5: 
+            text_out = torch.zeros_like(text_out)
+
         fused_features = torch.cat((tab_out, text_out, shape_out), dim=1)
         class_logits = self.classification_head(fused_features)
         m_value_pred = self.regression_head(fused_features)
         
-        attentions = bert_out[-1] if isinstance(bert_out, tuple) and len(bert_out) > 1 else getattr(bert_out, 'attentions', None)
-        return class_logits, m_value_pred, attentions
+        return class_logits, m_value_pred
 
 # =========================================
 # 4. Single-Stage Training Loop (Fully Frozen Anchor)
@@ -300,7 +284,7 @@ def main():
             new_head_params.append(param)
     
     # Aggressive 1e-3 learning rate exclusively for the new untrained layers
-    optimizer = optim.AdamW(new_head_params, lr=1e-3, weight_decay=1e-4)
+    optimizer = optim.AdamW(new_head_params, lr=5e-4, weight_decay=1e-4)
     total_steps = steps_per_epoch * total_epochs
     scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=int(0.1 * total_steps), num_training_steps=total_steps)
 
@@ -337,7 +321,7 @@ def main():
             binary_target = batch['binary_state'].to(device).view(-1, 1)
 
             with torch.amp.autocast('cuda'):
-                class_logits, m_value_pred, attentions = model(tab, tab_mask, input_ids, attention_mask, shape, shape_mask)
+                class_logits, m_value_pred = model(tab, tab_mask, input_ids, attention_mask, shape, shape_mask)
                 loss_bce = criterion_bce(class_logits, binary_target)
                 loss_huber = criterion_huber(m_value_pred, m_value_target)
                 
@@ -377,7 +361,7 @@ def main():
                 binary_target = batch['binary_state'].to(device).view(-1, 1)
                 
                 with torch.amp.autocast('cuda'):
-                    class_logits, m_value_pred, _ = model(tab, tab_mask, input_ids, attention_mask, shape, shape_mask)
+                    class_logits, m_value_pred = model(tab, tab_mask, input_ids, attention_mask, shape, shape_mask)
                     loss_bce = criterion_bce(class_logits, binary_target)
                     loss_huber = criterion_huber(m_value_pred, m_value_target)
                     batch_loss = loss_bce + loss_huber
