@@ -186,7 +186,7 @@ def main():
     parser.add_argument("--mut_shape_tsv", type=str, default="data/datafiles/mut_3d_shapes.tsv")
     
     # Corrected Gated Fusion Paths
-    parser.add_argument("--weights_path", type=str, default="checkpoints/multimodal/best_weights.pth")
+    parser.add_argument("--weights_path", type=str, default="checkpoints_multimodal/best_weights.pth")
     parser.add_argument("--save_dir", type=str, default="results/multimodal")
     
     parser.add_argument("--batch_size", type=int, default=32)
