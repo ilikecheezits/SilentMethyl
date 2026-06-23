@@ -28,6 +28,8 @@ BW_PATHS = {
     "Ref_H3K27ac_Signal": BASE_REF + "H3K27ac.bw",
     "Ref_H3K27me3_Signal": BASE_REF + "H3K27me3.bw",
     "Ref_H3K9me3_Signal": BASE_REF + "H3K9me3.bw",
+    "Ref_H3K36me3_Signal": BASE_REF + "H3K36me3.bw",
+    "Ref_H3K4me1_Signal": BASE_REF + "H3K4me1.bw",
     "Target_Base_PhyloP_100way_1": BASE_REF + "hg38.phyloP100way.bw",
     "Target_Base_PhyloP_100way_2": BASE_REF + "hg38.phyloP100way.bw"    
 }
@@ -324,6 +326,8 @@ final_columns = [
     'True_Mutated_Beta', 'True_Mutated_M_Value',
     'Ref_ATAC_Signal', 'Ref_H3K4me3_Signal', 'Ref_H3K27ac_Signal', 
     'Ref_H3K27me3_Signal', 'Ref_H3K9me3_Signal', 
+    'Ref_H3K36me3_Signal',
+    'Ref_H3K4me1_Signal',
     'Target_Base_PhyloP_100way_1', 'Target_Base_PhyloP_100way_2'
 ]
 

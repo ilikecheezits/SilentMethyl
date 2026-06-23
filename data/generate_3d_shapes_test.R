@@ -46,8 +46,8 @@ extract_3d_tensor <- function(fasta_path, output_filename) {
     cat(paste0("[+] Exported matrix to: ", output_filename, "\n\n"))
 }
 
-if (file.exists("test_healthy_100p.fasta")) {
-    extract_3d_tensor("test_healthy_100p.fasta", "wt_3d_shapes.tsv")
+if (file.exists("test_healthy_100bp.fasta")) {
+    extract_3d_tensor("test_healthy_100bp.fasta", "wt_3d_shapes.tsv")
     gc() 
 }
 if (file.exists("test_mutated_100bp.fasta")) {
