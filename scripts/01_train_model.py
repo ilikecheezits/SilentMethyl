@@ -223,7 +223,8 @@ class GatedFusionModel(nn.Module):
         class_logits = self.classification_head(fused_embeddings)
         m_value_pred = self.regression_head(fused_embeddings)
         
-        return class_logits, m_value_pred
+        # NEW: Return the gates so we can track them!
+        return class_logits, m_value_pred, gate_dna, gate_epi
 
 # =========================================
 # 4. Phase 1 Training Loop (Strict Freezing)
@@ -236,11 +237,8 @@ def main():
     parser.add_argument("--val_path", type=str, default="data/datafiles/val.csv")
     parser.add_argument("--train_shape_tsv", type=str, required=True)
     parser.add_argument("--val_shape_tsv", type=str, required=True)
-    
-    # NEW: Expecting both champion weights
     parser.add_argument("--baseline_weights", type=str, required=True, help="Path to best baseline DNABERT-2 weights")
     parser.add_argument("--pure_nn_weights", type=str, required=True, help="Path to best Pure NN weights")
-    
     parser.add_argument("--save_dir", default="checkpoints_multimodal_gated")
     parser.add_argument("--model_path", default="zhihan1996/DNABERT-2-117M")
     parser.add_argument("--batch_size", type=int, default=4) 
@@ -300,14 +298,12 @@ def main():
     trainable_params = []
     
     for name, param in model.named_parameters():
-        # Only unfreeze the new specific layers
         if "norm_" in name or "gate_network" in name or "head" in name:
             param.requires_grad = True
             trainable_params.append(param)
         else:
             param.requires_grad = False 
             
-    # Count trainable params for sanity check
     trainable_count = sum(p.numel() for p in trainable_params)
     logger.info(f"[*] Trainable Parameters in Fusion Block: {trainable_count:,}")
 
@@ -315,7 +311,6 @@ def main():
     criterion_huber = nn.HuberLoss(delta=1.345)
     scaler = torch.amp.GradScaler('cuda')
     
-    # Standard LR for new layers
     optimizer = optim.AdamW(trainable_params, lr=5e-4, weight_decay=1e-4)
     total_steps = (len(train_loader) // args.grad_accum_steps) * args.epochs
     scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=int(0.1 * total_steps), num_training_steps=total_steps)
@@ -335,6 +330,7 @@ def main():
         scaler.load_state_dict(checkpoint['scaler_state_dict'])
         best_val_mae = checkpoint.get('best_val_mae', float('inf'))
         global_step = (start_epoch - 1) * (len(train_loader) // args.grad_accum_steps)
+        logger.info(f"[✓] Fast-forwarding to Epoch {start_epoch}...")
 
     for epoch in range(start_epoch, args.epochs + 1):
         model.train()
@@ -350,11 +346,14 @@ def main():
             binary_target = batch['binary_state'].to(device).view(-1, 1)
 
             with torch.amp.autocast('cuda'):
-                class_logits, m_value_pred = model(tab, tab_mask, input_ids, attention_mask, shape, shape_mask)
+                class_logits, m_value_pred, gate_dna, gate_epi = model(tab, tab_mask, input_ids, attention_mask, shape, shape_mask)
                 loss_bce = criterion_bce(class_logits, binary_target)
                 loss_huber = criterion_huber(m_value_pred, m_value_target)
                 
-                loss = loss_bce + loss_huber
+                # OPTIONAL LAZINESS PENALTY: Set multiplier to 0.0 unless we need it
+                laziness_penalty = 0.0 * (torch.abs(gate_dna.mean() - 0.5) + torch.abs(gate_epi.mean() - 0.5))
+                
+                loss = loss_bce + loss_huber + laziness_penalty
                 loss = loss / args.grad_accum_steps
 
             scaler.scale(loss).backward()
@@ -373,6 +372,11 @@ def main():
                 
                 writer.add_scalar("Train/Total_Loss", loss.item() * args.grad_accum_steps, global_step)
                 writer.add_scalar("Train/LR", optimizer.param_groups[0]['lr'], global_step)
+                
+                # NEW: Tracking the Gate Averages
+                writer.add_scalar("Gates/DNA_Weight", gate_dna.mean().item(), global_step)
+                writer.add_scalar("Gates/Epi_Weight", gate_epi.mean().item(), global_step)
+                
                 pbar.set_postfix({'Loss': f"{loss.item() * args.grad_accum_steps:.4f}"})
 
         model.eval()
@@ -389,7 +393,7 @@ def main():
                 binary_target = batch['binary_state'].to(device).view(-1, 1)
                 
                 with torch.amp.autocast('cuda'):
-                    class_logits, m_value_pred = model(tab, tab_mask, input_ids, attention_mask, shape, shape_mask)
+                    class_logits, m_value_pred, _, _ = model(tab, tab_mask, input_ids, attention_mask, shape, shape_mask)
                     loss_bce = criterion_bce(class_logits, binary_target)
                     loss_huber = criterion_huber(m_value_pred, m_value_target)
                     batch_loss = loss_bce + loss_huber
