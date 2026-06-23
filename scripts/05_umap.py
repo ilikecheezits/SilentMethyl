@@ -6,6 +6,7 @@ import numpy as np
 import argparse
 import logging
 import os
+import re
 import json
 import shutil
 import matplotlib.pyplot as plt
@@ -19,7 +20,7 @@ import umap
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
 # =========================================
-# 1. Dataset Loader
+# 1. Dataset Loader & Helpers
 # =========================================
 class MultiModalLateFusionDataset(Dataset):
     def __init__(self, df, shape_data_array, tokenizer, seq_window_size=1000, shape_window_size=100):
@@ -71,8 +72,19 @@ class MultiModalLateFusionDataset(Dataset):
             'binary_state': torch.tensor(binary_state, dtype=torch.float32)
         }
 
+def m_value_to_beta(m_val):
+    m_val = np.clip(m_val, -20, 20)
+    return (2 ** m_val) / (1 + (2 ** m_val))
+
+def parse_mutation_id(mut_id):
+    mut_str = str(mut_id).upper()
+    if mut_str == 'NAN': return None, None, None
+    match = re.search(r'(\d+)\s*([ACGT])\s*>\s*([ACGT])', mut_str)
+    if match: return int(match.group(1)), match.group(2), match.group(3)
+    return None, None, None
+
 # =========================================
-# 2. Gated Fusion Model (Modified for Embeddings)
+# 2. Gated Fusion Model
 # =========================================
 def patch_and_load_dnabert(model_path="zhihan1996/DNABERT-2-117M", local_dir="./dnabert2_local"):
     if not os.path.exists(local_dir):
@@ -157,7 +169,6 @@ class GatedFusionModel(nn.Module):
         class_logits = self.classification_head(fused_embeddings)
         m_value_pred = self.regression_head(fused_embeddings)
         
-        # NEW: Returning fused_embeddings for UMAP
         return class_logits, m_value_pred, gate_dna, gate_epi, fused_embeddings
 
 # =========================================
@@ -167,9 +178,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--test_csv_path", type=str, default="data/datafiles/test.csv")
     parser.add_argument("--test_shape_tsv", type=str, default="data/datafiles/test_3d_shapes.tsv")
+    parser.add_argument("--wt_shape_tsv", type=str, default="data/datafiles/wt_3d_shapes.tsv")
+    parser.add_argument("--mut_shape_tsv", type=str, default="data/datafiles/mut_3d_shapes.tsv")
     parser.add_argument("--weights_path", type=str, default="checkpoints_multimodal/best_weights.pth")
     parser.add_argument("--save_dir", type=str, default="results/multimodal_gated")
     parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--seq_window_size", type=int, default=1000)
+    parser.add_argument("--shape_window_size", type=int, default=100)
     args = parser.parse_args()
 
     os.makedirs(args.save_dir, exist_ok=True)
@@ -178,10 +193,14 @@ def main():
     logging.info("[*] Loading Data...")
     df = pd.read_csv(args.test_csv_path)
     shapes = pd.read_csv(args.test_shape_tsv, sep='\t', header=None, dtype=np.float32).values
+    wt_shapes = pd.read_csv(args.wt_shape_tsv, sep='\t', header=None, dtype=np.float32).values
+    mut_shapes = pd.read_csv(args.mut_shape_tsv, sep='\t', header=None, dtype=np.float32).values
     
     mask = df['probeID'].str.startswith('cg')
     df = df[mask].reset_index(drop=True)
     shapes = shapes[mask.values]
+    wt_shapes = wt_shapes[mask.values]
+    mut_shapes = mut_shapes[mask.values]
     
     tokenizer = AutoTokenizer.from_pretrained("zhihan1996/DNABERT-2-117M", trust_remote_code=True)
     test_dataset = MultiModalLateFusionDataset(df, shapes, tokenizer)
@@ -192,12 +211,13 @@ def main():
     model.load_state_dict(torch.load(args.weights_path, map_location=device, weights_only=True), strict=True)
     model.eval()
 
+    # --- Phase 1: Global Embeddings ---
     all_embeddings = []
     all_states = []
 
-    logging.info("[*] Extracting 768-dimensional Latent Representations...")
+    logging.info("[*] Phase 1: Extracting Global Latent Representations...")
     with torch.no_grad():
-        for batch in tqdm(test_loader, desc="Inference"):
+        for batch in tqdm(test_loader, desc="Global Inference"):
             tab, tab_mask = batch['tab'].to(device), batch['tab_mask'].to(device)
             input_ids, attention_mask = batch['input_ids'].to(device), batch['attention_mask'].to(device)
             shape, shape_mask = batch['shape'].to(device), batch['shape_mask'].to(device)
@@ -210,38 +230,117 @@ def main():
 
     X = np.vstack(all_embeddings)
     y = np.array(all_states)
-    
     state_labels = ["Hypomethylated (<0.5 Beta)" if val == 0.0 else "Hypermethylated (>0.5 Beta)" for val in y]
 
     logging.info(f"[*] Fitting UMAP on {X.shape[0]} samples (Dimensions: {X.shape[1]} -> 2)...")
     reducer = umap.UMAP(n_neighbors=15, min_dist=0.1, metric='cosine', random_state=42)
     embedding_2d = reducer.fit_transform(X)
 
-    logging.info("[*] Plotting Latent Space...")
-    sns.set_theme(style="whitegrid", context="paper", font_scale=1.2)
-    plt.figure(figsize=(9, 7))
+    # --- Phase 2: Top Drivers Trajectories ---
+    logging.info("[*] Phase 2: Isolating Top Driver Mutations for Overlay...")
+    target_data = []
     
+    tabular_features = ['Ref_ATAC_Signal', 'Ref_H3K4me3_Signal', 'Ref_H3K27ac_Signal', 'Ref_H3K27me3_Signal', 'Ref_H3K9me3_Signal', 'Ref_H3K36me3_Signal', 'Ref_H3K4me1_Signal', 'Target_Base_PhyloP_100way_1', 'Target_Base_PhyloP_100way_2']
+    
+    for idx, row in df.iterrows():
+        mut_id = row['GDC_Genomic_DNA_Change']
+        mut_pos, _, _ = parse_mutation_id(mut_id)
+        if not mut_pos: continue
+        
+        wt_full = str(row['Healthy_5000bp_DNA']).upper()
+        mut_full = str(row['Mutated_5000bp_DNA']).upper()
+        wt_seq = wt_full[2000:3000]
+        mut_seq = mut_full[2000:3000]
+        
+        if wt_seq == mut_seq: continue
+        
+        tab_raw = row[tabular_features].values.astype(np.float32)
+        tab_t = torch.tensor(tab_raw).unsqueeze(0)
+        tab_m = ~torch.isnan(tab_t)
+        tab_t = torch.nan_to_num(tab_t, nan=0.0)
+        
+        wt_shape_t = torch.nan_to_num(torch.tensor(wt_shapes[idx]).view(1, 14, args.shape_window_size), nan=0.0)
+        wt_shape_m = ~torch.isnan(wt_shape_t)
+        mut_shape_t = torch.nan_to_num(torch.tensor(mut_shapes[idx]).view(1, 14, args.shape_window_size), nan=0.0)
+        mut_shape_m = ~torch.isnan(mut_shape_t)
+        
+        target_data.append({
+            'gene': str(row['Gene']) if pd.notna(row['Gene']) else f"Intergenic_{row['chr']}",
+            'wt_seq': wt_seq, 'mut_seq': mut_seq,
+            'tab': tab_t, 'tab_m': tab_m,
+            'wt_shape': wt_shape_t, 'wt_shape_m': wt_shape_m,
+            'mut_shape': mut_shape_t, 'mut_shape_m': mut_shape_m
+        })
+        
+    logging.info(f"    -> Extracted {len(target_data)} mutated pairs. Scoring to find Top 5 trajectories...")
+    
+    trajectory_results = []
+    with torch.no_grad():
+        for item in target_data:
+            wt_enc = tokenizer(item['wt_seq'], truncation=True, max_length=args.seq_window_size, padding='max_length', return_tensors='pt').to(device)
+            mut_enc = tokenizer(item['mut_seq'], truncation=True, max_length=args.seq_window_size, padding='max_length', return_tensors='pt').to(device)
+            
+            tab, tab_m = item['tab'].to(device), item['tab_m'].to(device)
+            
+            with torch.amp.autocast('cuda' if torch.cuda.is_available() else 'cpu'):
+                _, wt_pred, _, _, wt_emb = model(tab, tab_m, wt_enc['input_ids'], wt_enc['attention_mask'], item['wt_shape'].to(device), item['wt_shape_m'].to(device))
+                _, mut_pred, _, _, mut_emb = model(tab, tab_m, mut_enc['input_ids'], mut_enc['attention_mask'], item['mut_shape'].to(device), item['mut_shape_m'].to(device))
+                
+            wt_beta = m_value_to_beta(wt_pred.item())
+            mut_beta = m_value_to_beta(mut_pred.item())
+            
+            trajectory_results.append({
+                'gene': item['gene'],
+                'delta': np.abs(mut_beta - wt_beta),
+                'wt_emb': wt_emb.cpu().float().numpy(),
+                'mut_emb': mut_emb.cpu().float().numpy()
+            })
+            
+    # Sort and grab top 5
+    trajectory_results.sort(key=lambda x: x['delta'], reverse=True)
+    top_5 = trajectory_results[:5]
+
+    # Map the top 5 embeddings into the UMAP space
+    top_wt_embs = np.vstack([x['wt_emb'] for x in top_5])
+    top_mut_embs = np.vstack([x['mut_emb'] for x in top_5])
+    
+    wt_2d = reducer.transform(top_wt_embs)
+    mut_2d = reducer.transform(top_mut_embs)
+
+    # --- Phase 3: Plotting ---
+    logging.info("[*] Plotting Integrated Latent Space with Trajectories...")
+    sns.set_theme(style="whitegrid", context="paper", font_scale=1.2)
+    plt.figure(figsize=(10, 8))
+    
+    # 1. Background Scatter (Faded)
     sns.scatterplot(
         x=embedding_2d[:, 0], 
         y=embedding_2d[:, 1], 
         hue=state_labels, 
         palette={"Hypomethylated (<0.5 Beta)": "#3b82f6", "Hypermethylated (>0.5 Beta)": "#ef4444"},
-        alpha=0.6, 
+        alpha=0.15, # Faded alpha
         edgecolor=None,
-        s=15
+        s=15,
+        legend=True
     )
     
-    plt.title('Gated Fusion Latent Space (UMAP)', fontweight='bold', fontsize=14)
+    # 2. Overlay Trajectories
+    for i, item in enumerate(top_5):
+        # Draw Arrow
+        plt.annotate(
+            '', xy=(mut_2d[i, 0], mut_2d[i, 1]), xytext=(wt_2d[i, 0], wt_2d[i, 1]),
+            arrowprops=dict(arrowstyle="->", color='black', lw=2, shrinkA=0, shrinkB=0)
+        )
+        # Highlight Start and End points
+        plt.scatter(wt_2d[i, 0], wt_2d[i, 1], color='#22c55e', s=80, zorder=5, edgecolor='black', marker='o', label='Wild-Type State' if i==0 else "")
+        plt.scatter(mut_2d[i, 0], mut_2d[i, 1], color='#ef4444', s=120, zorder=5, edgecolor='black', marker='*', label='Mutated State' if i==0 else "")
+        
+        # Add Gene label slightly offset
+        plt.text(mut_2d[i, 0] + 0.2, mut_2d[i, 1] + 0.2, item['gene'], fontsize=10, fontweight='bold', color='black',
+                 bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=1))
+    
+    plt.title('Gated Fusion Latent Space: Global Manifold & Mutation Trajectories', fontweight='bold', fontsize=15)
     plt.xlabel('UMAP Dimension 1')
     plt.ylabel('UMAP Dimension 2')
-    plt.legend(title="Biological State", bbox_to_anchor=(1.05, 1), loc='upper left')
-    plt.tight_layout()
     
-    output_path = os.path.join(args.save_dir, 'fig_6_latent_umap.png')
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
-    plt.close()
-
-    logging.info(f"[✓] UMAP successfully saved to {output_path}")
-
-if __name__ == "__main__":
-    main()
+    # Fix legend placement
