@@ -86,7 +86,7 @@ def parse_mutation_id(mut_id):
 # =========================================
 # 2. Gated Fusion Model
 # =========================================
-def patch_and_load_dnabert(model_path="zhihan1996/DNABERT-2-117M", local_dir="./dnabert2_local"):
+def patch_and_load_dnabert(model_path="zhihan1996/DNABERT-2-117M", local_dir="./dnabert2_local_umap"):
     if not os.path.exists(local_dir):
         os.makedirs(local_dir, exist_ok=True)
         cache_path = snapshot_download(model_path)
@@ -176,12 +176,19 @@ class GatedFusionModel(nn.Module):
 # =========================================
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--test_csv_path", type=str, default="data/datafiles/test.csv")
-    parser.add_argument("--test_shape_tsv", type=str, default="data/datafiles/test_3d_shapes.tsv")
+    # Unpaired background data
+    parser.add_argument("--unpaired_csv_path", type=str, default="data/datafiles/test.csv")
+    parser.add_argument("--unpaired_shape_tsv", type=str, default="data/datafiles/test_3d_shapes.tsv")
+    
+    # Paired trajectory data
+    parser.add_argument("--paired_csv_path", type=str, default="data/datafiles/testing_data.csv")
     parser.add_argument("--wt_shape_tsv", type=str, default="data/datafiles/wt_3d_shapes.tsv")
     parser.add_argument("--mut_shape_tsv", type=str, default="data/datafiles/mut_3d_shapes.tsv")
-    parser.add_argument("--weights_path", type=str, default="checkpoints_multimodal/best_weights.pth")
+    
+    # Corrected Gated Fusion Paths
+    parser.add_argument("--weights_path", type=str, default="checkpoints_multimodal_gated/gated_fusion_best.pth")
     parser.add_argument("--save_dir", type=str, default="results/multimodal_gated")
+    
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--seq_window_size", type=int, default=1000)
     parser.add_argument("--shape_window_size", type=int, default=100)
@@ -190,23 +197,36 @@ def main():
     os.makedirs(args.save_dir, exist_ok=True)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    logging.info("[*] Loading Data...")
-    df = pd.read_csv(args.test_csv_path)
-    shapes = pd.read_csv(args.test_shape_tsv, sep='\t', header=None, dtype=np.float32).values
+    tokenizer = AutoTokenizer.from_pretrained("zhihan1996/DNABERT-2-117M", trust_remote_code=True)
+    
+    # =========================================================================
+    # LOAD UNPAIRED (GLOBAL BACKGROUND) DATA
+    # =========================================================================
+    logging.info("[*] Loading Unpaired Global Background Data...")
+    unpaired_df = pd.read_csv(args.unpaired_csv_path)
+    unpaired_shapes = pd.read_csv(args.unpaired_shape_tsv, sep='\t', header=None, dtype=np.float32).values
+    
+    unpaired_mask = unpaired_df['probeID'].str.startswith('cg')
+    unpaired_df = unpaired_df[unpaired_mask].reset_index(drop=True)
+    unpaired_shapes = unpaired_shapes[unpaired_mask.values]
+    
+    unpaired_dataset = MultiModalLateFusionDataset(unpaired_df, unpaired_shapes, tokenizer, args.seq_window_size, args.shape_window_size)
+    unpaired_loader = DataLoader(unpaired_dataset, batch_size=args.batch_size, shuffle=False)
+
+    # =========================================================================
+    # LOAD PAIRED (TRAJECTORY) DATA
+    # =========================================================================
+    logging.info("[*] Loading Paired Mutation Trajectory Data...")
+    paired_df = pd.read_csv(args.paired_csv_path)
     wt_shapes = pd.read_csv(args.wt_shape_tsv, sep='\t', header=None, dtype=np.float32).values
     mut_shapes = pd.read_csv(args.mut_shape_tsv, sep='\t', header=None, dtype=np.float32).values
     
-    mask = df['probeID'].str.startswith('cg')
-    df = df[mask].reset_index(drop=True)
-    shapes = shapes[mask.values]
-    wt_shapes = wt_shapes[mask.values]
-    mut_shapes = mut_shapes[mask.values]
-    
-    tokenizer = AutoTokenizer.from_pretrained("zhihan1996/DNABERT-2-117M", trust_remote_code=True)
-    test_dataset = MultiModalLateFusionDataset(df, shapes, tokenizer)
-    test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
+    paired_mask = paired_df['probeID'].str.startswith('cg')
+    paired_df = paired_df[paired_mask].reset_index(drop=True)
+    wt_shapes = wt_shapes[paired_mask.values]
+    mut_shapes = mut_shapes[paired_mask.values]
 
-    logging.info("[*] Loading Model...")
+    logging.info("[*] Loading Gated Fusion Model...")
     model = GatedFusionModel().to(device)
     model.load_state_dict(torch.load(args.weights_path, map_location=device, weights_only=True), strict=True)
     model.eval()
@@ -217,7 +237,7 @@ def main():
 
     logging.info("[*] Phase 1: Extracting Global Latent Representations...")
     with torch.no_grad():
-        for batch in tqdm(test_loader, desc="Global Inference"):
+        for batch in tqdm(unpaired_loader, desc="Global Inference"):
             tab, tab_mask = batch['tab'].to(device), batch['tab_mask'].to(device)
             input_ids, attention_mask = batch['input_ids'].to(device), batch['attention_mask'].to(device)
             shape, shape_mask = batch['shape'].to(device), batch['shape_mask'].to(device)
@@ -237,12 +257,13 @@ def main():
     embedding_2d = reducer.fit_transform(X)
 
     # --- Phase 2: Top Drivers Trajectories ---
-    logging.info("[*] Phase 2: Isolating Top Driver Mutations for Overlay...")
+    logging.info("[*] Phase 2: Isolating Top Driver Mutations from Paired Data...")
     target_data = []
     
     tabular_features = ['Ref_ATAC_Signal', 'Ref_H3K4me3_Signal', 'Ref_H3K27ac_Signal', 'Ref_H3K27me3_Signal', 'Ref_H3K9me3_Signal', 'Ref_H3K36me3_Signal', 'Ref_H3K4me1_Signal', 'Target_Base_PhyloP_100way_1', 'Target_Base_PhyloP_100way_2']
     
-    for idx, row in df.iterrows():
+    # Process the paired DataFrame
+    for idx, row in paired_df.iterrows():
         mut_id = row['GDC_Genomic_DNA_Change']
         mut_pos, _, _ = parse_mutation_id(mut_id)
         if not mut_pos: continue
@@ -344,3 +365,16 @@ def main():
     plt.ylabel('UMAP Dimension 2')
     
     # Fix legend placement
+    handles, labels = plt.gca().get_legend_handles_labels()
+    by_label = dict(zip(labels, handles))
+    plt.legend(by_label.values(), by_label.keys(), title="Biological State", bbox_to_anchor=(1.05, 1), loc='upper left')
+    
+    plt.tight_layout()
+    output_path = os.path.join(args.save_dir, 'fig_6_latent_trajectory_umap.png')
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.close()
+
+    logging.info(f"[✓] UMAP successfully saved to {output_path}")
+
+if __name__ == "__main__":
+    main()
