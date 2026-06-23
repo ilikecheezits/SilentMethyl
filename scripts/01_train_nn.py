@@ -158,7 +158,7 @@ def main():
     parser.add_argument("--val_path", type=str, default="data/datafiles/val.csv")
     parser.add_argument("--train_shape_tsv", type=str, required=True)
     parser.add_argument("--val_shape_tsv", type=str, required=True)
-    parser.add_argument("--save_dir", default="checkpoints_pure_nn")
+    parser.add_argument("--save_dir", default="checkpoints_nn")
     parser.add_argument("--batch_size", type=int, default=128) 
     parser.add_argument("--epochs", type=int, default=15)
     parser.add_argument("--lr", type=float, default=1e-3) 
@@ -313,7 +313,7 @@ def main():
 
         if val_beta_mae < best_val_mae:
             best_val_mae = val_beta_mae
-            torch.save(model.state_dict(), os.path.join(args.save_dir, f"pure_nn_best.pth"))
+            torch.save(model.state_dict(), os.path.join(args.save_dir, f"best_weights.pth"))
             logger.info(f"[★] New Best Model (Beta MAE: {best_val_mae:.4f}) saved!")
 
 if __name__ == "__main__":

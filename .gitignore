@@ -107,6 +107,7 @@ venv.bak/
 data/*
 !data/*.py 
 !data/*.R
+data/datafiles/
 *.csv
 *.pkl
 *.pth

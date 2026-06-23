@@ -21,7 +21,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 # 1. CONFIGURATION
 # =============================================================================
 TEST_CSV_PATH = 'data/datafiles/testing_data.csv'
-MODEL_WEIGHTS = 'checkpoints_baseline/baseline_best_weights.pth' 
+MODEL_WEIGHTS = 'checkpoints_baseline/best_weights.pth' 
 BASE_DIR = 'results/baseline'
 WINDOW_SIZE = 1000
 MC_SAMPLES = 1000  

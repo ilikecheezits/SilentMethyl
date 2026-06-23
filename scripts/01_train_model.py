@@ -239,7 +239,7 @@ def main():
     parser.add_argument("--val_shape_tsv", type=str, required=True)
     parser.add_argument("--baseline_weights", type=str, required=True, help="Path to best baseline DNABERT-2 weights")
     parser.add_argument("--pure_nn_weights", type=str, required=True, help="Path to best Pure NN weights")
-    parser.add_argument("--save_dir", default="checkpoints_multimodal_gated")
+    parser.add_argument("--save_dir", default="checkpoints_multimodal")
     parser.add_argument("--model_path", default="zhihan1996/DNABERT-2-117M")
     parser.add_argument("--batch_size", type=int, default=4) 
     parser.add_argument("--grad_accum_steps", type=int, default=8) 
@@ -248,7 +248,7 @@ def main():
     parser.add_argument("--shape_window_size", type=int, default=100)
     args = parser.parse_args()
     
-    writer = SummaryWriter(log_dir="runs/phase3_gated_fusion")
+    writer = SummaryWriter(log_dir="runs/gated_fusion")
     os.makedirs(args.save_dir, exist_ok=True)
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
     logger = logging.getLogger(__name__)
@@ -434,7 +434,7 @@ def main():
 
         if val_beta_mae < best_val_mae:
             best_val_mae = val_beta_mae
-            torch.save(model.state_dict(), os.path.join(args.save_dir, f"gated_fusion_best.pth"))
+            torch.save(model.state_dict(), os.path.join(args.save_dir, f"best_weights.pth"))
             logger.info(f"[★] New Best Model (Beta MAE: {best_val_mae:.4f}) saved!")
 
 if __name__ == "__main__":

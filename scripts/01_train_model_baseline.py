@@ -253,7 +253,7 @@ def main():
     best_val_mae = float('inf')
     global_step = 0
     latest_ckpt_path = os.path.join(args.save_dir, "latest_checkpoint.pt")
-    
+
     if os.path.exists(latest_ckpt_path):
         logger.info(f"[*] Found interrupted run at {latest_ckpt_path}. Restoring state...")
         checkpoint = torch.load(latest_ckpt_path, map_location=device, weights_only=False)
@@ -434,12 +434,12 @@ def main():
             'scaler_state_dict': scaler.state_dict(),
             'best_val_mae': best_val_mae
         }
-        torch.save(checkpoint, os.path.join(args.save_dir, f"latest_checkpoint_{epoch + 1}.pt"))
+        torch.save(checkpoint, os.path.join(args.save_dir, "latest_checkpoint.pt"))
         logger.info(f"[✓] Full Training State backed up for Epoch {epoch}.")
 
         if val_beta_mae < best_val_mae:
             best_val_mae = val_beta_mae
-            best_save_path = os.path.join(args.save_dir, f"baseline_best_weights_{epoch + 1}.pth")
+            best_save_path = os.path.join(args.save_dir, "best_weights.pth")
             torch.save(model.state_dict(), best_save_path)
             logger.info(f"[★] New Best Model (Beta MAE: {best_val_mae:.4f}) saved!")
 

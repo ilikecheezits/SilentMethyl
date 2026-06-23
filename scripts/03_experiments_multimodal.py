@@ -23,7 +23,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 TEST_CSV_PATH = 'data/datafiles/testing_data.csv'
 WT_SHAPE_PATH = 'data/datafiles/wt_3d_shapes.tsv'
 MUT_SHAPE_PATH = 'data/datafiles/mut_3d_shapes.tsv'
-MODEL_WEIGHTS = 'checkpoints_multimodal_gated/gated_fusion_best.pth' 
+MODEL_WEIGHTS = 'checkpoints_multimodal/best_weights.pth' 
 BASE_DIR = 'results/multimodal'
 SEQ_WINDOW_SIZE = 1000
 SHAPE_WINDOW_SIZE = 100

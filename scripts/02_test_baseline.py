@@ -144,7 +144,7 @@ def m_to_beta(m_val):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--test_data_path", type=str, required=True, default="data/datafiles/test.csv")
-    parser.add_argument("--weights_path", type=str, required=True, default="checkpoints_baseline/baseline_best_weights.pth")
+    parser.add_argument("--weights_path", type=str, required=True, default="checkpoints_baseline/best_weights.pth")
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--window_size", type=int, default=1000)
     args = parser.parse_args()
