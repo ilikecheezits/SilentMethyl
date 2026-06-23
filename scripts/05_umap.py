@@ -86,7 +86,7 @@ def parse_mutation_id(mut_id):
 # =========================================
 # 2. Gated Fusion Model
 # =========================================
-def patch_and_load_dnabert(model_path="zhihan1996/DNABERT-2-117M", local_dir="./dnabert2_local_umap"):
+def patch_and_load_dnabert(model_path="zhihan1996/DNABERT-2-117M", local_dir="./dnabert2_local"):
     if not os.path.exists(local_dir):
         os.makedirs(local_dir, exist_ok=True)
         cache_path = snapshot_download(model_path)
@@ -186,8 +186,8 @@ def main():
     parser.add_argument("--mut_shape_tsv", type=str, default="data/datafiles/mut_3d_shapes.tsv")
     
     # Corrected Gated Fusion Paths
-    parser.add_argument("--weights_path", type=str, default="checkpoints_multimodal_gated/gated_fusion_best.pth")
-    parser.add_argument("--save_dir", type=str, default="results/multimodal_gated")
+    parser.add_argument("--weights_path", type=str, default="checkpoints/multimodal/best_weights.pth")
+    parser.add_argument("--save_dir", type=str, default="results/multimodal")
     
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--seq_window_size", type=int, default=1000)
