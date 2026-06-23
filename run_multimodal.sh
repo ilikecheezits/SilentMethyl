@@ -24,9 +24,9 @@ python scripts/01_train_model.py \
   --val_path "data/datafiles/val.csv" \
   --train_shape_tsv "data/datafiles/train_3d_shapes.tsv" \
   --val_shape_tsv "data/datafiles/val_3d_shapes.tsv" \
-  --baseline_weights "checkpoints_baseline/baseline_best_weights.pth" \
-  --pure_nn_weights "checkpoints_nn/pure_nn_best.pth" \
-  --save_dir "checkpoints_multimodal_gated" \
+  --baseline_weights "checkpoints_baseline/best_weights.pth" \
+  --pure_nn_weights "checkpoints_nn/best_weights.pth" \
+  --save_dir "checkpoints_multimodal" \
   --batch_size 16 \
   --grad_accum_steps 2 \
   --epochs 10 \

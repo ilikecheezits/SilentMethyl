@@ -82,7 +82,7 @@ class MultiModalLateFusionDataset(Dataset):
 # =========================================
 # 2. Triton Neutralizer & Gated Architecture
 # =========================================
-def patch_and_load_dnabert(model_path="zhihan1996/DNABERT-2-117M", local_dir="./dnabert2_local_inference"):
+def patch_and_load_dnabert(model_path="zhihan1996/DNABERT-2-117M", local_dir="./dnabert2_local"):
     if not os.path.exists(local_dir):
         os.makedirs(local_dir, exist_ok=True)
         cache_path = snapshot_download(model_path)

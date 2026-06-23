@@ -42,7 +42,7 @@ TABULAR_FEATURES = [
 # =============================================================================
 # 2. ARCHITECTURE DEFINITIONS
 # =============================================================================
-def patch_and_load_dnabert(model_path="zhihan1996/DNABERT-2-117M", local_dir="./dnabert2_local_experiments"):
+def patch_and_load_dnabert(model_path="zhihan1996/DNABERT-2-117M", local_dir="./dnabert2_local"):
     logging.info("--- Performing DNABERT-2 Surgery & Patching ---")
     if not os.path.exists(local_dir):
         os.makedirs(local_dir, exist_ok=True)
