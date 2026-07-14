@@ -18,8 +18,24 @@ warnings.filterwarnings('ignore')
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
 # =============================================================================
-# 1. CONFIGURATION
+# 1. CONFIGURATION & REPRODUCIBILITY
 # =============================================================================
+SEED = 42
+
+def set_seed(seed):
+    """Locks down all random number generators for exact reproducibility."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+    # Ensure deterministic behavior in cuDNN
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+set_seed(SEED)
+
 TEST_CSV_PATH = 'data/datafiles/testing_data.csv'
 WT_SHAPE_PATH = 'data/datafiles/wt_3d_shapes.tsv'
 MODEL_WEIGHTS = 'checkpoints_multimodal/best_weights.pth' 

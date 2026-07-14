@@ -15,7 +15,7 @@ from pyjaspar import jaspardb
 from Bio.Seq import Seq
 import random
 import logging
-from scipy.signal import savgol_filter
+from scipy.signal import savgol_filter, periodogram
 import scipy.stats as stats
 import warnings
 
@@ -48,7 +48,7 @@ TABULAR_FEATURES = [
 ]
 
 # =============================================================================
-# 2. EXACT INFERENCE ARCHITECTURE (From 03_experiments_multimodal.py)
+# 2. EXACT INFERENCE ARCHITECTURE
 # =============================================================================
 def patch_and_load_dnabert(model_path="zhihan1996/DNABERT-2-117M", local_dir="./dnabert2_local"):
     if not os.path.exists(local_dir):
@@ -166,7 +166,6 @@ def main():
     model.load_state_dict(torch.load(MODEL_WEIGHTS, map_location=DEVICE, weights_only=True), strict=True)
     model.eval()
 
-    # Find the target genes or the longest range mutations if names don't match
     target_indices = []
     for gene in TARGET_GENES:
         match = df[df['Gene'].str.contains(gene, na=False, case=False)]
@@ -223,9 +222,9 @@ def main():
         target_delta = m_value_to_beta(mut_m_val) - wt_beta
 
         # ---------------------------------------------------------------------
-        # EXPERIMENT 1: DISTANCE-DECAY CURVE (Refined High-Resolution)
+        # EXPERIMENT 1A: DISTANCE-DECAY CURVE (High-Resolution Spatial)
         # ---------------------------------------------------------------------
-        logging.info(f"[*] EXP 1: Computing Distance-Decay Physics ({MC_SAMPLES_EXP1} Samples)...")
+        logging.info(f"[*] EXP 1A: Computing Distance-Decay Physics ({MC_SAMPLES_EXP1} Samples)...")
         
         bases = ['A', 'C', 'G', 'T']
         mc_seqs, mc_distances = [], []
@@ -242,7 +241,6 @@ def main():
         mc_m_vals = batch_inference(model, tokenizer, mc_seqs, tab_t, tab_m, wt_shape_t, wt_shape_m, batch_size=64)
         mc_abs_deltas = np.abs(m_value_to_beta(mc_m_vals) - wt_beta)
 
-        # 1. High-Resolution Binning (10bp intervals instead of 50bp)
         bins = np.arange(0, 510, 10)
         max_deltas = []
         bin_centers = []
@@ -255,49 +253,59 @@ def main():
                 max_deltas.append(0)
             bin_centers.append(bins[i] + 5)
 
-        # 2. Smooth the biological envelope
-        # Window length 15 (150bp), polyorder 3 allows it to smoothly curve without jagged edges
         smooth_envelope = savgol_filter(max_deltas, window_length=15, polyorder=3)
-        # Ensure we don't dip below 0 due to polynomial fitting
         smooth_envelope = np.clip(smooth_envelope, 0, None)
 
-        # 3. Refined Plotting
         plt.figure(figsize=(12, 6))
-        
-        # Use a hexbin plot to handle the 5000 points cleanly (Density > Noise)
         hb = plt.hexbin(mc_distances, mc_abs_deltas, gridsize=60, cmap='Blues', alpha=0.7, mincnt=1, label="Mutation Density")
-        
-        # Plot the high-res smoothed envelope
         plt.plot(bin_centers, smooth_envelope, color='#ea580c', linewidth=3.5, label="Smoothed 99th Percentile Capacity")
-        
-        # 4. Add Biological Guide Rails for MSRA
-        if gene_name.upper() == "MSRA":
-            for phase in [167, 334, 500]:
-                plt.axvline(x=phase, color='#94a3b8', linestyle='--', linewidth=1.5, alpha=0.8, zorder=1)
-            # Add a custom legend entry for the guide rails
-            plt.plot([], [], color='#94a3b8', linestyle='--', label='Theoretical Nucleosome Phasing (~167bp)')
-
-        # Plot the True Variant
         plt.scatter(physical_distance, abs(target_delta), color='#ef4444', s=350, marker='*', edgecolor='black', linewidth=1.5, zorder=5, label=f"True {gene_name} Variant")
         
         plt.title(f'{gene_name}: High-Resolution Spatial Sensitivity Map', fontsize=16, fontweight='bold', pad=15)
         plt.xlabel('Physical Distance from Target CpG (Base Pairs)', fontsize=13, fontweight='medium')
         plt.ylabel('Absolute Predicted Methylation Shift (|\u0394\u03B2|)', fontsize=13, fontweight='medium')
-        
-        # Clean up axes and grid
         plt.xlim(-10, 510)
         plt.grid(True, linestyle='-', alpha=0.2, color='gray')
-        plt.gca().set_facecolor('#f8fafc') # Soft background for contrast
-        
+        plt.gca().set_facecolor('#f8fafc') 
         plt.legend(loc='upper right', framealpha=0.9, edgecolor='gray', fontsize=11)
         plt.tight_layout()
-        plt.savefig(os.path.join(OUTPUT_DIR, f'exp1_distance_decay_{gene_name}_refined.png'), dpi=300)
+        plt.savefig(os.path.join(OUTPUT_DIR, f'exp1A_distance_decay_{gene_name}_refined.png'), dpi=300)
+
+        # ---------------------------------------------------------------------
+        # EXPERIMENT 1B: FOURIER POWER SPECTRAL DENSITY (PSD) PLOT
+        # ---------------------------------------------------------------------
+        logging.info("[*] EXP 1B: Computing Fourier Power Spectral Density...")
+        
+        # Calculate PSD from the 10bp-binned max_deltas (sampling freq = 1/10 = 0.1)
+        frequencies, powers = periodogram(max_deltas, fs=0.1, scaling='spectrum')
+        
+        # Remove DC component (0 frequency) and convert to Periods (bp)
+        valid_idx = frequencies > 0
+        periods = 1 / frequencies[valid_idx]
+        powers = powers[valid_idx]
+        
+        # Filter view to biologically relevant structural periods (50bp to 350bp)
+        view_mask = (periods >= 50) & (periods <= 350)
+        
+        plt.figure(figsize=(8, 5))
+        plt.plot(periods[view_mask], powers[view_mask], color='#3b82f6', linewidth=2.5)
+        plt.fill_between(periods[view_mask], powers[view_mask], color='#3b82f6', alpha=0.2)
+        
+        if gene_name.upper() == "MSRA":
+            plt.axvline(x=166.7, color='#ef4444', linestyle='--', linewidth=2, label="Nucleosome Peak (166.7bp)")
+            plt.legend()
+            
+        plt.title(f'{gene_name}: Fourier Power Spectral Density', fontsize=14, fontweight='bold')
+        plt.xlabel('Detected Structural Periodicity (Base Pairs)', fontsize=12)
+        plt.ylabel('Spectral Power (Signal Strength)', fontsize=12)
+        plt.grid(True, linestyle=':', alpha=0.6)
+        plt.tight_layout()
+        plt.savefig(os.path.join(OUTPUT_DIR, f'exp1B_PSD_{gene_name}.png'), dpi=300)
 
         # ---------------------------------------------------------------------
         # EXPERIMENT 2: PHYLO-P EVOLUTIONARY CONSERVATION
         # ---------------------------------------------------------------------
         logging.info("[*] EXP 2: Checking PhyloP-100way Evolutionary Conservation...")
-        # Get background distribution from entire test dataset
         bg_phylop = df['Target_Base_PhyloP_100way_1'].dropna().values
         target_phylop = row['Target_Base_PhyloP_100way_1']
         
@@ -313,7 +321,6 @@ def main():
         stats_text = f"P-Value: {p_val_phylop:.4e}"
         props = dict(boxstyle='round', facecolor='white', alpha=0.9, edgecolor='gray')
         plt.gca().text(0.05, 0.95, stats_text, transform=plt.gca().transAxes, fontsize=11, verticalalignment='top', bbox=props)
-        
         plt.legend()
         plt.tight_layout()
         plt.savefig(os.path.join(OUTPUT_DIR, f'exp2_phylop_{gene_name}.png'), dpi=300)
@@ -323,11 +330,9 @@ def main():
         # ---------------------------------------------------------------------
         logging.info("[*] EXP 3: Orthogonal Motif Scan for 3D Looping Master Regulators...")
         jdb = jaspardb(release='JASPAR2022') 
-        # Fetch known architectural looping proteins
         loop_factors = ['CTCF', 'RAD21', 'YY1', 'ZNF143', 'SMC3']
         loop_motifs = [m for m in jdb.fetch_motifs(collection='CORE') if m.name.upper() in loop_factors]
         
-        # Extract 41bp window precisely around the mutation
         start_idx = mut_idx_in_1000 - 20
         end_idx = mut_idx_in_1000 + 21
         if start_idx >= 0 and end_idx <= 1000:
@@ -344,7 +349,7 @@ def main():
                 wt_score = max(max(pwm.calculate(wt_seq_obj)), max(pwm.calculate(wt_seq_obj.reverse_complement())))
                 mut_score = max(max(pwm.calculate(mut_seq_obj)), max(pwm.calculate(mut_seq_obj.reverse_complement())))
                 
-                if max(wt_score, mut_score) > 3.0: # Base threshold to report
+                if max(wt_score, mut_score) > 3.0: 
                     print(f"[{motif.name}] WT Score: {wt_score:.2f} | MUT Score: {mut_score:.2f} | Disruption: {abs(wt_score - mut_score):.2f}")
         else:
             logging.warning("Mutation is too close to window edge to extract 41bp context.")
