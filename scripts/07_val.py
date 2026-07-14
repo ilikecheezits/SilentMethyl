@@ -15,6 +15,7 @@ from pyjaspar import jaspardb
 from Bio.Seq import Seq
 import random
 import logging
+from scipy.signal import savgol_filter
 import scipy.stats as stats
 import warnings
 
@@ -222,9 +223,10 @@ def main():
         target_delta = m_value_to_beta(mut_m_val) - wt_beta
 
         # ---------------------------------------------------------------------
-        # EXPERIMENT 1: DISTANCE-DECAY CURVE (The "Physics" Proof)
+        # EXPERIMENT 1: DISTANCE-DECAY CURVE (Refined High-Resolution)
         # ---------------------------------------------------------------------
         logging.info(f"[*] EXP 1: Computing Distance-Decay Physics ({MC_SAMPLES_EXP1} Samples)...")
+        
         bases = ['A', 'C', 'G', 'T']
         mc_seqs, mc_distances = [], []
         
@@ -235,35 +237,61 @@ def main():
             mc_seq = wt_1000bp[:rand_idx] + alt + wt_1000bp[rand_idx+1:]
             
             mc_seqs.append(mc_seq)
-            # Distance from center CpG (index 500)
             mc_distances.append(abs(rand_idx - 500))
 
         mc_m_vals = batch_inference(model, tokenizer, mc_seqs, tab_t, tab_m, wt_shape_t, wt_shape_m, batch_size=64)
         mc_abs_deltas = np.abs(m_value_to_beta(mc_m_vals) - wt_beta)
 
-        # Bin distances
-        bins = np.arange(0, 550, 50)
+        # 1. High-Resolution Binning (10bp intervals instead of 50bp)
+        bins = np.arange(0, 510, 10)
         max_deltas = []
+        bin_centers = []
+        
         for i in range(len(bins)-1):
             mask = (np.array(mc_distances) >= bins[i]) & (np.array(mc_distances) < bins[i+1])
             if np.sum(mask) > 0:
-                # 99th percentile represents maximum biological capacity
                 max_deltas.append(np.percentile(mc_abs_deltas[mask], 99))
             else:
                 max_deltas.append(0)
+            bin_centers.append(bins[i] + 5)
 
-        plt.figure(figsize=(10, 6))
-        sns.scatterplot(x=mc_distances, y=mc_abs_deltas, color='#94a3b8', alpha=0.3, s=15, label="Random MC Mutation")
-        plt.plot(bins[:-1] + 25, max_deltas, color='#f97316', linewidth=2.5, marker='o', label="99th Percentile Capacity (Decay Curve)")
-        plt.scatter(physical_distance, abs(target_delta), color='#ef4444', s=250, marker='*', edgecolor='black', zorder=5, label=f"True {gene_name} Variant")
+        # 2. Smooth the biological envelope
+        # Window length 15 (150bp), polyorder 3 allows it to smoothly curve without jagged edges
+        smooth_envelope = savgol_filter(max_deltas, window_length=15, polyorder=3)
+        # Ensure we don't dip below 0 due to polynomial fitting
+        smooth_envelope = np.clip(smooth_envelope, 0, None)
+
+        # 3. Refined Plotting
+        plt.figure(figsize=(12, 6))
         
-        plt.title(f'{gene_name}: Epigenetic Dysregulation Distance-Decay Law', fontsize=14, fontweight='bold')
-        plt.xlabel('Physical Distance from Target CpG (Base Pairs)', fontsize=12)
-        plt.ylabel('Absolute Predicted Methylation Shift (|\u0394\u03B2|)', fontsize=12)
-        plt.grid(True, linestyle=':', alpha=0.6)
-        plt.legend()
+        # Use a hexbin plot to handle the 5000 points cleanly (Density > Noise)
+        hb = plt.hexbin(mc_distances, mc_abs_deltas, gridsize=60, cmap='Blues', alpha=0.7, mincnt=1, label="Mutation Density")
+        
+        # Plot the high-res smoothed envelope
+        plt.plot(bin_centers, smooth_envelope, color='#ea580c', linewidth=3.5, label="Smoothed 99th Percentile Capacity")
+        
+        # 4. Add Biological Guide Rails for MSRA
+        if gene_name.upper() == "MSRA":
+            for phase in [167, 334, 500]:
+                plt.axvline(x=phase, color='#94a3b8', linestyle='--', linewidth=1.5, alpha=0.8, zorder=1)
+            # Add a custom legend entry for the guide rails
+            plt.plot([], [], color='#94a3b8', linestyle='--', label='Theoretical Nucleosome Phasing (~167bp)')
+
+        # Plot the True Variant
+        plt.scatter(physical_distance, abs(target_delta), color='#ef4444', s=350, marker='*', edgecolor='black', linewidth=1.5, zorder=5, label=f"True {gene_name} Variant")
+        
+        plt.title(f'{gene_name}: High-Resolution Spatial Sensitivity Map', fontsize=16, fontweight='bold', pad=15)
+        plt.xlabel('Physical Distance from Target CpG (Base Pairs)', fontsize=13, fontweight='medium')
+        plt.ylabel('Absolute Predicted Methylation Shift (|\u0394\u03B2|)', fontsize=13, fontweight='medium')
+        
+        # Clean up axes and grid
+        plt.xlim(-10, 510)
+        plt.grid(True, linestyle='-', alpha=0.2, color='gray')
+        plt.gca().set_facecolor('#f8fafc') # Soft background for contrast
+        
+        plt.legend(loc='upper right', framealpha=0.9, edgecolor='gray', fontsize=11)
         plt.tight_layout()
-        plt.savefig(os.path.join(OUTPUT_DIR, f'exp1_distance_decay_{gene_name}.png'), dpi=300)
+        plt.savefig(os.path.join(OUTPUT_DIR, f'exp1_distance_decay_{gene_name}_refined.png'), dpi=300)
 
         # ---------------------------------------------------------------------
         # EXPERIMENT 2: PHYLO-P EVOLUTIONARY CONSERVATION
