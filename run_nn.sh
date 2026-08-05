@@ -30,3 +30,5 @@ python scripts/01_train_nn.py \
   --shape_window_size 100
 
 echo "[✓] Pure NN Training Job Complete!"
+
+

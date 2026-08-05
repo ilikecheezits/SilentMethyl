@@ -1,37 +1,32 @@
 #!/bin/bash
-#SBATCH --job-name=SilentMethyl_GatedFusion
+#SBATCH --job-name=Abl_Epi
 #SBATCH --partition=GPU-shared
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=4
 #SBATCH --gres=gpu:v100-32:1
 #SBATCH --time=20:00:00
-#SBATCH --output=multimodal_gated_log_%j.txt
-#SBATCH --error=multimodal_gated_err_%j.txt
+#SBATCH --output=ablation_epi_log_%j.txt
+#SBATCH --error=ablation_epi_err_%j.txt
 
 cd /ocean/projects/med250012p/szhang37/SilentMethyl
 
-# Load environment
 module load anaconda3
 module load cuda/12.4.0
 conda activate silentmethyl
 set -e
 
-echo "[*] Starting Phase 3: Gated Fusion Training..."
-
-# Execute the multimodal training script with Dual Ancestor Weights
-python scripts/01_train_model.py \
+echo "[*] RUN 2: Training with Epigenomics ONLY (No Shape)"
+python scripts/01_train_abalations.py \
   --train_path "data/datafiles/train.csv" \
   --val_path "data/datafiles/val.csv" \
   --train_shape_tsv "data/datafiles/train_3d_shapes.tsv" \
   --val_shape_tsv "data/datafiles/val_3d_shapes.tsv" \
   --baseline_weights "checkpoints_baseline/best_weights.pth" \
   --pure_nn_weights "checkpoints_nn/best_weights.pth" \
-  --save_dir "checkpoints_multimodal" \
-  --batch_size 16 \
-  --grad_accum_steps 2 \
+  --save_dir "checkpoints_ablation_epi_only" \
+  --batch_size 4 \
+  --grad_accum_steps 8 \
   --epochs 10 \
-  --seq_window_size 1000 \
-  --shape_window_size 100
+  --ablation_mode "no_shape"
 
-echo "[✓] Gated Fusion Training Job Complete!"
-
+echo "[✓] Epigenomics Only Ablation Complete!"

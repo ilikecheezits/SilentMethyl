@@ -29,3 +29,4 @@ python scripts/02_train_model_baseline.py \
   --window_size 1000
 
 echo "[✓] Training Job Complete!"
+
