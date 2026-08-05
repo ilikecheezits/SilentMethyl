@@ -18,18 +18,14 @@ from sklearn.calibration import calibration_curve
 from tqdm import tqdm
 
 # =========================================
-# 1. Multimodal Dataset with Zero-Masking Ablation
+# 1. Final Dataset (NO SHAPE TSV REQUIRED)
 # =========================================
-class MultimodalDataset(Dataset):
-    def __init__(self, df, shape_data_array, tokenizer, seq_window_size=1000, shape_window_size=100, ablation_mode="none"):
+class SeqEpiFinalDataset(Dataset):
+    def __init__(self, df, tokenizer, seq_window_size=1000, shape_window_size=100):
         self.df = df.reset_index(drop=True)
-        self.shape_window_size = shape_window_size
         self.seq_window_size = seq_window_size
-        self.shape_data = shape_data_array
+        self.shape_window_size = shape_window_size
         self.tokenizer = tokenizer
-        self.ablation_mode = ablation_mode
-
-        assert len(self.df) == len(self.shape_data), "CRITICAL ERROR: CSV and TSV row counts do not match!"
         
         self.tabular_features = [
             'Ref_ATAC_Signal', 'Ref_H3K4me3_Signal', 'Ref_H3K27ac_Signal', 
@@ -64,19 +60,9 @@ class MultimodalDataset(Dataset):
         tab_mask = ~torch.isnan(tab_tensor)
         tab_tensor = torch.nan_to_num(tab_tensor, nan=0.0)
         
-        # --- Modality 3: 3D Shape ---
-        shape_flat = self.shape_data[idx]
-        shape_tensor = torch.tensor(shape_flat).view(14, self.shape_window_size)
-        shape_mask = ~torch.isnan(shape_tensor)
-        shape_tensor = torch.nan_to_num(shape_tensor, nan=0.0)
-
-        # --- ABLATION LOGIC: ZERO-MASKING ---
-        if self.ablation_mode == 'no_shape':
-            shape_tensor = torch.zeros_like(shape_tensor)
-            shape_mask = torch.zeros_like(shape_mask)
-        elif self.ablation_mode == 'no_epi':
-            tab_tensor = torch.zeros_like(tab_tensor)
-            tab_mask = torch.zeros_like(tab_mask)
+        # --- Modality 3: Shape (DUMMY ZEROS FOR FAST INFERENCE) ---
+        shape_tensor = torch.zeros((14, self.shape_window_size), dtype=torch.float32)
+        shape_mask = torch.zeros((14, self.shape_window_size), dtype=torch.float32)
 
         m_value = torch.tensor(row['M_Value_Target'], dtype=torch.float32)
         beta = float(row['Median_Beta'])
@@ -91,7 +77,7 @@ class MultimodalDataset(Dataset):
         }
 
 # =========================================
-# 2. Triton Neutralizer & Gated Architecture
+# 2. Triton Neutralizer & Final Architecture
 # =========================================
 def patch_and_load_dnabert(model_path="zhihan1996/DNABERT-2-117M", local_dir="./dnabert2_local_inference"):
     if not os.path.exists(local_dir):
@@ -119,41 +105,35 @@ def patch_and_load_dnabert(model_path="zhihan1996/DNABERT-2-117M", local_dir="./
     base_model = AutoModel.from_config(config, trust_remote_code=True)
     return config, base_model
 
-class GatedFusionModel(nn.Module):
-    def __init__(self, model_path="zhihan1996/DNABERT-2-117M", tabular_dim=9, disable_gating=False):
-        super(GatedFusionModel, self).__init__()
-        self.disable_gating = disable_gating
+class FinalSeqEpiModel(nn.Module):
+    def __init__(self, model_path="zhihan1996/DNABERT-2-117M", tabular_dim=9):
+        super(FinalSeqEpiModel, self).__init__()
         
-        # --- TOWER X: DNA Sequence ---
         self.config, self.bert = patch_and_load_dnabert(model_path)
         hidden_size = self.config.hidden_size 
         self.spatial_conv = nn.Conv1d(in_channels=hidden_size, out_channels=hidden_size, kernel_size=3, padding=1)
         self.attention_pool = nn.Sequential(nn.Linear(hidden_size, 1), nn.Tanh())
         
-        # --- TOWER Y: Epigenetic & Shape ---
         self.tab_mlp = nn.Sequential(
             nn.Linear(tabular_dim * 2, 128), nn.LayerNorm(128), nn.GELU(), nn.Dropout(0.2),
             nn.Linear(128, 256), nn.LayerNorm(256), nn.GELU(), nn.Dropout(0.2), nn.Linear(256, 256)
         )
+        
+        # Kept to perfectly align with saved ablation weights
         self.shape_cnn = nn.Sequential(
             nn.Conv1d(in_channels=28, out_channels=64, kernel_size=5, padding=2), nn.BatchNorm1d(64), nn.GELU(), nn.MaxPool1d(2),
             nn.Conv1d(in_channels=64, out_channels=128, kernel_size=3, padding=1), nn.BatchNorm1d(128), nn.GELU(), nn.AdaptiveMaxPool1d(1) 
         )
         self.shape_fc = nn.Sequential(nn.Linear(128, 512), nn.LayerNorm(512), nn.GELU())
 
-        # --- FUSION BLOCK ---
         self.norm_dna = nn.LayerNorm(768)
         self.norm_epi = nn.LayerNorm(768)
         
-        if self.disable_gating:
-            self.concat_proj = nn.Linear(1536, 768)
-        else:
-            self.gate_network = nn.Sequential(
-                nn.Linear(1536, 128), nn.LayerNorm(128), nn.GELU(),
-                nn.Linear(128, 2), nn.Sigmoid() 
-            )
+        self.gate_network = nn.Sequential(
+            nn.Linear(1536, 128), nn.LayerNorm(128), nn.GELU(),
+            nn.Linear(128, 2), nn.Sigmoid() 
+        )
         
-        # --- HEADS ---
         self.classification_head = nn.Sequential(nn.Linear(768, 256), nn.GELU(), nn.Dropout(0.2), nn.Linear(256, 1))
         self.regression_head = nn.Sequential(nn.Linear(768, 256), nn.GELU(), nn.Dropout(0.2), nn.Linear(256, 1))        
 
@@ -165,7 +145,7 @@ class GatedFusionModel(nn.Module):
         attn_weights = F.softmax(self.attention_pool(spatial_features).squeeze(-1).masked_fill(attention_mask == 0, -1e4), dim=-1)
         dna_embeddings = torch.sum(spatial_features * attn_weights.unsqueeze(-1), dim=1)
 
-        # 2. Context
+        # 2. Context (Shape is pure zeros!)
         tab_out = self.tab_mlp(torch.cat([tab, tab_mask], dim=1))
         shape_out = self.shape_fc(self.shape_cnn(torch.cat([shape, shape_mask], dim=1)).squeeze(-1))
         epi_embeddings = torch.cat((tab_out, shape_out), dim=1)
@@ -175,18 +155,14 @@ class GatedFusionModel(nn.Module):
         epi_norm = self.norm_epi(epi_embeddings)
         concat_features = torch.cat([dna_norm, epi_norm], dim=1)
         
-        if self.disable_gating:
-            fused_embeddings = self.concat_proj(concat_features)
-        else:
-            gates = self.gate_network(concat_features)
-            fused_embeddings = (dna_norm * gates[:, 0].unsqueeze(1)) + (epi_norm * gates[:, 1].unsqueeze(1))
+        gates = self.gate_network(concat_features)
+        fused_embeddings = (dna_norm * gates[:, 0].unsqueeze(1)) + (epi_norm * gates[:, 1].unsqueeze(1))
         
         class_logits = self.classification_head(fused_embeddings)
         m_value_pred = self.regression_head(fused_embeddings)
         
         return class_logits, m_value_pred
 
-# Helper to convert Predicted M-value back to Beta for biological interpretability
 def m_to_beta(m_val):
     m_val = np.clip(m_val, -20, 20)
     return (2 ** m_val) / (1 + (2 ** m_val))
@@ -197,39 +173,29 @@ def m_to_beta(m_val):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--test_csv_path", type=str, required=True, default="data/datafiles/test.csv")
-    parser.add_argument("--test_shape_tsv", type=str, required=True, default="data/datafiles/test_3d_shapes.tsv")
     parser.add_argument("--weights_path", type=str, required=True)
-    parser.add_argument("--run_name", type=str, required=True, help="Prefix for saved plots (e.g., 'shape_only')")
+    parser.add_argument("--run_name", type=str, default="final_seq_epi")
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--seq_window_size", type=int, default=1000)
-    parser.add_argument("--shape_window_size", type=int, default=100)
-    parser.add_argument("--ablation_mode", type=str, default="none", choices=["none", "no_shape", "no_epi"])
-    parser.add_argument("--disable_gating", action="store_true")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    logging.info(f"[*] Starting Evaluation for: {args.run_name.upper()}")
-    logging.info(f"[*] Ablation Mode: {args.ablation_mode} | Disable Gating: {args.disable_gating}")
+    logging.info(f"[*] Starting Evaluation for Final Seq+Epi Model")
     
-    # Load Data
-    logging.info("[*] Loading Test Data...")
+    # Load Data (No TSV Loading needed!)
+    logging.info("[*] Loading Test CSV...")
     df = pd.read_csv(args.test_csv_path)
-    shapes = pd.read_csv(args.test_shape_tsv, sep='\t', header=None, dtype=np.float32).values
-    
-    mask = df['probeID'].str.startswith('cg')
-    df = df[mask].reset_index(drop=True)
-    shapes = shapes[mask.values]
+    df = df[df['probeID'].str.startswith('cg')].reset_index(drop=True)
     
     tokenizer = AutoTokenizer.from_pretrained("zhihan1996/DNABERT-2-117M", trust_remote_code=True)
-    test_dataset = MultimodalDataset(df, shapes, tokenizer, args.seq_window_size, args.shape_window_size, args.ablation_mode)
+    test_dataset = SeqEpiFinalDataset(df, tokenizer, args.seq_window_size)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
-    model = GatedFusionModel(disable_gating=args.disable_gating).to(device)
+    model = FinalSeqEpiModel().to(device)
     
-    # Try to load best weights. If it was saved during training as 'best_weights.pth', we use that. 
-    # Fallback in case weights aren't strict (due to module prefixes etc)
+    logging.info(f"[*] Loading strict weights from {args.weights_path}")
     state_dict = torch.load(args.weights_path, map_location=device, weights_only=True)
     model.load_state_dict(state_dict, strict=True)
     model.eval()
@@ -254,7 +220,7 @@ def main():
             all_binary_prob.extend(torch.sigmoid(class_logits).cpu().float().numpy().flatten().tolist())
             all_binary_true.extend(batch['binary_state'].float().numpy().flatten().tolist())
 
-    # Calculate Metrics cleanly
+    # Calculate Metrics
     m_true, m_pred = np.array(all_m_true), np.array(all_m_pred)
     beta_true = np.array(all_beta_true)
     beta_pred = m_to_beta(m_pred)
@@ -266,7 +232,7 @@ def main():
     test_auc = roc_auc_score(all_binary_true, all_binary_prob)
     
     logging.info("\n========================================")
-    logging.info(f"RESULTS FOR: {args.run_name.upper()}")
+    logging.info(f"FINAL RESULTS: SEQ + EPI MODEL")
     logging.info(f"RMSE (M-Value): {test_rmse_m:.4f} | MAE (M-Value): {test_mae_m:.4f}")
     logging.info(f"RMSE (Beta)   : {test_rmse_b:.4f} | MAE (Beta)   : {test_mae_b:.4f}")
     logging.info(f"AUC (Binary)  : {test_auc:.4f}")
@@ -279,7 +245,7 @@ def main():
     plt.figure(figsize=(7, 6))
     plt.hexbin(beta_true, beta_pred, gridsize=40, cmap='Blues', bins='log', mincnt=5)
     plt.plot([0, 1], [0, 1], color='#ef4444', linestyle='--', linewidth=2, label='Ideal Fit')
-    plt.title(f'{prefix} Density Scatter: Predicted vs. True Beta', fontweight='bold')
+    plt.title(f'Final Model Density Scatter: Predicted vs. True Beta', fontweight='bold')
     plt.xlabel('True Methylation Fraction (Beta)')
     plt.ylabel('Predicted Methylation Fraction (Beta)')
     plt.colorbar(label='Log10(Count)')
@@ -293,7 +259,7 @@ def main():
     plt.figure(figsize=(7, 5))
     sns.histplot(signed_errors, bins=60, kde=True, color='#3b82f6', edgecolor='black')
     plt.axvline(0, color='black', linestyle='--', linewidth=2)
-    plt.title(f'Signed Error Distribution ({prefix})', fontweight='bold')
+    plt.title(f'Signed Error Distribution (Final Model)', fontweight='bold')
     plt.xlabel('Signed Error (\u0394\u03B2)')
     plt.ylabel('Probe Count')
     
@@ -312,7 +278,7 @@ def main():
     plt.figure(figsize=(7, 5))
     sns.histplot(absolute_errors, bins=60, kde=True, color='#f59e0b', edgecolor='black')
     plt.axvline(test_mae_b, color='#ef4444', linestyle='--', linewidth=2, label=f'Beta MAE ({test_mae_b:.4f})')
-    plt.title(f'Absolute Error Distribution ({prefix})', fontweight='bold')
+    plt.title(f'Absolute Error Distribution (Final Model)', fontweight='bold')
     plt.xlabel('Absolute Error Magnitude')
     plt.ylabel('Probe Count')
     plt.legend()
@@ -324,7 +290,7 @@ def main():
     plt.figure(figsize=(7, 5))
     sns.kdeplot(beta_true, color='#10b981', fill=True, alpha=0.4, label='True Targets')
     sns.kdeplot(beta_pred, color='#6366f1', fill=True, alpha=0.4, label='Model Predictions')
-    plt.title(f'Biological Bimodal Topology Recovery ({prefix})', fontweight='bold')
+    plt.title(f'Biological Bimodal Topology Recovery (Final Model)', fontweight='bold')
     plt.xlabel('DNA Methylation Fraction (Beta)')
     plt.ylabel('Density')
     plt.legend()
@@ -337,7 +303,7 @@ def main():
     plt.figure(figsize=(6, 6))
     plt.plot(fpr, tpr, color='#ef4444', lw=2, label=f'AUC = {test_auc:.4f}')
     plt.plot([0, 1], [0, 1], color='black', lw=2, linestyle='--')
-    plt.title(f'Chromatin State Classification ({prefix})', fontweight='bold')
+    plt.title(f'Chromatin State Classification (Final Model)', fontweight='bold')
     plt.xlabel('False Positive Rate')
     plt.ylabel('True Positive Rate')
     plt.legend(loc="lower right")
@@ -348,9 +314,9 @@ def main():
     # 5. CALIBRATION CURVE
     prob_true, prob_pred = calibration_curve(all_binary_true, all_binary_prob, n_bins=10)
     plt.figure(figsize=(6, 6))
-    plt.plot(prob_pred, prob_true, marker='o', color='#8b5cf6', lw=2, label=f'{prefix}')
+    plt.plot(prob_pred, prob_true, marker='o', color='#8b5cf6', lw=2, label=f'Final Model')
     plt.plot([0, 1], [0, 1], linestyle='--', color='black', label='Perfectly Calibrated')
-    plt.title(f'Reliability Diagram ({prefix})', fontweight='bold')
+    plt.title(f'Reliability Diagram (Final Model)', fontweight='bold')
     plt.xlabel('Mean Predicted Probability')
     plt.ylabel('Fraction of Positives (Actual)')
     plt.legend()
@@ -358,7 +324,7 @@ def main():
     plt.savefig(f'{prefix}_fig_5_calibration.png', dpi=300)
     plt.close()
 
-    logging.info(f"[✓] Successfully saved all 5 {args.run_name} figures to disk!")
+    logging.info(f"[✓] Successfully saved all 5 Final Model figures to disk!")
 
 if __name__ == "__main__":
     main()
