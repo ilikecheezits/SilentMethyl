@@ -110,18 +110,17 @@ class SequenceEpiFusionModel(nn.Module):
     def __init__(self, model_path="zhihan1996/DNABERT-2-117M", tabular_dim=9):
         super(SequenceEpiFusionModel, self).__init__()
         
+        # --- DNA TOWER ---
         self.config, self.bert = patch_and_load_dnabert(model_path)
         hidden_size = self.config.hidden_size 
         self.spatial_conv = nn.Conv1d(in_channels=hidden_size, out_channels=hidden_size, kernel_size=3, padding=1)
         self.attention_pool = nn.Sequential(nn.Linear(hidden_size, 1), nn.Tanh())
         
-
+        # --- EPI TOWER (Strictly matching PureEpigeneticNN) ---
         self.tab_mlp = nn.Sequential(
             nn.Linear(tabular_dim * 2, 128), nn.LayerNorm(128), nn.GELU(), nn.Dropout(0.2),
             nn.Linear(128, 256), nn.LayerNorm(256), nn.GELU(), nn.Dropout(0.2), nn.Linear(256, 256)
         )
-        
-        # NEW: Project the 256-dim epigenomic vector up to 768-dim to match DNABERT
         self.epi_proj = nn.Linear(256, 768)
 
         # --- FUSION BLOCK ---
@@ -133,7 +132,7 @@ class SequenceEpiFusionModel(nn.Module):
             nn.Linear(128, 2), nn.Sigmoid() 
         )
         
-        # --- HEADS ---
+        # --- HEADS (Strictly matching PureEpigeneticNN) ---
         self.classification_head = nn.Sequential(nn.Linear(768, 256), nn.GELU(), nn.Dropout(0.2), nn.Linear(256, 1))
         self.regression_head = nn.Sequential(nn.Linear(768, 256), nn.GELU(), nn.Dropout(0.2), nn.Linear(256, 1))        
 
@@ -145,11 +144,11 @@ class SequenceEpiFusionModel(nn.Module):
         attn_weights = F.softmax(self.attention_pool(spatial_features).squeeze(-1).masked_fill(attention_mask == 0, -1e4), dim=-1)
         dna_embeddings = torch.sum(spatial_features * attn_weights.unsqueeze(-1), dim=1)
 
-        # 2. Context (Epigenomics Only)
-        tab_out = self.tab_mlp(torch.cat([tab, tab_mask], dim=1)) # [B, 256]
-        epi_embeddings = self.epi_proj(tab_out) # [B, 768]
+        # 2. Epigenomics
+        tab_out = self.tab_mlp(torch.cat([tab, tab_mask], dim=1))
+        epi_embeddings = self.epi_proj(tab_out) 
         
-        # 3. Fusion
+        # 3. Gated Fusion
         dna_norm = self.norm_dna(dna_embeddings)
         epi_norm = self.norm_epi(epi_embeddings)
         concat_features = torch.cat([dna_norm, epi_norm], dim=1)
@@ -168,12 +167,11 @@ class SequenceEpiFusionModel(nn.Module):
 # =========================================
 def main():
     set_seed(42)
-    
     parser = argparse.ArgumentParser()
     parser.add_argument("--train_path", type=str, default="data/datafiles/train.csv")
     parser.add_argument("--val_path", type=str, default="data/datafiles/val.csv")
     parser.add_argument("--baseline_weights", type=str, required=True)
-    parser.add_argument("--pure_nn_weights", type=str, required=True)
+    parser.add_argument("--pure_epi_weights", type=str, required=True) # CHANGED NAME
     parser.add_argument("--save_dir", required=True)
     parser.add_argument("--model_path", default="zhihan1996/DNABERT-2-117M")
     parser.add_argument("--batch_size", type=int, default=4)
@@ -187,18 +185,13 @@ def main():
     
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
     logger = logging.getLogger(__name__)
-
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    logger.info(f"[*] Starting Sequence + Epigenomics Fusion on {device}")
 
-    # Load Data (No shape required)
+    # Load Data 
     train_df = pd.read_csv(args.train_path)
     val_df = pd.read_csv(args.val_path)
-    
-    train_mask = train_df['probeID'].str.startswith('cg')
-    val_mask = val_df['probeID'].str.startswith('cg')
-    train_df = train_df[train_mask].reset_index(drop=True)
-    val_df = val_df[val_mask].reset_index(drop=True)
+    train_df = train_df[train_df['probeID'].str.startswith('cg')].reset_index(drop=True)
+    val_df = val_df[val_df['probeID'].str.startswith('cg')].reset_index(drop=True)
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_path, trust_remote_code=True)
     train_dataset = SeqEpiDataset(train_df, tokenizer, args.seq_window_size)
@@ -212,22 +205,20 @@ def main():
     model = SequenceEpiFusionModel(args.model_path, tabular_dim=9).to(device)
 
     # --- WEIGHT INJECTION ---
-    logger.info("[*] Injecting Ancestor Weights (Baseline DNABERT & Pure NN)...")
+    logger.info("[*] Injecting Ancestor Weights (DNABERT Baseline & Pure Epigenomics)...")
     baseline_ckpt = torch.load(args.baseline_weights, map_location=device, weights_only=False)
     if 'model_state_dict' in baseline_ckpt: baseline_ckpt = baseline_ckpt['model_state_dict']
     model.load_state_dict(baseline_ckpt, strict=False)
 
-    nn_ckpt = torch.load(args.pure_nn_weights, map_location=device, weights_only=False)
-    if 'model_state_dict' in nn_ckpt: nn_ckpt = nn_ckpt['model_state_dict']
-    # strict=False safely ignores the missing shape branches from the old pure_nn_weights
-    model.load_state_dict(nn_ckpt, strict=False)
+    epi_ckpt = torch.load(args.pure_epi_weights, map_location=device, weights_only=False)
+    if 'model_state_dict' in epi_ckpt: epi_ckpt = epi_ckpt['model_state_dict']
+    model.load_state_dict(epi_ckpt, strict=False) # strict=False ensures clean transfer of tab_mlp and epi_proj
 
     # --- THE PERMANENT FREEZE ---
     logger.info("--- LOCKING ANCESTORS: ONLY TRAINING FUSION LOGIC ---")
     trainable_params = []
     for name, param in model.named_parameters():
-        # Notice we include 'epi_proj' as a trainable parameter
-        if "norm_" in name or "gate_network" in name or "epi_proj" in name or "head" in name:
+        if "norm_" in name or "gate_network" in name or "head" in name:
             param.requires_grad = True
             trainable_params.append(param)
         else:
@@ -240,6 +231,8 @@ def main():
     optimizer = optim.AdamW(trainable_params, lr=5e-4, weight_decay=1e-4)
     total_steps = (len(train_loader) // args.grad_accum_steps) * args.epochs
     scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=int(0.1 * total_steps), num_training_steps=total_steps)
+    
+    best_val_mae = float('inf')
 
     for epoch in range(1, args.epochs + 1):
         model.train()
@@ -293,7 +286,11 @@ def main():
         val_beta_mae = mean_absolute_error(all_beta_true, all_beta_prob)
         logger.info(f"Epoch {epoch} | Beta MAE: {val_beta_mae:.4f}")
         writer.add_scalar("Val/Beta_MAE", val_beta_mae, epoch)
-        torch.save(model.state_dict(), os.path.join(args.save_dir, f"weights_ep{epoch}.pth"))
+        
+        if val_beta_mae < best_val_mae:
+            best_val_mae = val_beta_mae
+            torch.save(model.state_dict(), os.path.join(args.save_dir, f"best_weights.pth"))
+            logger.info(f"[★] New Best Fusion Model (Beta MAE: {best_val_mae:.4f}) saved!")
 
 if __name__ == "__main__":
     main()
