@@ -18,8 +18,7 @@ set -e
 
 echo "[*] Starting Phase 1 Baseline Training on V100 GPU..."
 
-# Execute the training script on the full dataset
-python scripts/02_train_model_baseline.py \
+python scripts/01_train_model_baseline.py \
   --train_path "data/datafiles/train.csv" \
   --val_path "data/datafiles/val.csv" \
   --save_dir "checkpoints_baseline" \
@@ -29,4 +28,3 @@ python scripts/02_train_model_baseline.py \
   --window_size 1000
 
 echo "[✓] Training Job Complete!"
-
