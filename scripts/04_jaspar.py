@@ -1,214 +1,355 @@
-import os
-import re
-import pandas as pd
-import numpy as np
-from tqdm import tqdm
-from pyjaspar import jaspardb
-from Bio.Seq import Seq
-import multiprocessing as mp
+#!/usr/bin/env python3
+"""
+Corrected JASPAR motif-disruption scan.
+
+Key differences from the original script:
+1. Keeps each JASPAR matrix ID separately instead of overwriting matrices
+   that share the same transcription-factor name.
+2. Scores only motif placements whose footprint overlaps the mutated base.
+3. Compares WT and mutant scores at the same motif matrix, position, and strand.
+4. Records matrix ID, strand, position, threshold crossing, and gain/loss status.
+5. Can run on the exact 757-row eligible cohort.
+"""
+
+from __future__ import annotations
+
+import argparse
 import logging
-import warnings
+import re
+from pathlib import Path
 
-# Suppress Biopython warnings
-warnings.filterwarnings('ignore')
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
+import numpy as np
+import pandas as pd
+from Bio.Seq import Seq
+from pyjaspar import jaspardb
+from tqdm import tqdm
 
-# =============================================================================
-# 1. CONFIGURATION
-# =============================================================================
-TEST_CSV_PATH = 'data/datafiles/testing_data.csv'
-OUTPUT_CSV = 'results/jaspar_motif_disruptions.csv'
+REQUIRED_COLUMNS = {
+    "pos",
+    "Gene",
+    "GDC_Genomic_DNA_Change",
+    "Healthy_5000bp_DNA",
+    "Mutated_5000bp_DNA",
+}
 
-RESULT_COLUMNS = [
-    'Gene',
-    'GDC_Genomic_DNA_Change',
-    'Top_Disrupted_TF',
-    'WT_Motif_Score',
-    'MUT_Motif_Score',
-    'Motif_Delta_Score',
-    'Absolute_Disruption',
-    'Percentage_Change',
-]
 
-REQUIRED_INPUT_COLUMNS = [
-    'pos',
-    'Gene',
-    'GDC_Genomic_DNA_Change',
-    'Healthy_5000bp_DNA',
-    'Mutated_5000bp_DNA',
-]
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--input-csv",
+        default="results/seq_epi_stability/stability_eligible_cohort.csv",
+        help="Eligible cohort CSV containing WT and mutant 5000-bp sequences.",
+    )
+    parser.add_argument(
+        "--output-csv",
+        default="results/jaspar_motif_disruptions_fixed.csv",
+    )
+    parser.add_argument("--release", default="JASPAR2022")
+    parser.add_argument("--collection", default="CORE")
+    parser.add_argument("--window-size", type=int, default=41)
+    parser.add_argument(
+        "--score-threshold",
+        type=float,
+        default=5.0,
+        help="Raw log-odds threshold. Gain/loss requires crossing this threshold.",
+    )
+    parser.add_argument(
+        "--targets",
+        nargs="*",
+        default=None,
+        help=(
+            "Optional genomic changes to scan. Omit to scan the full input cohort."
+        ),
+    )
+    return parser.parse_args()
 
-# Motif configuration
-WINDOW_SIZE = 41  # 20bp left + 1bp mutation + 20bp right
-SCORE_THRESHOLD = 5.0 # Minimum log-odds score to be considered a "real" binding site
 
-os.makedirs(os.path.dirname(OUTPUT_CSV), exist_ok=True)
+def parse_mutation_id(mut_id: object) -> tuple[int | None, str | None, str | None]:
+    text = str(mut_id).upper()
+    match = re.search(r"(\d+)\s*([ACGT])\s*>\s*([ACGT])", text)
+    if not match:
+        return None, None, None
+    return int(match.group(1)), match.group(2), match.group(3)
 
-# =============================================================================
-# 2. HELPER FUNCTIONS
-# =============================================================================
-def parse_mutation_id(mut_id):
-    """Extracts position, ref, and alt from standard mutation IDs."""
-    mut_str = str(mut_id).upper()
-    if mut_str == 'NAN': return None, None, None
-    match = re.search(r'(\d+)\s*([ACGT])\s*>\s*([ACGT])', mut_str)
-    if match: return int(match.group(1)), match.group(2), match.group(3)
-    return None, None, None
 
-# =============================================================================
-# 3. JASPAR INITIALIZATION
-# =============================================================================
-logging.info("[*] Downloading/Loading JASPAR Database...")
-jdb = jaspardb(release='JASPAR2022') 
+def as_score_array(values: object) -> np.ndarray:
+    arr = np.asarray(values, dtype=float)
+    return np.atleast_1d(arr)
 
-logging.info("[*] Fetching and filtering for Vertebrate Motifs...")
-all_motifs = jdb.fetch_motifs(collection='CORE')
 
-motifs = []
-for m in all_motifs:
-    if hasattr(m, 'tax_group') and m.tax_group:
-        if 'vertebrate' in str(m.tax_group).lower():
-            motifs.append(m)
+def classify_crossing(wt_score: float, mut_score: float, threshold: float) -> str:
+    wt_pass = wt_score > threshold
+    mut_pass = mut_score > threshold
+    if not wt_pass and mut_pass:
+        return "gain"
+    if wt_pass and not mut_pass:
+        return "loss"
+    if wt_pass and mut_pass:
+        return "strengthened" if mut_score > wt_score else "weakened"
+    return "subthreshold_change"
 
-if not motifs:
-    logging.warning("[!] Taxonomy filter returned 0. Falling back to scoring ALL CORE motifs.")
-    motifs = all_motifs
 
-logging.info(f"[*] Precomputing PSSMs for {len(motifs)} Transcription Factors...")
-pssm_dict = {}
-for motif in motifs:
-    # Add a pseudocount to prevent log(0) -inf math errors
-    pwm = motif.counts.normalize(pseudocounts=0.5)
-    pssm = pwm.log_odds()
-    pssm_dict[motif.name] = pssm
+def extract_pairs(df: pd.DataFrame, window_size: int) -> list[dict]:
+    missing = sorted(REQUIRED_COLUMNS - set(df.columns))
+    if missing:
+        raise ValueError(f"Missing required columns: {missing}")
 
-# =============================================================================
-# 4. PARSING THE DATASET
-# =============================================================================
-logging.info("[*] Loading Test CSV and cropping 41bp windows...")
-df = pd.read_csv(TEST_CSV_PATH)
+    if window_size % 2 != 1:
+        raise ValueError("--window-size must be odd so the mutation is centered.")
 
-missing_columns = [c for c in REQUIRED_INPUT_COLUMNS if c not in df.columns]
-if missing_columns:
-    raise ValueError(
-        "Missing required columns in testing CSV: "
-        f"{missing_columns}. Found columns: {list(df.columns)}"
+    flank = window_size // 2
+    pairs: list[dict] = []
+
+    for _, row in df.iterrows():
+        mut_pos, ref_base, alt_base = parse_mutation_id(
+            row["GDC_Genomic_DNA_Change"]
+        )
+        if mut_pos is None:
+            continue
+
+        wt_full = str(row["Healthy_5000bp_DNA"]).upper()
+        mut_full = str(row["Mutated_5000bp_DNA"]).upper()
+
+        # The eligible-cohort file may store either the original 5,000-bp
+        # strings or the cropped 1,000-bp model inputs. Locate the mutation
+        # directly from the unique WT--mutant sequence difference instead of
+        # assuming a 5,000-bp coordinate system.
+        if len(wt_full) != len(mut_full):
+            continue
+
+        full_diff_positions = [
+            i for i, (a, b) in enumerate(zip(wt_full, mut_full)) if a != b
+        ]
+        if len(full_diff_positions) != 1:
+            continue
+
+        mut_idx = full_diff_positions[0]
+        if wt_full[mut_idx] != ref_base or mut_full[mut_idx] != alt_base:
+            continue
+
+        start = mut_idx - flank
+        end = mut_idx + flank + 1
+        if start < 0 or end > len(wt_full):
+            continue
+
+        wt_seq = wt_full[start:end]
+        mut_seq = mut_full[start:end]
+
+        if len(wt_seq) != window_size or len(mut_seq) != window_size:
+            continue
+        if wt_seq[flank] != ref_base or mut_seq[flank] != alt_base:
+            continue
+        if any(base not in "ACGT" for base in wt_seq + mut_seq):
+            continue
+
+        diff_positions = [
+            i for i, (a, b) in enumerate(zip(wt_seq, mut_seq)) if a != b
+        ]
+        if diff_positions != [flank]:
+            continue
+
+        uid = row.get("Variant_UID")
+        if uid is None or pd.isna(uid):
+            probe = str(row.get("probeID", ""))
+            uid = f"{row['GDC_Genomic_DNA_Change']}|{probe}"
+
+        pairs.append(
+            {
+                "Variant_UID": str(uid),
+                "Gene": str(row["Gene"]),
+                "probeID": str(row.get("probeID", "")),
+                "GDC_Genomic_DNA_Change": str(
+                    row["GDC_Genomic_DNA_Change"]
+                ),
+                "WT_Seq": wt_seq,
+                "MUT_Seq": mut_seq,
+            }
+        )
+
+    return pairs
+
+
+def overlapping_placements(
+    pssm,
+    wt_seq: str,
+    mut_seq: str,
+    mutation_index: int,
+) -> list[dict]:
+    """Return same-position WT/MUT score comparisons overlapping mutation."""
+    motif_len = len(pssm)
+    sequence_len = len(wt_seq)
+    placements: list[dict] = []
+
+    wt_fwd = as_score_array(pssm.calculate(Seq(wt_seq)))
+    mut_fwd = as_score_array(pssm.calculate(Seq(mut_seq)))
+
+    for start, (wt_score, mut_score) in enumerate(zip(wt_fwd, mut_fwd)):
+        if start <= mutation_index < start + motif_len:
+            if np.isfinite(wt_score) and np.isfinite(mut_score):
+                placements.append(
+                    {
+                        "strand": "+",
+                        "start_0based": start,
+                        "end_0based_exclusive": start + motif_len,
+                        "WT_Motif_Score": float(wt_score),
+                        "MUT_Motif_Score": float(mut_score),
+                    }
+                )
+
+    wt_rc = str(Seq(wt_seq).reverse_complement())
+    mut_rc = str(Seq(mut_seq).reverse_complement())
+    wt_rev = as_score_array(pssm.calculate(Seq(wt_rc)))
+    mut_rev = as_score_array(pssm.calculate(Seq(mut_rc)))
+
+    for rc_start, (wt_score, mut_score) in enumerate(zip(wt_rev, mut_rev)):
+        original_start = sequence_len - (rc_start + motif_len)
+        original_end = sequence_len - rc_start
+
+        if original_start <= mutation_index < original_end:
+            if np.isfinite(wt_score) and np.isfinite(mut_score):
+                placements.append(
+                    {
+                        "strand": "-",
+                        "start_0based": original_start,
+                        "end_0based_exclusive": original_end,
+                        "WT_Motif_Score": float(wt_score),
+                        "MUT_Motif_Score": float(mut_score),
+                    }
+                )
+
+    return placements
+
+
+def main() -> None:
+    args = parse_args()
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
     )
 
-valid_pairs = []
-for idx, row in df.iterrows():
-    cpg_pos = int(row['pos'])
-    mut_id = row['GDC_Genomic_DNA_Change']
-    gene = str(row['Gene']) if pd.notna(row['Gene']) else f"Intergenic"
-    
-    mut_pos, ref_base, alt_base = parse_mutation_id(mut_id)
-    if not mut_pos: continue
-        
-    wt_full = str(row['Healthy_5000bp_DNA']).upper()
-    mut_full = str(row['Mutated_5000bp_DNA']).upper()
-    
-    # The CpG target is perfectly centered at index 2500 in the 5000bp string.
-    # Map the mutation's relative position into string indices
-    mut_idx_in_5000 = 2500 + (mut_pos - cpg_pos)
-    
-    # We want 20bp flanking the mutation: [mut_idx - 20 : mut_idx + 21]
-    start_idx = mut_idx_in_5000 - 20
-    end_idx = mut_idx_in_5000 + 21
-    
-    # Boundary safety checks
-    if start_idx < 0 or end_idx > len(wt_full): continue
-        
-    wt_seq = wt_full[start_idx:end_idx]
-    mut_seq = mut_full[start_idx:end_idx]
-    
-    # Validation constraint checks
-    if wt_seq[20] != ref_base: continue 
-    if mut_seq[20] != alt_base: continue
-    
-    valid_pairs.append({
-        'Gene': gene,
-        'GDC_Genomic_DNA_Change': mut_id,
-        'WT_Seq': wt_seq,
-        'MUT_Seq': mut_seq
-    })
+    input_path = Path(args.input_csv)
+    if not input_path.exists():
+        raise FileNotFoundError(f"Input CSV not found: {input_path}")
 
-logging.info(f"[*] Successfully extracted {len(valid_pairs)} sequence pairs for scanning.")
+    df = pd.read_csv(input_path)
 
-# =============================================================================
-# 5. WORKER FUNCTION FOR MULTIPROCESSING
-# =============================================================================
-def scan_sequence_pair(item):
-    wt_seq = Seq(item['WT_Seq'])
-    mut_seq = Seq(item['MUT_Seq'])
-    
-    wt_seq_rc = wt_seq.reverse_complement()
-    mut_seq_rc = mut_seq.reverse_complement()
-    
-    max_disruption = 0
-    top_tf = None
-    wt_max_score = 0
-    mut_max_score = 0
-    
-    for tf_name, pssm in pssm_dict.items():
-        try:
-            wt_fwd = max(pssm.calculate(wt_seq))
-            wt_rev = max(pssm.calculate(wt_seq_rc))
-            best_wt = max(wt_fwd, wt_rev)
-            
-            mut_fwd = max(pssm.calculate(mut_seq))
-            mut_rev = max(pssm.calculate(mut_seq_rc))
-            best_mut = max(mut_fwd, mut_rev)
-            
-            disruption = abs(best_wt - best_mut)
-            
-            if max(best_wt, best_mut) > SCORE_THRESHOLD:
-                if disruption > max_disruption:
-                    max_disruption = disruption
-                    top_tf = tf_name
-                    wt_max_score = best_wt
-                    mut_max_score = best_mut
-        except Exception:
-            continue
-            
-    delta_score = mut_max_score - wt_max_score
-    
-    # Calculate Percentage Loss/Gain
-    max_possible = max(wt_max_score, mut_max_score)
-    percent_change = (delta_score / max_possible) * 100 if max_possible > 0 else 0
-    
-    return {
-        'Gene': item['Gene'],
-        'GDC_Genomic_DNA_Change': item['GDC_Genomic_DNA_Change'],
-        'Top_Disrupted_TF': top_tf,
-        'WT_Motif_Score': round(wt_max_score, 2),
-        'MUT_Motif_Score': round(mut_max_score, 2),
-        'Motif_Delta_Score': round(delta_score, 2),
-        'Absolute_Disruption': round(max_disruption, 2),
-        'Percentage_Change': round(percent_change, 1)
-    }
+    if args.targets:
+        requested = set(args.targets)
+        df = df[
+            df["GDC_Genomic_DNA_Change"].astype(str).isin(requested)
+        ].copy()
 
-# =============================================================================
-# 6. PARALLEL EXECUTION
-# =============================================================================
-if __name__ == '__main__':
-    logging.info(f"[*] Starting Motif Scanning on {mp.cpu_count()} CPU Cores...")
-    
-    results = []
-    with mp.Pool(processes=mp.cpu_count()) as pool:
-        for res in tqdm(pool.imap_unordered(scan_sequence_pair, valid_pairs), total=len(valid_pairs)):
-            if res['Top_Disrupted_TF'] is not None:
-                results.append(res)
-                
-    # =============================================================================
-    # 7. EXPORT RESULTS
-    # =============================================================================
-    df_results = pd.DataFrame(results, columns=RESULT_COLUMNS)
+    pairs = extract_pairs(df, args.window_size)
+    logging.info("Prepared %d valid sequence pairs.", len(pairs))
 
-    if not df_results.empty:
-        df_results['Abs_Percentage'] = df_results['Percentage_Change'].abs()
-        df_results = df_results.sort_values(by='Abs_Percentage', ascending=False).drop(columns=['Abs_Percentage'])
-    else:
-        logging.warning("[!] No disrupted motifs passed thresholds. Writing empty output with headers.")
+    if not pairs:
+        raise RuntimeError("No valid sequence pairs were extracted.")
 
-    df_results.to_csv(OUTPUT_CSV, index=False)
-    logging.info(f"[✓] Complete! Disruption analysis saved to {OUTPUT_CSV}")
+    logging.info(
+        "Loading %s %s vertebrate motifs...",
+        args.release,
+        args.collection,
+    )
+    jdb = jaspardb(release=args.release)
+    all_motifs = jdb.fetch_motifs(collection=args.collection)
+    motifs = [
+        motif
+        for motif in all_motifs
+        if getattr(motif, "tax_group", None)
+        and "vertebrate" in str(motif.tax_group).lower()
+    ]
+    if not motifs:
+        raise RuntimeError("No vertebrate motifs were returned.")
+
+    matrix_records = []
+    for motif in motifs:
+        pwm = motif.counts.normalize(pseudocounts=0.5)
+        pssm = pwm.log_odds()
+        matrix_records.append(
+            {
+                "matrix_id": str(getattr(motif, "matrix_id", "")),
+                "motif_name": str(getattr(motif, "name", "")),
+                "pssm": pssm,
+            }
+        )
+
+    logging.info("Loaded %d distinct motif matrices.", len(matrix_records))
+
+    mutation_index = args.window_size // 2
+    results: list[dict] = []
+
+    for pair in tqdm(pairs, desc="Scanning variants"):
+        best = None
+
+        for matrix in matrix_records:
+            placements = overlapping_placements(
+                matrix["pssm"],
+                pair["WT_Seq"],
+                pair["MUT_Seq"],
+                mutation_index,
+            )
+
+            for placement in placements:
+                wt_score = placement["WT_Motif_Score"]
+                mut_score = placement["MUT_Motif_Score"]
+
+                if max(wt_score, mut_score) <= args.score_threshold:
+                    continue
+
+                delta = mut_score - wt_score
+                candidate = {
+                    **pair,
+                    "JASPAR_Release": args.release,
+                    "Collection": args.collection,
+                    "Matrix_ID": matrix["matrix_id"],
+                    "TF_Name": matrix["motif_name"],
+                    "Strand": placement["strand"],
+                    "Hit_Start_0based": placement["start_0based"],
+                    "Hit_End_0based_Exclusive": placement[
+                        "end_0based_exclusive"
+                    ],
+                    "WT_Motif_Score": wt_score,
+                    "MUT_Motif_Score": mut_score,
+                    "Motif_Delta_Score": delta,
+                    "Absolute_Disruption": abs(delta),
+                    "Score_Threshold": args.score_threshold,
+                    "Threshold_Classification": classify_crossing(
+                        wt_score,
+                        mut_score,
+                        args.score_threshold,
+                    ),
+                }
+
+                if (
+                    best is None
+                    or candidate["Absolute_Disruption"]
+                    > best["Absolute_Disruption"]
+                ):
+                    best = candidate
+
+        if best is not None:
+            results.append(best)
+
+    output_path = Path(args.output_csv)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    result_df = pd.DataFrame(results)
+    if not result_df.empty:
+        numeric_cols = [
+            "WT_Motif_Score",
+            "MUT_Motif_Score",
+            "Motif_Delta_Score",
+            "Absolute_Disruption",
+        ]
+        result_df[numeric_cols] = result_df[numeric_cols].round(4)
+        result_df = result_df.sort_values(
+            "Absolute_Disruption",
+            ascending=False,
+        )
+
+    result_df.to_csv(output_path, index=False)
+    logging.info("Wrote %d rows to %s", len(result_df), output_path)
+
+
+if __name__ == "__main__":
+    main()
