@@ -1,9 +1,26 @@
-import concurrent.futures
+#!/usr/bin/env python3
+"""Build the cleaned SilentMethyl somatic synonymous-variant application cohort.
+
+This journal-oriented builder removes the cBioPortal methylation-availability
+filter and all gene-level methylation pseudo-targets. Candidate eligibility is
+verified locally against the fixed GENCODE v44 annotation, GDC identifiers and
+query results are preserved, held-out status is inherited from the training
+split manifest, and both forward and reverse-complement model inputs are emitted.
+"""
+
+from __future__ import annotations
+
+import argparse
+import bisect
 import gzip
+import hashlib
 import json
-import os
+import math
 import re
+from collections import defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, Iterable
 
 import numpy as np
 import pandas as pd
@@ -13,401 +30,939 @@ from pyfaidx import Fasta
 from tqdm import tqdm
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DATA_DIR = SCRIPT_DIR
-DATAFILES_DIR = DATA_DIR / "datafiles"
-DATAFILES_DIR.mkdir(parents=True, exist_ok=True)
-
+DEFAULT_DATA_DIR = SCRIPT_DIR
 GDC_URL = "https://api.gdc.cancer.gov/ssms"
-CBIO_URL = "https://www.cbioportal.org/api"
-STUDY_ID = "brca_tcga"
-MAX_THREADS = 16
+WINDOW_SIZE = 5000
+CENTER_C_INDEX = 2499
+CENTER_G_INDEX = 2500
+FASTA_SLICE = slice(2450, 2550)
+VALID_CHROMS = tuple([f"chr{i}" for i in range(1, 23)] + ["chrX", "chrY"])
 
-FASTA_PATH = DATA_DIR / "hg38.fa"
-MANIFEST_PATH = DATA_DIR / "HM450.hg38.manifest.tsv.gz"
-METH_PATH = DATA_DIR / "TCGA-BRCA.methylation450.tsv.gz"
+MUTATION_RE = re.compile(r"^(chr(?:[1-9]|1[0-9]|2[0-2]|X|Y)):g\.(\d+)([ACGT])>([ACGT])$", re.IGNORECASE)
+RC_TABLE = str.maketrans(
+    "ACGTRYMKBDHVNacgtrymkbdhvn",
+    "TGCAYRKMVHDBNtgcayrkmvhdbn",
+)
+COMPLEMENT = str.maketrans("ACGTacgt", "TGCAtgca")
 
-BASE_REF = DATA_DIR / "reference"
-BW_PATHS = {
-    "Ref_ATAC_Signal": BASE_REF / "ATAC_seq.bw",
-    "Ref_H3K4me3_Signal": BASE_REF / "H3K4me3.bw",
-    "Ref_H3K27ac_Signal": BASE_REF / "H3K27ac.bw",
-    "Ref_H3K27me3_Signal": BASE_REF / "H3K27me3.bw",
-    "Ref_H3K9me3_Signal": BASE_REF / "H3K9me3.bw",
-    "Ref_H3K36me3_Signal": BASE_REF / "H3K36me3.bw",
-    "Ref_H3K4me1_Signal": BASE_REF / "H3K4me1.bw",
-    "Target_Base_PhyloP_100way_1": BASE_REF / "hg38.phyloP100way.bw",
-    "Target_Base_PhyloP_100way_2": BASE_REF / "hg38.phyloP100way.bw",
+CODON_TABLE = {
+    "TTT": "F", "TTC": "F", "TTA": "L", "TTG": "L",
+    "TCT": "S", "TCC": "S", "TCA": "S", "TCG": "S",
+    "TAT": "Y", "TAC": "Y", "TAA": "*", "TAG": "*",
+    "TGT": "C", "TGC": "C", "TGA": "*", "TGG": "W",
+    "CTT": "L", "CTC": "L", "CTA": "L", "CTG": "L",
+    "CCT": "P", "CCC": "P", "CCA": "P", "CCG": "P",
+    "CAT": "H", "CAC": "H", "CAA": "Q", "CAG": "Q",
+    "CGT": "R", "CGC": "R", "CGA": "R", "CGG": "R",
+    "ATT": "I", "ATC": "I", "ATA": "I", "ATG": "M",
+    "ACT": "T", "ACC": "T", "ACA": "T", "ACG": "T",
+    "AAT": "N", "AAC": "N", "AAA": "K", "AAG": "K",
+    "AGT": "S", "AGC": "S", "AGA": "R", "AGG": "R",
+    "GTT": "V", "GTC": "V", "GTA": "V", "GTG": "V",
+    "GCT": "A", "GCC": "A", "GCA": "A", "GCG": "A",
+    "GAT": "D", "GAC": "D", "GAA": "E", "GAG": "E",
+    "GGT": "G", "GGC": "G", "GGA": "G", "GGG": "G",
 }
 
 
-def get_bw_signal(bw_obj, chrom, start, end):
-    """Safely extracts mean signal from a BigWig file."""
-    try:
-        if chrom not in bw_obj.chroms():
-            if chrom.replace("chr", "") in bw_obj.chroms():
-                chrom = chrom.replace("chr", "")
-            else:
-                return 0.0
-        stat = bw_obj.stats(chrom, start, end, type="mean")
-        return float(stat[0]) if stat and stat[0] is not None else 0.0
-    except Exception:
-        return 0.0
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
+    parser.add_argument(
+        "--refresh-gdc",
+        action="store_true",
+        help="Ignore an existing raw GDC cache and issue a fresh query.",
+    )
+    parser.add_argument("--page-size", type=int, default=10_000)
+    parser.add_argument("--max-threads", type=int, default=1, help="Reserved for future parallel feature extraction.")
+    parser.add_argument(
+        "--hash-large-inputs",
+        action="store_true",
+        help="Also SHA-256 hash the large reference FASTA.",
+    )
+    return parser.parse_args()
 
 
-def sort_dataframe(df):
+def sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while chunk := handle.read(chunk_size):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def canonical_json_sha256(payload: Any) -> str:
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def file_record(path: Path, hash_file: bool = True) -> dict:
+    record = {"path": str(path.resolve()), "size_bytes": path.stat().st_size}
+    if hash_file:
+        record["sha256"] = sha256_file(path)
+    return record
+
+
+def reverse_complement(sequence: str) -> str:
+    return sequence.translate(RC_TABLE)[::-1]
+
+
+def complement_base(base: str) -> str:
+    return base.translate(COMPLEMENT).upper()
+
+
+def natural_chrom_rank(chrom: str) -> int:
+    token = str(chrom).replace("chr", "", 1)
+    if token.isdigit():
+        return int(token)
+    return {"X": 23, "Y": 24}.get(token, 10_000)
+
+
+def sort_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df.reset_index(drop=True)
-
-    df = df.copy()
-    if {"chr", "pos"}.issubset(df.columns):
-        df["pos"] = pd.to_numeric(df["pos"], errors="coerce")
-        df = df.sort_values(by=["chr", "pos"], ascending=[True, True]).reset_index(drop=True)
-    return df
-
-
-def write_test_fastas(df, healthy_path, mutated_path):
-    healthy_path = Path(healthy_path)
-    mutated_path = Path(mutated_path)
-    healthy_path.parent.mkdir(parents=True, exist_ok=True)
-    mutated_path.parent.mkdir(parents=True, exist_ok=True)
-
-    with healthy_path.open("w") as healthy_handle, mutated_path.open("w") as mutated_handle:
-        for _, row in df.iterrows():
-            header = f">{row['probeID']}"
-            wt_100 = str(row["Healthy_5000bp_DNA"])[2450:2550]
-            mut_100 = str(row["Mutated_5000bp_DNA"])[2450:2550]
-            healthy_handle.write(f"{header}\n{wt_100}\n")
-            mutated_handle.write(f"{header}\n{mut_100}\n")
+    out = df.copy()
+    out["_chrom_rank"] = out["chr"].map(natural_chrom_rank)
+    out = out.sort_values(
+        ["_chrom_rank", "Variant_Position_1based", "probeID", "Selected_Transcript_ID", "Candidate_ID"],
+        kind="mergesort",
+    )
+    return out.drop(columns="_chrom_rank").reset_index(drop=True)
 
 
-print("==========================================")
-print("--- STEP 1: ENVIRONMENT & GENOME SETUP ---")
-print("==========================================")
-
-print("[*] Loading Human Genome into Memory...")
-genome = Fasta(str(FASTA_PATH))
-
-bw_handles = {}
-for name, path in BW_PATHS.items():
-    if path.exists():
-        bw_handles[name] = pyBigWig.open(str(path))
-    else:
-        print(f"[!] WARNING: Missing BigWig file: {path}")
-
-print("\n==========================================")
-print("--- STEP 2: GENOME-WIDE MUTATION DISCOVERY ---")
-print("==========================================")
-
-try:
-    profiles = requests.get(f"{CBIO_URL}/studies/{STUDY_ID}/molecular-profiles").json()
-    METH_PROFILE = next((p["molecularProfileId"] for p in profiles if p.get("molecularAlterationType") == "METHYLATION"), None)
-    cbio_samples = requests.get(f"{CBIO_URL}/sample-lists/{STUDY_ID}_all/sample-ids").json()
-except Exception as exc:
-    print(f"[!] Setup Error: {exc}")
-    raise SystemExit
-
-print("[*] Pinging NIH GDC Supercomputers for sSNVs...")
-filt = {
-    "op": "and",
-    "content": [
-        {"op": "in", "content": {"field": "cases.project.project_id", "value": ["TCGA-BRCA"]}},
-        {"op": "in", "content": {"field": "consequence.transcript.consequence_type", "value": ["synonymous_variant"]}},
-        {"op": "in", "content": {"field": "occurrence.case.samples.sample_type", "value": ["Solid Tissue Normal"]}},
-    ],
-}
-
-params = {
-    "filters": json.dumps(filt),
-    "expand": "occurrence.case,consequence.transcript.gene",
-    "fields": "genomic_dna_change,occurrence.case.submitter_id,consequence.transcript.gene.symbol,consequence.transcript.hgvsp",
-    "format": "JSON",
-    "size": "500000",
-}
-
-mutations = requests.get(GDC_URL, params=params).json().get("data", {}).get("hits", [])
-print(f"[✓] Downloaded {len(mutations)} raw mutations from the NIH.")
-
-mutation_groups = {}
-for mutation in mutations:
-    dna_change = mutation.get("genomic_dna_change", "Unknown")
-    gene_symbol = "Unknown"
-    consequences = mutation.get("consequence", [])
-    if consequences:
-        transcript = consequences[0].get("transcript", {})
-        if isinstance(transcript, dict):
-            gene = transcript.get("gene", {})
-            if isinstance(gene, dict):
-                gene_symbol = gene.get("symbol", "Unknown")
-
-    if dna_change not in mutation_groups:
-        mutation_groups[dna_change] = {"gene": gene_symbol, "patients": set()}
-
-    for occurrence in mutation.get("occurrence", []):
-        barcode = occurrence.get("case", {}).get("submitter_id")
-        if barcode:
-            for match in [sample for sample in cbio_samples if sample.startswith(barcode)]:
-                mutation_groups[dna_change]["patients"].add(match)
-
-unique_genes = list({value["gene"] for value in mutation_groups.values() if value["gene"] != "Unknown"})
-
-print(f"[*] Attempting to map {len(unique_genes)} genes instantly...")
-gene_to_entrez = {}
-
-try:
-    hgnc_url = "https://www.genenames.org/cgi-bin/download/custom?col=gd_app_sym&col=md_eg_id&status=Approved&hgnc_dbt=dic&order_by=gd_app_sym_sort&format=text&submit=submit"
-    hgnc_df = pd.read_csv(hgnc_url, sep="\t", low_memory=False)
-    valid_hgnc = hgnc_df.dropna(subset=["Approved symbol", "NCBI Gene ID"])
-    gene_to_entrez = dict(zip(valid_hgnc["Approved symbol"], valid_hgnc["NCBI Gene ID"].astype(int)))
-    print("[+] HGNC instant mapping successful!")
-except Exception:
-    print("[!] HGNC mapping failed. Using cBioPortal API fallback...")
-
-    def get_entrez(gene):
-        try:
-            response = requests.get(f"{CBIO_URL}/genes?keyword={gene}", timeout=10)
-            if response.ok and response.json():
-                return gene, response.json()[0].get("entrezGeneId")
-        except Exception:
-            pass
-        return gene, None
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
-        futures = {executor.submit(get_entrez, gene): gene for gene in unique_genes}
-        for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc="Mapping Genes via API"):
-            gene, entrez_id = future.result()
-            if entrez_id:
-                gene_to_entrez[gene] = entrez_id
-
-processing_list = [
-    {"dna_change": key, "gene": value["gene"], "patients": list(value["patients"])}
-    for key, value in mutation_groups.items()
-    if value["patients"] and value["gene"] in gene_to_entrez
-]
+def parse_gtf_attributes(text: str) -> dict[str, list[str]]:
+    attributes: dict[str, list[str]] = defaultdict(list)
+    for field in text.strip().strip(";").split(";"):
+        field = field.strip()
+        if not field:
+            continue
+        if " " not in field:
+            continue
+        key, value = field.split(" ", 1)
+        attributes[key].append(value.strip().strip('"'))
+    return dict(attributes)
 
 
-def fetch_patient_data(item):
-    local_hits = []
-    gene_symbol = item["gene"]
-    entrez_id = gene_to_entrez.get(gene_symbol)
+def first_attribute(attributes: dict[str, list[str]], key: str, default: str = "") -> str:
+    values = attributes.get(key, [])
+    return values[0] if values else default
 
-    if not entrez_id:
-        return []
 
+def interval_contains_any(sorted_positions: list[int], start: int, end: int) -> bool:
+    index = bisect.bisect_left(sorted_positions, start)
+    return index < len(sorted_positions) and sorted_positions[index] <= end
+
+
+def transcript_priority(annotation: dict) -> tuple:
+    tags = {tag.lower() for tag in annotation.get("tags", [])}
+    tsl_raw = str(annotation.get("transcript_support_level", "NA")).split(" ", 1)[0]
     try:
-        normal_barcodes = [patient[:-2] + "11" for patient in item["patients"]]
-        combined_search = item["patients"] + normal_barcodes
+        tsl = int(tsl_raw)
+    except ValueError:
+        tsl = 99
 
-        meth_data = requests.post(
-            f"{CBIO_URL}/molecular-profiles/{METH_PROFILE}/molecular-data/fetch",
-            json={"entrezGeneIds": [int(entrez_id)], "sampleIds": combined_search},
-        ).json()
-
-        if meth_data:
-            meth_dict = {entry["sampleId"]: entry.get("value", np.nan) for entry in meth_data if "sampleId" in entry and "value" in entry}
-
-            for patient in item["patients"]:
-                tumor_beta = meth_dict.get(patient, np.nan)
-                normal_barcode = patient[:-2] + "11"
-                normal_beta = meth_dict.get(normal_barcode, np.nan)
-
-                if pd.notna(tumor_beta):
-                    beta_safe = max(0.0001, min(0.9999, tumor_beta))
-                    m_val = np.log2(beta_safe / (1 - beta_safe))
-
-                    wt_m_val = np.nan
-                    if pd.notna(normal_beta):
-                        wt_beta_safe = max(0.0001, min(0.9999, normal_beta))
-                        wt_m_val = np.log2(wt_beta_safe / (1 - wt_beta_safe))
-
-                    local_hits.append(
-                        {
-                            "Gene": gene_symbol,
-                            "GDC_Genomic_DNA_Change": item["dna_change"],
-                            "TCGA_Patient_Barcode": patient,
-                            "True_Mutated_Beta": tumor_beta,
-                            "True_Mutated_M_Value": m_val,
-                            "Matched_Normal_Beta": normal_beta,
-                            "Matched_Normal_M_Value": wt_m_val,
-                        }
-                    )
-    except Exception:
-        pass
-    return local_hits
+    return (
+        0 if "mane_select" in tags else 1,
+        0 if "ensembl_canonical" in tags else 1,
+        0 if any(tag.startswith("appris_principal") for tag in tags) else 1,
+        0 if annotation.get("transcript_type") == "protein_coding" else 1,
+        0 if "basic" in tags else 1,
+        tsl,
+        -int(annotation.get("cds_length", 0)),
+        str(annotation.get("transcript_id", "")),
+    )
 
 
-real_world_hits = []
-with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
-    futures = [executor.submit(fetch_patient_data, item) for item in processing_list]
-    for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc="Mining Methylation Arrays"):
-        result = future.result()
-        if result:
-            real_world_hits.extend(result)
+def discover_candidate_transcripts(
+    gtf_path: Path,
+    positions_by_chrom: dict[str, list[int]],
+) -> set[str]:
+    selected: set[str] = set()
+    with gzip.open(gtf_path, "rt") as handle:
+        for line in tqdm(handle, desc="GENCODE pass 1: locating candidate CDS transcripts"):
+            if not line or line.startswith("#"):
+                continue
+            fields = line.rstrip("\n").split("\t")
+            if len(fields) != 9 or fields[2] != "CDS":
+                continue
+            chrom = fields[0]
+            positions = positions_by_chrom.get(chrom)
+            if not positions:
+                continue
+            start, end = int(fields[3]), int(fields[4])
+            if not interval_contains_any(positions, start, end):
+                continue
+            attrs = parse_gtf_attributes(fields[8])
+            transcript_id = first_attribute(attrs, "transcript_id")
+            if transcript_id:
+                selected.add(transcript_id)
+    return selected
 
-df = pd.DataFrame(real_world_hits)
-if df.empty:
-    print("\n[!] 0 hits. No patients had complete paired data.")
-    raise SystemExit
 
-print("\n==========================================")
-print("--- STEP 3: SEQUENCE & EPIGENETIC INJECTION ---")
-print("==========================================")
+def load_transcript_models(gtf_path: Path, transcript_ids: set[str]) -> dict[str, dict]:
+    models: dict[str, dict] = {
+        transcript_id: {"transcript_id": transcript_id, "segments": [], "tags": []}
+        for transcript_id in transcript_ids
+    }
 
-print("[*] Loading Wanding Zhou hg38 Manifest...")
-df_manifest = pd.read_csv(MANIFEST_PATH, sep="\t", usecols=["probeID", "CpG_chrm", "CpG_beg"])
-df_manifest.rename(columns={"CpG_chrm": "chr", "CpG_beg": "pos"}, inplace=True)
-valid_chrs = set([f"chr{i}" for i in range(1, 23)] + ["chrX", "chrY"])
-df_manifest = df_manifest[df_manifest["chr"].isin(valid_chrs)].dropna().reset_index(drop=True)
-df_manifest["pos"] = df_manifest["pos"].astype(int)
+    with gzip.open(gtf_path, "rt") as handle:
+        for line in tqdm(handle, desc="GENCODE pass 2: loading fixed transcript models"):
+            if not line or line.startswith("#"):
+                continue
+            fields = line.rstrip("\n").split("\t")
+            if len(fields) != 9 or fields[2] not in {"transcript", "CDS"}:
+                continue
+            attrs = parse_gtf_attributes(fields[8])
+            transcript_id = first_attribute(attrs, "transcript_id")
+            if transcript_id not in models:
+                continue
 
-mutation_regex = re.compile(r"(chr[0-9XY]+):g\.(\d+)([A-Z]+)>([A-Z]+)")
+            model = models[transcript_id]
+            model.update(
+                {
+                    "chrom": fields[0],
+                    "strand": fields[6],
+                    "gene_id": first_attribute(attrs, "gene_id", model.get("gene_id", "")),
+                    "gene_name": first_attribute(attrs, "gene_name", model.get("gene_name", "")),
+                    "transcript_name": first_attribute(attrs, "transcript_name", model.get("transcript_name", "")),
+                    "transcript_type": first_attribute(
+                        attrs,
+                        "transcript_type",
+                        first_attribute(attrs, "transcript_biotype", model.get("transcript_type", "")),
+                    ),
+                    "transcript_support_level": first_attribute(
+                        attrs,
+                        "transcript_support_level",
+                        model.get("transcript_support_level", "NA"),
+                    ),
+                }
+            )
+            if attrs.get("tag"):
+                model["tags"] = sorted(set(model.get("tags", [])) | set(attrs["tag"]))
+            if fields[2] == "CDS":
+                model["segments"].append(
+                    {
+                        "start": int(fields[3]),
+                        "end": int(fields[4]),
+                        "phase": fields[7],
+                    }
+                )
+
+    return {key: value for key, value in models.items() if value.get("segments")}
 
 
-def extract_and_build(row):
-    match = mutation_regex.match(row["GDC_Genomic_DNA_Change"])
-    if not match:
+def prepare_transcript_models(models: dict[str, dict], genome: Fasta) -> dict[str, dict]:
+    prepared: dict[str, dict] = {}
+    for transcript_id, model in tqdm(models.items(), desc="Constructing transcript CDS sequences"):
+        # Restrict the primary cohort to complete protein-coding CDS models.
+        # Incomplete 5' CDS annotations do not provide an unambiguous codon frame.
+        tags_lower = {tag.lower() for tag in model.get("tags", [])}
+        if model.get("transcript_type") != "protein_coding" or "cds_start_nf" in tags_lower:
+            continue
+        strand = model["strand"]
+        segments = sorted(model["segments"], key=lambda segment: segment["start"], reverse=(strand == "-"))
+        if not segments or str(segments[0].get("phase", "0")) not in {"0", "."}:
+            continue
+        cds_parts: list[str] = []
+        segment_offsets: list[dict] = []
+        cumulative = 0
+
+        for segment in segments:
+            genomic = str(genome[model["chrom"]][segment["start"] - 1 : segment["end"]]).upper()
+            transcript_sequence = reverse_complement(genomic) if strand == "-" else genomic
+            segment_offsets.append({**segment, "offset": cumulative})
+            cds_parts.append(transcript_sequence)
+            cumulative += len(transcript_sequence)
+
+        cds_sequence = "".join(cds_parts)
+        if len(cds_sequence) < 3:
+            continue
+
+        prepared_model = dict(model)
+        prepared_model["segments"] = segment_offsets
+        prepared_model["cds_sequence"] = cds_sequence
+        prepared_model["cds_length"] = len(cds_sequence)
+        prepared[transcript_id] = prepared_model
+    return prepared
+
+
+def annotate_variant_against_transcript(
+    chrom: str,
+    position: int,
+    ref: str,
+    alt: str,
+    model: dict,
+) -> dict | None:
+    if model.get("chrom") != chrom:
         return None
 
-    chrom, mut_pos, ref_allele, mut_allele = match.groups()
-    mut_pos = int(mut_pos)
-    mut_pos_0based = mut_pos - 1
-
-    chrm_data = df_manifest[df_manifest["chr"] == chrom]
-    if chrm_data.empty:
-        return None
-    idx = (np.abs(chrm_data["pos"] - mut_pos_0based)).argmin()
-    closest_probe = chrm_data.iloc[idx]
-
-    cpg_pos = int(closest_probe["pos"])
-    probe_id = closest_probe["probeID"]
-
-    offset = mut_pos_0based - cpg_pos
-    if abs(offset) > 2499:
+    containing_segment = None
+    for segment in model["segments"]:
+        if segment["start"] <= position <= segment["end"]:
+            containing_segment = segment
+            break
+    if containing_segment is None:
         return None
 
-    start_idx = cpg_pos - 2499
-    end_idx = start_idx + 5000
+    if model["strand"] == "+":
+        transcript_offset = containing_segment["offset"] + (position - containing_segment["start"])
+        transcript_ref = ref
+        transcript_alt = alt
+    else:
+        transcript_offset = containing_segment["offset"] + (containing_segment["end"] - position)
+        transcript_ref = complement_base(ref)
+        transcript_alt = complement_base(alt)
 
-    if start_idx < 0 or end_idx > len(genome[chrom]):
+    cds_sequence = model["cds_sequence"]
+    if transcript_offset < 0 or transcript_offset >= len(cds_sequence):
+        return None
+    if cds_sequence[transcript_offset] != transcript_ref:
         return None
 
-    healthy_seq = str(genome[chrom][start_idx:end_idx]).upper()
-
-    if healthy_seq[2499:2501] != "CG":
+    codon_start = transcript_offset - (transcript_offset % 3)
+    codon_ref = cds_sequence[codon_start : codon_start + 3]
+    if len(codon_ref) != 3 or any(base not in "ACGT" for base in codon_ref):
         return None
 
-    mut_idx = 2499 + offset
-    if healthy_seq[mut_idx : mut_idx + len(ref_allele)] != ref_allele:
+    codon_alt_list = list(codon_ref)
+    codon_alt_list[transcript_offset % 3] = transcript_alt
+    codon_alt = "".join(codon_alt_list)
+    aa_ref = CODON_TABLE.get(codon_ref)
+    aa_alt = CODON_TABLE.get(codon_alt)
+    if aa_ref is None or aa_alt is None:
         return None
-
-    mutated_seq = healthy_seq[:mut_idx] + mut_allele + healthy_seq[mut_idx + len(ref_allele) :]
-
-    start_100 = max(0, cpg_pos - 49)
-    end_100 = cpg_pos + 51
-
-    bw_features = {}
-    for name, bw in bw_handles.items():
-        if name == "Target_Base_PhyloP_100way_1":
-            val = get_bw_signal(bw, chrom, cpg_pos, cpg_pos + 1)
-        elif name == "Target_Base_PhyloP_100way_2":
-            val = get_bw_signal(bw, chrom, cpg_pos + 1, cpg_pos + 2)
-        else:
-            val = get_bw_signal(bw, chrom, start_100, end_100)
-        bw_features[name] = val
 
     return {
-        "probeID": probe_id,
-        "chr": chrom,
-        "pos": cpg_pos,
-        "Healthy_5000bp_DNA": healthy_seq,
-        "Mutated_5000bp_DNA": mutated_seq,
-        **bw_features,
+        "transcript_id": model["transcript_id"],
+        "transcript_name": model.get("transcript_name", ""),
+        "gene_id": model.get("gene_id", ""),
+        "gene_name": model.get("gene_name", ""),
+        "transcript_type": model.get("transcript_type", ""),
+        "transcript_support_level": model.get("transcript_support_level", "NA"),
+        "tags": model.get("tags", []),
+        "strand": model["strand"],
+        "cds_length": model["cds_length"],
+        "cds_position_1based": transcript_offset + 1,
+        "codon_ref": codon_ref,
+        "codon_alt": codon_alt,
+        "amino_acid_ref": aa_ref,
+        "amino_acid_alt": aa_alt,
+        "is_synonymous": aa_ref == aa_alt,
     }
 
 
-print("[*] Constructing multi-modal features and strict centering...")
-results = []
-for _, row in tqdm(df.iterrows(), total=len(df)):
-    feat = extract_and_build(row)
-    if feat:
-        results.append({**row.to_dict(), **feat})
+def fetch_gdc_hits(cache_path: Path, refresh: bool, page_size: int) -> tuple[list[dict], dict]:
+    if cache_path.exists() and not refresh:
+        with gzip.open(cache_path, "rt") as handle:
+            cached = json.load(handle)
+        return cached["hits"], cached["query_metadata"]
 
-df_final = pd.DataFrame(results)
+    filters = {
+        "op": "and",
+        "content": [
+            {"op": "in", "content": {"field": "cases.project.project_id", "value": ["TCGA-BRCA"]}},
+            {
+                "op": "in",
+                "content": {
+                    "field": "consequence.transcript.consequence_type",
+                    "value": ["synonymous_variant"],
+                },
+            },
+        ],
+    }
 
-print("\n==========================================")
-print("--- STEP 3.5: FETCHING COHORT NORMAL BASELINES ---")
-print("==========================================")
-relevant_probes = set(df_final["probeID"])
-print(f"[*] Mining local TCGA file for {len(relevant_probes)} cohort-average normal baselines...")
+    session = requests.Session()
+    all_hits: list[dict] = []
+    offset = 0
+    total = None
 
-with gzip.open(METH_PATH, "rt") as handle:
-    meth_header = handle.readline().strip().split("\t")
+    while total is None or offset < total:
+        params = {
+            "filters": json.dumps(filters, separators=(",", ":")),
+            "expand": "occurrence.case,consequence.transcript.gene",
+            "fields": (
+                "ssm_id,genomic_dna_change,chromosome,start_position,end_position,"
+                "reference_allele,tumor_allele,mutation_type,mutation_subtype,"
+                "occurrence.case.case_id,occurrence.case.submitter_id"
+            ),
+            "format": "JSON",
+            "from": str(offset),
+            "size": str(page_size),
+        }
+        response = session.get(GDC_URL, params=params, timeout=120)
+        response.raise_for_status()
+        payload = response.json()
+        data = payload.get("data", {})
+        hits = data.get("hits", [])
+        pagination = data.get("pagination", {})
+        if total is None:
+            total = int(pagination.get("total", len(hits)))
+        all_hits.extend(hits)
+        if not hits:
+            break
+        offset += len(hits)
+        print(f"Retrieved {len(all_hits):,}/{total:,} GDC SSM records")
 
-probe_col_name = meth_header[0]
-healthy_cols = [col for col in meth_header if "-11" in col]
+    query_metadata = {
+        "endpoint": GDC_URL,
+        "filters": filters,
+        "expand": "occurrence.case,consequence.transcript.gene",
+        "fields": (
+            "ssm_id,genomic_dna_change,chromosome,start_position,end_position,"
+            "reference_allele,tumor_allele,mutation_type,mutation_subtype,"
+            "occurrence.case.case_id,occurrence.case.submitter_id"
+        ),
+        "retrieved_utc": datetime.now(timezone.utc).isoformat(),
+        "page_size": page_size,
+        "reported_total": total,
+        "retrieved_hits": len(all_hits),
+    }
+    cache_payload = {"query_metadata": query_metadata, "hits": all_hits}
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    with gzip.open(cache_path, "wt") as handle:
+        json.dump(cache_payload, handle, sort_keys=True)
+    return all_hits, query_metadata
 
-probe_to_normal = {}
-for chunk in pd.read_csv(METH_PATH, sep="\t", usecols=[probe_col_name] + healthy_cols, chunksize=50000):
-    chunk.rename(columns={probe_col_name: "probeID"}, inplace=True)
-    chunk = chunk[chunk["probeID"].isin(relevant_probes)]
-    if not chunk.empty:
-        for _, row in chunk.iterrows():
-            vals = pd.to_numeric(row[healthy_cols], errors="coerce").dropna()
-            if not vals.empty:
-                probe_to_normal[row["probeID"]] = np.median(vals)
+
+def extract_case_identifiers(hit: dict) -> tuple[set[str], set[str]]:
+    case_ids: set[str] = set()
+    submitter_ids: set[str] = set()
+    for occurrence in hit.get("occurrence", []) or []:
+        case = occurrence.get("case", {}) or {}
+        case_id = case.get("case_id") or case.get("id")
+        submitter = case.get("submitter_id")
+        if case_id:
+            case_ids.add(str(case_id))
+        if submitter:
+            submitter_ids.add(str(submitter))
+    return case_ids, submitter_ids
 
 
-def get_cohort_m_val(beta):
-    if pd.isna(beta):
+def parse_gdc_variant(hit: dict) -> dict | None:
+    genomic_change = str(hit.get("genomic_dna_change", "")).strip()
+    match = MUTATION_RE.match(genomic_change)
+    if match:
+        chrom, position, ref, alt = match.groups()
+        chrom = chrom.replace("CHR", "chr").replace("Chr", "chr")
+        return {
+            "chrom": chrom,
+            "position": int(position),
+            "ref": ref.upper(),
+            "alt": alt.upper(),
+            "genomic_change": f"{chrom}:g.{int(position)}{ref.upper()}>{alt.upper()}",
+        }
+
+    chrom = str(hit.get("chromosome", ""))
+    if chrom and not chrom.startswith("chr"):
+        chrom = f"chr{chrom}"
+    position = hit.get("start_position")
+    ref = str(hit.get("reference_allele", "")).upper()
+    alt = str(hit.get("tumor_allele", "")).upper()
+    if chrom in VALID_CHROMS and position is not None and len(ref) == len(alt) == 1 and ref in "ACGT" and alt in "ACGT":
+        return {
+            "chrom": chrom,
+            "position": int(position),
+            "ref": ref,
+            "alt": alt,
+            "genomic_change": f"{chrom}:g.{int(position)}{ref}>{alt}",
+        }
+    return None
+
+
+def aggregate_gdc_variants(hits: list[dict]) -> tuple[list[dict], dict]:
+    grouped: dict[tuple[str, int, str, str], dict] = {}
+    dropped_unparsed = 0
+
+    for hit in hits:
+        parsed = parse_gdc_variant(hit)
+        if parsed is None or parsed["ref"] == parsed["alt"]:
+            dropped_unparsed += 1
+            continue
+
+        key = (parsed["chrom"], parsed["position"], parsed["ref"], parsed["alt"])
+        record = grouped.setdefault(
+            key,
+            {
+                **parsed,
+                "gdc_ssm_ids": set(),
+                "gdc_case_ids": set(),
+                "gdc_case_submitter_ids": set(),
+            },
+        )
+        ssm_id = hit.get("ssm_id") or hit.get("id")
+        if ssm_id:
+            record["gdc_ssm_ids"].add(str(ssm_id))
+        case_ids, submitter_ids = extract_case_identifiers(hit)
+        record["gdc_case_ids"].update(case_ids)
+        record["gdc_case_submitter_ids"].update(submitter_ids)
+
+    records: list[dict] = []
+    for record in grouped.values():
+        records.append(
+            {
+                **{key: value for key, value in record.items() if not isinstance(value, set)},
+                "gdc_ssm_ids": sorted(record["gdc_ssm_ids"]),
+                "gdc_case_ids": sorted(record["gdc_case_ids"]),
+                "gdc_case_submitter_ids": sorted(record["gdc_case_submitter_ids"]),
+            }
+        )
+
+    records.sort(key=lambda row: (natural_chrom_rank(row["chrom"]), row["position"], row["ref"], row["alt"]))
+    return records, {"dropped_unparsed_or_non_snv": dropped_unparsed, "unique_genomic_snvs": len(records)}
+
+
+def build_probe_index(manifest_path: Path) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+    manifest = pd.read_csv(
+        manifest_path,
+        sep="\t",
+        usecols=["probeID", "CpG_chrm", "CpG_beg"],
+        dtype={"probeID": "string", "CpG_chrm": "string"},
+    ).rename(columns={"CpG_chrm": "chr", "CpG_beg": "pos"})
+    manifest = manifest[manifest["chr"].isin(VALID_CHROMS)].dropna(subset=["probeID", "chr", "pos"])
+    manifest["pos"] = pd.to_numeric(manifest["pos"], errors="raise").astype(int)
+    manifest = manifest.sort_values(["chr", "pos", "probeID"], kind="mergesort")
+    manifest = manifest.drop_duplicates(subset="probeID", keep="first")
+
+    index: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+    for chrom, chrom_df in manifest.groupby("chr", sort=False):
+        index[str(chrom)] = (
+            chrom_df["pos"].to_numpy(dtype=np.int64),
+            chrom_df["probeID"].astype(str).to_numpy(),
+        )
+    return index
+
+
+def nearest_probe(probe_index: dict[str, tuple[np.ndarray, np.ndarray]], chrom: str, position_zero_based: int) -> tuple[str, int] | None:
+    if chrom not in probe_index:
+        return None
+    positions, probe_ids = probe_index[chrom]
+    insertion = int(np.searchsorted(positions, position_zero_based, side="left"))
+    candidates: list[int] = []
+    if insertion < len(positions):
+        candidates.append(insertion)
+    if insertion > 0:
+        candidates.append(insertion - 1)
+    if not candidates:
+        return None
+
+    best = min(candidates, key=lambda idx: (abs(int(positions[idx]) - position_zero_based), int(positions[idx]), str(probe_ids[idx])))
+    return str(probe_ids[best]), int(positions[best])
+
+
+def open_bigwig_handles(paths: dict[str, Path]) -> dict[str, pyBigWig.pyBigWig]:
+    missing = [str(path) for path in paths.values() if not path.exists()]
+    if missing:
+        raise FileNotFoundError("Missing required BigWig files:\n" + "\n".join(missing))
+    return {name: pyBigWig.open(str(path)) for name, path in paths.items()}
+
+
+def get_bw_signal(bw_obj: pyBigWig.pyBigWig, chrom: str, start: int, end: int) -> float:
+    try:
+        chroms = bw_obj.chroms()
+        query_chrom = chrom
+        if query_chrom not in chroms:
+            alternate = chrom.replace("chr", "", 1) if chrom.startswith("chr") else f"chr{chrom}"
+            if alternate not in chroms:
+                return np.nan
+            query_chrom = alternate
+
+        bounded_start = max(0, int(start))
+        bounded_end = min(int(chroms[query_chrom]), int(end))
+        if bounded_end <= bounded_start:
+            return np.nan
+        stat = bw_obj.stats(query_chrom, bounded_start, bounded_end, type="mean")
+        if not stat or stat[0] is None:
+            return np.nan
+        value = float(stat[0])
+        return value if math.isfinite(value) else np.nan
+    except Exception:
         return np.nan
-    b_safe = max(0.0001, min(0.9999, beta))
-    return np.log2(b_safe / (1 - b_safe))
 
 
-df_final["Cohort_Normal_Beta"] = df_final["probeID"].map(probe_to_normal)
-df_final["True_Wild_Type_Beta"] = df_final["Matched_Normal_Beta"].combine_first(df_final["Cohort_Normal_Beta"])
-df_final["True_Wild_Type_M_Value"] = df_final["True_Wild_Type_Beta"].apply(get_cohort_m_val)
+def load_json(path: Path) -> dict:
+    with path.open() as handle:
+        return json.load(handle)
 
-df_final = df_final.dropna(subset=["True_Wild_Type_Beta"])
-print(f"[✓] Baselines secured. {len(df_final)} fully matched pairs remain.")
 
-final_columns = [
-    "chr",
-    "pos",
-    "probeID",
-    "Gene",
-    "GDC_Genomic_DNA_Change",
-    "TCGA_Patient_Barcode",
-    "Healthy_5000bp_DNA",
-    "Mutated_5000bp_DNA",
-    "True_Wild_Type_Beta",
-    "True_Wild_Type_M_Value",
-    "True_Mutated_Beta",
-    "True_Mutated_M_Value",
-    "Ref_ATAC_Signal",
-    "Ref_H3K4me3_Signal",
-    "Ref_H3K27ac_Signal",
-    "Ref_H3K27me3_Signal",
-    "Ref_H3K9me3_Signal",
-    "Ref_H3K36me3_Signal",
-    "Ref_H3K4me1_Signal",
-    "Target_Base_PhyloP_100way_1",
-    "Target_Base_PhyloP_100way_2",
-]
+def model_split_for_chrom(chrom: str, split_manifest: dict) -> str:
+    if chrom in set(split_manifest["test_chromosomes"]):
+        return "test"
+    if chrom in set(split_manifest["validation_chromosomes"]):
+        return "val"
+    if chrom in set(split_manifest["train_chromosomes"]):
+        return "train"
+    raise ValueError(f"Chromosome {chrom} is absent from split_manifest.json")
 
-df_final = df_final[[col for col in final_columns if col in df_final.columns]]
 
-df_final = sort_dataframe(df_final)
-OUTPUT_PATH = DATAFILES_DIR / "testing_data.csv"
-df_final.to_csv(OUTPUT_PATH, index=False)
+def sbs96_class(genome: Fasta, chrom: str, position_1based: int, ref: str, alt: str) -> tuple[str, str]:
+    position_zero = position_1based - 1
+    if position_zero <= 0 or position_zero + 1 >= len(genome[chrom]):
+        return "", ""
+    trinucleotide = str(genome[chrom][position_zero - 1 : position_zero + 2]).upper()
+    if len(trinucleotide) != 3 or trinucleotide[1] != ref:
+        return trinucleotide, ""
 
-write_test_fastas(
-    df_final,
-    DATAFILES_DIR / "test_healthy_100bp.fasta",
-    DATAFILES_DIR / "test_mutated_100bp.fasta",
-)
+    oriented_ref, oriented_alt, oriented_tri = ref, alt, trinucleotide
+    if ref in {"A", "G"}:
+        oriented_ref = complement_base(ref)
+        oriented_alt = complement_base(alt)
+        oriented_tri = reverse_complement(trinucleotide)
+    return trinucleotide, f"{oriented_tri[0]}[{oriented_ref}>{oriented_alt}]{oriented_tri[2]}"
 
-for bw in bw_handles.values():
-    bw.close()
 
-print(f"\n[✓] EXTRACTION COMPLETE!")
-print(f"[✓] Saved {len(df_final)} precisely aligned, matched test pairings to: {OUTPUT_PATH}")
+def write_candidate_fastas(df: pd.DataFrame, paths: dict[str, tuple[Path, str]]) -> None:
+    handles = {name: path.open("w") for name, (path, _) in paths.items()}
+    try:
+        for row in df.itertuples(index=False):
+            for name, (_, sequence_column) in paths.items():
+                sequence = str(getattr(row, sequence_column))
+                if len(sequence) != WINDOW_SIZE:
+                    raise ValueError(f"Unexpected sequence length for {row.Candidate_ID}: {len(sequence)}")
+                handles[name].write(f">{row.Candidate_ID}\n{sequence[FASTA_SLICE]}\n")
+    finally:
+        for handle in handles.values():
+            handle.close()
+
+
+def main() -> None:
+    args = parse_args()
+    data_dir = args.data_dir.resolve()
+    datafiles_dir = data_dir / "datafiles"
+    datafiles_dir.mkdir(parents=True, exist_ok=True)
+
+    fasta_path = data_dir / "hg38.fa"
+    manifest_path = data_dir / "HM450.hg38.manifest.tsv.gz"
+    gtf_path = data_dir / "reference" / "gencode.v44.annotation.gtf.gz"
+    split_manifest_path = datafiles_dir / "split_manifest.json"
+    imputation_path = datafiles_dir / "feature_imputation.json"
+    raw_gdc_path = datafiles_dir / "gdc_tcga_brca_synonymous_raw.json.gz"
+
+    base_ref = data_dir / "reference"
+    bw_paths = {
+        "Ref_ATAC_Signal": base_ref / "ATAC_seq.bw",
+        "Ref_H3K4me3_Signal": base_ref / "H3K4me3.bw",
+        "Ref_H3K27ac_Signal": base_ref / "H3K27ac.bw",
+        "Ref_H3K27me3_Signal": base_ref / "H3K27me3.bw",
+        "Ref_H3K9me3_Signal": base_ref / "H3K9me3.bw",
+        "Ref_H3K36me3_Signal": base_ref / "H3K36me3.bw",
+        "Ref_H3K4me1_Signal": base_ref / "H3K4me1.bw",
+        "Target_Base_PhyloP_100way_1": base_ref / "hg38.phyloP100way.bw",
+        "Target_Base_PhyloP_100way_2": base_ref / "hg38.phyloP100way.bw",
+    }
+
+    required = [fasta_path, manifest_path, gtf_path, split_manifest_path, imputation_path, *bw_paths.values()]
+    missing = [str(path) for path in required if not path.exists()]
+    if missing:
+        raise FileNotFoundError("Missing required input files:\n" + "\n".join(missing))
+
+    split_manifest = load_json(split_manifest_path)
+    imputation_payload = load_json(imputation_path)
+    imputation_values = imputation_payload["values"]
+    absent_imputation = set(bw_paths) - set(imputation_values)
+    if absent_imputation:
+        raise RuntimeError(f"Missing imputation values for: {sorted(absent_imputation)}")
+
+    genome = Fasta(str(fasta_path), as_raw=True, sequence_always_upper=True)
+
+    print("==========================================")
+    print("STEP 1: GDC COHORT ASCERTAINMENT")
+    print("==========================================")
+    hits, query_metadata = fetch_gdc_hits(raw_gdc_path, args.refresh_gdc, args.page_size)
+    variants, aggregation_stats = aggregate_gdc_variants(hits)
+    print(f"Parsed {len(variants):,} unique single-nucleotide substitutions from {len(hits):,} GDC records.")
+
+    # Verify reference alleles before transcript annotation.
+    reference_valid_variants: list[dict] = []
+    reference_mismatch = 0
+    for variant in variants:
+        pos0 = variant["position"] - 1
+        observed = str(genome[variant["chrom"]][pos0 : pos0 + 1]).upper()
+        if observed != variant["ref"]:
+            reference_mismatch += 1
+            continue
+        reference_valid_variants.append(variant)
+
+    print("==========================================")
+    print("STEP 2: FIXED GENCODE v44 REANNOTATION")
+    print("==========================================")
+    positions_by_chrom: dict[str, list[int]] = defaultdict(list)
+    for variant in reference_valid_variants:
+        positions_by_chrom[variant["chrom"]].append(variant["position"])
+    positions_by_chrom = {chrom: sorted(set(positions)) for chrom, positions in positions_by_chrom.items()}
+
+    candidate_transcript_ids = discover_candidate_transcripts(gtf_path, positions_by_chrom)
+    raw_models = load_transcript_models(gtf_path, candidate_transcript_ids)
+    transcript_models = prepare_transcript_models(raw_models, genome)
+
+    position_to_transcripts: dict[tuple[str, int], list[dict]] = defaultdict(list)
+    for model in transcript_models.values():
+        for segment in model["segments"]:
+            positions = positions_by_chrom.get(model["chrom"], [])
+            start_index = bisect.bisect_left(positions, segment["start"])
+            end_index = bisect.bisect_right(positions, segment["end"])
+            for position in positions[start_index:end_index]:
+                position_to_transcripts[(model["chrom"], position)].append(model)
+
+    annotated_variants: list[dict] = []
+    no_local_synonymous = 0
+    for variant in tqdm(reference_valid_variants, desc="Verifying synonymous consequences"):
+        annotations: list[dict] = []
+        for model in position_to_transcripts.get((variant["chrom"], variant["position"]), []):
+            annotation = annotate_variant_against_transcript(
+                variant["chrom"], variant["position"], variant["ref"], variant["alt"], model
+            )
+            if annotation and annotation["is_synonymous"]:
+                annotations.append(annotation)
+
+        if not annotations:
+            no_local_synonymous += 1
+            continue
+        annotations.sort(key=transcript_priority)
+        selected = annotations[0]
+        annotated_variants.append({**variant, "selected_annotation": selected, "all_synonymous_annotations": annotations})
+
+    print(f"Retained {len(annotated_variants):,} variants synonymous in at least one fixed GENCODE v44 transcript.")
+
+    print("==========================================")
+    print("STEP 3: CpG PAIRING AND MULTIMODAL INPUTS")
+    print("==========================================")
+    probe_index = build_probe_index(manifest_path)
+    bw_handles = open_bigwig_handles(bw_paths)
+    output_rows: list[dict] = []
+    counters = defaultdict(int)
+
+    try:
+        for variant in tqdm(annotated_variants, desc="Building candidate inputs"):
+            chrom = variant["chrom"]
+            position_1based = variant["position"]
+            position_zero = position_1based - 1
+            nearest = nearest_probe(probe_index, chrom, position_zero)
+            if nearest is None:
+                counters["no_probe_on_chromosome"] += 1
+                continue
+            probe_id, cpg_pos = nearest
+            offset = position_zero - cpg_pos
+            if abs(offset) > CENTER_C_INDEX:
+                counters["variant_outside_5kb_window"] += 1
+                continue
+
+            # The centered CpG itself is the prediction target. A substitution at
+            # either target base (offset 0 = C, offset 1 = G) changes/removes the
+            # CpG whose methylation beta value the model is defined to predict,
+            # so such variants are not valid counterfactual perturbations.
+            if offset in (0, 1):
+                counters["variant_overlaps_target_cpg"] += 1
+                continue
+
+            sequence_start = cpg_pos - CENTER_C_INDEX
+            sequence_end = sequence_start + WINDOW_SIZE
+            if sequence_start < 0 or sequence_end > len(genome[chrom]):
+                counters["window_out_of_bounds"] += 1
+                continue
+
+            healthy_sequence = str(genome[chrom][sequence_start:sequence_end]).upper()
+            if len(healthy_sequence) != WINDOW_SIZE or healthy_sequence[CENTER_C_INDEX : CENTER_G_INDEX + 1] != "CG":
+                counters["centered_cpg_failure"] += 1
+                continue
+
+            mutation_index = CENTER_C_INDEX + offset
+            if healthy_sequence[mutation_index] != variant["ref"]:
+                counters["window_reference_mismatch"] += 1
+                continue
+            mutated_sequence = (
+                healthy_sequence[:mutation_index] + variant["alt"] + healthy_sequence[mutation_index + 1 :]
+            )
+
+            selected = variant["selected_annotation"]
+            candidate_id = (
+                f"{chrom}_{position_1based}_{variant['ref']}_{variant['alt']}__"
+                f"{probe_id}__{selected['transcript_id']}"
+            ).replace(".", "_")
+            trinucleotide, sbs_class = sbs96_class(
+                genome, chrom, position_1based, variant["ref"], variant["alt"]
+            )
+
+            row = {
+                "Candidate_ID": candidate_id,
+                "chr": chrom,
+                "Variant_Position_1based": position_1based,
+                "Variant_Position_0based": position_zero,
+                "Reference_Allele": variant["ref"],
+                "Alternate_Allele": variant["alt"],
+                "GDC_Genomic_DNA_Change": variant["genomic_change"],
+                "GDC_SSM_IDs": json.dumps(variant["gdc_ssm_ids"], separators=(",", ":")),
+                "GDC_Case_IDs": json.dumps(variant["gdc_case_ids"], separators=(",", ":")),
+                "GDC_Case_Submitter_IDs": json.dumps(
+                    variant["gdc_case_submitter_ids"], separators=(",", ":")
+                ),
+                "GDC_Occurrence_Count": max(
+                    len(variant["gdc_case_ids"]), len(variant["gdc_case_submitter_ids"])
+                ),
+                "Selected_Gene_ID": selected["gene_id"],
+                "Selected_Gene_Name": selected["gene_name"],
+                "Selected_Transcript_ID": selected["transcript_id"],
+                "Selected_Transcript_Name": selected["transcript_name"],
+                "Selected_Transcript_Type": selected["transcript_type"],
+                "Selected_Transcript_Strand": selected["strand"],
+                "Selected_Transcript_Tags": json.dumps(selected["tags"], separators=(",", ":")),
+                "Selected_Transcript_Support_Level": selected["transcript_support_level"],
+                "CDS_Position_1based": selected["cds_position_1based"],
+                "Reference_Codon": selected["codon_ref"],
+                "Alternate_Codon": selected["codon_alt"],
+                "Amino_Acid": selected["amino_acid_ref"],
+                "All_Synonymous_Transcript_Annotations": json.dumps(
+                    variant["all_synonymous_annotations"], sort_keys=True, separators=(",", ":")
+                ),
+                "Reference_Trinucleotide": trinucleotide,
+                "SBS96_Class": sbs_class,
+                "probeID": probe_id,
+                "pos": cpg_pos,
+                "Mutation_Offset_From_CpG": offset,
+                "Absolute_Distance_To_CpG": abs(offset),
+                "Mutation_Index_5000_ZeroBased": mutation_index,
+                "Model_Split": model_split_for_chrom(chrom, split_manifest),
+                "Healthy_5000bp_DNA": healthy_sequence,
+                "Mutated_5000bp_DNA": mutated_sequence,
+                "Healthy_5000bp_DNA_RC": reverse_complement(healthy_sequence),
+                "Mutated_5000bp_DNA_RC": reverse_complement(mutated_sequence),
+                "Healthy_100bp_DNA": healthy_sequence[FASTA_SLICE],
+                "Mutated_100bp_DNA": mutated_sequence[FASTA_SLICE],
+                "Healthy_100bp_DNA_RC": reverse_complement(healthy_sequence[FASTA_SLICE]),
+                "Mutated_100bp_DNA_RC": reverse_complement(mutated_sequence[FASTA_SLICE]),
+            }
+
+            region_start = cpg_pos - 49
+            region_end = cpg_pos + 51
+            raw_features: dict[str, float] = {}
+            for feature_name, bw_obj in bw_handles.items():
+                if feature_name == "Target_Base_PhyloP_100way_1":
+                    value = get_bw_signal(bw_obj, chrom, cpg_pos, cpg_pos + 1)
+                elif feature_name == "Target_Base_PhyloP_100way_2":
+                    value = get_bw_signal(bw_obj, chrom, cpg_pos + 1, cpg_pos + 2)
+                else:
+                    value = get_bw_signal(bw_obj, chrom, region_start, region_end)
+                raw_features[feature_name] = value
+
+            for feature_name, value in raw_features.items():
+                missing = not math.isfinite(float(value)) if not pd.isna(value) else True
+                row[f"{feature_name}_Missing"] = int(missing)
+                row[feature_name] = float(imputation_values[feature_name]) if missing else float(value)
+
+            row["Target_Base_PhyloP_100way_1_RC"] = row["Target_Base_PhyloP_100way_2"]
+            row["Target_Base_PhyloP_100way_2_RC"] = row["Target_Base_PhyloP_100way_1"]
+            row["Target_Base_PhyloP_100way_1_RC_Missing"] = row["Target_Base_PhyloP_100way_2_Missing"]
+            row["Target_Base_PhyloP_100way_2_RC_Missing"] = row["Target_Base_PhyloP_100way_1_Missing"]
+
+            if row["Healthy_5000bp_DNA_RC"][CENTER_C_INDEX : CENTER_G_INDEX + 1] != "CG":
+                counters["rc_centering_failure"] += 1
+                continue
+            output_rows.append(row)
+    finally:
+        for handle in bw_handles.values():
+            handle.close()
+
+    if not output_rows:
+        raise RuntimeError("No candidate rows survived fixed annotation and sequence construction.")
+
+    df_final = sort_dataframe(pd.DataFrame(output_rows))
+    duplicate_mask = df_final.duplicated(
+        subset=["chr", "Variant_Position_1based", "Reference_Allele", "Alternate_Allele", "probeID", "Selected_Transcript_ID"],
+        keep="first",
+    )
+    duplicate_count = int(duplicate_mask.sum())
+    if duplicate_count:
+        df_final = df_final.loc[~duplicate_mask].reset_index(drop=True)
+
+    all_output_path = datafiles_dir / "testing_data.csv"
+    test_only_path = datafiles_dir / "testing_data_test_only.csv"
+    df_final.to_csv(all_output_path, index=False)
+    df_final[df_final["Model_Split"].eq("test")].to_csv(test_only_path, index=False)
+
+    fasta_paths = {
+        "healthy_forward": (datafiles_dir / "test_healthy_100bp.fasta", "Healthy_5000bp_DNA"),
+        "healthy_rc": (datafiles_dir / "test_healthy_100bp_rc.fasta", "Healthy_5000bp_DNA_RC"),
+        "mutated_forward": (datafiles_dir / "test_mutated_100bp.fasta", "Mutated_5000bp_DNA"),
+        "mutated_rc": (datafiles_dir / "test_mutated_100bp_rc.fasta", "Mutated_5000bp_DNA_RC"),
+    }
+    write_candidate_fastas(df_final, fasta_paths)
+
+    gdc_query_hash = canonical_json_sha256({"query_metadata": query_metadata, "hits": hits})
+    input_records = {
+        "reference_fasta": file_record(fasta_path, hash_file=args.hash_large_inputs),
+        "reference_fasta_index": file_record(Path(str(fasta_path) + ".fai")) if Path(str(fasta_path) + ".fai").exists() else None,
+        "hm450_manifest": file_record(manifest_path),
+        "gencode_v44_gtf": file_record(gtf_path),
+        "split_manifest": file_record(split_manifest_path),
+        "feature_imputation": file_record(imputation_path),
+        "bigwigs": {name: file_record(path, hash_file=args.hash_large_inputs) for name, path in bw_paths.items()},
+        "raw_gdc_cache": file_record(raw_gdc_path),
+    }
+
+    output_records = {
+        "testing_data": file_record(all_output_path),
+        "testing_data_test_only": file_record(test_only_path),
+        **{name: file_record(path) for name, (path, _) in fasta_paths.items()},
+    }
+
+    cohort_manifest = {
+        "schema_version": 1,
+        "created_utc": datetime.now(timezone.utc).isoformat(),
+        "script": file_record(Path(__file__).resolve()),
+        "cohort_definition": {
+            "project": "TCGA-BRCA",
+            "discovery_filter": "GDC consequence.transcript.consequence_type contains synonymous_variant",
+            "local_eligibility": "single-nucleotide substitution verified synonymous against at least one GENCODE v44 CDS transcript; variant must not alter either base of the centered target CpG",
+            "selected_transcript_rule": [
+                "MANE_Select",
+                "Ensembl_canonical",
+                "APPRIS principal",
+                "protein_coding transcript type",
+                "GENCODE basic",
+                "lowest transcript support level",
+                "longest CDS",
+                "lexicographic transcript ID",
+            ],
+            "cbioportal_filter_used": False,
+            "methylation_availability_filter_used": False,
+            "candidate_labels_used": False,
+            "primary_candidate_subset": "Model_Split == test",
+        },
+        "gdc_query": {**query_metadata, "canonical_query_and_hits_sha256": gdc_query_hash},
+        "counts": {
+            "raw_gdc_hits": len(hits),
+            **aggregation_stats,
+            "reference_allele_mismatches": reference_mismatch,
+            "reference_valid_snvs": len(reference_valid_variants),
+            "candidate_transcripts_examined": len(transcript_models),
+            "not_synonymous_in_fixed_gencode_v44": no_local_synonymous,
+            "fixed_release_synonymous_variants": len(annotated_variants),
+            "sequence_and_probe_valid_rows_before_deduplication": len(output_rows),
+            "duplicate_candidate_rows_removed": duplicate_count,
+            "final_candidate_rows": len(df_final),
+            "final_test_chromosome_candidates": int(df_final["Model_Split"].eq("test").sum()),
+            "final_validation_chromosome_candidates": int(df_final["Model_Split"].eq("val").sum()),
+            "final_training_chromosome_candidates": int(df_final["Model_Split"].eq("train").sum()),
+            **{key: int(value) for key, value in counters.items()},
+        },
+        "reverse_complement": {
+            "forward_and_rc_sequences_emitted": True,
+            "inference_requirement": "average forward and reverse-complement predictions",
+            "ordered_feature_transform": {
+                "Target_Base_PhyloP_100way_1_RC": "Target_Base_PhyloP_100way_2",
+                "Target_Base_PhyloP_100way_2_RC": "Target_Base_PhyloP_100way_1",
+            },
+        },
+        "inputs": input_records,
+        "outputs": output_records,
+    }
+    cohort_manifest_path = datafiles_dir / "candidate_cohort_manifest.json"
+    cohort_manifest_path.write_text(json.dumps(cohort_manifest, indent=2, sort_keys=True) + "\n")
+
+    print(json.dumps(cohort_manifest["counts"], indent=2, sort_keys=True))
+    print(f"Clean candidate cohort written to: {all_output_path}")
+    print(f"Held-out candidate subset written to: {test_only_path}")
+    print(f"Cohort manifest written to: {cohort_manifest_path}")
+
+
+if __name__ == "__main__":
+    main()

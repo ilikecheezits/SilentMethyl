@@ -1,0 +1,21 @@
+{
+  "auc": 0.9561827128801956,
+  "beta_fwd_rc_mae": 0.06409356975447741,
+  "beta_fwd_rc_max_abs": 0.935699462890625,
+  "beta_fwd_rc_pearson": 0.9526561702784256,
+  "beta_mae": 0.1103931298372355,
+  "beta_mean_signed_error": -0.004810889443034909,
+  "beta_median_absolute_error": 0.056123703718185425,
+  "beta_rmse": 0.1756555648671203,
+  "classprob_fwd_rc_mae": 0.06970816394373758,
+  "classprob_fwd_rc_pearson": 0.9373907240625363,
+  "inference": "forward_reverse_complement_average",
+  "m_mae": 1.1984134427150372,
+  "m_rmse": 1.6426388264036749,
+  "model_type": "sequence_only",
+  "n_test_loci": 26570,
+  "split": "test",
+  "test_path": "data/datafiles/test.csv",
+  "weights_path": "checkpoints_journal/seed44/sequence/best_weights.pth",
+  "window_size_bp": 1000
+}

@@ -1,0 +1,42 @@
+{
+  "background_interpretation": "descriptive observed-synonymous comparators selected by similarity-priority tiers; not a random-mutation null or calibrated p-value",
+  "background_random_seed": 42,
+  "candidate_rows_after_probe_qc": 703,
+  "candidate_rows_input_before_probe_qc": 771,
+  "candidate_rows_model_visible": 440,
+  "checkpoints": [
+    {
+      "seed": 42,
+      "sha256": "0fb8d1b449725fdbc4d6e146505b71d5d580b10014c71ca139ee511d1ea63ae9",
+      "weights_path": "checkpoints_journal/seed42/fusion/best_weights.pth"
+    },
+    {
+      "seed": 43,
+      "sha256": "8e7eab9c69379cc15246ff935953b8933605c0fdb24aadad2e104ba790ac3a5f",
+      "weights_path": "checkpoints_journal/seed43/fusion/best_weights.pth"
+    },
+    {
+      "seed": 44,
+      "sha256": "4b274d558508c351165886234b6b8ec9c3f3eb10b880cc57b3b4c42d9eff5099",
+      "weights_path": "checkpoints_journal/seed44/fusion/best_weights.pth"
+    }
+  ],
+  "cross_seed_aggregation": "mean RC-averaged delta beta",
+  "cross_seed_stability_inference_available": true,
+  "hm450_manifest": "data/HM450.hg38.manifest.tsv.gz",
+  "inference_precision": "fp32_forced_and_dtype_audited",
+  "input_csv": "data/datafiles/testing_data_test_only.csv",
+  "masked_probes_included": false,
+  "matched_background_delta_column": "Predicted_Delta_Beta",
+  "max_comparators": 1000,
+  "min_comparators": 20,
+  "minimum_empirical_tail_probability": 0.008333333333333333,
+  "output_rows": 440,
+  "primary_ranking": "absolute value of cross-seed mean RC-averaged mutant-minus-WT beta shift",
+  "requested_seeds": [
+    42,
+    43,
+    44
+  ],
+  "seed_count": 3
+}

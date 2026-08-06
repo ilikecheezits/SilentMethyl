@@ -1,0 +1,20 @@
+{
+  "auc": 0.9185868498780903,
+  "beta_fwd_rc_mae": 0.0028945807994286907,
+  "beta_fwd_rc_max_abs": 0.123046875,
+  "beta_fwd_rc_pearson": 0.999798296421607,
+  "beta_mae": 0.13940493820631567,
+  "beta_mean_signed_error": 0.027193380439356755,
+  "beta_median_absolute_error": 0.0690922811627388,
+  "beta_rmse": 0.22171525708345496,
+  "classprob_fwd_rc_mae": 0.003618793914674322,
+  "classprob_fwd_rc_pearson": 0.9997564385119437,
+  "inference": "forward_reverse_complement_average_with_ordered_phylop_swap",
+  "m_mae": 1.4548695659823865,
+  "m_rmse": 1.9732491902226708,
+  "model_type": "context_only",
+  "n_test_loci": 26570,
+  "split": "test",
+  "test_path": "data/datafiles/test.csv",
+  "weights_path": "checkpoints_journal/seed43/epi/best_weights.pth"
+}

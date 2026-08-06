@@ -1,0 +1,296 @@
+from __future__ import annotations
+
+import argparse
+import logging
+import math
+import os
+
+import numpy as np
+import pandas as pd
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
+from transformers import get_linear_schedule_with_warmup
+
+from training_common import (
+    EpigeneticOnlyModel,
+    OrientationAwareDataset,
+    autocast_context,
+    get_dnabert_hidden_size,
+    m_to_beta_tensor,
+    make_amp,
+    orientation_agreement_metrics,
+    regression_and_classification_metrics,
+    save_run_config,
+    set_seed,
+    validate_split_dataframe,
+)
+
+
+def make_train_loader(dataset, args, epoch):
+    generator = torch.Generator()
+    generator.manual_seed(args.seed + 1009 * epoch)
+    return DataLoader(
+        dataset,
+        batch_size=args.batch_size,
+        shuffle=True,
+        num_workers=args.num_workers,
+        pin_memory=True,
+        generator=generator,
+        persistent_workers=False,
+    )
+
+
+def evaluate(model, loader, device, amp_enabled):
+    model.eval()
+    beta_true, m_true, binary_true = [], [], []
+    m_fwd_all, m_rc_all = [], []
+    beta_fwd_all, beta_rc_all = [], []
+    prob_fwd_all, prob_rc_all = [], []
+
+    with torch.no_grad():
+        for batch in tqdm(loader, desc="[VAL RC-AVERAGED]", leave=False):
+            target_m = batch["m_value"].to(device).view(-1, 1)
+            target_beta = batch["beta_value"].to(device).view(-1, 1)
+            target_binary = batch["binary_state"].to(device).view(-1, 1)
+
+            with autocast_context(device, amp_enabled):
+                logits_fwd, m_fwd = model(
+                    batch["tab_fwd"].to(device), batch["tab_missing_fwd"].to(device)
+                )
+                logits_rc, m_rc = model(
+                    batch["tab_rc"].to(device), batch["tab_missing_rc"].to(device)
+                )
+                beta_fwd = m_to_beta_tensor(m_fwd)
+                beta_rc = m_to_beta_tensor(m_rc)
+                prob_fwd = torch.sigmoid(logits_fwd)
+                prob_rc = torch.sigmoid(logits_rc)
+
+            beta_true.extend(target_beta.cpu().float().numpy().ravel())
+            m_true.extend(target_m.cpu().float().numpy().ravel())
+            binary_true.extend(target_binary.cpu().float().numpy().ravel())
+            m_fwd_all.extend(m_fwd.cpu().float().numpy().ravel())
+            m_rc_all.extend(m_rc.cpu().float().numpy().ravel())
+            beta_fwd_all.extend(beta_fwd.cpu().float().numpy().ravel())
+            beta_rc_all.extend(beta_rc.cpu().float().numpy().ravel())
+            prob_fwd_all.extend(prob_fwd.cpu().float().numpy().ravel())
+            prob_rc_all.extend(prob_rc.cpu().float().numpy().ravel())
+
+    m_fwd, m_rc = np.asarray(m_fwd_all), np.asarray(m_rc_all)
+    beta_fwd, beta_rc = np.asarray(beta_fwd_all), np.asarray(beta_rc_all)
+    prob_fwd, prob_rc = np.asarray(prob_fwd_all), np.asarray(prob_rc_all)
+    metrics = regression_and_classification_metrics(
+        beta_true,
+        m_true,
+        (m_fwd + m_rc) / 2.0,
+        (prob_fwd + prob_rc) / 2.0,
+        binary_true,
+        beta_pred_avg=(beta_fwd + beta_rc) / 2.0,
+    )
+    metrics.update(orientation_agreement_metrics(beta_fwd, beta_rc, prob_fwd, prob_rc))
+    return metrics
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Journal context-only model training")
+    parser.add_argument("--train_path", default="data/datafiles/train.csv")
+    parser.add_argument("--val_path", default="data/datafiles/val.csv")
+    parser.add_argument("--save_dir", default="checkpoints_journal_epi_seed42")
+    parser.add_argument("--model_path", default="zhihan1996/DNABERT-2-117M")
+    parser.add_argument("--local_model_dir", default="./dnabert2_local")
+    parser.add_argument("--batch_size", type=int, default=128)
+    parser.add_argument("--grad_accum_steps", type=int, default=1)
+    parser.add_argument("--epochs", type=int, default=15)
+    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--weight_decay", type=float, default=1e-4)
+    parser.add_argument("--warmup_fraction", type=float, default=0.10)
+    parser.add_argument("--rc_probability", type=float, default=0.50)
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--num_workers", type=int, default=4)
+    parser.add_argument("--max_train_rows", type=int, default=0, help="0 uses all rows; positive values are for smoke testing only")
+    parser.add_argument("--max_val_rows", type=int, default=0, help="0 uses all rows; positive values are for smoke testing only")
+    args = parser.parse_args()
+
+    set_seed(args.seed)
+    os.makedirs(args.save_dir, exist_ok=True)
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
+    logger = logging.getLogger(__name__)
+    writer = SummaryWriter(log_dir=os.path.join(args.save_dir, "tensorboard"))
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    train_df = pd.read_csv(args.train_path)
+    val_df = pd.read_csv(args.val_path)
+    if args.max_train_rows > 0:
+        train_df = train_df.head(args.max_train_rows).copy()
+    if args.max_val_rows > 0:
+        val_df = val_df.head(args.max_val_rows).copy()
+    validate_split_dataframe(train_df, "train", args.train_path)
+    validate_split_dataframe(val_df, "val", args.val_path)
+    if set(train_df.probeID).intersection(set(val_df.probeID)):
+        raise ValueError("Train/validation probe overlap detected")
+
+    train_dataset = OrientationAwareDataset(
+        train_df,
+        training=True,
+        rc_probability=args.rc_probability,
+        seed=args.seed,
+        include_sequence=False,
+        include_context=True,
+    )
+    val_dataset = OrientationAwareDataset(
+        val_df,
+        training=False,
+        seed=args.seed,
+        include_sequence=False,
+        include_context=True,
+    )
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
+        num_workers=args.num_workers,
+        pin_memory=True,
+        persistent_workers=False,
+    )
+
+    hidden_size = get_dnabert_hidden_size(args.model_path, args.local_model_dir)
+    model = EpigeneticOnlyModel(hidden_size=hidden_size, tabular_dim=9).to(device)
+    optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+
+    micro_batches = math.ceil(len(train_dataset) / args.batch_size)
+    updates_per_epoch = math.ceil(micro_batches / args.grad_accum_steps)
+    total_updates = updates_per_epoch * args.epochs
+    scheduler = get_linear_schedule_with_warmup(
+        optimizer,
+        num_warmup_steps=int(args.warmup_fraction * total_updates),
+        num_training_steps=total_updates,
+    )
+    criterion_bce = nn.BCEWithLogitsLoss()
+    criterion_huber = nn.HuberLoss(delta=1.345)
+    scaler, amp_enabled = make_amp(device)
+
+    run_config = vars(args).copy()
+    run_config.update({
+        "model_type": "context_only",
+        "hidden_size": hidden_size,
+        "dataset_rows_train": len(train_dataset),
+        "dataset_rows_val": len(val_dataset),
+        "training_row_multiplier": 1,
+        "rc_transform": "swap ordered central-base PhyloP values and missing flags",
+        "validation_inference": "forward/RC average",
+        "checkpoint_metric": "regression_head_beta_mae_after_RC_averaging",
+    })
+    save_run_config(args.save_dir, run_config)
+
+    latest_path = os.path.join(args.save_dir, "latest_checkpoint.pt")
+    best_path = os.path.join(args.save_dir, "best_weights.pth")
+    start_epoch = 1
+    best_val_beta_mae = float("inf")
+    global_step = 0
+
+    if os.path.exists(latest_path):
+        ckpt = torch.load(latest_path, map_location=device, weights_only=False)
+        model.load_state_dict(ckpt["model_state_dict"])
+        optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+        scheduler.load_state_dict(ckpt["scheduler_state_dict"])
+        scaler.load_state_dict(ckpt["scaler_state_dict"])
+        start_epoch = int(ckpt["epoch"])
+        best_val_beta_mae = float(ckpt["best_val_beta_mae"])
+        global_step = int(ckpt.get("global_step", 0))
+        logger.info("Resuming at epoch %d", start_epoch)
+
+    logger.info(
+        "Context-only training: %d train loci, %d val loci, RC p=%.2f, seed=%d",
+        len(train_dataset), len(val_dataset), args.rc_probability, args.seed,
+    )
+
+    for epoch in range(start_epoch, args.epochs + 1):
+        train_dataset.set_epoch(epoch)
+        train_loader = make_train_loader(train_dataset, args, epoch)
+        model.train()
+        optimizer.zero_grad(set_to_none=True)
+        running_loss = 0.0
+        rc_count = 0.0
+        seen = 0
+
+        pbar = tqdm(train_loader, desc=f"Epoch {epoch}/{args.epochs} [TRAIN]")
+        for step, batch in enumerate(pbar):
+            group_start = (step // args.grad_accum_steps) * args.grad_accum_steps
+            group_end = min(group_start + args.grad_accum_steps, len(train_loader))
+            group_size = group_end - group_start
+
+            tab = batch["tab"].to(device)
+            tab_missing = batch["tab_missing"].to(device)
+            m_target = batch["m_value"].to(device).view(-1, 1)
+            binary_target = batch["binary_state"].to(device).view(-1, 1)
+            rc_count += float(batch["use_rc"].sum().item())
+            seen += int(batch["use_rc"].numel())
+
+            with autocast_context(device, amp_enabled):
+                logits, m_pred = model(tab, tab_missing)
+                loss_bce = criterion_bce(logits, binary_target)
+                loss_huber = criterion_huber(m_pred, m_target)
+                raw_loss = loss_bce + loss_huber
+                loss = raw_loss / group_size
+
+            scaler.scale(loss).backward()
+            running_loss += raw_loss.item()
+            if step + 1 == group_end:
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                scale_before = scaler.get_scale()
+                scaler.step(optimizer)
+                scaler.update()
+                if scale_before <= scaler.get_scale():
+                    scheduler.step()
+                optimizer.zero_grad(set_to_none=True)
+                global_step += 1
+                writer.add_scalar("Train/Loss", raw_loss.item(), global_step)
+                writer.add_scalar("Train/LR", scheduler.get_last_lr()[0], global_step)
+            pbar.set_postfix(loss=f"{raw_loss.item():.4f}")
+
+        metrics = evaluate(model, val_loader, device, amp_enabled)
+        rc_fraction = rc_count / max(seen, 1)
+        avg_train_loss = running_loss / len(train_loader)
+        logger.info(
+            "Epoch %d | train loss %.4f | train RC %.3f | M MAE %.4f RMSE %.4f | "
+            "beta MAE %.4f RMSE %.4f | AUC %.4f | FWD/RC beta MAE %.5f corr %.5f",
+            epoch, avg_train_loss, rc_fraction,
+            metrics["m_mae"], metrics["m_rmse"], metrics["beta_mae"], metrics["beta_rmse"],
+            metrics["auc"], metrics["beta_fwd_rc_mae"], metrics["beta_fwd_rc_pearson"],
+        )
+
+        for key, value in metrics.items():
+            writer.add_scalar(f"Val/{key}", value, epoch)
+        writer.add_scalar("Train/Epoch_Loss", avg_train_loss, epoch)
+        writer.add_scalar("Train/RC_Fraction", rc_fraction, epoch)
+
+        if metrics["beta_mae"] < best_val_beta_mae:
+            best_val_beta_mae = metrics["beta_mae"]
+            torch.save(model.state_dict(), best_path)
+            logger.info("[★] New best context model: regression beta MAE %.5f", best_val_beta_mae)
+
+        torch.save(
+            {
+                "epoch": epoch + 1,
+                "model_state_dict": model.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "scheduler_state_dict": scheduler.state_dict(),
+                "scaler_state_dict": scaler.state_dict(),
+                "best_val_beta_mae": best_val_beta_mae,
+                "global_step": global_step,
+                "seed": args.seed,
+                "rc_probability": args.rc_probability,
+                "last_val_metrics": metrics,
+            },
+            latest_path,
+        )
+
+    writer.close()
+
+
+if __name__ == "__main__":
+    main()

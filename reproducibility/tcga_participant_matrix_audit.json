@@ -1,0 +1,443 @@
+{
+  "created_utc": "2026-08-11T19:31:11.366252+00:00",
+  "hard_error_count": 0,
+  "hard_errors": [],
+  "matrix": {
+    "existing_provenance_records": [
+      {
+        "content": {
+          "file_size_bytes": 2985684079,
+          "input_filename": "TCGA-BRCA.methylation450.tsv.gz",
+          "input_path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/TCGA-BRCA.methylation450.tsv.gz",
+          "probe_column": "Composite Element REF",
+          "selected_normal_rule": "column name contains '-11'",
+          "selected_normal_sample_columns": [
+            "TCGA-BH-A0BM-11A",
+            "TCGA-BH-A1EN-11A",
+            "TCGA-BH-A209-11A",
+            "TCGA-E9-A1RI-11A",
+            "TCGA-E2-A15I-11A",
+            "TCGA-BH-A1ES-11A",
+            "TCGA-BH-A0BV-11A",
+            "TCGA-E2-A1B5-11A",
+            "TCGA-A7-A0CH-11A",
+            "TCGA-BH-A1EW-11B",
+            "TCGA-BH-A1F2-11A",
+            "TCGA-A7-A0CE-11A",
+            "TCGA-AC-A2FB-11A",
+            "TCGA-BH-A1F0-11B",
+            "TCGA-BH-A0BT-11A",
+            "TCGA-BH-A0AZ-11A",
+            "TCGA-A7-A0D9-11A",
+            "TCGA-E2-A15K-11A",
+            "TCGA-BH-A1EU-11A",
+            "TCGA-E9-A1NG-11A",
+            "TCGA-BH-A0B8-11A",
+            "TCGA-BH-A0C3-11A",
+            "TCGA-BH-A1EO-11A",
+            "TCGA-A7-A13E-11A",
+            "TCGA-E9-A1RD-11A",
+            "TCGA-BH-A1EV-11A",
+            "TCGA-BH-A0C0-11A",
+            "TCGA-E2-A1LI-11A",
+            "TCGA-BH-A0HA-11A",
+            "TCGA-E9-A1NA-11A",
+            "TCGA-BH-A1FD-11B",
+            "TCGA-AC-A2FG-11A",
+            "TCGA-E9-A1NF-11A",
+            "TCGA-BH-A0DP-11A",
+            "TCGA-BH-A1F5-11A",
+            "TCGA-A7-A13G-11A",
+            "TCGA-E2-A1II-11A",
+            "TCGA-A7-A13F-11A",
+            "TCGA-BH-A0E0-11A",
+            "TCGA-BH-A0B3-11B",
+            "TCGA-BH-A0DG-11A",
+            "TCGA-BH-A208-11A",
+            "TCGA-BH-A1FE-11B",
+            "TCGA-BH-A1FG-11B",
+            "TCGA-E2-A1BC-11A",
+            "TCGA-E9-A1R7-11A",
+            "TCGA-BH-A1FM-11B",
+            "TCGA-E9-A1RC-11A",
+            "TCGA-BH-A0DZ-11A",
+            "TCGA-E2-A1LS-11A",
+            "TCGA-E9-A1RB-11A",
+            "TCGA-BH-A0DV-11A",
+            "TCGA-BH-A0AU-11A",
+            "TCGA-BH-A0E1-11A",
+            "TCGA-E9-A1RH-11A",
+            "TCGA-BH-A0BC-11A",
+            "TCGA-E9-A1NE-11A",
+            "TCGA-E9-A1N8-11A",
+            "TCGA-A7-A0DB-11A",
+            "TCGA-BH-A0DK-11A",
+            "TCGA-E9-A1N5-11A",
+            "TCGA-BH-A1FR-11B",
+            "TCGA-BH-A0HK-11A",
+            "TCGA-BH-A203-11A",
+            "TCGA-AC-A2FM-11B",
+            "TCGA-E9-A1RF-11A",
+            "TCGA-BH-A0BA-11A",
+            "TCGA-BH-A1ET-11B",
+            "TCGA-BH-A1FJ-11B",
+            "TCGA-E9-A1ND-11A",
+            "TCGA-BH-A1FC-11A",
+            "TCGA-BH-A0BS-11A",
+            "TCGA-E2-A1IO-11A",
+            "TCGA-AC-A2FF-11A",
+            "TCGA-BH-A0BZ-11A",
+            "TCGA-BH-A1FB-11A",
+            "TCGA-BH-A1F8-11B",
+            "TCGA-BH-A0BF-11A",
+            "TCGA-BH-A0H9-11A",
+            "TCGA-BH-A1F6-11B",
+            "TCGA-E9-A1N6-11A",
+            "TCGA-E2-A1LB-11A",
+            "TCGA-E2-A1IF-11A",
+            "TCGA-E9-A1N4-11A",
+            "TCGA-BH-A0DQ-11A",
+            "TCGA-BH-A1EY-11B",
+            "TCGA-BH-A204-11A",
+            "TCGA-BH-A0H7-11A",
+            "TCGA-BH-A1FH-11B",
+            "TCGA-BH-A0BJ-11A",
+            "TCGA-BH-A1FN-11A",
+            "TCGA-AC-A23H-11A",
+            "TCGA-BH-A0DH-11A",
+            "TCGA-BH-A0AY-11A",
+            "TCGA-E2-A1L7-11A",
+            "TCGA-A7-A0DC-11A",
+            "TCGA-BH-A0DI-11A"
+          ],
+          "selected_normal_sample_count": 97,
+          "sha256": "71f7a02dd9ff849f43e05c6e54a9b8266349c9697601dc0450c9dc30f47679db",
+          "total_sample_columns": 893
+        },
+        "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/reproducibility/tcga_methylation_input_audit.json",
+        "sha256": "4d397c85c105a3905efb6770a54da9c17ea332c6ed0e45c9739ce4240c554d44"
+      }
+    ],
+    "explicit_provenance": {
+      "data_type": "DNA methylation beta values",
+      "processing_and_normalization": "Matrix used as distributed; SilentMethyl selected sample-type-11 columns and computed the available-sample median per probe; upstream normalization was not independently reconstructed",
+      "source": "UCSC Xena GDC hub",
+      "source_id_or_uuid": "TCGA-BRCA.methylation450.tsv.gz",
+      "source_url": "https://gdc-hub.s3.us-east-1.amazonaws.com/download/TCGA-BRCA.methylation450.tsv.gz"
+    },
+    "modified_utc": "2026-05-26T01:31:06+00:00",
+    "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/TCGA-BRCA.methylation450.tsv.gz",
+    "probe_identifier_column": "Composite Element REF",
+    "sha256": "71f7a02dd9ff849f43e05c6e54a9b8266349c9697601dc0450c9dc30f47679db",
+    "size_bytes": 2985684079,
+    "total_sample_columns": 893,
+    "type11_columns_recomputed": 97
+  },
+  "outputs": {
+    "selected_sample_table": "/ocean/projects/med250012p/szhang37/SilentMethyl/reproducibility/tcga_selected_normal_samples.csv"
+  },
+  "participants": {
+    "columns_per_participant": {
+      "entities_with_multiple_columns": 0,
+      "maximum": 1,
+      "mean": 1.0,
+      "median": 1.0,
+      "minimum": 1
+    },
+    "columns_per_sample": {
+      "entities_with_multiple_columns": 0,
+      "maximum": 1,
+      "mean": 1.0,
+      "median": 1.0,
+      "minimum": 1
+    },
+    "participant_equal_aggregation_sensitivity": {
+      "performed": false,
+      "reason": "No participant contributes multiple columns."
+    },
+    "participants_with_multiple_columns": {},
+    "samples_with_multiple_columns": {},
+    "selected_column_count": 97,
+    "unique_participant_count": 97,
+    "unique_sample_count": 97
+  },
+  "schema_version": 1,
+  "selection": {
+    "expected_selected_column_count": 97,
+    "missing_from_matrix": [],
+    "omitted_type11_columns": [],
+    "rule": "^TCGA[-.][A-Z0-9]{2}[-.][A-Z0-9]{4}[-.]11[A-Z0-9](?:[-.]|$)",
+    "selected_column_count": 97,
+    "selected_samples_file": {
+      "modified_utc": "2026-08-11T13:48:09+00:00",
+      "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/datafiles/tcga_normal_sample_ids.json",
+      "sha256": "75f80ae82dcf7e7c5d5c310d3c0e0e0728c7d7a6f1259b4e695661b6941197ce",
+      "size_bytes": 2137
+    },
+    "selection_exactly_matches_matrix_rule_and_order": true,
+    "unexpected_selected_columns": []
+  },
+  "status": "PASS",
+  "training_manifest": {
+    "content": {
+      "created_utc": "2026-08-11T13:48:09.774768+00:00",
+      "inputs": {
+        "bigwigs": {
+          "Ref_ATAC_Signal": {
+            "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/reference/ATAC_seq.bw",
+            "size_bytes": 266798513
+          },
+          "Ref_H3K27ac_Signal": {
+            "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/reference/H3K27ac.bw",
+            "size_bytes": 598006621
+          },
+          "Ref_H3K27me3_Signal": {
+            "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/reference/H3K27me3.bw",
+            "size_bytes": 934493810
+          },
+          "Ref_H3K36me3_Signal": {
+            "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/reference/H3K36me3.bw",
+            "size_bytes": 299887555
+          },
+          "Ref_H3K4me1_Signal": {
+            "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/reference/H3K4me1.bw",
+            "size_bytes": 1202962251
+          },
+          "Ref_H3K4me3_Signal": {
+            "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/reference/H3K4me3.bw",
+            "size_bytes": 229635706
+          },
+          "Ref_H3K9me3_Signal": {
+            "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/reference/H3K9me3.bw",
+            "size_bytes": 1279054393
+          },
+          "Target_Base_PhyloP_100way_1": {
+            "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/reference/hg38.phyloP100way.bw",
+            "size_bytes": 9870053206
+          },
+          "Target_Base_PhyloP_100way_2": {
+            "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/reference/hg38.phyloP100way.bw",
+            "size_bytes": 9870053206
+          }
+        },
+        "manifest": {
+          "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/HM450.hg38.manifest.tsv.gz",
+          "sha256": "668a11ea624b3e645aab963dca048bdd4628ae5d297732867c91525c831cf191",
+          "size_bytes": 28881309
+        },
+        "methylation_matrix": {
+          "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/TCGA-BRCA.methylation450.tsv.gz",
+          "size_bytes": 2985684079
+        },
+        "reference_fasta": {
+          "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/hg38.fa",
+          "size_bytes": 3273481150
+        },
+        "reference_fasta_index": {
+          "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/hg38.fa.fai",
+          "sha256": "3b425de206296a5c8053023fa5ca61da43cfe78c1737c12e58c83367c7e83c21",
+          "size_bytes": 19381
+        }
+      },
+      "missingness_and_imputation": {
+        "fit_split": "train",
+        "missing_indicator_suffix": "_Missing",
+        "schema_version": 1,
+        "strategy": "feature-wise median; pooled median shared by the two ordered central-base PhyloP features",
+        "values": {
+          "Ref_ATAC_Signal": 0.056780070066452026,
+          "Ref_H3K27ac_Signal": 0.7406623959541321,
+          "Ref_H3K27me3_Signal": 0.09006000310182571,
+          "Ref_H3K36me3_Signal": 0.0,
+          "Ref_H3K4me1_Signal": 0.5939419269561768,
+          "Ref_H3K4me3_Signal": 0.27681848406791687,
+          "Ref_H3K9me3_Signal": 0.09680359810590744,
+          "Target_Base_PhyloP_100way_1": -0.2709999978542328,
+          "Target_Base_PhyloP_100way_2": -0.2709999978542328
+        }
+      },
+      "normal_sample_selection": {
+        "rule": "^TCGA[-.][A-Z0-9]{2}[-.][A-Z0-9]{4}[-.]11[A-Z0-9](?:[-.]|$)",
+        "sample_ids_file": "tcga_normal_sample_ids.json",
+        "selected_count": 97,
+        "total_sample_columns": 893
+      },
+      "outputs": {
+        "feature_imputation": {
+          "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/datafiles/feature_imputation.json",
+          "sha256": "f028f6d40710a46a6a12a319679a8e1972c6f2929dbe90e2297b0a426eb838a0",
+          "size_bytes": 640
+        },
+        "normal_sample_ids": {
+          "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/datafiles/tcga_normal_sample_ids.json",
+          "sha256": "75f80ae82dcf7e7c5d5c310d3c0e0e0728c7d7a6f1259b4e695661b6941197ce",
+          "size_bytes": 2137
+        },
+        "split_manifest": {
+          "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/datafiles/split_manifest.json",
+          "sha256": "9955559870fd8a8bbf9023ec4226f65dd6d4b0073f63ca8884d3dc915eac99f2",
+          "size_bytes": 1605
+        },
+        "test_csv": {
+          "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/datafiles/test.csv",
+          "sha256": "336882b233034679987689509902799f3bf43096f0f2f19767c240653a8b0c34",
+          "size_bytes": 142692166
+        },
+        "test_forward_fasta": {
+          "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/datafiles/test_100bp.fasta",
+          "sha256": "d4198ecb8c6676b430c892ee95875ff48578f2624ce3e0394ec8e24e3b0ddb39",
+          "size_bytes": 3002410
+        },
+        "test_rc_fasta": {
+          "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/datafiles/test_100bp_rc.fasta",
+          "sha256": "328db9a8c2151cbd608abd294bbff3c3731806d7b1f185da6978b87ec5f59797",
+          "size_bytes": 3002410
+        },
+        "train_csv": {
+          "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/datafiles/train.csv",
+          "sha256": "59b33ce2ad5f07080c2526979c72be977cdecc4dafcdae7b0a8bdf52524c6b2b",
+          "size_bytes": 1855172441
+        },
+        "train_forward_fasta": {
+          "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/datafiles/train_100bp.fasta",
+          "sha256": "70fb742fabf2656f80aceaa0972339d527efaff479df4ad13ba653154e91f6cc",
+          "size_bytes": 39025567
+        },
+        "train_rc_fasta": {
+          "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/datafiles/train_100bp_rc.fasta",
+          "sha256": "70700c41e6ab124f50c9310f11d66f89f67ed8941df27d97946b1f258a95ea77",
+          "size_bytes": 39025567
+        },
+        "val_csv": {
+          "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/datafiles/val.csv",
+          "sha256": "4ed570ebf8421504cfd7185b65cf4ce7db3a3649c4293f86d6a100b8d41f2559",
+          "size_bytes": 249993477
+        },
+        "val_forward_fasta": {
+          "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/datafiles/val_100bp.fasta",
+          "sha256": "0726f2caca030fa1093868532a2476f8a3ec28422a42861b0e8eead5d5338bb8",
+          "size_bytes": 5260941
+        },
+        "val_rc_fasta": {
+          "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/datafiles/val_100bp_rc.fasta",
+          "sha256": "614f81a16e828567788077e8f305a6e472715ed6e3eaa82d37caf3467f3c0040",
+          "size_bytes": 5260941
+        }
+      },
+      "reverse_complement": {
+        "forward_sequence_column": "Healthy_100bp_DNA",
+        "full_reverse_complement_rule": "reverse_complement(Healthy_5000bp_DNA)",
+        "note": "Epigenomic region-average features are unchanged under orientation reversal.",
+        "ordered_feature_transform": {
+          "Target_Base_PhyloP_100way_1_RC": "Target_Base_PhyloP_100way_2",
+          "Target_Base_PhyloP_100way_2_RC": "Target_Base_PhyloP_100way_1"
+        },
+        "reverse_complement_sequence_column": "Healthy_100bp_DNA_RC"
+      },
+      "schema_version": 1,
+      "script": {
+        "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/build_training_data.py",
+        "sha256": "36410bf89ad1665adbdbf4bea18f475d4c4c00567e13b2699b8074fac1a4705c",
+        "size_bytes": 21064
+      },
+      "sequence_filtering": {
+        "off_center_or_non_cg_windows": 3348,
+        "out_of_bounds_windows": 0,
+        "rows_after_target_join": 418486,
+        "valid_sequence_rows_before_target_join": 482193
+      },
+      "split": {
+        "assigned_before_reverse_complement_augmentation": true,
+        "central_c_index_zero_based": 2499,
+        "central_g_index_zero_based": 2500,
+        "schema_version": 1,
+        "split_summary": {
+          "test": {
+            "chromosomes": [
+              "chr8",
+              "chr9"
+            ],
+            "mean_beta": 0.5305373072624207,
+            "positive_fraction": 0.5698908543470079,
+            "rows": 26570,
+            "unique_probes": 26570
+          },
+          "train": {
+            "chromosomes": [
+              "chr1",
+              "chr2",
+              "chr3",
+              "chr4",
+              "chr5",
+              "chr6",
+              "chr7",
+              "chr12",
+              "chr13",
+              "chr14",
+              "chr15",
+              "chr16",
+              "chr17",
+              "chr18",
+              "chr19",
+              "chr20",
+              "chr21",
+              "chr22",
+              "chrX",
+              "chrY"
+            ],
+            "mean_beta": 0.49482300877571106,
+            "positive_fraction": 0.5225432086611324,
+            "rows": 345359,
+            "unique_probes": 345359
+          },
+          "val": {
+            "chromosomes": [
+              "chr10",
+              "chr11"
+            ],
+            "mean_beta": 0.5084764361381531,
+            "positive_fraction": 0.5452456129046116,
+            "rows": 46557,
+            "unique_probes": 46557
+          }
+        },
+        "strategy": "chromosome-held-out",
+        "test_chromosomes": [
+          "chr8",
+          "chr9"
+        ],
+        "train_chromosomes": [
+          "chr1",
+          "chr2",
+          "chr3",
+          "chr4",
+          "chr5",
+          "chr6",
+          "chr7",
+          "chr12",
+          "chr13",
+          "chr14",
+          "chr15",
+          "chr16",
+          "chr17",
+          "chr18",
+          "chr19",
+          "chr20",
+          "chr21",
+          "chr22",
+          "chrX",
+          "chrY"
+        ],
+        "validation_chromosomes": [
+          "chr10",
+          "chr11"
+        ],
+        "window_size_bp": 5000
+      }
+    },
+    "path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/datafiles/training_data_manifest.json",
+    "sha256": "30c927bdec27e8f98640491b1d89e7944d38288a2b7b528e03d4bc29989a8d25"
+  },
+  "warning_count": 0,
+  "warnings": []
+}

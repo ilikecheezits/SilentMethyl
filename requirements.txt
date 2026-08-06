@@ -33,3 +33,7 @@ tensorboard==2.20.0
 # Utilities
 tqdm==4.67.3
 requests==2.33.1
+
+biopython
+pyjaspar
+pyfaidx

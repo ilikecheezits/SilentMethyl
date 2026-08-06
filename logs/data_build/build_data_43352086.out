@@ -1,0 +1,118 @@
+[*] Host: r035.ib.bridges2.psc.edu
+[*] Job ID: 43352086
+[*] Git commit: 18e574686ef479c64e0c15e26fb177b8b7929f94
+[*] Phase 0a: Building Leakage-Resistant Training & Validation Data...
+==========================================
+STEP 1: SEQUENCE AND TARGET CONSTRUCTION
+==========================================
+Selected 97 solid-tissue-normal columns from 893 sample columns.
+==========================================
+STEP 2: REFERENCE FEATURE EXTRACTION
+==========================================
+==========================================
+STEP 3: TRAIN-ONLY IMPUTATION AND RC VIEWS
+==========================================
+==========================================
+STEP 4: WRITE DATA AND MANIFESTS
+==========================================
+{
+  "train": {
+    "rows": 345359,
+    "unique_probes": 345359,
+    "chromosomes": [
+      "chr1",
+      "chr2",
+      "chr3",
+      "chr4",
+      "chr5",
+      "chr6",
+      "chr7",
+      "chr12",
+      "chr13",
+      "chr14",
+      "chr15",
+      "chr16",
+      "chr17",
+      "chr18",
+      "chr19",
+      "chr20",
+      "chr21",
+      "chr22",
+      "chrX",
+      "chrY"
+    ],
+    "mean_beta": 0.49482300877571106,
+    "positive_fraction": 0.5225432086611324
+  },
+  "val": {
+    "rows": 46557,
+    "unique_probes": 46557,
+    "chromosomes": [
+      "chr10",
+      "chr11"
+    ],
+    "mean_beta": 0.5084764361381531,
+    "positive_fraction": 0.5452456129046116
+  },
+  "test": {
+    "rows": 26570,
+    "unique_probes": 26570,
+    "chromosomes": [
+      "chr8",
+      "chr9"
+    ],
+    "mean_beta": 0.5305373072624207,
+    "positive_fraction": 0.5698908543470079
+  }
+}
+Training data build complete: /ocean/projects/med250012p/szhang37/SilentMethyl/data/datafiles
+Manifest: /ocean/projects/med250012p/szhang37/SilentMethyl/data/datafiles/training_data_manifest.json
+[*] Phase 0b: Building Cleaned Somatic Synonymous Testing Cohort...
+==========================================
+STEP 1: GDC COHORT ASCERTAINMENT
+==========================================
+Parsed 19,954 unique single-nucleotide substitutions from 19,954 GDC records.
+==========================================
+STEP 2: FIXED GENCODE v44 REANNOTATION
+==========================================
+Retained 19,539 variants synonymous in at least one fixed GENCODE v44 transcript.
+==========================================
+STEP 3: CpG PAIRING AND MULTIMODAL INPUTS
+==========================================
+{
+  "candidate_transcripts_examined": 36010,
+  "centered_cpg_failure": 128,
+  "dropped_unparsed_or_non_snv": 0,
+  "duplicate_candidate_rows_removed": 0,
+  "final_candidate_rows": 11410,
+  "final_test_chromosome_candidates": 771,
+  "final_training_chromosome_candidates": 9442,
+  "final_validation_chromosome_candidates": 1197,
+  "fixed_release_synonymous_variants": 19539,
+  "not_synonymous_in_fixed_gencode_v44": 415,
+  "raw_gdc_hits": 19954,
+  "reference_allele_mismatches": 0,
+  "reference_valid_snvs": 19954,
+  "sequence_and_probe_valid_rows_before_deduplication": 11410,
+  "unique_genomic_snvs": 19954,
+  "variant_outside_5kb_window": 7825,
+  "variant_overlaps_target_cpg": 176
+}
+Clean candidate cohort written to: /ocean/projects/med250012p/szhang37/SilentMethyl/data/datafiles/testing_data.csv
+Held-out candidate subset written to: /ocean/projects/med250012p/szhang37/SilentMethyl/data/datafiles/testing_data_test_only.csv
+Cohort manifest written to: /ocean/projects/med250012p/szhang37/SilentMethyl/data/datafiles/candidate_cohort_manifest.json
+[*] Phase 0c: Auditing processed-data integrity...
+[train.csv] audited 50,000 rows
+[train.csv] audited 100,000 rows
+[train.csv] audited 150,000 rows
+[train.csv] audited 200,000 rows
+[train.csv] audited 250,000 rows
+[train.csv] audited 300,000 rows
+
+==========================================
+DATA PURITY AUDIT: PASS
+==========================================
+Hard errors: 0
+Warnings:    0
+Report:      data/datafiles/data_purity_audit.json
+[✓] Data build and purity audit complete. Ready for model training.

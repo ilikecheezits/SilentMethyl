@@ -1,0 +1,23 @@
+{
+  "block_size_bp": 1000000,
+  "bootstrap_replicates": 5000,
+  "comparisons": [
+    "fusion_minus_epi",
+    "fusion_minus_sequence"
+  ],
+  "difference_convention": {
+    "regression_errors": "Model A minus Model B; negative favors Model A",
+    "roc_auc": "Model A minus Model B; positive favors Model A"
+  },
+  "models": [
+    "epi",
+    "sequence",
+    "fusion"
+  ],
+  "random_seed": 42,
+  "seeds": [
+    42,
+    43,
+    44
+  ]
+}

@@ -1,23 +1,23 @@
-Cohort construction:
-- Initial candidate rows: 1,263
-- Exactly one valid SNV in model window: 783
-- No difference in model window: 480
-- Centered-CpG failures: 17
-- Duplicate variant-probe identifiers: 9
-- Final eligible cohort: 757 unique variant-CpG pairs
-
-Cohort identity:
-- Eligible cohort, deterministic predictions, and matched-null analysis
-  contained exactly the same 757 unique variant-probe identifiers.
-
-Transcript annotation:
-- MSRA, DDC, and CHD5 each had a GDC transcript consequence annotated
-  as synonymous_variant, including a canonical transcript.
-
-Corrected JASPAR analysis:
-- JASPAR2022 vertebrate CORE matrices
-- 41-bp mutation-centered windows
-- Both strands
-- Pseudocount: 0.5
-- Raw log-odds threshold: 5.0
-- Same-position, mutation-overlapping WT and mutant comparisons
+d2e0136203c9cc43bce73e996eec25c11a6d39547fb99c285b05ad60739f575c  data/audit_data_purity.py
+aaaa5f2153aa1b4915f4191e993f6d9dd8a6dffda715789fd55e8ddfa15198b1  data/build_testing_data.py
+36410bf89ad1665adbdbf4bea18f475d4c4c00567e13b2699b8074fac1a4705c  data/build_training_data.py
+143f29fa3cefb4b1a1707c2263c63d9ca308e7bd646c07d14fd45fa06083d8e4  scripts/01_train_epi_journal.py
+ff35c6baddefb2b549876c91c433ab8ccf128bbee5c130d0b79871e7cd8c337e  scripts/01_train_fusion_journal.py
+c3c8c2e3cc45db05f4ee3ac1de49d800342304380b5cb4abea8885b3ffdfb754  scripts/01_train_sequence_journal.py
+c97fafbcc55aec627ec560a47b43eed45be032320e1c32ca2cfe1448ff01f681  scripts/02_test_epi_journal.py
+a0b40da98e7bd72a16a41d0b319c144d1b8410aab2f45f6f914ad5d2d83226a4  scripts/02_test_fusion_journal.py
+9dcdd2c5353694ff67db56309f52c15fb11e1a3582a5d3dc83d5a0763738c166  scripts/02_test_sequence_journal.py
+f9b0efba91c82b1c11fa8808335f44158cfe354efecff2c8d8f664d9b7c1d65e  scripts/03_target_qc.py
+5f3c5a3f9efbbd43637731e82fab61592c135f3075a8f6c26ce35ce37cee9b18  scripts/04_mqtl_positive_control.py
+a6626adcd5c92a8c417e2bd38bed42cb9a61d6ca05f23ea51c8759cafa649d59  scripts/05_matched_background.py
+f57e5c328ef97a70a01c89810dbee43529fd6dda343d7084855fa7919e170ade  scripts/06_stability.py
+d90e5d5c4c2c84f3ba57419187f39db8c5acac5afeff3b46c98e87537cb40846  scripts/matched_background_utils.py
+85e57f036e3dd95849af6f40b44522bd543d55f07e429af234c472125b42499b  scripts/testing_common.py
+ba2c95c15aee72fe12b80cfe1a72db085baebf46dffb1ec2bb50c925d61cfea5  scripts/training_common.py
+efd4fd6efcec5e091ca4720e50d09a4e872f887799b2eb5d13c49ef6dff57541  build_data.sh
+52fa01e8fa414b0fccaf1a9d21128693a535421094c99cacc907266eb5c01f7c  freeze_primes_release.sh
+6c76fbff335302af293ea10573bd8b865d3c445332e60cddac9ac98254108086  run_baseline.sh
+d2dc3d14971bc042b88f67514163b4f8838e29c95686710958c35123cf037c0d  run_epi.sh
+8c1a1fbf7bb3d8a80688dc2b1d4fc8f8990b561b5dd9eb410fd8fa253f7f6483  run_multimodal.sh
+e6124d81b17757dec6b3a6962238f5c4a0c5e45a14a6b3b155cfe976c5de284e  run_stability.sh
+74734dce314cb962a6870db054a5e510284934a2c9025210294fe4cf660718eb  requirements.txt
