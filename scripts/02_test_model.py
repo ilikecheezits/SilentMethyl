@@ -18,13 +18,12 @@ from sklearn.calibration import calibration_curve
 from tqdm import tqdm
 
 # =========================================
-# 1. Final Dataset (NO SHAPE TSV REQUIRED)
+# 1. Cleaned Sequence + Epi Dataset
 # =========================================
-class SeqEpiFinalDataset(Dataset):
-    def __init__(self, df, tokenizer, seq_window_size=1000, shape_window_size=100):
+class SeqEpiDataset(Dataset):
+    def __init__(self, df, tokenizer, seq_window_size=1000):
         self.df = df.reset_index(drop=True)
         self.seq_window_size = seq_window_size
-        self.shape_window_size = shape_window_size
         self.tokenizer = tokenizer
         
         self.tabular_features = [
@@ -40,7 +39,6 @@ class SeqEpiFinalDataset(Dataset):
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
         
-        # --- Modality 1: Sequence ---
         full_sequence = str(row.get('Sequence', row.get('Healthy_5000bp_DNA', ''))).upper()
         true_c_idx = len(full_sequence) // 2
         start_idx = true_c_idx - (self.seq_window_size // 2)
@@ -54,15 +52,10 @@ class SeqEpiFinalDataset(Dataset):
         input_ids = encoded['input_ids'].flatten()
         attention_mask = encoded['attention_mask'].flatten()
 
-        # --- Modality 2: Epigenomics (Tabular) ---
         tab_raw = row[self.tabular_features].values.astype(np.float32)
         tab_tensor = torch.tensor(tab_raw)
         tab_mask = ~torch.isnan(tab_tensor)
         tab_tensor = torch.nan_to_num(tab_tensor, nan=0.0)
-        
-        # --- Modality 3: Shape (DUMMY ZEROS FOR FAST INFERENCE) ---
-        shape_tensor = torch.zeros((14, self.shape_window_size), dtype=torch.float32)
-        shape_mask = torch.zeros((14, self.shape_window_size), dtype=torch.float32)
 
         m_value = torch.tensor(row['M_Value_Target'], dtype=torch.float32)
         beta = float(row['Median_Beta'])
@@ -71,13 +64,12 @@ class SeqEpiFinalDataset(Dataset):
         return {
             'input_ids': input_ids, 'attention_mask': attention_mask,
             'tab': tab_tensor, 'tab_mask': tab_mask.float(),
-            'shape': shape_tensor, 'shape_mask': shape_mask.float(),
             'm_value': m_value, 'beta_value': torch.tensor(beta, dtype=torch.float32),
             'binary_state': torch.tensor(binary_state, dtype=torch.float32)
         }
 
 # =========================================
-# 2. Triton Neutralizer & Final Architecture
+# 2. Final Architecture (Strictly Synced)
 # =========================================
 def patch_and_load_dnabert(model_path="zhihan1996/DNABERT-2-117M", local_dir="./dnabert2_local_inference"):
     if not os.path.exists(local_dir):
@@ -105,9 +97,9 @@ def patch_and_load_dnabert(model_path="zhihan1996/DNABERT-2-117M", local_dir="./
     base_model = AutoModel.from_config(config, trust_remote_code=True)
     return config, base_model
 
-class FinalSeqEpiModel(nn.Module):
+class SequenceEpiFusionModel(nn.Module):
     def __init__(self, model_path="zhihan1996/DNABERT-2-117M", tabular_dim=9):
-        super(FinalSeqEpiModel, self).__init__()
+        super(SequenceEpiFusionModel, self).__init__()
         
         self.config, self.bert = patch_and_load_dnabert(model_path)
         hidden_size = self.config.hidden_size 
@@ -118,13 +110,7 @@ class FinalSeqEpiModel(nn.Module):
             nn.Linear(tabular_dim * 2, 128), nn.LayerNorm(128), nn.GELU(), nn.Dropout(0.2),
             nn.Linear(128, 256), nn.LayerNorm(256), nn.GELU(), nn.Dropout(0.2), nn.Linear(256, 256)
         )
-        
-        # Kept to perfectly align with saved ablation weights
-        self.shape_cnn = nn.Sequential(
-            nn.Conv1d(in_channels=28, out_channels=64, kernel_size=5, padding=2), nn.BatchNorm1d(64), nn.GELU(), nn.MaxPool1d(2),
-            nn.Conv1d(in_channels=64, out_channels=128, kernel_size=3, padding=1), nn.BatchNorm1d(128), nn.GELU(), nn.AdaptiveMaxPool1d(1) 
-        )
-        self.shape_fc = nn.Sequential(nn.Linear(128, 512), nn.LayerNorm(512), nn.GELU())
+        self.epi_proj = nn.Linear(256, 768)
 
         self.norm_dna = nn.LayerNorm(768)
         self.norm_epi = nn.LayerNorm(768)
@@ -137,31 +123,28 @@ class FinalSeqEpiModel(nn.Module):
         self.classification_head = nn.Sequential(nn.Linear(768, 256), nn.GELU(), nn.Dropout(0.2), nn.Linear(256, 1))
         self.regression_head = nn.Sequential(nn.Linear(768, 256), nn.GELU(), nn.Dropout(0.2), nn.Linear(256, 1))        
 
-    def forward(self, tab, tab_mask, input_ids, attention_mask, shape, shape_mask):
-        # 1. DNA
+    def forward(self, tab, tab_mask, input_ids, attention_mask):
         bert_out = self.bert(input_ids=input_ids, attention_mask=attention_mask)
         hidden_states = bert_out[0] if isinstance(bert_out, tuple) else bert_out.last_hidden_state
         spatial_features = F.relu(self.spatial_conv(hidden_states.permute(0, 2, 1))).permute(0, 2, 1)
         attn_weights = F.softmax(self.attention_pool(spatial_features).squeeze(-1).masked_fill(attention_mask == 0, -1e4), dim=-1)
         dna_embeddings = torch.sum(spatial_features * attn_weights.unsqueeze(-1), dim=1)
 
-        # 2. Context (Shape is pure zeros!)
         tab_out = self.tab_mlp(torch.cat([tab, tab_mask], dim=1))
-        shape_out = self.shape_fc(self.shape_cnn(torch.cat([shape, shape_mask], dim=1)).squeeze(-1))
-        epi_embeddings = torch.cat((tab_out, shape_out), dim=1)
+        epi_embeddings = self.epi_proj(tab_out) 
         
-        # 3. Fusion
         dna_norm = self.norm_dna(dna_embeddings)
         epi_norm = self.norm_epi(epi_embeddings)
         concat_features = torch.cat([dna_norm, epi_norm], dim=1)
         
         gates = self.gate_network(concat_features)
-        fused_embeddings = (dna_norm * gates[:, 0].unsqueeze(1)) + (epi_norm * gates[:, 1].unsqueeze(1))
+        gate_dna, gate_epi = gates[:, 0].unsqueeze(1), gates[:, 1].unsqueeze(1)
+        fused_embeddings = (dna_norm * gate_dna) + (epi_norm * gate_epi)
         
         class_logits = self.classification_head(fused_embeddings)
         m_value_pred = self.regression_head(fused_embeddings)
         
-        return class_logits, m_value_pred
+        return class_logits, m_value_pred, gate_dna, gate_epi
 
 def m_to_beta(m_val):
     m_val = np.clip(m_val, -20, 20)
@@ -175,7 +158,7 @@ def main():
     parser.add_argument("--test_csv_path", type=str, required=True, default="data/datafiles/test.csv")
     parser.add_argument("--weights_path", type=str, required=True)
     parser.add_argument("--run_name", type=str, default="final_seq_epi")
-    parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--batch_size", type=int, default=64) # Increased since shape takes up no VRAM
     parser.add_argument("--seq_window_size", type=int, default=1000)
     args = parser.parse_args()
 
@@ -184,16 +167,15 @@ def main():
     
     logging.info(f"[*] Starting Evaluation for Final Seq+Epi Model")
     
-    # Load Data (No TSV Loading needed!)
     logging.info("[*] Loading Test CSV...")
     df = pd.read_csv(args.test_csv_path)
     df = df[df['probeID'].str.startswith('cg')].reset_index(drop=True)
     
     tokenizer = AutoTokenizer.from_pretrained("zhihan1996/DNABERT-2-117M", trust_remote_code=True)
-    test_dataset = SeqEpiFinalDataset(df, tokenizer, args.seq_window_size)
+    test_dataset = SeqEpiDataset(df, tokenizer, args.seq_window_size)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
-    model = FinalSeqEpiModel().to(device)
+    model = SequenceEpiFusionModel().to(device)
     
     logging.info(f"[*] Loading strict weights from {args.weights_path}")
     state_dict = torch.load(args.weights_path, map_location=device, weights_only=True)
@@ -209,10 +191,9 @@ def main():
         for batch in tqdm(test_loader, desc=f"Testing {args.run_name}"):
             tab, tab_mask = batch['tab'].to(device), batch['tab_mask'].to(device)
             input_ids, attention_mask = batch['input_ids'].to(device), batch['attention_mask'].to(device)
-            shape, shape_mask = batch['shape'].to(device), batch['shape_mask'].to(device)
             
             with torch.amp.autocast('cuda'):
-                class_logits, m_value_pred = model(tab, tab_mask, input_ids, attention_mask, shape, shape_mask)
+                class_logits, m_value_pred, _, _ = model(tab, tab_mask, input_ids, attention_mask)
                 
             all_m_true.extend(batch['m_value'].float().numpy().flatten().tolist())
             all_m_pred.extend(m_value_pred.cpu().float().numpy().flatten().tolist())
