@@ -1,0 +1,23 @@
+Cohort construction:
+- Initial candidate rows: 1,263
+- Exactly one valid SNV in model window: 783
+- No difference in model window: 480
+- Centered-CpG failures: 17
+- Duplicate variant-probe identifiers: 9
+- Final eligible cohort: 757 unique variant-CpG pairs
+
+Cohort identity:
+- Eligible cohort, deterministic predictions, and matched-null analysis
+  contained exactly the same 757 unique variant-probe identifiers.
+
+Transcript annotation:
+- MSRA, DDC, and CHD5 each had a GDC transcript consequence annotated
+  as synonymous_variant, including a canonical transcript.
+
+Corrected JASPAR analysis:
+- JASPAR2022 vertebrate CORE matrices
+- 41-bp mutation-centered windows
+- Both strands
+- Pseudocount: 0.5
+- Raw log-odds threshold: 5.0
+- Same-position, mutation-overlapping WT and mutant comparisons
