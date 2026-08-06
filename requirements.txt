@@ -1,22 +1,35 @@
-torch
-torchvision   
-torchaudio     
-transformers
-peft
-accelerate    
-safetensors    
-huggingface-hub
-einops
-#triton
-numpy
-pandas
-scikit-learn
-scipy
-biopython
-pyfaidx
-statsmodels
-matplotlib
-seaborn
-tensorboard    
-tqdm
-requests
+# SilentMethyl runtime dependencies
+# Tested with Python 3.10.20.
+#
+# Bridges-2 used PyTorch 2.6.0 with CUDA 12.4. To reproduce that exact
+# build, install PyTorch first with:
+#   pip install torch==2.6.0+cu124 --index-url https://download.pytorch.org/whl/cu124
+# Then install this file with:
+#   pip install -r requirements.txt
+
+# Deep learning and DNABERT-2
+torch==2.6.0
+transformers==5.8.0
+huggingface-hub==1.14.0
+einops==0.8.2
+
+# Numerical analysis and machine learning
+numpy==2.2.6
+pandas==2.3.3
+scikit-learn==1.7.2
+scipy==1.15.3
+
+# Genomics and motif analysis
+biopython==1.87
+pyfaidx==0.9.0.4
+pyBigWig==0.3.25
+pyjaspar==4.0.0
+
+# Plotting and experiment logging
+matplotlib==3.10.9
+seaborn==0.13.2
+tensorboard==2.20.0
+
+# Utilities
+tqdm==4.67.3
+requests==2.33.1
