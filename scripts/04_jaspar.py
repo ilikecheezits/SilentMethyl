@@ -16,8 +16,27 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 # =============================================================================
 # 1. CONFIGURATION
 # =============================================================================
-TEST_CSV_PATH = 'data/datafiles/actual_testing_data.csv'
+TEST_CSV_PATH = 'data/datafiles/testing_data.csv'
 OUTPUT_CSV = 'results/jaspar_motif_disruptions.csv'
+
+RESULT_COLUMNS = [
+    'Gene',
+    'GDC_Genomic_DNA_Change',
+    'Top_Disrupted_TF',
+    'WT_Motif_Score',
+    'MUT_Motif_Score',
+    'Motif_Delta_Score',
+    'Absolute_Disruption',
+    'Percentage_Change',
+]
+
+REQUIRED_INPUT_COLUMNS = [
+    'pos',
+    'Gene',
+    'GDC_Genomic_DNA_Change',
+    'Healthy_5000bp_DNA',
+    'Mutated_5000bp_DNA',
+]
 
 # Motif configuration
 WINDOW_SIZE = 41  # 20bp left + 1bp mutation + 20bp right
@@ -68,6 +87,13 @@ for motif in motifs:
 # =============================================================================
 logging.info("[*] Loading Test CSV and cropping 41bp windows...")
 df = pd.read_csv(TEST_CSV_PATH)
+
+missing_columns = [c for c in REQUIRED_INPUT_COLUMNS if c not in df.columns]
+if missing_columns:
+    raise ValueError(
+        "Missing required columns in testing CSV: "
+        f"{missing_columns}. Found columns: {list(df.columns)}"
+    )
 
 valid_pairs = []
 for idx, row in df.iterrows():
@@ -176,10 +202,13 @@ if __name__ == '__main__':
     # =============================================================================
     # 7. EXPORT RESULTS
     # =============================================================================
-    df_results = pd.DataFrame(results)
-    
-    df_results['Abs_Percentage'] = df_results['Percentage_Change'].abs()
-    df_results = df_results.sort_values(by='Abs_Percentage', ascending=False).drop(columns=['Abs_Percentage'])
-    
+    df_results = pd.DataFrame(results, columns=RESULT_COLUMNS)
+
+    if not df_results.empty:
+        df_results['Abs_Percentage'] = df_results['Percentage_Change'].abs()
+        df_results = df_results.sort_values(by='Abs_Percentage', ascending=False).drop(columns=['Abs_Percentage'])
+    else:
+        logging.warning("[!] No disrupted motifs passed thresholds. Writing empty output with headers.")
+
     df_results.to_csv(OUTPUT_CSV, index=False)
     logging.info(f"[✓] Complete! Disruption analysis saved to {OUTPUT_CSV}")
