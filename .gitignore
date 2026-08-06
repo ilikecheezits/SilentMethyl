@@ -122,3 +122,15 @@ error_log*
 training_log*
 *.txt
 !requirements.txt
+
+# Small reproducibility and final-result artifacts intentionally tracked
+!reproducibility/environment_snapshot.txt
+!reproducibility/analysis_audit.txt
+!reproducibility/jaspar_top3_fixed.csv
+
+!results/jaspar_motif_disruptions_corrected.csv
+!results/seq_epi_matched_null/*.csv
+!results/seq_epi_stability/*.csv
+
+!final_seq_epi_fig_*.png
+!results/seq_epi_matched_null/matched_null_top*.png
