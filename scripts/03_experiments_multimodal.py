@@ -55,7 +55,6 @@ logging.info("[*] Using device: %s", DEVICE)
 
 # =============================================================================
 # 2. ARCHITECTURE DEFINITIONS
-# Keep this class synchronized with the final sequence--epigenomic checkpoint.
 # =============================================================================
 def patch_and_load_dnabert(
     model_path: str = "zhihan1996/DNABERT-2-117M",
@@ -83,25 +82,23 @@ def patch_and_load_dnabert(
         config_path = os.path.join(local_dir, "config.json")
         with open(config_path, "r", encoding="utf-8") as handle:
             config_data = json.load(handle)
+            
         config_data["use_flash_attn"] = False
         if config_data.get("pad_token_id") is None:
             config_data["pad_token_id"] = 0
+            
         with open(config_path, "w", encoding="utf-8") as handle:
             json.dump(config_data, handle)
 
     config = AutoConfig.from_pretrained(local_dir, trust_remote_code=True)
     config.output_attentions = False
+    
+    # Randomly initialized base model - weights will be overwritten strictly later
     base_model = AutoModel.from_config(config, trust_remote_code=True)
     return config, base_model
 
 
 class SequenceEpiFusionModel(nn.Module):
-    """Current sequence--epigenomic gated architecture.
-
-    Replace this definition if the final fixed model uses a different fusion
-    block. The matched-null logic below is architecture-independent.
-    """
-
     def __init__(
         self,
         model_path: str = "zhihan1996/DNABERT-2-117M",
@@ -110,6 +107,7 @@ class SequenceEpiFusionModel(nn.Module):
         super().__init__()
         self.config, self.bert = patch_and_load_dnabert(model_path)
         hidden_size = self.config.hidden_size
+        
         self.spatial_conv = nn.Conv1d(
             in_channels=hidden_size,
             out_channels=hidden_size,
@@ -129,9 +127,11 @@ class SequenceEpiFusionModel(nn.Module):
             nn.Dropout(0.2),
             nn.Linear(256, 256),
         )
+        
         self.epi_proj = nn.Linear(256, 768)
         self.norm_dna = nn.LayerNorm(768)
         self.norm_epi = nn.LayerNorm(768)
+        
         self.gate_network = nn.Sequential(
             nn.Linear(1536, 128),
             nn.LayerNorm(128),
@@ -139,12 +139,14 @@ class SequenceEpiFusionModel(nn.Module):
             nn.Linear(128, 2),
             nn.Sigmoid(),
         )
+        
         self.classification_head = nn.Sequential(
             nn.Linear(768, 256),
             nn.GELU(),
             nn.Dropout(0.2),
             nn.Linear(256, 1),
         )
+        
         self.regression_head = nn.Sequential(
             nn.Linear(768, 256),
             nn.GELU(),
@@ -159,26 +161,33 @@ class SequenceEpiFusionModel(nn.Module):
             if isinstance(bert_output, tuple)
             else bert_output.last_hidden_state
         )
+        
         spatial_features = F.relu(
             self.spatial_conv(hidden_states.permute(0, 2, 1))
         ).permute(0, 2, 1)
+        
         attention_scores = self.attention_pool(spatial_features).squeeze(-1)
         attention_scores = attention_scores.masked_fill(attention_mask == 0, -1e4)
         attention_weights = F.softmax(attention_scores, dim=-1)
+        
         dna_embeddings = torch.sum(
             spatial_features * attention_weights.unsqueeze(-1), dim=1
         )
 
         tab_output = self.tab_mlp(torch.cat([tab, tab_mask], dim=1))
         epi_embeddings = self.epi_proj(tab_output)
+        
         dna_normalized = self.norm_dna(dna_embeddings)
         epi_normalized = self.norm_epi(epi_embeddings)
+        
         gates = self.gate_network(
             torch.cat([dna_normalized, epi_normalized], dim=1)
         )
         dna_gate = gates[:, 0].unsqueeze(1)
         epi_gate = gates[:, 1].unsqueeze(1)
+        
         fused = dna_normalized * dna_gate + epi_normalized * epi_gate
+        
         return (
             self.classification_head(fused),
             self.regression_head(fused),
@@ -211,6 +220,7 @@ def batch_inference(
     for start in range(0, len(sequences), INFERENCE_BATCH_SIZE):
         stop = start + INFERENCE_BATCH_SIZE
         batch_sequences = sequences[start:stop]
+        
         encodings = tokenizer(
             batch_sequences,
             truncation=True,
@@ -218,8 +228,10 @@ def batch_inference(
             padding="max_length",
             return_tensors="pt",
         ).to(DEVICE)
+        
         batch_tab = tabular_values[start:stop].to(DEVICE)
         batch_mask = tabular_masks[start:stop].to(DEVICE)
+        
         with torch.amp.autocast("cuda" if torch.cuda.is_available() else "cpu"):
             _, m_predictions, _, _ = model(
                 batch_tab,
@@ -227,7 +239,9 @@ def batch_inference(
                 encodings["input_ids"],
                 encodings["attention_mask"],
             )
+            
         predictions.extend(m_predictions.cpu().float().flatten().tolist())
+        
     return np.asarray(predictions, dtype=float)
 
 
@@ -248,11 +262,13 @@ def build_unique_variant_cohort(
     for _, row in tqdm(df.iterrows(), total=len(df), desc="Validating sSNVs"):
         wt_full = str(row.get("Healthy_5000bp_DNA", "")).upper()
         mut_full = str(row.get("Mutated_5000bp_DNA", "")).upper()
+        
         if len(wt_full) < 3000 or len(mut_full) < 3000:
             continue
 
         wt_sequence = wt_full[2000:3000]
         mutant_sequence = mut_full[2000:3000]
+        
         try:
             metadata = annotate_variant(
                 row, wt_sequence, mutant_sequence, SEQ_WINDOW_SIZE
@@ -267,6 +283,7 @@ def build_unique_variant_cohort(
 
         if metadata["Mutation_Window_Index_0based"] in PROTECTED_CPG_INDICES:
             continue
+            
         uid = metadata["Variant_UID"]
         if uid in seen_uids:
             continue
@@ -309,8 +326,10 @@ def export_top_control_relations(
     output_path: str,
 ) -> None:
     relations: list[dict] = []
+    
     for rank, target_index in enumerate(top_indices, start=1):
         target = scored.iloc[int(target_index)]
+        
         for control_index in control_indices_by_uid[str(target["Variant_UID"])]:
             control = scored.iloc[int(control_index)]
             relations.append(
@@ -325,11 +344,10 @@ def export_top_control_relations(
                     "Control_Delta_Beta": control["Predicted_Delta_Beta"],
                     "Control_SBS96": control["Canonical_SBS96"],
                     "Control_CpG_Effect": control["CpG_Effect"],
-                    "Control_Distance_From_CpG": control[
-                        "Absolute_Distance_From_Target_CpG"
-                    ],
+                    "Control_Distance_From_CpG": control["Absolute_Distance_From_Target_CpG"],
                 }
             )
+            
     pd.DataFrame(relations).to_csv(output_path, index=False)
 
 
@@ -340,6 +358,7 @@ def plot_matched_null(
     output_path: str,
 ) -> None:
     plt.figure(figsize=(10, 6))
+    
     sns.histplot(
         control_deltas,
         bins=min(50, max(10, int(np.sqrt(len(control_deltas)) * 2))),
@@ -348,6 +367,7 @@ def plot_matched_null(
         edgecolor="black",
         label="Matched observed synonymous controls",
     )
+    
     plt.axvline(0, color="black", linewidth=1.3)
     observed = float(target["Predicted_Delta_Beta"])
     plt.axvline(
@@ -356,6 +376,7 @@ def plot_matched_null(
         linewidth=3,
         label=f"Observed somatic sSNV (Δβ={observed:.4f})",
     )
+    
     stats_text = (
         f"Controls: {int(target['Matched_Control_Count'])}\n"
         f"Tier: {target['Matched_Null_Tier']}\n"
@@ -363,6 +384,7 @@ def plot_matched_null(
         f"Empirical p: {target['Matched_Empirical_P']:.4g}\n"
         f"BH q: {target['Matched_BH_Q']:.4g}"
     )
+    
     plt.gca().text(
         0.03,
         0.97,
@@ -372,6 +394,7 @@ def plot_matched_null(
         fontsize=10,
         bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.9},
     )
+    
     plt.title(
         f"Sequence + epigenomics matched synonymous null — rank {rank}\n"
         f"{target['Gene']} | {target['GDC_Genomic_DNA_Change']} | "
@@ -400,6 +423,7 @@ def main() -> None:
 
     if not os.path.exists(MODEL_WEIGHTS):
         raise FileNotFoundError(f"Model weights not found: {MODEL_WEIGHTS}")
+        
     model.load_state_dict(
         torch.load(MODEL_WEIGHTS, map_location=DEVICE, weights_only=True),
         strict=True,
@@ -410,11 +434,11 @@ def main() -> None:
     if "probeID" in df.columns:
         df = df[df["probeID"].astype(str).str.startswith("cg")].reset_index(drop=True)
 
-    metadata, wt_sequences, mutant_sequences, tabs, tab_masks = (
-        build_unique_variant_cohort(df)
-    )
+    metadata, wt_sequences, mutant_sequences, tabs, tab_masks = build_unique_variant_cohort(df)
+    
     if metadata.empty:
         raise RuntimeError("No valid centered single-nucleotide variant pairs were found.")
+        
     logging.info(
         "[*] Retained %d unique synonymous variant--CpG pairs.", len(metadata)
     )
@@ -423,6 +447,7 @@ def main() -> None:
     mutant_m_values = batch_inference(
         model, tokenizer, mutant_sequences, tabs, tab_masks
     )
+    
     wt_betas = m_value_to_beta(wt_m_values)
     mutant_betas = m_value_to_beta(mutant_m_values)
 
@@ -440,6 +465,7 @@ def main() -> None:
         max_controls=MAX_MATCHED_CONTROLS,
         random_seed=RANDOM_SEED,
     )
+    
     scored["Absolute_Delta_Beta_Rank"] = scored["Absolute_Delta_Beta"].rank(
         ascending=False, method="min"
     ).astype(int)
@@ -447,6 +473,7 @@ def main() -> None:
     ranked_indices = np.argsort(
         scored["Absolute_Delta_Beta"].to_numpy(dtype=float)
     )[::-1]
+    
     top_count = min(TOP_K, len(scored))
     top_indices = ranked_indices[:top_count]
 
@@ -459,6 +486,7 @@ def main() -> None:
         os.path.join(BASE_DIR, "top_variant_matched_null_statistics.csv"),
         index=False,
     )
+    
     export_top_control_relations(
         scored,
         control_indices_by_uid,
@@ -471,8 +499,10 @@ def main() -> None:
         control_indices = control_indices_by_uid[str(target["Variant_UID"])]
         if len(control_indices) == 0:
             continue
+            
         control_deltas = scored.iloc[control_indices]["Predicted_Delta_Beta"].to_numpy()
         safe_gene = str(target["Gene"]).replace("/", "_").replace(" ", "_")
+        
         plot_matched_null(
             target,
             control_deltas,
