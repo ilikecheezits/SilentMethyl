@@ -16,8 +16,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 # =============================================================================
 # 1. CONFIGURATION
 # =============================================================================
-TEST_CSV_PATH = 'data/actual_data/actual_testing_data.csv'
-OUTPUT_CSV = 'results/baseline/jaspar_motif_disruptions.csv'
+TEST_CSV_PATH = 'data/datafiles/actual_testing_data.csv'
+OUTPUT_CSV = 'results/jaspar_motif_disruptions.csv'
 
 # Motif configuration
 WINDOW_SIZE = 41  # 20bp left + 1bp mutation + 20bp right
