@@ -1,0 +1,884 @@
+\documentclass[10pt,letterpaper,twocolumn]{article}
+
+\usepackage[margin=0.7in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{subcaption}
+\usepackage{booktabs}
+\usepackage{cite}
+\usepackage[bookmarks=false]{hyperref}
+\usepackage[font=small,labelfont=bf]{caption}
+
+\setlength{\columnsep}{0.25in}
+\setlength{\parskip}{0.25em}
+\setlength{\parindent}{1em}
+\renewcommand{\arraystretch}{1.05}
+\setlength{\textfloatsep}{8pt plus 2pt minus 2pt}
+\setlength{\floatsep}{6pt plus 2pt minus 2pt}
+\setlength{\intextsep}{6pt plus 2pt minus 2pt}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    citecolor=black,
+    urlcolor=cyan
+}
+
+\title{Integrating DNA Sequence with Reference Epigenomic and Conservation Context for Variant Prioritization by Predicted Methylation Sensitivity}
+\author{Samuel Zhang}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Genetic variants can perturb regulatory sequence features associated
+with local DNA methylation, but mutation-specific effects are rarely
+available in matched experimental data. We developed a multimodal model
+that predicts CpG methylation from a centered DNA sequence and a
+reference-context vector containing seven epigenomic tracks and two
+target-base conservation values. A DNABERT-2 sequence tower and an
+independently pretrained context tower were combined by gated fusion
+and optimized for M-value regression and binary methylation-state
+classification.
+
+On a held-out TCGA-BRCA probe-level split, the sequence--context model
+achieved a beta-value MAE of 0.1014 and ROC-AUC of 0.9666, outperforming
+sequence-only and context-only baselines. The trained model was then
+applied to an ascertained cohort of 757 GDC-derived somatic synonymous
+variant--CpG pairs using matched wild-type and mutant inputs. Under the
+GRCh38 reference orientation, \textit{MSRA}, \textit{DDC}, and
+\textit{CHD5} were the highest-ranked full-cohort case studies;
+\textit{CHD5} was also the strongest candidate among 83 pairs associated
+with held-out test probes. Each case study exceeded its finite matched
+synonymous reference set, but none remained significant after
+cohort-wide false-discovery-rate correction. Their predicted directions
+were stable across 50 Monte Carlo dropout passes, although the broader
+ranking was only moderately stable and failed a reverse-complement
+robustness check. The framework is therefore presented as an
+exploratory procedure for variant nomination rather than a causal or
+statistically confirmed variant-effect estimator.
+\end{abstract}
+
+\section{Introduction}
+
+Single-nucleotide variants can influence phenotype through both
+protein-coding and regulatory mechanisms. Individual substitutions may
+change transcription-factor motifs, chromatin accessibility, local DNA
+organization, RNA processing, or translation without altering the
+encoded amino acid. Prioritizing such variants remains difficult
+because most observed substitutions lack matched functional
+measurements.
+
+DNA methylation is a widely measured regulatory state associated with
+chromatin organization, transcription, and cellular identity
+\cite{jones2012functions,schubeler2015function}. Sequence variation may
+alter local methylation by disrupting regulatory motifs or changing the
+sequence environment of a CpG. A model that learns sequence-associated
+methylation patterns can therefore provide a useful ranking signal,
+provided that its outputs are interpreted as predictions rather than
+measured mutation effects.
+
+Recent deep learning models show that DNA sequence contains substantial
+information for predicting methylation and other epigenomic states
+\cite{zhou2015predicting,kelley2016quential,avsec2021effective}.
+Sequence alone, however, does not directly encode the chromatin context
+in which a locus is interpreted. In this study, DNABERT-2 sequence
+representations are combined with reference epigenomic and target-base
+conservation measurements to predict locus-level methylation. The
+trained predictor is then evaluated on matched wild-type and mutant
+sequences while the reference-context vector is held fixed.
+
+The resulting score,
+$\Delta\hat{\beta}=\hat{\beta}_{\mathrm{mut}}-
+\hat{\beta}_{\mathrm{wt}}$, measures the sensitivity of the model to a
+specified substitution. Because training uses locus-level methylation
+rather than paired mutation-effect labels, this score is not assumed to
+equal the true biological effect. Somatic synonymous SNVs provide a
+focused application class because they preserve amino-acid sequence
+while retaining possible regulatory effects \cite{supek2014synonymous}.
+The study therefore asks two questions: whether reference context
+improves held-out methylation prediction, and whether the trained model
+can produce a calibrated and reproducible ranking of candidate
+variants.
+
+\section{Related Work}
+
+\subsection{Synonymous Variants as Regulatory Candidates}
+
+Synonymous substitutions were historically interpreted mainly through
+codon usage, translational selection, and the redundancy of the genetic
+code \cite{ikemura1981codon}. Because they do not alter the encoded
+amino acid, they were often treated as a comparatively neutral class of
+coding variation. Subsequent work has shown that this interpretation is
+incomplete. Synonymous substitutions can influence splice-site
+recognition, RNA secondary structure, transcript stability, translation
+rate, cotranslational folding, and other processes that depend on the
+nucleotide sequence rather than only the protein sequence
+\cite{sauna2011understanding}.
+
+Coding exons can also carry regulatory information at the DNA level.
+Transcription-factor occupancy and other sequence-dependent interactions
+may overlap protein-coding regions, so a synonymous change can preserve
+the amino-acid sequence while modifying a regulatory motif or local DNA
+organization \cite{stergachis2013exonic}. Specific synonymous variants
+have been associated with altered methylation, CpG organization, or
+allele-specific regulatory behavior in loci including \textit{MLH1},
+\textit{TP53}, and \textit{ADAMTS13}
+\cite{alvarez2025,blackburn2016,hall2022}. These examples motivate the
+use of synonymous SNVs as a focused application class: direct
+amino-acid substitution is removed, but multiple sequence-level
+mechanisms remain possible.
+
+This focus does not imply that every synonymous variant is regulatory,
+or that methylation is the only relevant outcome. Rather, synonymous
+variants provide a useful setting for testing whether a sequence model
+can distinguish substitutions that induce unusually large predicted
+responses from a much larger background of weaker changes. The same
+counterfactual framework could later be extended to missense,
+noncoding, or other single-nucleotide variant classes, but synonymous
+variants offer a comparatively interpretable starting point.
+
+\subsection{Deep Learning for Methylation and Regulatory Prediction}
+
+Deep learning has substantially expanded the range of regulatory
+properties that can be predicted from genomic sequence. DeepCpG
+combines sequence-derived representations with neighboring CpG
+measurements to predict single-cell methylation states
+\cite{angermueller2017deepcpg}. CpGenie uses convolutional sequence
+features to predict CpG methylation from local genomic context
+\cite{zeng2017predicting}. More broadly, sequence-to-function models
+such as Enformer learn long-range regulatory relationships for gene
+expression and functional genomic tracks
+\cite{avsec2021effective}, while DNABERT-2 provides pretrained genomic
+representations that can be adapted to downstream prediction tasks
+\cite{zhou2023dnabert}.
+
+These approaches differ in biological setting, input length, target
+construction, and evaluation design, so their published metrics are not
+directly interchangeable. The present study therefore does not treat an
+external model's reported performance as a controlled baseline.
+Instead, the quantitative comparison is internal: sequence-only,
+reference-context-only, and fused models use the same CpG loci, targets,
+probe split, and output objectives. This design isolates whether the
+reference-context representation contributes predictive information
+beyond the local sequence under the evaluation used here.
+
+The multimodal setting is motivated by a basic limitation of sequence
+alone. Nucleotide sequence constrains regulatory potential, but the same
+motif may be interpreted differently across chromatin environments.
+Conversely, epigenomic tracks can summarize accessibility or histone
+state without fully representing the sequence that gives rise to local
+binding and methylation patterns. Combining a pretrained sequence
+representation with reference epigenomic and conservation features
+therefore offers a practical way to test whether the two information
+sources are complementary. In this study the context features are shared
+reference measurements rather than patient-matched assays, so the model
+is best understood as integrating local sequence with a fixed breast
+ epithelial and evolutionary context.
+
+\subsection{In Silico Mutagenesis and Variant Prioritization}
+
+Sequence-to-function predictors are commonly interrogated through
+\textit{in silico} mutagenesis: a wild-type sequence is evaluated,
+one nucleotide is changed, and the difference in model output is used
+as a variant score. This paired construction controls all other input
+positions and makes the resulting score easy to rank. However, a model
+can predict baseline molecular states accurately while remaining
+sensitive to small perturbations for reasons that do not correspond to
+true biological effects. Predictive performance and variant-response
+reliability are therefore related but distinct questions.
+
+The present analysis combines several forms of evidence around the
+counterfactual score. Matched observed synonymous controls place each
+response in the context of comparable substitutions from the same
+candidate cohort. Monte Carlo dropout measures whether effect direction
+and high-ranking status persist under stochastic inference. A
+reverse-complement diagnostic tests dependence on sequence orientation,
+and mutation-overlapping JASPAR scoring asks whether the leading
+substitutions also modify recognizable motif compatibility. None of
+these analyses replaces experimental perturbation, but together they
+provide a more informative prioritization assessment than deterministic
+rank alone.
+
+
+\section{Methodology}
+\label{sec:methodology}
+
+\subsection{Methylation Targets and Data Partitioning}
+\label{sec:data}
+
+DNA methylation labels were generated by
+\texttt{build\_training\_data.py} from the locally archived matrix
+\texttt{TCGA-BRCA.methylation450.tsv.gz} and the hg38 manifest
+\texttt{HM450.hg38.manifest.tsv.gz}. Solid-tissue-normal columns were
+selected from the matrix header by the TCGA sample-type code
+\texttt{-11}. This selected 97 normal-sample columns from 893 total
+sample columns in the archived matrix. Manifest probes were restricted
+to chromosomes 1--22, X, and Y, required nonmissing hg38 coordinates, a
+valid 5000-bp reference window, and a centered \texttt{CG}
+dinucleotide.
+A probe was retained only when at least one selected normal-sample beta
+value was observed, and the surviving methylation targets were
+inner-joined to the valid sequence windows.
+
+This procedure produced 418,486 CpG loci spanning 24 chromosomes. Of
+these, 220,992 had median beta values above 0.5 and were assigned to the
+methylated class, while 197,494 were assigned to the unmethylated class.
+Each learning example represented one CpG locus with a cohort-level
+target rather than one patient--locus pair.
+
+For a CpG observed in the $S=97$ selected normal-sample columns, the
+continuous target was the median methylation fraction
+\[
+\beta=\operatorname{median}(\beta_1,\ldots,\beta_S),
+\]
+with missing sample-level measurements omitted. To avoid undefined
+values under the logit-like transformation, beta values were clipped to
+$[10^{-4},1-10^{-4}]$ and converted to M-values,
+\[
+M=\log_2\left(\frac{\widetilde\beta}
+{1-\widetilde\beta}\right).
+\]
+The binary target was $y=1$ when the unclipped median beta value exceeded
+0.5 and $y=0$ otherwise. The regression and classification heads were
+therefore trained on related but distinct representations of the same
+locus-level methylation state.
+
+CpG probes were divided into stratified training, validation, and test
+sets in an 80\%/10\%/10\% ratio using random seed 42. Both sequence and
+reference-context inputs associated with a probe remained in the same
+partition. The split supports comparison across models on a common set
+of held-out probes; it was not designed as a chromosome-level transfer
+test.
+
+\subsection{Sequence and Reference-Context Inputs}
+
+For each target CpG, the sequence input was the central 1000 bp of a
+stored 5000-bp hg38 reference window. The target CpG occupied the center
+of the extracted sequence. Each window was tokenized using the
+DNABERT-2 tokenizer and padded or truncated to a maximum of 1000 tokens.
+This representation captures local regulatory sequence while remaining
+tractable for fine-tuning and repeated counterfactual inference.
+
+The reference-context input contained nine measurements. Seven were
+MCF-10A breast epithelial BigWig signals: ATAC-seq accessibility and
+H3K4me3, H3K27ac, H3K27me3, H3K9me3, H3K36me3, and H3K4me1. For each
+track, the mean signal was extracted over a 100-bp interval centered on
+the target CpG. The remaining two features were PhyloP-100way
+conservation values at the target cytosine and guanine. The resulting
+vector was
+\[
+\mathbf e\in\mathbb R^9.
+\]
+During data generation, a BigWig query returned \texttt{0.0} when
+the chromosome was unavailable, the interval was out of range, the
+summary statistic was missing, or an extraction error occurred.
+Remaining NaN values were replaced by zero at model input, and a
+nine-dimensional finite-value mask was concatenated with the feature
+vector:
+\[
+\mathbf e'=[\mathbf e;\mathbf m_{\mathrm{ctx}}]
+\in\mathbb R^{18}.
+\]
+The mask therefore distinguishes NaNs retained in the generated tables,
+but it cannot distinguish a true biological zero from an upstream
+fallback zero. The context features were shared reference measurements
+rather than sample-matched measurements for each TCGA specimen. Their
+role was to supply a consistent local chromatin and conservation
+background that could complement the nucleotide sequence.
+
+\subsection{Model Architecture}
+\label{sec:model-architecture}
+
+The sequence-only, reference-context-only, and fusion models used the
+same two prediction tasks and output-head structure. The final fusion
+model contained a DNABERT-2 sequence tower and an independently
+pretrained reference-context tower, both producing 768-dimensional
+representations.
+
+\paragraph{Sequence tower.}
+DNABERT-2 generated contextual token embeddings
+\[
+\mathbf H_{\mathrm{seq}}=T(\mathbf s)
+\in\mathbb R^{N\times768},
+\]
+where $N$ is the tokenized sequence length. A one-dimensional
+convolution with kernel size 3 and ReLU activation was applied across
+tokens:
+\[
+\widetilde{\mathbf H}_{\mathrm{seq}}
+=\operatorname{ReLU}
+\left(\operatorname{Conv1D}(\mathbf H_{\mathrm{seq}})\right).
+\]
+A learned scalar attention score was assigned to each non-padding token,
+normalized by softmax, and used to form a weighted sum,
+\[
+\mathbf x_{\mathrm{seq}}
+=\sum_{i=1}^{N}\alpha_i\widetilde{\mathbf h}_i
+\in\mathbb R^{768}.
+\]
+The convolution supplies a local token-level transformation, while the
+attention-pooling layer produces one fixed-dimensional sequence
+representation for the CpG-centered window.
+
+\paragraph{Reference-context tower.}
+The 18-dimensional context-plus-mask input was processed by a multilayer
+perceptron with dimensions
+\[
+18\rightarrow128\rightarrow256\rightarrow256.
+\]
+LayerNorm, GELU activation, and dropout of 0.2 followed the first two
+linear layers. A final linear projection mapped the 256-dimensional
+output to
+\[
+\mathbf x_{\mathrm{ctx}}\in\mathbb R^{768},
+\]
+matching the sequence representation dimension.
+
+\paragraph{Gated fusion and prediction heads.}
+The sequence and context representations were normalized independently
+and concatenated. A gating network with dimensions
+$1536\rightarrow128\rightarrow2$ produced two sigmoid gates,
+$g_{\mathrm{seq}}$ and $g_{\mathrm{ctx}}$. The gates were independent
+and were not constrained to sum to one. The fused representation was
+\[
+\mathbf z=
+ g_{\mathrm{seq}}\widetilde{\mathbf x}_{\mathrm{seq}}
+ +g_{\mathrm{ctx}}\widetilde{\mathbf x}_{\mathrm{ctx}}.
+\]
+Separate classification and M-value regression heads were then applied
+to $\mathbf z$. Each head used a $768\rightarrow256\rightarrow1$
+architecture with GELU activation and dropout of 0.2 after the hidden
+layer.
+
+\subsection{Training Procedure and Prediction Objectives}
+\label{sec:training}
+
+Training proceeded in three stages. First, the sequence-only model was
+trained end to end with AdamW using learning rate $2\times10^{-5}$,
+weight decay 0.01, batch size 4, and eight gradient-accumulation steps.
+Training ran for at most 10 epochs with mixed precision, gradient
+clipping at 1.0, and a linear schedule with 10\% warmup. The
+sequence-only implementation also included an attention-magnitude term
+with coefficient 0.01 in addition to the two prediction losses.
+
+Second, the reference-context-only model was trained independently from
+scratch. It used AdamW with learning rate $10^{-3}$, weight decay
+$10^{-4}$, batch size 128, and at most 15 epochs. A OneCycle schedule
+used the first 10\% of steps for warmup. This stage learned the context
+encoder, its 768-dimensional projection, and the two output heads.
+
+Third, the sequence and context checkpoints were loaded into the fusion
+model. The DNABERT-2 encoder, sequence convolution and pooling layers,
+context multilayer perceptron, and context projection were frozen. Only
+the modality-specific LayerNorm modules, gating network, and two output
+heads remained trainable. These parameters were optimized with AdamW at
+$5\times10^{-4}$, weight decay $10^{-4}$, batch size 4, eight
+accumulation steps, and at most 10 epochs, again using mixed precision,
+gradient clipping, and 10\% linear warmup. All stages used random seed
+42.
+
+The classification head produced a logit $c$ and probability
+$\hat p=\sigma(c)$. The regression head produced an M-value prediction
+$\hat M$. The joint training loss was
+\[
+L=L_{\mathrm{BCE}}+L_{\mathrm{Huber}},
+\]
+where binary cross-entropy was applied to the methylation-state target
+and Huber loss with $\delta=1.345$ was applied to the M-value target.
+Predicted M-values were converted back to beta space by
+\[
+\hat\beta=\frac{2^{\hat M}}{1+2^{\hat M}}.
+\]
+Models were compared using MAE and RMSE in both M-value and beta space,
+and ROC-AUC for binary methylation state. Each configuration was trained
+once. The implemented checkpoint rule selected the lowest validation
+MAE between the classification probability and continuous beta target,
+whereas final continuous metrics and all counterfactual scores were
+computed from the inverse-transformed regression output.
+
+\subsection{Counterfactual Sensitivity and Matched Calibration}
+\label{sec:counterfactual-inference}
+
+For each candidate substitution, the trained fusion model was evaluated
+on matched wild-type and mutant sequences. The two inputs differed only
+at the tested nucleotide, and the reference-context vector was held
+fixed. The resulting model-sensitivity score was
+\[
+\Delta\hat\beta=
+\hat\beta_{\mathrm{mut}}-\hat\beta_{\mathrm{wt}}.
+\]
+Positive values indicate a higher mutant beta prediction, while negative
+values indicate a lower prediction. Candidate variants were ranked by
+$|\Delta\hat\beta|$. Because the model was trained on locus-level
+methylation rather than paired perturbation labels, this quantity was
+used as a ranking score rather than a measured mutation effect.
+
+To calibrate unusually large responses, every candidate was compared
+with observed synonymous variants from the same frozen cohort. Eight
+matching tiers were evaluated in order: (1) same gene, SBS96 context,
+CpG-effect class, and absolute mutation--probe distance within 25 bp;
+(2) SBS96, CpG-effect class, and distance within 50 bp; (3) SBS96,
+CpG-effect class, and distance within 100 bp; (4) SBS6, CpG-effect
+class, and distance within 100 bp; (5) SBS6, CpG-effect class, and
+distance within 250 bp; (6) transition/transversion class, CpG-effect
+class, and distance within 250 bp; (7) CpG-effect class and distance
+within 250 bp; and (8) all observed synonymous variants. Here distance
+matching used the absolute difference between the target and control
+distances from their paired CpGs.
+
+The narrowest tier containing at least 20 controls was selected. The
+target itself and duplicate variant--probe identifiers were excluded.
+Control sets larger than 1000 were subsampled without replacement using
+a variant-specific NumPy random seed formed from the first eight bytes
+of the SHA-256 digest of the variant identifier plus base seed 42; the
+selected indices were then sorted. For target $i$ with control set
+$C_i$, the empirical magnitude $p$-value was
+\[
+p_i=
+\frac{1+\sum_{j\in C_i}
+\mathbf1\left[|\Delta\hat\beta_j|\ge
+|\Delta\hat\beta_i|\right]}
+{|C_i|+1}.
+\]
+Benjamini--Hochberg correction was applied across all evaluated
+candidates. This analysis asks whether a response is extreme relative
+to comparable observed synonymous model responses.
+
+\subsection{Ranking Stability and Sequence Annotation}
+
+Ranking stability was evaluated with 50 Monte Carlo dropout passes over
+the same ordered set of 757 variant--CpG pairs. Dropout layers were
+activated while the remaining modules stayed in evaluation mode. Within
+each pass, the wild-type and mutant member of a pair used the same random
+seed so that their difference was computed under a matched dropout
+realization. Stability was summarized by Spearman correlation with the
+deterministic ranking, top-ten overlap, candidate rank distributions,
+sign consistency, and top-ten and top-twenty frequencies.
+
+A deterministic reverse-complement diagnostic separately transformed
+the wild-type and mutant sequences and the two ordered target-base
+conservation features. It was used to measure sensitivity to sequence
+orientation, not to redefine the primary ranking. Finally, 41-bp
+windows centered on the three leading full-cohort variants were scanned
+against 841 JASPAR2022 vertebrate CORE matrices on both strands.
+Wild-type and mutant scores were compared at identical
+mutation-overlapping placements; placements were retained when at least
+one allele had score greater than 5, and the largest absolute score
+change was reported for each case study.
+
+\section{Experiments and Results}
+\label{sec:results}
+
+\subsection{Held-Out Methylation Prediction}
+
+The sequence--context model was evaluated against sequence-only and
+reference-context-only models on the common held-out probe partition.
+All three models used the same target definitions, train--validation--test
+split, and evaluation procedure, allowing the comparison to focus on the
+information contributed by each input configuration.
+
+\begin{table}[H]
+\centering
+\caption{\textbf{Held-out predictive performance.} Lower RMSE and MAE
+and higher ROC-AUC indicate better performance.}
+\label{tab:performance}
+\small
+\resizebox{\columnwidth}{!}{
+\begin{tabular}{lccc}
+\hline
+Metric & Context only & Seq. only & Seq. + context \\
+\hline
+RMSE (M-value) & 1.9934 & 1.7504 & \textbf{1.5353} \\
+MAE (M-value) & 1.4830 & 1.2859 & \textbf{1.1569} \\
+RMSE ($\beta$) & 0.2219 & 0.1901 & \textbf{0.1613} \\
+MAE ($\beta$) & 0.1398 & 0.1156 & \textbf{0.1014} \\
+ROC-AUC & 0.9230 & 0.9473 & \textbf{0.9666} \\
+\hline
+\end{tabular}}
+\end{table}
+
+The fusion model produced the best value for every reported metric.
+Relative to sequence only, M-value MAE decreased from 1.2859 to 1.1569,
+beta-value RMSE decreased from 0.1901 to 0.1613, and beta-value MAE
+decreased from 0.1156 to 0.1014. The ROC-AUC increased by 0.0193, from
+0.9473 to 0.9666. These changes were observed for both the continuous
+regression output and the binary methylation-state output rather than
+being confined to one objective.
+
+The context-only model retained substantial predictive signal, with a
+ROC-AUC of 0.9230, but it was weaker than the sequence-only model on all
+five metrics. The improvement of the fusion model over both
+single-modality models therefore supports a narrow conclusion: under the
+shared probe-level split, the reference-context features contain
+information that complements the sequence representation. The
+comparison does not establish that the particular gating network is the
+only or optimal fusion strategy, but it does show that the final result
+cannot be explained by the context tower alone.
+
+\subsection{Construction of the Application Cohort}
+
+Candidate simple somatic mutations were retrieved from the GDC
+TCGA-BRCA API using an any-transcript
+\texttt{synonymous\_variant} filter. The accompanying
+\texttt{Solid Tissue Normal} condition selected cases whose metadata
+included a normal specimen; it did not indicate that the somatic
+mutation was detected in that specimen. The frozen construction
+pipeline mapped the stored gene symbol to cBioPortal and retained rows
+with an available methylation-profile value. Those values were not used
+as model inputs, counterfactual targets, or validation outcomes. The
+resulting set is therefore treated as a finite, ascertained application
+cohort rather than a representative catalogue of all TCGA-BRCA
+synonymous mutations.
+
+All coordinates and sequence operations used GRCh38/hg38. Each variant
+was paired with the nearest HumanMethylation450 CpG within 2,499 bp so
+that the substitution occurred within the stored 5000-bp CpG-centered
+window. Counterfactual inference used the central 1000 bp. The initial
+table contained 1,263 variant--CpG rows. Among these, 783 produced
+exactly one valid ACGT substitution inside the model input, whereas 480
+produced no sequence difference because the paired mutation was outside
+the central 1000-bp window. Removing 17 rows that failed the
+centered-CpG requirement and nine duplicate variant--probe identifiers
+left 757 unique eligible pairs.
+
+The deterministic ranking, matched-reference analysis, and Monte Carlo
+dropout analysis all used this same ordered set of 757 identifiers.
+Mapping each candidate probe back to the predictive split assigned 606
+pairs to training, 68 to validation, and 83 to test. These represented
+596, 65, and 79 unique CpG probes, respectively.
+
+\begin{table}[H]
+\centering
+\caption{\textbf{Predictive-partition membership of the application
+cohort.} Multiple variants can be paired with the same CpG probe.}
+\label{tab:candidate-split-membership}
+\small
+\begin{tabular}{lrr}
+\hline
+Partition & Candidate pairs & Unique CpG probes \\
+\hline
+Training   & 606 & 596 \\
+Validation & 68  & 65  \\
+Test       & 83  & 79  \\
+\hline
+Total      & 757 & 740 \\
+\hline
+\end{tabular}
+\end{table}
+
+The complete 757-pair ranking is consequently an application of the
+trained predictor across a mixed-partition cohort. The 83 test-probe
+pairs provide a narrower analysis in which the associated CpG targets
+were not used during model fitting or checkpoint selection.
+
+\subsection{Full-Cohort and Held-Out Candidate Rankings}
+
+Under the fixed GRCh38 reference orientation, the three largest
+absolute deterministic responses in the full cohort were associated
+with \textit{MSRA} (chr8:g.10428264C$>$T; cg14264678), \textit{DDC}
+(chr7:g.50543912G$>$A; cg05346287), and \textit{CHD5}
+(chr1:g.6128067C$>$T; cg12135344). Their predicted sensitivities were
+$+0.2427$, $-0.1816$, and $-0.1606$, respectively. The signs indicate
+that the mutant input received a higher prediction for \textit{MSRA}
+and lower predictions for \textit{DDC} and \textit{CHD5}.
+
+The three probes belonged to different predictive partitions:
+\textit{MSRA} was associated with validation, \textit{DDC} with
+training, and \textit{CHD5} with test. This distinction separates the
+full-cohort application ranking from the held-out-probe subset. When the
+ranking was restricted to the 83 test-probe pairs, \textit{CHD5}
+ranked first, followed by \textit{AHDC1}
+($\Delta\hat\beta=-0.1021$; full-cohort rank 7) and \textit{LHX6}
+($\Delta\hat\beta=+0.0833$; full-cohort rank 9).
+
+The deterministic test-subset ordering alone did not make the three
+candidates equally strong. Their candidate-specific dropout summaries
+show a clear separation between \textit{CHD5} and the next two held-out
+ranks.
+
+\begin{table}[H]
+\centering
+\caption{\textbf{Stability of the three highest deterministic
+held-out-probe candidates.} MC intervals and ranks summarize 50 matched
+dropout passes over the full cohort.}
+\label{tab:heldout-top3-stability}
+\small
+\resizebox{\columnwidth}{!}{
+\begin{tabular}{lrrrrr}
+\hline
+Gene & $\Delta\hat\beta$ & MC interval & Sign & Median rank & Top-10 \\
+\hline
+\textit{CHD5}  & $-0.1606$ & $[-0.2804,-0.0791]$ & 100\% & 2.0  & 88\% \\
+\textit{AHDC1} & $-0.1021$ & $[-0.1517,-0.0239]$ & 100\% & 17.5 & 38\% \\
+\textit{LHX6}  & $+0.0833$ & $[-0.0728,+0.1807]$ & 80\%  & 11.5 & 48\% \\
+\hline
+\end{tabular}}
+\end{table}
+
+\textit{CHD5} retained its negative direction in all 50 passes, its
+5th--95th percentile interval excluded zero, and it appeared in the top
+ten in 88\% of passes. \textit{AHDC1} also retained its direction and
+had an interval excluding zero, but its median rank fell to 17.5 and it
+appeared in the top ten in only 38\% of passes. \textit{LHX6} showed
+weaker evidence: its interval crossed zero and sign consistency was
+80\%. \textit{CHD5} is therefore the principal held-out-probe case
+study, while \textit{AHDC1} and \textit{LHX6} are reported as the next
+deterministic test-subset ranks rather than equivalent leads.
+
+\subsection{Matched-Reference Calibration}
+
+The three highest full-cohort responses were compared with finite sets
+of matched observed synonymous controls selected by the prespecified
+hierarchy. Each case study exceeded every member of its selected
+control set: 30 controls for \textit{MSRA}, 27 for \textit{DDC}, and
+191 for \textit{CHD5}. This yielded nominal empirical $p$-values of
+0.0323, 0.0357, and 0.0052.
+
+\begin{table}[H]
+\centering
+\caption{\textbf{Matched calibration of the three highest-ranked
+full-cohort case studies.} None remained significant after cohort-wide
+Benjamini--Hochberg correction.}
+\label{tab:matched-null-top3}
+\small
+\resizebox{\columnwidth}{!}{
+\begin{tabular}{lcrrrr}
+\hline
+Gene & Split & $\Delta\hat\beta$ & Controls & $p$ & $q$ \\
+\hline
+\textit{MSRA} & Val.  & $+0.2427$ & 30  & 0.0323 & 0.9614 \\
+\textit{DDC}  & Train & $-0.1816$ & 27  & 0.0357 & 0.9614 \\
+\textit{CHD5} & Test  & $-0.1606$ & 191 & 0.0052 & 0.9614 \\
+\hline
+\end{tabular}}
+\end{table}
+
+The finite control counts determine the resolution of the empirical
+tests. When no control is as extreme as a target, the smallest
+attainable value is $1/(|C_i|+1)$, which gives the reported values for
+all three case studies. After Benjamini--Hochberg correction across the
+candidate cohort, each had $q=0.9614$. The matched analysis therefore
+shows that these deterministic responses were unusually large relative
+to their available reference sets, but it does not support a
+cohort-wide statistically significant discovery.
+
+\begin{figure*}[t]
+    \centering
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{matched_null_top1_MSRA.png}
+        \caption{\textit{MSRA}}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{matched_null_top2_DDC.png}
+        \caption{\textit{DDC}}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{matched_null_top3_CHD5.png}
+        \caption{\textit{CHD5}}
+    \end{subfigure}
+    \caption{\textbf{Matched observed-synonymous reference
+    distributions.} Histograms show the matched control responses and
+    vertical lines mark the three highest-ranked full-cohort case
+    studies. Each exceeded its finite matched set, but none remained
+    significant after cohort-wide correction.}
+    \label{fig:matched-null-top3}
+\end{figure*}
+
+\subsection{Monte Carlo Dropout Stability}
+
+Across the complete cohort, the stochastic absolute-effect rankings
+showed moderate agreement with the deterministic ranking. The median
+Spearman correlation was 0.6678, with values from 0.6151 to 0.6984
+across the 50 passes. Median top-ten overlap was 45\%, and individual
+passes retained between three and seven members of the deterministic
+top ten. These results indicate that the broader upper tail should be
+viewed as a region of high model sensitivity rather than a fixed total
+ordering.
+
+The three full-cohort case studies were more stable than the top-ten set
+as a whole. All retained their predicted directions in every pass, and
+none of their empirical 5th--95th percentile intervals crossed zero.
+\textit{MSRA}, \textit{DDC}, and \textit{CHD5} appeared in the top ten
+in 94\%, 82\%, and 88\% of passes, and in the top twenty in 100\%, 98\%,
+and 96\%, respectively.
+
+\begin{table*}[t]
+\centering
+\caption{\textbf{Monte Carlo dropout stability of the three
+full-cohort case studies.} Intervals are empirical 5th--95th
+percentiles across 50 passes.}
+\label{tab:mc-dropout-stability}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{lrrrrrrr}
+\hline
+Gene &
+Deterministic $\Delta\hat\beta$ &
+MC median $\Delta\hat\beta$ &
+MC interval &
+Sign consistency &
+Median rank &
+Top-10 frequency &
+Top-20 frequency \\
+\hline
+\textit{MSRA} & $+0.2427$ & $+0.2004$ & $[+0.1164,+0.2560]$ &
+100\% & 2 & 94\% & 100\% \\
+\textit{DDC} & $-0.1816$ & $-0.1248$ & $[-0.2505,-0.0798]$ &
+100\% & 5 & 82\% & 98\% \\
+\textit{CHD5} & $-0.1606$ & $-0.1884$ & $[-0.2804,-0.0791]$ &
+100\% & 2 & 88\% & 96\% \\
+\hline
+\end{tabular}}
+\end{table*}
+
+The stochastic analysis therefore supports the persistence of these
+three large reference-orientation responses under inference variation,
+particularly their effect directions. It provides weaker support for
+the exact ordering of candidates outside this small leading group.
+
+\subsection{Orientation Sensitivity and Motif Concordance}
+
+An exploratory reverse-complement diagnostic preserved none of the
+forward-orientation top ten after consistently transforming both the
+sequence and the ordered target-base conservation features. The
+ranking therefore depends strongly on the sequence orientation used by
+the trained architecture. All primary candidate results in this paper
+refer to the fixed GRCh38 reference orientation used during training
+and inference.
+
+For complementary sequence annotation, 41-bp wild-type and mutant
+windows were scanned against 841 JASPAR2022 vertebrate CORE matrices on
+both strands. The analysis compared each allele at the same
+mutation-overlapping placement and reported the largest absolute score
+change passing the prespecified threshold.
+
+\begin{table}[H]
+\centering
+\caption{\textbf{Largest mutation-overlapping JASPAR score changes for
+the three full-cohort case studies.}}
+\label{tab:jaspar-top3}
+\small
+\resizebox{\columnwidth}{!}{
+\begin{tabular}{llrrr}
+\hline
+Gene & Matrix & WT score & Mutant score & Change \\
+\hline
+\textit{DDC}  & HOXA2 MA0900.2  & $-11.2084$ & $5.5890$  & $+16.7974$ \\
+\textit{CHD5} & NPAS2 MA0626.1  & $8.0016$   & $-2.9635$ & $-10.9651$ \\
+\textit{MSRA} & ZNF423 MA0116.1 & $5.8926$   & $0.8482$  & $-5.0444$ \\
+\hline
+\end{tabular}}
+\end{table}
+
+The \textit{DDC} substitution crossed the threshold from a strongly
+unfavorable to a positive HOXA2 score, consistent with a predicted motif
+gain. The \textit{CHD5} and \textit{MSRA} substitutions reduced NPAS2
+and ZNF423 scores below the threshold, consistent with predicted motif
+losses. These motif changes provide sequence-level concordance with the
+fact that the substitutions alter model-relevant local sequence, but
+position-weight-matrix scores do not directly measure transcription-
+factor occupancy or methylation change.
+
+\subsection{Reproducibility}
+
+The repository includes scripts for data construction, sequence and
+context pretraining, fusion training, held-out evaluation,
+counterfactual ranking, matched calibration, dropout stability, and
+JASPAR scanning. In particular, \texttt{build\_training\_data.py}
+defines methylation-column selection, probe filtering, sequence
+validation, and the train--validation--test split, while
+\texttt{matched\_synonymous\_null.py} defines the complete control
+hierarchy and deterministic subsampling rule. The deterministic,
+calibration, and stability outputs were audited to contain the same 757
+identifiers.
+
+The recorded environment used Python 3.10.20, PyTorch 2.6.0 with CUDA
+12.4, Transformers 5.8.0, NumPy 2.2.6, pandas 2.3.3, scikit-learn
+1.7.2, SciPy 1.15.3, Biopython 1.87, and \texttt{pyjaspar} 4.0.0. The
+clean analysis snapshot corresponds to Git commit
+\texttt{273378e6b8704d52b3711c3b3a4f4266a88e0212}.
+
+The 50-pass dropout sweep used a fixed ordered cohort and matched random
+seeds for each wild-type--mutant pair, requiring approximately 10
+minutes 26 seconds in the recorded analysis environment. Exact rerunning
+also requires the external \texttt{hg38.fa},
+\texttt{HM450.hg38.manifest.tsv.gz},
+\texttt{TCGA-BRCA.methylation450.tsv.gz}, reference BigWig tracks,
+generated split and candidate tables, and trained checkpoints. The
+archived methylation matrix contained 893 sample columns, of which 97
+were selected by the \texttt{-11} normal-sample code, and had SHA-256
+checksum
+\texttt{71f7a02dd9ff849f43e05c6e54a9b8266349c9697601dc0450c9dc30f47679db}.
+The selected sample identifiers were recorded in
+\texttt{tcga\_methylation\_input\_audit.json}. A complete release
+should retain this audit file and record the source URL or accession and
+checksum for every other large external input.
+
+
+\section{Discussion}
+
+The predictive comparison supports a focused conclusion: reference
+context adds information beyond local sequence under the present
+probe-level split. The fusion model improved every reported metric, but
+this result does not isolate the gating mechanism from other possible
+fusion strategies. The counterfactual analysis then demonstrates how a
+trained methylation predictor can nominate variants while keeping
+$\Delta\hat\beta$ distinct from an experimentally observed mutation
+effect.
+
+\textit{CHD5} is the strongest held-out-probe result because it ranked
+first among the 83 test-probe pairs and remained stable under dropout.
+\textit{MSRA} and \textit{DDC} are larger and stable full-cohort model
+responses, but their probes belong to the validation and training
+partitions. None of the three survived cohort-wide correction, and the
+reverse-complement failure prevents treating them as strand-invariant
+biological priorities. Their appropriate role is therefore as
+reference-orientation-specific case studies for subsequent validation.
+
+The main limitations are the absence of direct perturbation validation,
+the mismatch between TCGA bulk-tissue labels and MCF-10A reference
+features, nearby overlapping windows under the random probe split, one
+training seed, and the checkpoint-selection mismatch. The frozen
+candidate cohort is also shaped by cBioPortal methylation availability,
+even though those values were not used downstream. In addition,
+any-transcript synonymous eligibility combined with storing the first
+returned gene symbol may affect gene-based matching for some cohort
+members. These issues constrain the strength and scope of the candidate
+claims but do not change the study's role as an exploratory
+prioritization analysis.
+
+\subsection{Future Work}
+
+The highest-value next analyses are forward--reverse-complement averaged
+inference, fixed-release transcript reannotation with repeated control
+matching, and a dedicated test-only candidate analysis. Genomic-block
+or chromosome-level evaluation and repeated training seeds would
+provide stronger evidence of generalization. Ultimately, targeted
+introduction of prioritized variants followed by locus-specific
+methylation measurement would be required for biological validation.
+
+\section{Conclusion}
+
+The sequence--context model improved held-out methylation prediction
+relative to both single-modality baselines and was used to rank 757
+somatic synonymous variant--CpG pairs. \textit{MSRA}, \textit{DDC},
+and \textit{CHD5} were stable full-cohort case studies, while
+\textit{CHD5} was the principal held-out-probe result. None was
+significant after cohort-wide correction, and the rankings were
+orientation-sensitive. The framework therefore provides a reproducible
+procedure for hypothesis generation and candidate nomination rather
+than causal variant-effect discovery.
+
+\bibliographystyle{ieeetr}
+\bibliography{references}
+\end{document}
+

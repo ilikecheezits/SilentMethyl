@@ -1,0 +1,4 @@
+Variant_UID,Gene,probeID,Predictive_Split,Deterministic_Delta_Beta,Deterministic_Absolute_Rank,Test_Subset_Absolute_Rank
+chr8:g.10428264C>T|cg14264678,MSRA,cg14264678,validation,0.24267578125,1,
+chr7:g.50543912G>A|cg05346287,DDC,cg05346287,train,-0.181640625,2,
+chr1:g.6128067C>T|cg12135344,CHD5,cg12135344,test,-0.16064453125,3,1.0
