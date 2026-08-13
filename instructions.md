@@ -95,8 +95,10 @@ median at each CpG.
 
 ### 2.2 ENCODE reference tracks
 
-Download one released GRCh38 `fold change over control` BigWig from each
-experiment and save it under the required name.
+Download the released GRCh38 `fold change over control` BigWig files in one
+terminal block. The script below queries the ENCODE experiment metadata,
+selects the released GRCh38 file for each experiment, downloads it into the
+required path, and verifies the published MD5 before continuing.
 
 | Required path | ENCODE experiment |
 |---|---|
@@ -107,17 +109,82 @@ experiment and save it under the required name.
 | `data/reference/H3K4me3.bw` | `ENCSR291QUA` |
 | `data/reference/H3K9me3.bw` | `ENCSR049WGG` |
 
-Experiment pages use this form:
-
-```text
-https://www.encodeproject.org/experiments/ENCSR685JSL/
-```
-
-Record the selected `ENCFF...` file accession and ENCODE MD5. Check each local
-file with the corresponding published MD5:
-
 ```bash
-echo '<ENCODE_MD5>  data/reference/H3K27ac.bw' | md5sum -c -
+mkdir -p data/reference
+
+python - <<'PY'
+import json
+import subprocess
+import urllib.request
+from pathlib import Path
+
+exp_to_path = {
+    "ENCSR685JSL": "data/reference/H3K27ac.bw",
+    "ENCSR884WUC": "data/reference/H3K27me3.bw",
+    "ENCSR362VGZ": "data/reference/H3K36me3.bw",
+    "ENCSR585PIL": "data/reference/H3K4me1.bw",
+    "ENCSR291QUA": "data/reference/H3K4me3.bw",
+    "ENCSR049WGG": "data/reference/H3K9me3.bw",
+}
+
+headers = {"User-Agent": "Mozilla/5.0"}
+
+for exp, dest in exp_to_path.items():
+    req = urllib.request.Request(
+        f"https://www.encodeproject.org/experiments/{exp}/?format=json",
+        headers=headers,
+    )
+    with urllib.request.urlopen(req, timeout=60) as fh:
+        experiment = json.load(fh)
+
+    candidates = []
+    for record in experiment.get("files", []):
+        if record.get("status") != "released":
+            continue
+        if record.get("file_format") not in {"bigWig", "bigwig"}:
+            continue
+        if record.get("output_type") != "fold change over control":
+            continue
+        assembly = (record.get("assembly") or "").strip()
+        if assembly not in {"GRCh38", "hg38"}:
+            continue
+        candidates.append(record)
+
+    if not candidates:
+        raise SystemExit(f"No released GRCh38 fold-change BigWig found for {exp}")
+
+    selected = sorted(
+        candidates,
+        key=lambda f: (f.get("md5sum") is None, f.get("href") is None),
+    )[0]
+    accession = selected["accession"]
+    md5 = selected["md5sum"]
+    download_url = "https://www.encodeproject.org" + selected["href"]
+    path = Path(dest)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    subprocess.run(["curl", "-fsSL", "-o", str(path), download_url], check=True)
+    observed = subprocess.check_output(["md5sum", str(path)], text=True).split()[0]
+    if observed != md5:
+        raise SystemExit(
+            f"MD5 mismatch for {dest}: expected {md5}, observed {observed}"
+        )
+
+    print(f"{exp}: {accession} -> {dest} (md5={md5})")
+PY
+
+for path in \
+  data/reference/H3K27ac.bw \
+  data/reference/H3K27me3.bw \
+  data/reference/H3K36me3.bw \
+  data/reference/H3K4me1.bw \
+  data/reference/H3K4me3.bw \
+  data/reference/H3K9me3.bw
+do
+  test -s "$path" || { echo "MISSING: $path" >&2; exit 1; }
+done
+
+echo "All ENCODE reference tracks downloaded and validated."
 ```
 
 The ATAC track uses filtered GRCh38 BAM `ENCFF021PIS` from experiment
