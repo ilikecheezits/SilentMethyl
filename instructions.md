@@ -265,11 +265,18 @@ Do not continue to data construction while any required input is missing.
 
 ## 3. Build processed data
 
-For an exact frozen reproduction, place the released GDC response cache at:
+For a frozen, exact reproduction, the data builder expects a local GDC response
+cache at:
 
 ```text
 data/datafiles/gdc_tcga_brca_synonymous_raw.json.gz
 ```
+
+This file is just the raw GDC JSON response for the TCGA-BRCA synonymous-variant
+query, saved locally so the pipeline uses a fixed upstream snapshot instead of a
+new live API response. If it is not already present, the builder will create it
+when you run the data build below; do not pass `--refresh-gdc` for the frozen
+reproduction.
 
 Create log directories:
 
