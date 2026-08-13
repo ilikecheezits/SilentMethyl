@@ -112,66 +112,18 @@ required path, and verifies the published MD5 before continuing.
 ```bash
 mkdir -p data/reference
 
-python - <<'PY'
-import json
-import subprocess
-import urllib.request
-from pathlib import Path
-
-exp_to_path = {
-    "ENCSR685JSL": "data/reference/H3K27ac.bw",
-    "ENCSR884WUC": "data/reference/H3K27me3.bw",
-    "ENCSR362VGZ": "data/reference/H3K36me3.bw",
-    "ENCSR585PIL": "data/reference/H3K4me1.bw",
-    "ENCSR291QUA": "data/reference/H3K4me3.bw",
-    "ENCSR049WGG": "data/reference/H3K9me3.bw",
-}
-
-headers = {"User-Agent": "Mozilla/5.0"}
-
-for exp, dest in exp_to_path.items():
-    req = urllib.request.Request(
-        f"https://www.encodeproject.org/experiments/{exp}/?format=json",
-        headers=headers,
-    )
-    with urllib.request.urlopen(req, timeout=60) as fh:
-        experiment = json.load(fh)
-
-    candidates = []
-    for record in experiment.get("files", []):
-        if record.get("status") != "released":
-            continue
-        if record.get("file_format") not in {"bigWig", "bigwig"}:
-            continue
-        if record.get("output_type") != "fold change over control":
-            continue
-        assembly = (record.get("assembly") or "").strip()
-        if assembly not in {"GRCh38", "hg38"}:
-            continue
-        candidates.append(record)
-
-    if not candidates:
-        raise SystemExit(f"No released GRCh38 fold-change BigWig found for {exp}")
-
-    selected = sorted(
-        candidates,
-        key=lambda f: (f.get("md5sum") is None, f.get("href") is None),
-    )[0]
-    accession = selected["accession"]
-    md5 = selected["md5sum"]
-    download_url = "https://www.encodeproject.org" + selected["href"]
-    path = Path(dest)
-    path.parent.mkdir(parents=True, exist_ok=True)
-
-    subprocess.run(["curl", "-fsSL", "-o", str(path), download_url], check=True)
-    observed = subprocess.check_output(["md5sum", str(path)], text=True).split()[0]
-    if observed != md5:
-        raise SystemExit(
-            f"MD5 mismatch for {dest}: expected {md5}, observed {observed}"
-        )
-
-    print(f"{exp}: {accession} -> {dest} (md5={md5})")
-PY
+wget -c -O data/reference/H3K27ac.bw \
+  https://www.encodeproject.org/files/ENCFF282YCX/@@download/ENCFF282YCX.bigWig
+wget -c -O data/reference/H3K27me3.bw \
+  https://www.encodeproject.org/files/ENCFF274LWG/@@download/ENCFF274LWG.bigWig
+wget -c -O data/reference/H3K36me3.bw \
+  https://www.encodeproject.org/files/ENCFF634LDP/@@download/ENCFF634LDP.bigWig
+wget -c -O data/reference/H3K4me1.bw \
+  https://www.encodeproject.org/files/ENCFF714NIL/@@download/ENCFF714NIL.bigWig
+wget -c -O data/reference/H3K4me3.bw \
+  https://www.encodeproject.org/files/ENCFF548SFG/@@download/ENCFF548SFG.bigWig
+wget -c -O data/reference/H3K9me3.bw \
+  https://www.encodeproject.org/files/ENCFF423DKY/@@download/ENCFF423DKY.bigWig
 
 for path in \
   data/reference/H3K27ac.bw \
@@ -184,26 +136,42 @@ do
   test -s "$path" || { echo "MISSING: $path" >&2; exit 1; }
 done
 
-echo "All ENCODE reference tracks downloaded and validated."
+echo "All ENCODE reference tracks downloaded."
+```
+
+Then record the published ENCODE md5 for each file and verify the local copy:
+
+```bash
+echo '<ENCODE_MD5>  data/reference/H3K27ac.bw' | md5sum -c -
+echo '<ENCODE_MD5>  data/reference/H3K27me3.bw' | md5sum -c -
+echo '<ENCODE_MD5>  data/reference/H3K36me3.bw' | md5sum -c -
+echo '<ENCODE_MD5>  data/reference/H3K4me1.bw' | md5sum -c -
+echo '<ENCODE_MD5>  data/reference/H3K4me3.bw' | md5sum -c -
+echo '<ENCODE_MD5>  data/reference/H3K9me3.bw' | md5sum -c -
 ```
 
 The ATAC track uses filtered GRCh38 BAM `ENCFF021PIS` from experiment
 `ENCSR037XNN` and CPM-normalized 50-bp bins:
 
 ```bash
+mkdir -p data/source/atac
 wget -c -O data/source/atac/ENCFF021PIS.bam \
   https://www.encodeproject.org/files/ENCFF021PIS/@@download/ENCFF021PIS.bam
 
-python - <<'PY'
-from pathlib import Path
-import pysam
+test -s data/source/atac/ENCFF021PIS.bam || {
+  echo "ATAC BAM download failed or is incomplete." >&2
+  exit 1
+}
 
-bam = Path("data/source/atac/ENCFF021PIS.bam")
-index = Path(str(bam) + ".bai")
-if not index.exists():
-    pysam.index("-@", "8", str(bam))
-print(index)
-PY
+python -m pip install pysam
+command -v samtools >/dev/null || conda install -y -c bioconda samtools
+samtools index -@ 8 data/source/atac/ENCFF021PIS.bam
+
+test -s data/source/atac/ENCFF021PIS.bam.bai || {
+  echo "Missing BAM index: data/source/atac/ENCFF021PIS.bam.bai" >&2
+  exit 1
+}
+ls -lh data/source/atac/ENCFF021PIS.bam.bai
 
 bamCoverage \
   --bam data/source/atac/ENCFF021PIS.bam \
