@@ -431,7 +431,7 @@ def main() -> None:
     print("SilentMethyl manuscript figures")
     print(f"  output: {output}")
     print("  figures: 3")
-
+    
 
 if __name__ == "__main__":
     main()
