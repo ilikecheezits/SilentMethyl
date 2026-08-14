@@ -7,7 +7,7 @@ predictions, analysis summaries, QC/provenance records, and selected figure
 assets.  It excludes raw controlled-access data, reference tracks, model
 checkpoints, TensorBoard events, and transient logs.
 
-Run from the project root after scripts 02--10 have completed.
+Run from the project root after scripts 02--10 and 12--13 have completed.
 """
 
 from __future__ import annotations
@@ -82,6 +82,9 @@ STATIC_ITEMS = (
     Item("S1", "results/journal/candidates/model_comparison/sequence_vs_fusion_summary.json",
          "Supplementary_Data_S1_Candidates/S1_sequence_vs_fusion_summary.json",
          "Summary of candidate agreement between sequence-only and fusion models."),
+    Item("S1", "results/journal/manuscript_figures/top_candidate_case_study.csv",
+         "Supplementary_Data_S1_Candidates/S1_top_candidate_case_study.csv",
+         "Data underlying the rank-1 candidate case-study figure."),
 
     # S2: external positive-control support.
     Item("S2", "results/journal/egtex_mqtl_positive_control/validated_heldout_cohort.csv",
@@ -145,6 +148,24 @@ STATIC_ITEMS = (
     Item("S4", "results/journal/paired_model_bootstrap/run_summary.json",
          "Supplementary_Data_S4_Model_Performance/S4_bootstrap_run_summary.json",
          "Bootstrap parameters and comparison manifest."),
+    Item("S4", "results/journal/biological_context/locus_metrics_by_context.csv",
+         "Supplementary_Data_S4_Model_Performance/S4_locus_metrics_by_context.csv",
+         "Held-out performance stratified by CpG-island context and MCF-10A ATAC signal."),
+    Item("S4", "results/journal/biological_context/fusion_gain_by_context.csv",
+         "Supplementary_Data_S4_Model_Performance/S4_fusion_gain_by_context.csv",
+         "Fusion-versus-sequence Beta-MAE gain by CpG-island and ATAC strata."),
+    Item("S4", "results/journal/biological_context/heldout_cpg_context_assignments.csv",
+         "Supplementary_Data_S4_Model_Performance/S4_heldout_cpg_context_assignments.csv",
+         "Biological-context assignments for all held-out CpGs."),
+    Item("S4", "results/journal/biological_context/variant_response_by_distance.csv",
+         "Supplementary_Data_S4_Model_Performance/S4_variant_response_by_distance.csv",
+         "Candidate response and mQTL agreement summarized by variant-to-CpG distance."),
+    Item("S4", "results/journal/biological_context/run_summary.json",
+         "Supplementary_Data_S4_Model_Performance/S4_biological_context_run_summary.json",
+         "Configuration and input hashes for the post hoc biological-context analysis."),
+    Item("S4", "results/journal/manuscript_figures/run_summary.json",
+         "Supplementary_Data_S4_Model_Performance/S4_manuscript_figure_run_summary.json",
+         "Input hashes and numerical summaries for the generated manuscript figures."),
 
     # S5: target construction and probe-quality sensitivity.
     Item("S5", "results/journal/target_qc/hm450_manifest_audit.json",
@@ -236,6 +257,21 @@ STATIC_ITEMS = (
     Item("SF", "results/journal/candidates/plots/matched_background_rank3.png",
          "Supplementary_Figures/SF7_candidate_rank3_background.png",
          "Matched-background display for the third-ranked candidate.", False),
+    Item("SF", "results/journal/biological_context/plots/fusion_gain_by_context.png",
+         "Supplementary_Figures/SF8_fusion_gain_by_context.png",
+         "Fusion improvement over sequence-only across CpG-island and ATAC strata.", False),
+    Item("SF", "results/journal/biological_context/plots/variant_response_by_distance.png",
+         "Supplementary_Figures/SF9_variant_response_by_distance.png",
+         "Predicted sequence responses summarized by variant-to-CpG distance.", False),
+    Item("SF", "results/journal/manuscript_figures/model_incremental_performance.png",
+         "Supplementary_Figures/SF10_model_incremental_performance.png",
+         "Incremental held-out performance of context-only, sequence-only, and fusion models.", False),
+    Item("SF", "results/journal/manuscript_figures/mqtl_signed_and_magnitude.png",
+         "Supplementary_Figures/SF11_mQTL_signed_and_magnitude.png",
+         "Signed and absolute eGTEx mQTL agreement for the fusion ensemble.", False),
+    Item("SF", "results/journal/manuscript_figures/top_candidate_case_study.png",
+         "Supplementary_Figures/SF12_top_candidate_case_study.png",
+         "Cross-seed and matched-background view of the first-ranked candidate.", False),
 )
 
 
@@ -353,6 +389,8 @@ def validate_primary_tables(project: Path) -> None:
         "results/journal/candidates/candidate_matched_background_statistics.csv": 440,
         "results/journal/egtex_mqtl_positive_control/validated_heldout_cohort.csv": 81,
         "results/journal/egtex_mqtl_matched_negative/matched_lead_cohort.csv": 70,
+        "results/journal/biological_context/heldout_cpg_context_assignments.csv": 26_570,
+        "results/journal/manuscript_figures/top_candidate_case_study.csv": 1,
     }
     for relative, expected in checks.items():
         path = project / relative
@@ -392,7 +430,8 @@ unless a file explicitly states otherwise.
   and discrimination/permutation statistics.
 - **Supplementary Data S4 — model performance:** complete held-out predictions
   and metrics for three architectures across seeds 42, 43, and 44, plus paired
-  genomic-block bootstrap comparisons.
+  genomic-region comparisons, biological-context stratification, and figure
+  source summaries.
 - **Supplementary Data S5 — target QC:** HM450 mask audit and normal-sample
   coverage sensitivity, including coverage for every held-out probe.
 - **Supplementary Data S6 — reproducibility:** target/candidate construction
@@ -415,7 +454,7 @@ unless a file explicitly states otherwise.
 
 ## Rebuilding
 
-From the project root, after scripts 02--10 have completed:
+From the project root, after scripts 02--10 and 12--13 have completed:
 
 ```bash
 python -u scripts/11_build_supplement_package.py

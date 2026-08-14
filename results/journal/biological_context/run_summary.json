@@ -1,0 +1,55 @@
+{
+  "analysis_status": "COMPLETE",
+  "atac_strata": [
+    "Q1 low",
+    "Q2",
+    "Q3",
+    "Q4 high",
+    "Missing"
+  ],
+  "block_size_bp": 1000000,
+  "bootstrap_replicates": 2000,
+  "candidate_count": 440,
+  "cpg_island_strata": [
+    "Island",
+    "Shore",
+    "Shelf",
+    "Open sea",
+    "Unclassified"
+  ],
+  "distance_bins_bp": [
+    "0--50",
+    "51--100",
+    "101--250",
+    "251--500"
+  ],
+  "heldout_cpg_count": 26570,
+  "inputs": {
+    "data/HM450.hg38.manifest.CpGIsland.tsv.gz": "b5117ddedbc8d40ba9603d6de1e51970c719919a97c62d5b7f29289dedd58cc5",
+    "data/datafiles/test.csv": "336882b233034679987689509902799f3bf43096f0f2f19767c240653a8b0c34",
+    "results/journal/candidates/candidate_matched_background_statistics.csv": "380426e595fb24086a30b590b239cb29b9a999a9d7f32019b6daed58417f5f43",
+    "results/journal/egtex_mqtl_positive_control/mqtl_predictions_seed_aggregate.csv": "2d3380bce6956572c02de0380c2cfc3326e301f66f3d892b9a8a8247a574545a",
+    "results/journal/seed42/epi/predictions.csv": "990fd5518f0046b6d56ad5d20277d242a4dfe44b07f7cbf9ff2087a2fbeb90ca",
+    "results/journal/seed42/fusion/predictions.csv": "cf593b00a6ec7d60a74b4e2d12d925545400bb97581e59481c1e8085cfc64957",
+    "results/journal/seed42/sequence/predictions.csv": "0a90be817a7a3a1464a9fcccea6a503b1b0a2695fc4387aad94c262b5e3e6647",
+    "results/journal/seed43/epi/predictions.csv": "978401a38a20a7acfbd67a212924d8d71c90e57e4c740a0ea2d8fdfdfd561c3f",
+    "results/journal/seed43/fusion/predictions.csv": "e433390d7e6cc4f1dcd28099719bf4b63e48b9949fe8bd4fa896329bd420c02c",
+    "results/journal/seed43/sequence/predictions.csv": "e7dd0070b2d881070f8db95cc997e184d20c8aa86bc8a2ff6e2c6f5a475ce82d",
+    "results/journal/seed44/epi/predictions.csv": "8614b4b2b5fbb25c9ef72374b4d5d17bb6ff66223a60564505dd0fc7e124f4cf",
+    "results/journal/seed44/fusion/predictions.csv": "d7b798adb6da62fc1fbae9d4e254ca38be7a866af6382228d435e624d84539cc",
+    "results/journal/seed44/sequence/predictions.csv": "7299a2e4e17448931bf32850892817a94e043a8704be55a70d3153bf9b7d46ef"
+  },
+  "interpretation": "Post hoc descriptive stratification of frozen held-out predictions; not an additional training experiment or causal analysis.",
+  "models": [
+    "epi",
+    "sequence",
+    "fusion"
+  ],
+  "mqtl_fusion_association_count": 81,
+  "random_seed": 20260814,
+  "seeds": [
+    42,
+    43,
+    44
+  ]
+}

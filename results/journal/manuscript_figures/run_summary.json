@@ -1,0 +1,42 @@
+{
+  "analysis_status": "COMPLETE",
+  "inputs": {
+    "results/journal/candidates/candidate_matched_background_statistics.csv": "380426e595fb24086a30b590b239cb29b9a999a9d7f32019b6daed58417f5f43",
+    "results/journal/candidates/candidate_seed_scores_long.csv": "ed1d1dd7b9390babb3e748ecddd65ebcec39a8cf5904fd4d126b9f1ad3dfb8b8",
+    "results/journal/candidates/top_candidate_matched_comparators_long.csv": "a62467b787e9797af61b0548668b728fe44376c8dfe633cc6a8f8c245f2f4540",
+    "results/journal/egtex_mqtl_positive_control/mqtl_predictions_seed_aggregate.csv": "2d3380bce6956572c02de0380c2cfc3326e301f66f3d892b9a8a8247a574545a",
+    "results/journal/paired_model_bootstrap/model_metrics_recomputed.csv": "e624f7d5a2678be5b677934b7f76802a93d004318f42516758ee0c10bbac5a10"
+  },
+  "interpretation": "Figures are visual summaries of frozen model outputs and do not constitute additional model training or biological validation.",
+  "mqtl_figure": {
+    "absolute_spearman": 0.2165085817524842,
+    "association_count": 81,
+    "direction_concordance": 0.7901234567901234,
+    "signed_spearman": 0.6100948509485095
+  },
+  "performance_figure": {
+    "model_count": 3,
+    "seed_count": 3,
+    "seeds": [
+      42,
+      43,
+      44
+    ]
+  },
+  "top_candidate": {
+    "Absolute_Delta_Beta_Rank": 1,
+    "Empirical_Matched_Background_Percentile": 100.0,
+    "Gene": "NCOA2",
+    "Interpretation": "Model-derived case study for hypothesis generation; not experimental or causal validation.",
+    "Matched_Background_Tier": "T4_SBS6_CpG_distance100",
+    "Matched_Comparator_Count": 66,
+    "Matched_Comparator_Median_Absolute_Delta_Beta": 0.00665978590647375,
+    "Per_Seed_Predicted_Delta_Beta": "-0.16221637,-0.16966262,-0.20748758",
+    "Predicted_Delta_Beta": -0.1797888576984405,
+    "Predicted_Delta_Beta_SD": 0.0198204648180479,
+    "Seed_Count": 3,
+    "Seeds": "42,43,44",
+    "Variant_UID": "chr8_70148394_G_A__cg20699548__ENST00000452400_7",
+    "probeID": "cg20699548"
+  }
+}
