@@ -23,10 +23,25 @@
     "101--250",
     "251--500"
   ],
+  "genomic_region_definition": "Exclusive hierarchy: GENCODE v44 transcript TSS -1500/+200 bp; then GENCODE UTR; then GENCODE gene span; otherwise intergenic.",
+  "genomic_region_strata": [
+    "Promoter/TSS",
+    "UTR",
+    "Gene body",
+    "Intergenic"
+  ],
+  "h3k27ac_strata": [
+    "Q1 low",
+    "Q2",
+    "Q3",
+    "Q4 high",
+    "Missing"
+  ],
   "heldout_cpg_count": 26570,
   "inputs": {
     "data/HM450.hg38.manifest.CpGIsland.tsv.gz": "b5117ddedbc8d40ba9603d6de1e51970c719919a97c62d5b7f29289dedd58cc5",
     "data/datafiles/test.csv": "336882b233034679987689509902799f3bf43096f0f2f19767c240653a8b0c34",
+    "data/reference/gencode.v44.annotation.gtf.gz": "01f817afed65feee863361b4baf30a95e722ee5c5d508ff77b04106ef7ba20d3",
     "results/journal/candidates/candidate_matched_background_statistics.csv": "380426e595fb24086a30b590b239cb29b9a999a9d7f32019b6daed58417f5f43",
     "results/journal/egtex_mqtl_positive_control/mqtl_predictions_seed_aggregate.csv": "2d3380bce6956572c02de0380c2cfc3326e301f66f3d892b9a8a8247a574545a",
     "results/journal/seed42/epi/predictions.csv": "990fd5518f0046b6d56ad5d20277d242a4dfe44b07f7cbf9ff2087a2fbeb90ca",
