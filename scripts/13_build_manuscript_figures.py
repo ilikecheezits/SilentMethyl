@@ -8,7 +8,10 @@ checkpoints or recomputing predictions.
 Outputs
 -------
 model_incremental_performance.png
-fusion_gain_by_context.png
+information_source_gains.png
+fusion_gain_by_genomic_region.png
+fusion_gain_by_epigenomic_context.png
+candidate_response_by_context.png
 mqtl_signed_rank.png
 mqtl_magnitude_rank.png
 top_candidate_matched_background.png
@@ -65,6 +68,16 @@ def arguments() -> argparse.Namespace:
         "--context-path",
         type=Path,
         default=Path("results/journal/biological_context/fusion_gain_by_context.csv"),
+    )
+    parser.add_argument(
+        "--variant-context-path",
+        type=Path,
+        default=Path("results/journal/biological_context/variant_response_by_context.csv"),
+    )
+    parser.add_argument(
+        "--variant-distance-path",
+        type=Path,
+        default=Path("results/journal/biological_context/variant_response_by_distance.csv"),
     )
     parser.add_argument(
         "--mqtl-path",
@@ -160,7 +173,7 @@ def plot_performance(path: Path, output: Path) -> dict:
     frame = pd.read_csv(path)
     require_columns(
         frame,
-        ["Analysis", "Seed", "Model", "beta_mae", "roc_auc"],
+        ["Analysis", "Seed", "Model", "beta_mae", "beta_rmse", "roc_auc"],
         path,
     )
     frame = frame[
@@ -172,12 +185,12 @@ def plot_performance(path: Path, output: Path) -> dict:
     if len(seeds) < 2:
         raise ValueError("At least two seeds are required")
 
-    fig, axes = plt.subplots(2, 1, figsize=(ONE_COLUMN_WIDTH, 4.25))
+    fig, axes = plt.subplots(3, 1, figsize=(ONE_COLUMN_WIDTH, 6.0))
     positions = np.arange(3)
     for axis, metric, label in zip(
         axes,
-        ("beta_mae", "roc_auc"),
-        (r"Beta MAE $\downarrow$", r"ROC-AUC $\uparrow$"),
+        ("beta_mae", "beta_rmse", "roc_auc"),
+        (r"Beta MAE $\downarrow$", r"Beta RMSE $\downarrow$", r"ROC-AUC $\uparrow$"),
     ):
         values = (
             frame.pivot(index="Seed", columns="Model", values=metric)
@@ -209,13 +222,140 @@ def plot_performance(path: Path, output: Path) -> dict:
         axis.grid(axis="y", alpha=0.18)
         axis.spines[["top", "right"]].set_visible(False)
     axes[0].tick_params(labelbottom=False)
+    axes[1].tick_params(labelbottom=False)
     axes[0].set_title("Held-out chromosome performance")
     fig.tight_layout(pad=0.6, h_pad=0.7)
     save_figure(fig, output)
     return {"seeds": [int(seed) for seed in seeds]}
 
 
-def plot_context(path: Path, output: Path) -> dict:
+def plot_information_gains(path: Path, output: Path) -> dict:
+    """Show the two valid incremental comparisons on a positive-is-better scale."""
+    frame = pd.read_csv(path)
+    require_columns(
+        frame,
+        ["Analysis", "Seed", "Model", "beta_mae", "beta_rmse", "roc_auc"],
+        path,
+    )
+    frame = frame[
+        (frame["Analysis"].astype(str) == "individual_seed")
+        & frame["Model"].isin(MODEL_ORDER)
+    ].copy()
+    frame["Seed"] = pd.to_numeric(frame["Seed"], errors="raise").astype(int)
+    seeds = sorted(frame["Seed"].unique())
+    comparisons = (
+        ("epi", "Add sequence\nto context"),
+        ("sequence", "Add context\nto sequence"),
+    )
+    specifications = (
+        ("beta_mae", "MAE improvement", "lower"),
+        ("beta_rmse", "RMSE improvement", "lower"),
+        ("roc_auc", "AUROC improvement", "higher"),
+    )
+    fig, axes = plt.subplots(3, 1, figsize=(ONE_COLUMN_WIDTH, 5.65))
+    summary: dict[str, dict[str, float]] = {}
+    for axis, (metric, label, direction) in zip(axes, specifications):
+        wide = frame.pivot(index="Seed", columns="Model", values=metric).reindex(
+            index=seeds, columns=MODEL_ORDER
+        )
+        if wide.isna().any().any():
+            raise ValueError(f"Incomplete seed/model grid for {metric}")
+        values = []
+        for baseline, _ in comparisons:
+            if direction == "lower":
+                values.append(wide[baseline] - wide["fusion"])
+            else:
+                values.append(wide["fusion"] - wide[baseline])
+        gain = pd.concat(values, axis=1)
+        gain.columns = [label_text for _, label_text in comparisons]
+        for seed_index, (_, row) in enumerate(gain.iterrows()):
+            jitter = (seed_index - (len(gain) - 1) / 2) * 0.055
+            axis.scatter(
+                np.arange(2) + jitter,
+                row.to_numpy(float),
+                s=17,
+                color="0.48",
+                alpha=0.8,
+                zorder=2,
+            )
+        means = gain.mean(axis=0)
+        sd = gain.std(axis=0, ddof=1)
+        axis.errorbar(
+            np.arange(2),
+            means.to_numpy(float),
+            yerr=sd.to_numpy(float),
+            fmt="o",
+            color="#D95F02",
+            ecolor="#7F7F7F",
+            markersize=5.5,
+            capsize=2.5,
+            zorder=3,
+        )
+        axis.axhline(0, color="0.45", linewidth=0.8, linestyle="--")
+        axis.set_xticks(np.arange(2), [label_text for _, label_text in comparisons])
+        axis.set_ylabel(label)
+        axis.grid(axis="y", alpha=0.16)
+        axis.spines[["top", "right"]].set_visible(False)
+        summary[metric] = {
+            key.replace("\n", " "): float(value) for key, value in means.items()
+        }
+    axes[0].tick_params(labelbottom=False)
+    axes[1].tick_params(labelbottom=False)
+    axes[0].set_title("Incremental value of each information source")
+    fig.tight_layout(pad=0.6, h_pad=0.7)
+    save_figure(fig, output)
+    return {"mean_improvements": summary}
+
+
+def _draw_gain_panel(
+    axis: plt.Axes,
+    frame: pd.DataFrame,
+    group: str,
+    title: str,
+    order: list[str],
+) -> dict[str, float]:
+    subset = frame[frame["Grouping"].astype(str) == group].copy()
+    subset["Stratum"] = pd.Categorical(subset["Stratum"], order, ordered=True)
+    subset.dropna(subset=["Stratum"], inplace=True)
+    subset.sort_values("Stratum", inplace=True)
+    if len(subset) != len(order):
+        raise ValueError(
+            f"Unexpected strata for {group}: {subset['Stratum'].astype(str).tolist()}"
+        )
+    gain = pd.to_numeric(
+        subset["Sequence_Minus_Fusion_Beta_MAE"], errors="raise"
+    ).to_numpy(float)
+    # Stored intervals are fusion minus sequence, so negate and reverse them.
+    low = -pd.to_numeric(subset["Bootstrap_CI_High"], errors="raise").to_numpy(float)
+    high = -pd.to_numeric(subset["Bootstrap_CI_Low"], errors="raise").to_numpy(float)
+    positions = np.arange(len(subset))
+    axis.errorbar(
+        gain,
+        positions,
+        xerr=np.vstack([gain - low, high - gain]),
+        fmt="o",
+        color="#D95F02",
+        ecolor="#7F7F7F",
+        capsize=2.2,
+        markersize=4.8,
+    )
+    axis.axvline(0, color="0.45", linewidth=0.8, linestyle="--")
+    labels = [
+        f"{row.Stratum}  (n={int(row.N_CpGs):,})"
+        for row in subset.itertuples(index=False)
+    ]
+    axis.set_yticks(positions, labels)
+    axis.invert_yaxis()
+    axis.set_title(title, loc="left")
+    axis.set_xlabel(r"Sequence MAE $-$ fusion MAE")
+    axis.xaxis.set_major_locator(MaxNLocator(nbins=4))
+    axis.xaxis.set_major_formatter(FormatStrFormatter("%.3f"))
+    axis.grid(axis="x", alpha=0.16)
+    axis.spines[["top", "right"]].set_visible(False)
+    return dict(zip(order, [float(value) for value in gain]))
+
+
+def plot_context(path: Path, region_output: Path, epigenomic_output: Path) -> dict:
     frame = pd.read_csv(path)
     require_columns(
         frame,
@@ -228,48 +368,116 @@ def plot_context(path: Path, output: Path) -> dict:
         ],
         path,
     )
-    panels = (
-        ("CpG_Island_Context", "CpG island relation", ["Island", "Shore", "Shelf", "Open sea"]),
-        ("ATAC_Stratum", "ATAC signal", ["Q1 low", "Q2", "Q3", "Q4 high"]),
-    )
-    fig, axes = plt.subplots(2, 1, figsize=(ONE_COLUMN_WIDTH, 4.45))
     output_values: dict[str, dict[str, float]] = {}
+
+    fig, axis = plt.subplots(figsize=(ONE_COLUMN_WIDTH, 2.65))
+    output_values["Genomic_Region"] = _draw_gain_panel(
+        axis,
+        frame,
+        "Genomic_Region",
+        "Gain from context by genomic region",
+        ["Promoter/TSS", "UTR", "Gene body", "Intergenic"],
+    )
+    fig.tight_layout(pad=0.6)
+    save_figure(fig, region_output)
+
+    panels = (
+        (
+            "CpG_Island_Context",
+            "CpG island relation",
+            ["Island", "Shore", "Shelf", "Open sea"],
+        ),
+        ("ATAC_Stratum", "ATAC signal", ["Q1 low", "Q2", "Q3", "Q4 high"]),
+        (
+            "H3K27ac_Stratum",
+            "H3K27ac signal",
+            ["Q1 low", "Q2", "Q3", "Q4 high"],
+        ),
+    )
+    fig, axes = plt.subplots(3, 1, figsize=(ONE_COLUMN_WIDTH, 6.25))
     for axis, (group, title, order) in zip(axes, panels):
-        subset = frame[frame["Grouping"].astype(str) == group].copy()
-        subset["Stratum"] = pd.Categorical(subset["Stratum"], order, ordered=True)
-        subset.sort_values("Stratum", inplace=True)
-        if len(subset) != len(order) or subset["Stratum"].isna().any():
-            raise ValueError(f"Unexpected strata for {group}")
-        gain = pd.to_numeric(
-            subset["Sequence_Minus_Fusion_Beta_MAE"], errors="raise"
+        output_values[group] = _draw_gain_panel(axis, frame, group, title, order)
+    fig.tight_layout(pad=0.6, h_pad=0.8)
+    save_figure(fig, epigenomic_output)
+    return {"fusion_gain": output_values}
+
+
+def plot_candidate_context(
+    context_path: Path,
+    distance_path: Path,
+    output: Path,
+) -> dict:
+    context = pd.read_csv(context_path)
+    distance = pd.read_csv(distance_path)
+    require_columns(
+        context,
+        [
+            "Dataset",
+            "Grouping",
+            "Stratum",
+            "N_Associations",
+            "Median_Absolute_Predicted_Response",
+        ],
+        context_path,
+    )
+    require_columns(
+        distance,
+        [
+            "Dataset",
+            "Distance_Bin",
+            "N_Associations",
+            "Median_Absolute_Predicted_Response",
+        ],
+        distance_path,
+    )
+    candidate_label = "TCGA synonymous candidates"
+    region = context[
+        (context["Dataset"].astype(str) == candidate_label)
+        & (context["Grouping"].astype(str) == "Variant_Genomic_Region")
+    ].copy()
+    region_order = ["Promoter/TSS", "UTR", "Gene body", "Intergenic"]
+    region["Stratum"] = pd.Categorical(region["Stratum"], region_order, ordered=True)
+    region.dropna(subset=["Stratum"], inplace=True)
+    region.sort_values("Stratum", inplace=True)
+
+    by_distance = distance[distance["Dataset"].astype(str) == candidate_label].copy()
+    distance_order = ["0--50", "51--100", "101--250", "251--500"]
+    by_distance["Distance_Bin"] = pd.Categorical(
+        by_distance["Distance_Bin"], distance_order, ordered=True
+    )
+    by_distance.dropna(subset=["Distance_Bin"], inplace=True)
+    by_distance.sort_values("Distance_Bin", inplace=True)
+
+    fig, axes = plt.subplots(2, 1, figsize=(ONE_COLUMN_WIDTH, 4.65))
+    for axis, frame, category, title in (
+        (axes[0], region, "Stratum", "Variant genomic region"),
+        (axes[1], by_distance, "Distance_Bin", "Variant-to-CpG distance"),
+    ):
+        values = pd.to_numeric(
+            frame["Median_Absolute_Predicted_Response"], errors="raise"
         ).to_numpy(float)
-        # Stored intervals are fusion minus sequence, so negate and reverse them.
-        low = -pd.to_numeric(subset["Bootstrap_CI_High"], errors="raise").to_numpy(float)
-        high = -pd.to_numeric(subset["Bootstrap_CI_Low"], errors="raise").to_numpy(float)
-        positions = np.arange(len(subset))
-        axis.errorbar(
-            gain,
-            positions,
-            xerr=np.vstack([gain - low, high - gain]),
-            fmt="o",
-            color="#D95F02",
-            ecolor="#7F7F7F",
-            capsize=2.2,
-            markersize=4.8,
-        )
-        axis.axvline(0, color="0.45", linewidth=0.8, linestyle="--")
-        axis.set_yticks(positions, [str(value) for value in subset["Stratum"]])
+        positions = np.arange(len(frame))
+        axis.barh(positions, values, color="#7B3294", alpha=0.82)
+        labels = [
+            f"{getattr(row, category)}  (n={int(row.N_Associations)})"
+            for row in frame.itertuples(index=False)
+        ]
+        axis.set_yticks(positions, labels)
         axis.invert_yaxis()
         axis.set_title(title, loc="left")
-        axis.set_xlabel(r"Sequence MAE $-$ fusion MAE")
-        axis.xaxis.set_major_locator(MaxNLocator(nbins=4))
-        axis.xaxis.set_major_formatter(FormatStrFormatter("%.3f"))
+        axis.set_xlabel(r"Median absolute predicted $\Delta\hat{\beta}$")
         axis.grid(axis="x", alpha=0.16)
         axis.spines[["top", "right"]].set_visible(False)
-        output_values[group] = dict(zip(order, [float(value) for value in gain]))
     fig.tight_layout(pad=0.6, h_pad=0.8)
     save_figure(fig, output)
-    return {"fusion_gain": output_values}
+    return {
+        "region_rows": int(len(region)),
+        "distance_rows": int(len(by_distance)),
+        "interpretation": (
+            "Descriptive post hoc stratification by candidate-variant region "
+            "and variant-to-target-CpG distance."
+        ),
+    }
 
 
 def plot_mqtl(path: Path, signed_output: Path, magnitude_output: Path) -> dict:
@@ -387,6 +595,7 @@ def plot_candidate(
         raise ValueError(f"Expected exactly one rank-1 candidate, found {len(selected)}")
     target = selected.iloc[0]
     uid = str(target["Variant_UID"])
+    gene = str(target.get("Gene", "Rank-1 candidate"))
     target_effect = float(target["Predicted_Delta_Beta"])
     exported_sd = float(target["Predicted_Delta_Beta_SD"])
 
@@ -425,7 +634,7 @@ def plot_candidate(
         abs(target_effect),
         color="#D94801",
         linewidth=2,
-        label=rf"NCOA2: {abs(target_effect):.3f}",
+        label=rf"{gene}: {abs(target_effect):.3f}",
     )
     axis.set_xlabel(r"Absolute predicted $\Delta\hat{\beta}$")
     axis.set_ylabel("Matched comparators")
@@ -477,6 +686,8 @@ def main() -> None:
     inputs = (
         args.metrics_path,
         args.context_path,
+        args.variant_context_path,
+        args.variant_distance_path,
         args.mqtl_path,
         args.candidate_path,
         args.candidate_seed_path,
@@ -490,8 +701,18 @@ def main() -> None:
     performance = plot_performance(
         args.metrics_path, args.output_dir / "model_incremental_performance.png"
     )
+    information_gains = plot_information_gains(
+        args.metrics_path, args.output_dir / "information_source_gains.png"
+    )
     context = plot_context(
-        args.context_path, args.output_dir / "fusion_gain_by_context.png"
+        args.context_path,
+        args.output_dir / "fusion_gain_by_genomic_region.png",
+        args.output_dir / "fusion_gain_by_epigenomic_context.png",
+    )
+    candidate_context = plot_candidate_context(
+        args.variant_context_path,
+        args.variant_distance_path,
+        args.output_dir / "candidate_response_by_context.png",
     )
     mqtl = plot_mqtl(
         args.mqtl_path,
@@ -508,9 +729,11 @@ def main() -> None:
     save_json(
         {
             "analysis_status": "COMPLETE",
-            "figure_format": "five one-column figures",
+            "figure_format": "nine one-column figures",
             "performance": performance,
+            "information_source_gains": information_gains,
             "context": context,
+            "candidate_context": candidate_context,
             "mqtl": mqtl,
             "top_candidate": candidate,
             "input_sha256": {str(path): sha256(path) for path in inputs},
@@ -519,7 +742,7 @@ def main() -> None:
     )
     print("SilentMethyl one-column manuscript figures")
     print(f"  output: {args.output_dir}")
-    print("  figures: 5")
+    print("  figures: 9")
 
 
 if __name__ == "__main__":

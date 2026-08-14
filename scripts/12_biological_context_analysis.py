@@ -3,13 +3,13 @@
 
 This script does not load model checkpoints or perform model inference.  It
 combines the held-out prediction tables from seeds 42--44 with the processed
-test metadata and the HM450 CpG-island annotation.  It then asks two focused
-questions:
+test metadata, GENCODE gene annotations, and the HM450 CpG-island annotation.
+It then asks two focused questions:
 
 1. How do context-only, sequence-only, and fusion performance vary across
-   CpG-island position and MCF-10A ATAC-signal strata?
+   gene regions, CpG-island position, and MCF-10A ATAC and H3K27ac strata?
 2. How do predicted candidate responses and external mQTL agreement vary with
-   variant--CpG distance?
+   target-CpG context and variant--CpG distance?
 
 All stratified results are descriptive, post hoc analyses.  The primary model
 comparison remains the prespecified chromosome-held-out evaluation.
@@ -18,11 +18,15 @@ comparison remains the prespecified chromosome-held-out evaluation.
 from __future__ import annotations
 
 import argparse
+import bisect
+import gzip
 import hashlib
 import json
 import logging
 import os
 from pathlib import Path
+
+os.environ.setdefault("MPLCONFIGDIR", "/tmp/silentmethyl_matplotlib")
 
 import matplotlib
 
@@ -39,6 +43,8 @@ DEFAULT_SEEDS = (42, 43, 44)
 DEFAULT_MODELS = ("epi", "sequence", "fusion")
 ISLAND_ORDER = ("Island", "Shore", "Shelf", "Open sea")
 ATAC_ORDER = ("Q1 low", "Q2", "Q3", "Q4 high", "Missing")
+H3K27AC_ORDER = ATAC_ORDER
+GENOMIC_REGION_ORDER = ("Promoter/TSS", "UTR", "Gene body", "Intergenic")
 DISTANCE_ORDER = ("0--50", "51--100", "101--250", "251--500")
 
 
@@ -53,6 +59,15 @@ def parse_args() -> argparse.Namespace:
         "--cpg-island-annotation",
         type=Path,
         default=Path("data/HM450.hg38.manifest.CpGIsland.tsv.gz"),
+    )
+    parser.add_argument(
+        "--gencode-gtf",
+        type=Path,
+        default=Path("data/reference/gencode.v44.annotation.gtf.gz"),
+        help=(
+            "GENCODE v44 GTF used to assign each target CpG to an exclusive "
+            "promoter/TSS, UTR, gene-body, or intergenic category."
+        ),
     )
     parser.add_argument(
         "--candidate-path",
@@ -114,11 +129,20 @@ def load_test_metadata(path: Path) -> pd.DataFrame:
     if not path.is_file():
         raise FileNotFoundError(path)
     header = pd.read_csv(path, nrows=0)
-    required = ["probeID", "chr", "pos", "Ref_ATAC_Signal"]
+    required = [
+        "probeID",
+        "chr",
+        "pos",
+        "Ref_ATAC_Signal",
+        "Ref_H3K27ac_Signal",
+    ]
     require_columns(header, required, path)
     usecols = required + [
         column
-        for column in ("Ref_ATAC_Signal_Missing",)
+        for column in (
+            "Ref_ATAC_Signal_Missing",
+            "Ref_H3K27ac_Signal_Missing",
+        )
         if column in header.columns
     ]
     frame = pd.read_csv(path, usecols=usecols)
@@ -128,24 +152,124 @@ def load_test_metadata(path: Path) -> pd.DataFrame:
     if frame["probeID"].duplicated().any():
         raise ValueError(f"Duplicate probeID values in {path}")
 
-    if "Ref_ATAC_Signal_Missing" not in frame:
-        frame["Ref_ATAC_Signal_Missing"] = frame["Ref_ATAC_Signal"].isna().astype(int)
-    missing = frame["Ref_ATAC_Signal_Missing"].astype(bool)
-    observed = pd.to_numeric(frame.loc[~missing, "Ref_ATAC_Signal"], errors="coerce")
-    if observed.isna().any():
-        raise ValueError("Observed ATAC values contain nonnumeric or missing entries")
+    for signal, missing_column, stratum_column in (
+        ("Ref_ATAC_Signal", "Ref_ATAC_Signal_Missing", "ATAC_Stratum"),
+        (
+            "Ref_H3K27ac_Signal",
+            "Ref_H3K27ac_Signal_Missing",
+            "H3K27ac_Stratum",
+        ),
+    ):
+        if missing_column not in frame:
+            frame[missing_column] = frame[signal].isna().astype(int)
+        missing = frame[missing_column].astype(bool)
+        observed = pd.to_numeric(frame.loc[~missing, signal], errors="coerce")
+        if observed.isna().any():
+            raise ValueError(f"Observed {signal} values contain nonnumeric or missing entries")
 
-    frame["ATAC_Stratum"] = "Missing"
-    if len(observed):
-        percentile = observed.rank(method="average", pct=True)
-        labels = pd.cut(
-            percentile,
-            bins=[0.0, 0.25, 0.50, 0.75, 1.0],
-            labels=list(ATAC_ORDER[:4]),
-            include_lowest=True,
-        )
-        frame.loc[observed.index, "ATAC_Stratum"] = labels.astype(str)
+        frame[stratum_column] = "Missing"
+        if len(observed):
+            percentile = observed.rank(method="average", pct=True)
+            labels = pd.cut(
+                percentile,
+                bins=[0.0, 0.25, 0.50, 0.75, 1.0],
+                labels=list(ATAC_ORDER[:4]),
+                include_lowest=True,
+            )
+            frame.loc[observed.index, stratum_column] = labels.astype(str)
     return frame
+
+
+def _merge_intervals(intervals: list[tuple[int, int]]) -> tuple[list[int], list[int]]:
+    """Merge 1-based inclusive intervals and return parallel start/end arrays."""
+    if not intervals:
+        return [], []
+    intervals.sort()
+    merged: list[list[int]] = [[int(intervals[0][0]), int(intervals[0][1])]]
+    for start, end in intervals[1:]:
+        if start <= merged[-1][1] + 1:
+            merged[-1][1] = max(merged[-1][1], int(end))
+        else:
+            merged.append([int(start), int(end)])
+    return [item[0] for item in merged], [item[1] for item in merged]
+
+
+def _contains(interval_index: tuple[list[int], list[int]], position_1based: int) -> bool:
+    starts, ends = interval_index
+    location = bisect.bisect_right(starts, int(position_1based)) - 1
+    return location >= 0 and int(position_1based) <= ends[location]
+
+
+def load_gencode_regions(
+    path: Path,
+    chromosomes: set[str],
+) -> dict[str, dict[str, tuple[list[int], list[int]]]]:
+    """Load GENCODE intervals needed for an exclusive target-CpG annotation.
+
+    Promoters are defined relative to each transcript TSS as 1,500 bp upstream
+    through 200 bp downstream.  UTR and gene intervals use GENCODE v44 features.
+    The eventual hierarchy is promoter/TSS, UTR, gene body, then intergenic.
+    """
+    if not path.is_file():
+        raise FileNotFoundError(path)
+    raw: dict[str, dict[str, list[tuple[int, int]]]] = {
+        chrom: {"promoter": [], "utr": [], "gene": []} for chrom in chromosomes
+    }
+    opener = gzip.open if path.suffix == ".gz" else open
+    with opener(path, "rt") as handle:
+        for line in handle:
+            if not line or line.startswith("#"):
+                continue
+            fields = line.rstrip("\n").split("\t")
+            if len(fields) < 9:
+                continue
+            chrom = fields[0] if fields[0].startswith("chr") else f"chr{fields[0]}"
+            if chrom not in raw:
+                continue
+            feature = fields[2]
+            if feature not in {"transcript", "UTR", "gene"}:
+                continue
+            start, end = int(fields[3]), int(fields[4])
+            strand = fields[6]
+            if feature == "transcript":
+                tss = start if strand == "+" else end
+                if strand == "+":
+                    promoter = (max(1, tss - 1500), tss + 200)
+                else:
+                    promoter = (max(1, tss - 200), tss + 1500)
+                raw[chrom]["promoter"].append(promoter)
+            elif feature == "UTR":
+                raw[chrom]["utr"].append((start, end))
+            elif feature == "gene":
+                raw[chrom]["gene"].append((start, end))
+
+    return {
+        chrom: {name: _merge_intervals(values) for name, values in groups.items()}
+        for chrom, groups in raw.items()
+    }
+
+
+def annotate_genomic_region(test: pd.DataFrame, gtf_path: Path) -> pd.DataFrame:
+    intervals = load_gencode_regions(gtf_path, set(test["chr"].astype(str)))
+    labels: list[str] = []
+    for row in test[["chr", "pos"]].itertuples(index=False):
+        # SilentMethyl pos is the 0-based position of the CpG cytosine; GTF is
+        # 1-based inclusive.
+        position_1based = int(row.pos) + 1
+        chrom = str(row.chr)
+        groups = intervals.get(chrom, {})
+        if _contains(groups.get("promoter", ([], [])), position_1based):
+            label = "Promoter/TSS"
+        elif _contains(groups.get("utr", ([], [])), position_1based):
+            label = "UTR"
+        elif _contains(groups.get("gene", ([], [])), position_1based):
+            label = "Gene body"
+        else:
+            label = "Intergenic"
+        labels.append(label)
+    annotated = test.copy()
+    annotated["Genomic_Region"] = labels
+    return annotated
 
 
 def load_island_annotation(path: Path) -> pd.DataFrame:
@@ -293,7 +417,14 @@ def paired_gain_frame(annotated: pd.DataFrame) -> pd.DataFrame:
     if not required_models.issubset(available):
         raise ValueError(f"Need sequence and fusion predictions; available={sorted(available)}")
     truth = annotated.drop_duplicates("probeID")[[
-        "probeID", "chr", "pos", "true_beta", "CpG_Island_Context", "ATAC_Stratum"
+        "probeID",
+        "chr",
+        "pos",
+        "true_beta",
+        "CpG_Island_Context",
+        "ATAC_Stratum",
+        "H3K27ac_Stratum",
+        "Genomic_Region",
     ]]
     wide = annotated.pivot(
         index="probeID", columns="Model", values="pred_beta_rc_avg"
@@ -478,12 +609,137 @@ def summarize_variant_distance(
     return candidates, mqtl, summary
 
 
+def summarize_variant_context(
+    candidates: pd.DataFrame,
+    mqtl: pd.DataFrame,
+    assignments: pd.DataFrame,
+) -> pd.DataFrame:
+    """Describe responses by variant context and paired target-CpG context."""
+    context_columns = [
+        "Genomic_Region",
+        "CpG_Island_Context",
+        "ATAC_Stratum",
+        "H3K27ac_Stratum",
+    ]
+    candidate_annotated = candidates.merge(
+        assignments[["probeID", *context_columns]],
+        on="probeID",
+        how="left",
+        validate="many_to_one",
+    )
+    cpg_column = "cpg_id" if "cpg_id" in mqtl.columns else "probeID"
+    if cpg_column not in mqtl.columns:
+        raise ValueError("Could not identify the mQTL target-CpG column")
+    mqtl_annotated = mqtl.merge(
+        assignments.rename(columns={"probeID": cpg_column})[
+            [cpg_column, *context_columns]
+        ],
+        on=cpg_column,
+        how="left",
+        validate="many_to_one",
+    )
+
+    rows: list[dict[str, object]] = []
+    candidate_groupings = ["Variant_Genomic_Region", *context_columns]
+    for grouping in candidate_groupings:
+        for stratum, group in candidate_annotated.groupby(grouping, dropna=False, sort=False):
+            effect = pd.to_numeric(group["Predicted_Delta_Beta"], errors="coerce")
+            effect = effect[np.isfinite(effect)]
+            if effect.empty:
+                continue
+            rows.append({
+                "Dataset": "TCGA synonymous candidates",
+                "Grouping": grouping,
+                "Stratum": "Unclassified" if pd.isna(stratum) else str(stratum),
+                "N_Associations": int(len(effect)),
+                "N_Unique_Variants": int(
+                    group["Variant_UID"].nunique()
+                    if "Variant_UID" in group.columns
+                    else len(group)
+                ),
+                "Median_Absolute_Predicted_Response": float(effect.abs().median()),
+                "Mean_Absolute_Predicted_Response": float(effect.abs().mean()),
+                "Signed_Spearman_With_Observed_Effect": float("nan"),
+                "Absolute_Spearman_With_Observed_Effect": float("nan"),
+                "Direction_Concordance": float("nan"),
+            })
+
+        if grouping == "Variant_Genomic_Region":
+            continue
+        for stratum, group in mqtl_annotated.groupby(grouping, dropna=False, sort=False):
+            predicted = pd.to_numeric(group["predicted_delta_m"], errors="coerce")
+            observed = pd.to_numeric(group["slope_alt_aligned"], errors="coerce")
+            finite = np.isfinite(predicted) & np.isfinite(observed)
+            predicted, observed = predicted[finite], observed[finite]
+            if predicted.empty:
+                continue
+            rows.append({
+                "Dataset": "eGTEx positive control",
+                "Grouping": grouping,
+                "Stratum": "Unclassified" if pd.isna(stratum) else str(stratum),
+                "N_Associations": int(len(predicted)),
+                "N_Unique_Variants": int(
+                    group.loc[finite, "variant_id"].nunique()
+                    if "variant_id" in group.columns
+                    else len(predicted)
+                ),
+                "Median_Absolute_Predicted_Response": float(predicted.abs().median()),
+                "Mean_Absolute_Predicted_Response": float(predicted.abs().mean()),
+                "Signed_Spearman_With_Observed_Effect": safe_spearman(predicted, observed),
+                "Absolute_Spearman_With_Observed_Effect": safe_spearman(
+                    predicted.abs(), observed.abs()
+                ),
+                "Direction_Concordance": float(
+                    np.mean(np.sign(predicted.to_numpy()) == np.sign(observed.to_numpy()))
+                ),
+            })
+    return pd.DataFrame(rows)
+
+
+def annotate_candidate_variant_regions(
+    candidates: pd.DataFrame,
+    gtf_path: Path,
+) -> pd.DataFrame:
+    """Assign each candidate SNV to an exclusive GENCODE genomic region."""
+    require_columns(candidates, ["chr"], "candidate table")
+    if "Variant_Position_0based" in candidates.columns:
+        position = pd.to_numeric(
+            candidates["Variant_Position_0based"], errors="raise"
+        ).astype(np.int64)
+    elif "Variant_Position_1based" in candidates.columns:
+        position = (
+            pd.to_numeric(candidates["Variant_Position_1based"], errors="raise")
+            .astype(np.int64)
+            - 1
+        )
+    else:
+        raise ValueError(
+            "Candidate table requires Variant_Position_0based or "
+            "Variant_Position_1based for variant-region annotation"
+        )
+    positions = pd.DataFrame(
+        {
+            "chr": normalize_chr(candidates["chr"]),
+            "pos": position,
+        },
+        index=candidates.index,
+    )
+    annotated_positions = annotate_genomic_region(positions, gtf_path)
+    annotated = candidates.copy()
+    annotated["Variant_Genomic_Region"] = annotated_positions[
+        "Genomic_Region"
+    ].to_numpy()
+    return annotated
+
+
 def plot_context_gain(gain: pd.DataFrame, output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig, axes = plt.subplots(1, 2, figsize=(10.2, 4.2), sharey=False)
+    fig, axes = plt.subplots(4, 1, figsize=(3.45, 8.4), sharey=False)
     specifications = [
+        ("Genomic_Region", list(GENOMIC_REGION_ORDER), "Genomic region"),
         ("CpG_Island_Context", list(ISLAND_ORDER), "CpG-island context"),
         ("ATAC_Stratum", list(ATAC_ORDER), "MCF-10A ATAC signal"),
+        ("H3K27ac_Stratum", list(H3K27AC_ORDER), "MCF-10A H3K27ac signal"),
     ]
     for axis, (grouping, order, title) in zip(axes, specifications):
         current = gain[gain["Grouping"] == grouping].copy()
@@ -507,22 +763,15 @@ def plot_context_gain(gain: pd.DataFrame, output_path: Path) -> None:
         )
         axis.axhline(0, color="0.35", linewidth=0.9, linestyle="--")
         axis.set_xticks(x)
-        axis.set_xticklabels(current["Stratum"].astype(str), rotation=25, ha="right")
-        axis.set_title(title)
-        axis.set_ylabel(r"Sequence MAE $-$ fusion MAE")
-        for location, (_, row) in zip(x, current.iterrows()):
-            axis.annotate(
-                f"n={int(row['N_CpGs']):,}",
-                (location, row["Sequence_Minus_Fusion_Beta_MAE"]),
-                xytext=(0, 8),
-                textcoords="offset points",
-                ha="center",
-                fontsize=7,
-            )
+        axis.set_xticklabels(current["Stratum"].astype(str), rotation=22, ha="right")
+        axis.set_title(title, loc="left", fontsize=9)
+        axis.set_ylabel(r"MAE gain")
         axis.grid(axis="y", alpha=0.18)
-    fig.suptitle("Fusion improvement over sequence-only across held-out CpG contexts")
-    fig.tight_layout(rect=(0, 0, 1, 0.91))
-    fig.savefig(output_path, dpi=300, bbox_inches="tight")
+        axis.spines[["top", "right"]].set_visible(False)
+    axes[-1].set_xlabel("Target-CpG context")
+    fig.suptitle("Gain from adding reference context", fontsize=9.5)
+    fig.tight_layout(rect=(0, 0, 1, 0.97), h_pad=0.8)
+    fig.savefig(output_path, dpi=400, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -595,13 +844,24 @@ def main() -> None:
     island = load_island_annotation(args.cpg_island_annotation)
     test = test.merge(island, on="probeID", how="left", validate="one_to_one")
     test["CpG_Island_Context"] = test["CpG_Island_Context"].fillna("Unclassified")
+    test = annotate_genomic_region(test, args.gencode_gtf)
 
     long, prediction_hashes = load_predictions(
         args.prediction_template, args.seeds, args.models
     )
     ensemble = ensemble_predictions(long)
     annotated = ensemble.merge(
-        test[["probeID", "Ref_ATAC_Signal", "Ref_ATAC_Signal_Missing", "ATAC_Stratum", "CpG_Island_Context"]],
+        test[[
+            "probeID",
+            "Ref_ATAC_Signal",
+            "Ref_ATAC_Signal_Missing",
+            "ATAC_Stratum",
+            "Ref_H3K27ac_Signal",
+            "Ref_H3K27ac_Signal_Missing",
+            "H3K27ac_Stratum",
+            "CpG_Island_Context",
+            "Genomic_Region",
+        ]],
         on="probeID",
         how="inner",
         validate="many_to_one",
@@ -612,8 +872,10 @@ def main() -> None:
         raise ValueError(f"Annotated {observed} of {expected} held-out probes")
 
     context_rows = []
+    context_rows.extend(metric_rows(annotated, "Genomic_Region"))
     context_rows.extend(metric_rows(annotated, "CpG_Island_Context"))
     context_rows.extend(metric_rows(annotated, "ATAC_Stratum"))
+    context_rows.extend(metric_rows(annotated, "H3K27ac_Stratum"))
     context_metrics = pd.DataFrame(context_rows)
     atomic_csv(context_metrics, output / "locus_metrics_by_context.csv")
 
@@ -621,31 +883,61 @@ def main() -> None:
     gain = pd.DataFrame(
         gain_rows(
             paired,
-            "CpG_Island_Context",
+            "Genomic_Region",
             args.block_size_bp,
             args.bootstrap_replicates,
             args.random_seed,
         )
         + gain_rows(
             paired,
-            "ATAC_Stratum",
+            "CpG_Island_Context",
             args.block_size_bp,
             args.bootstrap_replicates,
             args.random_seed + 100_000,
+        )
+        + gain_rows(
+            paired,
+            "ATAC_Stratum",
+            args.block_size_bp,
+            args.bootstrap_replicates,
+            args.random_seed + 200_000,
+        )
+        + gain_rows(
+            paired,
+            "H3K27ac_Stratum",
+            args.block_size_bp,
+            args.bootstrap_replicates,
+            args.random_seed + 300_000,
         )
     )
     atomic_csv(gain, output / "fusion_gain_by_context.csv")
 
     locus_assignments = test[[
-        "probeID", "chr", "pos", "Ref_ATAC_Signal", "Ref_ATAC_Signal_Missing",
-        "ATAC_Stratum", "CpG_Island_Context"
+        "probeID",
+        "chr",
+        "pos",
+        "Genomic_Region",
+        "CpG_Island_Context",
+        "Ref_ATAC_Signal",
+        "Ref_ATAC_Signal_Missing",
+        "ATAC_Stratum",
+        "Ref_H3K27ac_Signal",
+        "Ref_H3K27ac_Signal_Missing",
+        "H3K27ac_Stratum",
     ]].copy()
     atomic_csv(locus_assignments, output / "heldout_cpg_context_assignments.csv")
 
     candidates, mqtl, distance_summary = summarize_variant_distance(
         args.candidate_path, args.mqtl_path
     )
+    candidates = annotate_candidate_variant_regions(candidates, args.gencode_gtf)
     atomic_csv(distance_summary, output / "variant_response_by_distance.csv")
+    response_context = summarize_variant_context(
+        candidates,
+        mqtl,
+        locus_assignments,
+    )
+    atomic_csv(response_context, output / "variant_response_by_context.csv")
 
     plot_context_gain(gain, output / "plots" / "fusion_gain_by_context.png")
     plot_distance_summary(
@@ -670,12 +962,19 @@ def main() -> None:
         "inputs": {
             args.test_path.as_posix(): sha256_file(args.test_path),
             args.cpg_island_annotation.as_posix(): sha256_file(args.cpg_island_annotation),
+            args.gencode_gtf.as_posix(): sha256_file(args.gencode_gtf),
             args.candidate_path.as_posix(): sha256_file(args.candidate_path),
             args.mqtl_path.as_posix(): sha256_file(args.mqtl_path),
             **prediction_hashes,
         },
         "distance_bins_bp": list(DISTANCE_ORDER),
         "atac_strata": list(ATAC_ORDER),
+        "h3k27ac_strata": list(H3K27AC_ORDER),
+        "genomic_region_strata": list(GENOMIC_REGION_ORDER),
+        "genomic_region_definition": (
+            "Exclusive hierarchy: GENCODE v44 transcript TSS -1500/+200 bp; "
+            "then GENCODE UTR; then GENCODE gene span; otherwise intergenic."
+        ),
         "cpg_island_strata": list(ISLAND_ORDER) + ["Unclassified"],
     }
     atomic_json(payload, output / "run_summary.json")
