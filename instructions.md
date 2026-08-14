@@ -77,6 +77,11 @@ wget -c -O data/HM450.hg38.manifest.tsv.gz \
 echo "668a11ea624b3e645aab963dca048bdd4628ae5d297732867c91525c831cf191  data/HM450.hg38.manifest.tsv.gz" \
   | sha256sum -c -
 
+wget -c -O data/HM450.hg38.manifest.CpGIsland.tsv.gz \
+  https://zhouserver.research.chop.edu/InfiniumAnnotation/current/HM450/HM450.hg38.manifest.CpGIsland.tsv.gz
+echo "b5117ddedbc8d40ba9603d6de1e51970c719919a97c62d5b7f29289dedd58cc5  data/HM450.hg38.manifest.CpGIsland.tsv.gz" \
+  | sha256sum -c -
+
 wget -c -O data/TCGA-BRCA.methylation450.tsv.gz \
   https://gdc-hub.s3.us-east-1.amazonaws.com/download/TCGA-BRCA.methylation450.tsv.gz
 echo "71f7a02dd9ff849f43e05c6e54a9b8266349c9697601dc0450c9dc30f47679db  data/TCGA-BRCA.methylation450.tsv.gz" \
@@ -95,10 +100,8 @@ median at each CpG.
 
 ### 2.2 ENCODE reference tracks
 
-Download the released GRCh38 `fold change over control` BigWig files in one
-terminal block. The script below queries the ENCODE experiment metadata,
-selects the released GRCh38 file for each experiment, downloads it into the
-required path, and verifies the published MD5 before continuing.
+Download one released GRCh38 `fold change over control` BigWig from each
+experiment and save it under the required name.
 
 | Required path | ENCODE experiment |
 |---|---|
@@ -109,69 +112,36 @@ required path, and verifies the published MD5 before continuing.
 | `data/reference/H3K4me3.bw` | `ENCSR291QUA` |
 | `data/reference/H3K9me3.bw` | `ENCSR049WGG` |
 
-```bash
-mkdir -p data/reference
+Experiment pages use this form:
 
-wget -c -O data/reference/H3K27ac.bw \
-  https://www.encodeproject.org/files/ENCFF282YCX/@@download/ENCFF282YCX.bigWig
-wget -c -O data/reference/H3K27me3.bw \
-  https://www.encodeproject.org/files/ENCFF274LWG/@@download/ENCFF274LWG.bigWig
-wget -c -O data/reference/H3K36me3.bw \
-  https://www.encodeproject.org/files/ENCFF634LDP/@@download/ENCFF634LDP.bigWig
-wget -c -O data/reference/H3K4me1.bw \
-  https://www.encodeproject.org/files/ENCFF714NIL/@@download/ENCFF714NIL.bigWig
-wget -c -O data/reference/H3K4me3.bw \
-  https://www.encodeproject.org/files/ENCFF548SFG/@@download/ENCFF548SFG.bigWig
-wget -c -O data/reference/H3K9me3.bw \
-  https://www.encodeproject.org/files/ENCFF423DKY/@@download/ENCFF423DKY.bigWig
-
-for path in \
-  data/reference/H3K27ac.bw \
-  data/reference/H3K27me3.bw \
-  data/reference/H3K36me3.bw \
-  data/reference/H3K4me1.bw \
-  data/reference/H3K4me3.bw \
-  data/reference/H3K9me3.bw
-do
-  test -s "$path" || { echo "MISSING: $path" >&2; exit 1; }
-done
-
-echo "All ENCODE reference tracks downloaded."
+```text
+https://www.encodeproject.org/experiments/ENCSR685JSL/
 ```
 
-Then record the published ENCODE md5 for each file and verify the local copy:
+Record the selected `ENCFF...` file accession and ENCODE MD5. Check each local
+file with the corresponding published MD5:
 
 ```bash
 echo '<ENCODE_MD5>  data/reference/H3K27ac.bw' | md5sum -c -
-echo '<ENCODE_MD5>  data/reference/H3K27me3.bw' | md5sum -c -
-echo '<ENCODE_MD5>  data/reference/H3K36me3.bw' | md5sum -c -
-echo '<ENCODE_MD5>  data/reference/H3K4me1.bw' | md5sum -c -
-echo '<ENCODE_MD5>  data/reference/H3K4me3.bw' | md5sum -c -
-echo '<ENCODE_MD5>  data/reference/H3K9me3.bw' | md5sum -c -
 ```
 
 The ATAC track uses filtered GRCh38 BAM `ENCFF021PIS` from experiment
 `ENCSR037XNN` and CPM-normalized 50-bp bins:
 
 ```bash
-mkdir -p data/source/atac
 wget -c -O data/source/atac/ENCFF021PIS.bam \
   https://www.encodeproject.org/files/ENCFF021PIS/@@download/ENCFF021PIS.bam
 
-test -s data/source/atac/ENCFF021PIS.bam || {
-  echo "ATAC BAM download failed or is incomplete." >&2
-  exit 1
-}
+python - <<'PY'
+from pathlib import Path
+import pysam
 
-python -m pip install pysam
-command -v samtools >/dev/null || conda install -y -c bioconda samtools
-samtools index -@ 8 data/source/atac/ENCFF021PIS.bam
-
-test -s data/source/atac/ENCFF021PIS.bam.bai || {
-  echo "Missing BAM index: data/source/atac/ENCFF021PIS.bam.bai" >&2
-  exit 1
-}
-ls -lh data/source/atac/ENCFF021PIS.bam.bai
+bam = Path("data/source/atac/ENCFF021PIS.bam")
+index = Path(str(bam) + ".bai")
+if not index.exists():
+    pysam.index("-@", "8", str(bam))
+print(index)
+PY
 
 bamCoverage \
   --bam data/source/atac/ENCFF021PIS.bam \
@@ -209,6 +179,7 @@ for path in \
   data/hg38.fa \
   data/hg38.fa.fai \
   data/HM450.hg38.manifest.tsv.gz \
+  data/HM450.hg38.manifest.CpGIsland.tsv.gz \
   data/TCGA-BRCA.methylation450.tsv.gz \
   data/BreastMammaryTissue.regular.perm.fdr.txt \
   data/egtex_breast_mqtl_heldout.csv \
@@ -233,18 +204,11 @@ Do not continue to data construction while any required input is missing.
 
 ## 3. Build processed data
 
-For a frozen, exact reproduction, the data builder expects a local GDC response
-cache at:
+For an exact frozen reproduction, place the released GDC response cache at:
 
 ```text
 data/datafiles/gdc_tcga_brca_synonymous_raw.json.gz
 ```
-
-This file is just the raw GDC JSON response for the TCGA-BRCA synonymous-variant
-query, saved locally so the pipeline uses a fixed upstream snapshot instead of a
-new live API response. If it is not already present, the builder will create it
-when you run the data build below; do not pass `--refresh-gdc` for the frozen
-reproduction.
 
 Create log directories:
 
@@ -427,10 +391,21 @@ python -u scripts/10_tcga_participant_matrix_audit.py \
   --matrix-data-type "DNA methylation beta values" \
   --matrix-processing "Matrix used as distributed; SilentMethyl selected sample-type-11 columns and computed the available-sample median per probe; upstream normalization was not independently reconstructed" \
   2>&1 | tee logs/reproducibility/10_tcga_participant_matrix_audit.log
+
+python -u scripts/12_biological_context_analysis.py \
+  --seeds 42 43 44 \
+  --models epi sequence fusion \
+  --block-size-bp 1000000 \
+  --bootstrap-replicates 2000 \
+  2>&1 | tee logs/experiments/12_biological_context_analysis.log
+
+python -u scripts/13_build_manuscript_figures.py \
+  2>&1 | tee logs/experiments/13_build_manuscript_figures.log
 ```
 
 Do not use smoke-test row limits or automatic mixed precision for reportable
-candidate or mQTL results.
+candidate or mQTL results. Scripts 12 and 13 use saved predictions and do not
+retrain the models.
 
 ## 7. Confirm the primary outputs
 
@@ -443,6 +418,8 @@ for path in \
   results/journal/candidates/model_comparison/sequence_vs_fusion_summary.json \
   results/journal/paired_model_bootstrap/run_summary.json \
   results/journal/egtex_mqtl_matched_negative/run_summary.json \
+  results/journal/biological_context/run_summary.json \
+  results/journal/manuscript_figures/run_summary.json \
   reproducibility/tcga_participant_matrix_audit.json
 do
   test -s "$path" || { echo "MISSING: $path" >&2; exit 1; }
@@ -483,5 +460,5 @@ The package should contain numbered data folders S1--S6,
 4. Train all three model types for seeds 42, 43, and 44.
 5. Test all nine checkpoints on chromosomes 8--9.
 6. Run `run_experiments.sh 42 43 44`.
-7. Run scripts 07--10.
+7. Run scripts 07--10, then scripts 12--13.
 8. Build and verify the supplementary package.
