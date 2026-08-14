@@ -12,6 +12,7 @@
     "absolute_spearman": 0.2165085817524842,
     "association_count": 81,
     "direction_concordance": 0.7901234567901234,
+    "display_scale": "average-tie percentile ranks (0--100)",
     "signed_spearman": 0.6100948509485095
   },
   "performance_figure": {
@@ -25,17 +26,27 @@
   },
   "top_candidate": {
     "Absolute_Delta_Beta_Rank": 1,
+    "Absolute_Distance_From_Target_CpG": 9,
+    "Alternate_Codon": "GGT",
+    "Amino_Acid": "G",
+    "CpG_Effect": "destroyed",
+    "Delta_RC_Sign_Agreement_Fraction": 1.0,
     "Empirical_Matched_Background_Percentile": 100.0,
+    "GDC_Genomic_DNA_Change": "chr8:g.70148394G>A",
+    "GDC_Occurrence_Count": 1,
     "Gene": "NCOA2",
     "Interpretation": "Model-derived case study for hypothesis generation; not experimental or causal validation.",
     "Matched_Background_Tier": "T4_SBS6_CpG_distance100",
     "Matched_Comparator_Count": 66,
     "Matched_Comparator_Median_Absolute_Delta_Beta": 0.00665978590647375,
+    "Mean_Delta_RC_Absolute_Difference": 0.0979636386036872,
     "Per_Seed_Predicted_Delta_Beta": "-0.16221637,-0.16966262,-0.20748758",
     "Predicted_Delta_Beta": -0.1797888576984405,
     "Predicted_Delta_Beta_SD": 0.0198204648180479,
+    "Reference_Codon": "GGC",
     "Seed_Count": 3,
     "Seeds": "42,43,44",
+    "Selected_Transcript_ID": "ENST00000452400.7",
     "Variant_UID": "chr8_70148394_G_A__cg20699548__ENST00000452400_7",
     "probeID": "cg20699548"
   }
