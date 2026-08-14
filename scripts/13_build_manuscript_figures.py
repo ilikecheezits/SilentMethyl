@@ -5,7 +5,7 @@ No checkpoints are loaded and no predictions are recomputed.  The script turns
 existing tabular results into three submission-facing figures:
 
 1. incremental held-out performance for context, sequence, and fusion models;
-2. signed versus absolute eGTEx mQTL agreement; and
+2. signed versus absolute eGTEx mQTL rank agreement; and
 3. a transparent case-study panel for the first-ranked somatic candidate.
 """
 
@@ -120,6 +120,21 @@ def safe_spearman(x: pd.Series, y: pd.Series) -> float:
     return float(spearmanr(a[finite], b[finite]).statistic)
 
 
+def percentile_rank(values: pd.Series) -> pd.Series:
+    """Return average-tie percentile ranks on a 0--100 display scale."""
+    numeric = pd.to_numeric(values, errors="raise")
+    return 100.0 * numeric.rank(method="average", pct=True)
+
+
+def native_scalar(value):
+    """Convert pandas/NumPy scalars to JSON-safe Python values."""
+    if value is None or (not isinstance(value, (list, dict)) and pd.isna(value)):
+        return ""
+    if isinstance(value, np.generic):
+        return value.item()
+    return value
+
+
 def plot_incremental_performance(metrics_path: Path, output_path: Path) -> dict:
     frame = pd.read_csv(metrics_path)
     require_columns(
@@ -198,13 +213,33 @@ def plot_mqtl_agreement(mqtl_path: Path, output_path: Path) -> dict:
     absolute_rho = safe_spearman(predicted.abs(), observed.abs())
     direction = float(np.mean(np.sign(predicted) == np.sign(observed)))
 
-    fig, axes = plt.subplots(1, 2, figsize=(8.0, 3.7))
-    axes[0].scatter(observed, predicted, s=25, alpha=0.72, color="#2f6f9f", edgecolor="none")
-    axes[0].axhline(0, color="0.5", linewidth=0.8)
-    axes[0].axvline(0, color="0.5", linewidth=0.8)
-    axes[0].set_xlabel("Reported ALT$-$REF mQTL slope")
-    axes[0].set_ylabel(r"Predicted $\Delta\hat{M}$")
-    axes[0].set_title("Signed response")
+    observed_signed_rank = percentile_rank(observed)
+    predicted_signed_rank = percentile_rank(predicted)
+    observed_absolute_rank = percentile_rank(observed.abs())
+    predicted_absolute_rank = percentile_rank(predicted.abs())
+    direction_agreement = np.sign(predicted) == np.sign(observed)
+
+    fig, axes = plt.subplots(1, 2, figsize=(8.8, 4.0))
+    for agrees, label, color in (
+        (True, "Direction agrees", "#2f6f9f"),
+        (False, "Direction differs", "#d98c3f"),
+    ):
+        selected = direction_agreement == agrees
+        axes[0].scatter(
+            observed_signed_rank[selected],
+            predicted_signed_rank[selected],
+            s=28,
+            alpha=0.78,
+            color=color,
+            edgecolor="white",
+            linewidth=0.35,
+            label=label,
+            zorder=3,
+        )
+    axes[0].plot([0, 100], [0, 100], color="0.45", linewidth=0.9, linestyle="--")
+    axes[0].set_xlabel("Reported mQTL slope rank percentile")
+    axes[0].set_ylabel(r"Predicted signed-response rank percentile")
+    axes[0].set_title("Signed rank agreement")
     axes[0].text(
         0.04,
         0.96,
@@ -213,18 +248,22 @@ def plot_mqtl_agreement(mqtl_path: Path, output_path: Path) -> dict:
         va="top",
         fontsize=9,
     )
+    axes[0].legend(loc="lower right", frameon=False, fontsize=7.5)
 
     axes[1].scatter(
-        observed.abs(),
-        predicted.abs(),
-        s=25,
-        alpha=0.72,
+        observed_absolute_rank,
+        predicted_absolute_rank,
+        s=28,
+        alpha=0.78,
         color="#b24c63",
-        edgecolor="none",
+        edgecolor="white",
+        linewidth=0.35,
+        zorder=3,
     )
-    axes[1].set_xlabel("Absolute reported mQTL slope")
-    axes[1].set_ylabel(r"Absolute predicted $\Delta\hat{M}$")
-    axes[1].set_title("Response magnitude")
+    axes[1].plot([0, 100], [0, 100], color="0.45", linewidth=0.9, linestyle="--")
+    axes[1].set_xlabel("Absolute mQTL slope rank percentile")
+    axes[1].set_ylabel(r"Absolute predicted-response rank percentile")
+    axes[1].set_title("Absolute-magnitude rank agreement")
     axes[1].text(
         0.04,
         0.96,
@@ -234,8 +273,13 @@ def plot_mqtl_agreement(mqtl_path: Path, output_path: Path) -> dict:
         fontsize=9,
     )
     for axis in axes:
+        axis.set_xlim(0, 102)
+        axis.set_ylim(0, 102)
+        axis.set_xticks([0, 25, 50, 75, 100])
+        axis.set_yticks([0, 25, 50, 75, 100])
+        axis.set_aspect("equal", adjustable="box")
         axis.grid(alpha=0.15)
-    fig.suptitle("External breast mQTL agreement for the fusion ensemble")
+    fig.suptitle("External breast mQTL rank agreement for the fusion ensemble")
     fig.tight_layout()
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output_path, dpi=300, bbox_inches="tight")
@@ -245,17 +289,19 @@ def plot_mqtl_agreement(mqtl_path: Path, output_path: Path) -> dict:
         "signed_spearman": signed_rho,
         "absolute_spearman": absolute_rho,
         "direction_concordance": direction,
+        "display_scale": "average-tie percentile ranks (0--100)",
     }
 
 
 def candidate_title(row: pd.Series) -> str:
     gene = str(row.get("Gene", "Candidate"))
     probe = str(row.get("probeID", ""))
-    uid = str(row.get("Variant_UID", ""))
-    prefix = uid.split("__", 1)[0].split("_")
-    coordinate = ""
-    if len(prefix) >= 4:
-        coordinate = f"{prefix[0]}:{prefix[1]} {prefix[2]}>{prefix[3]}"
+    coordinate = str(row.get("GDC_Genomic_DNA_Change", "")).strip()
+    if not coordinate:
+        uid = str(row.get("Variant_UID", ""))
+        prefix = uid.split("__", 1)[0].split("_")
+        if len(prefix) >= 4:
+            coordinate = f"{prefix[0]}:g.{prefix[1]}{prefix[2]}>{prefix[3]}"
     pieces = [gene]
     if coordinate:
         pieces.append(coordinate)
@@ -315,35 +361,81 @@ def plot_top_candidate(
         comparators["Comparator_Delta_Beta"], errors="raise"
     ).abs()
     target_effect = float(target["Predicted_Delta_Beta"])
+    target_sd = float(target["Predicted_Delta_Beta_SD"])
+    seed_mean = float(seed_scores["Predicted_Delta_Beta"].mean())
+    # Candidate exports use the population SD across the prespecified seeds.
+    seed_sd = float(seed_scores["Predicted_Delta_Beta"].std(ddof=0))
+    if not np.isclose(seed_mean, target_effect, rtol=0, atol=1e-8):
+        raise ValueError("Rank-1 ensemble effect does not match the per-seed mean")
+    if not np.isclose(seed_sd, target_sd, rtol=0, atol=1e-8):
+        raise ValueError("Rank-1 exported SD does not match the per-seed population SD")
 
-    fig, axes = plt.subplots(1, 2, figsize=(8.2, 3.8))
+    fig, axes = plt.subplots(1, 2, figsize=(8.8, 4.0))
     axes[0].axhline(0, color="0.45", linewidth=0.8)
-    axes[0].plot(
-        seed_scores["Seed"],
+    seed_positions = np.arange(len(seed_scores), dtype=float)
+    axes[0].scatter(
+        seed_positions,
         seed_scores["Predicted_Delta_Beta"],
         marker="o",
-        linewidth=1.4,
+        s=52,
         color="#7b3294",
+        label="Individual seed",
+        zorder=3,
     )
-    axes[0].axhline(target_effect, color="#e07b39", linestyle="--", linewidth=1.2)
-    axes[0].set_xticks(seed_scores["Seed"].to_list())
-    axes[0].set_xlabel("Training seed")
-    axes[0].set_ylabel(r"Predicted $\Delta\hat{\beta}$")
-    axes[0].set_title("Cross-seed response")
+    ensemble_position = float(len(seed_scores))
+    axes[0].errorbar(
+        ensemble_position,
+        target_effect,
+        yerr=target_sd,
+        fmt="D",
+        markersize=6.5,
+        capsize=4,
+        color="#d94801",
+        ecolor="#d94801",
+        label=r"Ensemble mean $\pm$ SD",
+        zorder=4,
+    )
+    axes[0].axhline(target_effect, color="#d94801", linestyle="--", linewidth=1.0, alpha=0.75)
+    axes[0].set_xticks(
+        [*seed_positions, ensemble_position],
+        [*seed_scores["Seed"].astype(str).to_list(), "Ensemble"],
+    )
+    axes[0].set_xlabel("Training run")
+    axes[0].set_ylabel(r"RC-averaged predicted $\Delta\hat{\beta}$")
+    axes[0].set_title("Cross-seed response stability")
+    axes[0].legend(frameon=False, fontsize=7.5, loc="lower left")
     axes[0].grid(axis="y", alpha=0.18)
 
-    axes[1].hist(comparator_values, bins="auto", color="#9ecae1", edgecolor="white")
+    comparator_sorted = np.sort(comparator_values.to_numpy(float))
+    comparator_cdf = np.arange(1, len(comparator_sorted) + 1) / len(comparator_sorted)
+    axes[1].step(
+        comparator_sorted,
+        comparator_cdf,
+        where="post",
+        color="#4c92b7",
+        linewidth=1.8,
+        label=f"Matched comparators ($n={len(comparator_sorted)}$)",
+    )
+    axes[1].scatter(
+        comparator_sorted,
+        comparator_cdf,
+        s=16,
+        alpha=0.55,
+        color="#4c92b7",
+        edgecolor="none",
+    )
     axes[1].axvline(
         abs(target_effect),
         color="#d94801",
         linewidth=2,
-        label="Rank-1 candidate",
+        label=rf"NCOA2 $|\Delta\hat{{\beta}}|={abs(target_effect):.3f}$",
     )
     axes[1].set_xlabel(r"Absolute predicted $\Delta\hat{\beta}$")
-    axes[1].set_ylabel("Matched candidates")
-    axes[1].set_title("Matched-background comparison")
+    axes[1].set_ylabel("Cumulative fraction of matched comparators")
+    axes[1].set_ylim(0, 1.04)
+    axes[1].set_title("Matched-background empirical distribution")
     axes[1].legend(frameon=False, fontsize=8)
-    axes[1].grid(axis="y", alpha=0.18)
+    axes[1].grid(alpha=0.15)
 
     fig.suptitle(candidate_title(target))
     fig.tight_layout(rect=(0, 0, 1, 0.91))
@@ -367,7 +459,7 @@ def plot_top_candidate(
         "Gene": target.get("Gene", ""),
         "probeID": target.get("probeID", ""),
         "Predicted_Delta_Beta": target_effect,
-        "Predicted_Delta_Beta_SD": float(target["Predicted_Delta_Beta_SD"]),
+        "Predicted_Delta_Beta_SD": target_sd,
         "Seed_Count": int(len(seed_scores)),
         "Seeds": ",".join(str(value) for value in seed_scores["Seed"]),
         "Per_Seed_Predicted_Delta_Beta": ",".join(
@@ -377,6 +469,28 @@ def plot_top_candidate(
         "Matched_Background_Tier": target.get("Matched_Background_Tier", ""),
         "Matched_Comparator_Median_Absolute_Delta_Beta": float(comparator_values.median()),
         "Empirical_Matched_Background_Percentile": percentile,
+        "GDC_Genomic_DNA_Change": native_scalar(
+            target.get("GDC_Genomic_DNA_Change", "")
+        ),
+        "Selected_Transcript_ID": native_scalar(
+            target.get("Selected_Transcript_ID", "")
+        ),
+        "Reference_Codon": native_scalar(target.get("Reference_Codon", "")),
+        "Alternate_Codon": native_scalar(target.get("Alternate_Codon", "")),
+        "Amino_Acid": native_scalar(target.get("Amino_Acid", "")),
+        "Absolute_Distance_From_Target_CpG": native_scalar(
+            target.get("Absolute_Distance_From_Target_CpG", "")
+        ),
+        "CpG_Effect": native_scalar(target.get("CpG_Effect", "")),
+        "GDC_Occurrence_Count": native_scalar(
+            target.get("GDC_Occurrence_Count", "")
+        ),
+        "Delta_RC_Sign_Agreement_Fraction": native_scalar(
+            target.get("Delta_RC_Sign_Agreement_Fraction", "")
+        ),
+        "Mean_Delta_RC_Absolute_Difference": native_scalar(
+            target.get("Mean_Delta_RC_Absolute_Difference", "")
+        ),
         "Interpretation": (
             "Model-derived case study for hypothesis generation; not experimental "
             "or causal validation."
