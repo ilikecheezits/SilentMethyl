@@ -68,11 +68,13 @@
     "signed_spearman": 0.6100948509485095
   },
   "performance": {
-    "seeds": [
-      42,
-      43,
-      44
-    ]
+    "analysis": "cross_seed_ensemble",
+    "models": [
+      "Context",
+      "Sequence",
+      "Fusion"
+    ],
+    "uncertainty_displayed": false
   },
   "top_candidate": {
     "Absolute_Delta_Beta_Rank": 1,
