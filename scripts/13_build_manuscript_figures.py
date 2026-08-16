@@ -176,57 +176,68 @@ def plot_performance(path: Path, output: Path) -> dict:
         ["Analysis", "Seed", "Model", "beta_mae", "beta_rmse", "roc_auc"],
         path,
     )
+    # Use the frozen cross-seed ensemble as the single reported point for each
+    # architecture. Seed-level variation is analyzed elsewhere and is omitted
+    # here so this figure communicates only the incremental model comparison.
     frame = frame[
-        (frame["Analysis"].astype(str) == "individual_seed")
+        (frame["Analysis"].astype(str) == "cross_seed_ensemble")
         & frame["Model"].isin(MODEL_ORDER)
     ].copy()
-    frame["Seed"] = pd.to_numeric(frame["Seed"], errors="raise").astype(int)
-    seeds = sorted(frame["Seed"].unique())
-    if len(seeds) < 2:
-        raise ValueError("At least two seeds are required")
+    if frame["Model"].duplicated().any():
+        raise ValueError("Expected one cross-seed ensemble row per model")
+    frame = frame.set_index("Model").reindex(MODEL_ORDER)
+    if frame[["beta_mae", "roc_auc"]].isna().any().any():
+        raise ValueError("Incomplete cross-seed ensemble model grid")
 
-    fig, axes = plt.subplots(3, 1, figsize=(ONE_COLUMN_WIDTH, 6.0))
+    display_names = ("Context", "Sequence", "Fusion")
+    fig, axes = plt.subplots(2, 1, figsize=(ONE_COLUMN_WIDTH, 4.25), sharex=True)
     positions = np.arange(3)
     for axis, metric, label in zip(
         axes,
-        ("beta_mae", "beta_rmse", "roc_auc"),
-        (r"Beta MAE $\downarrow$", r"Beta RMSE $\downarrow$", r"ROC-AUC $\uparrow$"),
+        ("beta_mae", "roc_auc"),
+        (r"Beta MAE $\downarrow$", r"ROC-AUC $\uparrow$"),
     ):
-        values = (
-            frame.pivot(index="Seed", columns="Model", values=metric)
-            .reindex(index=seeds, columns=MODEL_ORDER)
-        )
-        if values.isna().any().any():
-            raise ValueError(f"Incomplete seed/model grid for {metric}")
-        for _, row in values.iterrows():
-            axis.plot(positions, row.to_numpy(float), color="0.80", linewidth=0.9)
-            axis.scatter(positions, row.to_numpy(float), color="0.62", s=13, zorder=2)
-        means = values.mean(axis=0).to_numpy(float)
-        standard_deviations = values.std(axis=0, ddof=1).to_numpy(float)
-        for position, model, mean, standard_deviation in zip(
-            positions, MODEL_ORDER, means, standard_deviations
+        values = pd.to_numeric(frame[metric], errors="raise").to_numpy(float)
+        axis.plot(positions, values, color="0.76", linewidth=1.25, zorder=1)
+        for position, model, value, display_name in zip(
+            positions, MODEL_ORDER, values, display_names
         ):
-            axis.errorbar(
+            axis.scatter(
                 position,
-                mean,
-                yerr=standard_deviation,
-                fmt="o",
-                markersize=5.5,
-                capsize=2.5,
+                value,
+                s=58,
                 color=MODEL_COLORS[model],
-                ecolor=MODEL_COLORS[model],
+                edgecolor="white",
+                linewidth=0.8,
+                label=display_name,
                 zorder=3,
             )
-        axis.set_xticks(positions, ["Context", "Sequence", "Fusion"])
         axis.set_ylabel(label)
         axis.grid(axis="y", alpha=0.18)
         axis.spines[["top", "right"]].set_visible(False)
     axes[0].tick_params(labelbottom=False)
-    axes[1].tick_params(labelbottom=False)
+    axes[1].set_xticks(positions, display_names)
     axes[0].set_title("Held-out chromosome performance")
-    fig.tight_layout(pad=0.6, h_pad=0.7)
+    handles, labels = axes[0].get_legend_handles_labels()
+    axes[0].legend(
+        handles,
+        labels,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 1.02),
+        ncol=3,
+        frameon=True,
+        facecolor="white",
+        edgecolor="0.82",
+        handletextpad=0.35,
+        columnspacing=0.8,
+    )
+    fig.tight_layout(pad=0.6, h_pad=0.65)
     save_figure(fig, output)
-    return {"seeds": [int(seed) for seed in seeds]}
+    return {
+        "models": list(display_names),
+        "analysis": "cross_seed_ensemble",
+        "uncertainty_displayed": False,
+    }
 
 
 def plot_information_gains(path: Path, output: Path) -> dict:
@@ -495,23 +506,40 @@ def plot_mqtl(path: Path, signed_output: Path, magnitude_output: Path) -> dict:
     agreement = np.sign(predicted) == np.sign(observed)
     direction = float(agreement.mean())
 
+    observed_rank = rank_percentile(observed)
+    predicted_rank = rank_percentile(predicted)
+    agrees = agreement.to_numpy(bool)
+    n_agrees = int(agrees.sum())
+
     fig, axis = plt.subplots(figsize=(ONE_COLUMN_WIDTH, 3.25))
-    for state, label, color in (
-        (True, "Direction agrees", "#2F6F9F"),
-        (False, "Direction differs", "#D98C3F"),
-    ):
-        selected = agreement == state
-        axis.scatter(
-            rank_percentile(observed)[selected],
-            rank_percentile(predicted)[selected],
-            s=22,
-            alpha=0.78,
-            color=color,
-            edgecolor="white",
-            linewidth=0.35,
-            label=label,
-        )
-    axis.plot([0, 100], [0, 100], color="0.45", linewidth=0.8, linestyle="--")
+    axis.scatter(
+        observed_rank[agrees],
+        predicted_rank[agrees],
+        s=23,
+        alpha=0.82,
+        color="#2F6F9F",
+        edgecolor="white",
+        linewidth=0.35,
+        marker="o",
+        label=f"Direction agrees ($n={n_agrees}$)",
+    )
+    axis.scatter(
+        observed_rank[~agrees],
+        predicted_rank[~agrees],
+        s=28,
+        alpha=0.95,
+        color="#D98C3F",
+        linewidth=1.35,
+        marker="x",
+        label=f"Direction differs ($n={len(frame) - n_agrees}$)",
+    )
+    axis.plot(
+        [0, 100], [0, 100], color="0.45", linewidth=0.8,
+        linestyle="--", label="Identical rank"
+    )
+    # Percentile positions of zero separate negative from positive responses.
+    axis.axvline(100.0 * float((observed < 0).mean()), color="0.60", linewidth=0.65, linestyle=":")
+    axis.axhline(100.0 * float((predicted < 0).mean()), color="0.60", linewidth=0.65, linestyle=":")
     axis.set(
         xlabel="Reported slope rank percentile",
         ylabel="Predicted response rank percentile",
@@ -525,12 +553,14 @@ def plot_mqtl(path: Path, signed_output: Path, magnitude_output: Path) -> dict:
     axis.text(
         0.04,
         0.96,
-        f"Spearman $\\rho$={signed_rho:.3f}\nDirection={100 * direction:.1f}%",
+        f"Spearman $\\rho$={signed_rho:.3f}\n"
+        f"Direction concordance={n_agrees}/{len(frame)} ({100 * direction:.1f}%)",
         transform=axis.transAxes,
         va="top",
         fontsize=7.5,
+        bbox={"boxstyle": "round,pad=0.28", "facecolor": "white", "edgecolor": "0.78", "alpha": 0.92},
     )
-    axis.legend(loc="lower right", frameon=False)
+    axis.legend(loc="lower right", frameon=True, facecolor="white", edgecolor="0.78", framealpha=0.92)
     axis.grid(alpha=0.14)
     fig.tight_layout(pad=0.55)
     save_figure(fig, signed_output)
@@ -545,7 +575,10 @@ def plot_mqtl(path: Path, signed_output: Path, magnitude_output: Path) -> dict:
         edgecolor="white",
         linewidth=0.35,
     )
-    axis.plot([0, 100], [0, 100], color="0.45", linewidth=0.8, linestyle="--")
+    axis.plot(
+        [0, 100], [0, 100], color="0.45", linewidth=0.8,
+        linestyle="--", label="Identical rank"
+    )
     axis.set(
         xlabel="Absolute slope rank percentile",
         ylabel="Absolute response rank percentile",
@@ -563,7 +596,9 @@ def plot_mqtl(path: Path, signed_output: Path, magnitude_output: Path) -> dict:
         transform=axis.transAxes,
         va="top",
         fontsize=7.5,
+        bbox={"boxstyle": "round,pad=0.28", "facecolor": "white", "edgecolor": "0.78", "alpha": 0.92},
     )
+    axis.legend(loc="lower right", frameon=True, facecolor="white", edgecolor="0.78", framealpha=0.92)
     axis.grid(alpha=0.14)
     fig.tight_layout(pad=0.55)
     save_figure(fig, magnitude_output)
