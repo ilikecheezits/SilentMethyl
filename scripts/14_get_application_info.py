@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-"""Annotate the NCOA2 application variant."""
-
 import gzip
 import pysam
 import pandas as pd

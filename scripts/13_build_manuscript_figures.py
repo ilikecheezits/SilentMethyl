@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-"""Build the six one-column SilentMethyl manuscript figures."""
-
 from __future__ import annotations
 
 import argparse
@@ -672,10 +669,6 @@ def plot_candidate(
     axis.set_ylim(0, peak * 1.22)
     right = max(float(comparator_values.max()), x) * 1.06
     axis.set_xlim(0, right)
-    
-    # ------------- CHANGES MADE HERE -------------
-    # Replaced 'gene' variable with 'r"NCOA2: $-0.1798 \pm 0.0198$"'
-    # Changed "edgecolor" in bbox dict from "#D94801" to "black"
     axis.annotate(
         r"NCOA2: $-0.1798 \pm 0.0198$",
         xy=(x, peak * 1.04),
@@ -696,8 +689,6 @@ def plot_candidate(
             "alpha": 0.96,
         },
     )
-    # ---------------------------------------------
-
     axis.set_xlabel(r"Absolute predicted $\Delta\hat{\beta}$")
     axis.set_ylabel("Matched comparators")
     axis.set_title("Top candidate versus matched background")
