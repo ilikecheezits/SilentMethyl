@@ -2,7 +2,6 @@
   "analysis_status": "COMPLETE",
   "candidate_context": {
     "distance_rows": 4,
-    "interpretation": "Descriptive post hoc stratification by candidate-variant region and variant-to-target-CpG distance.",
     "region_rows": 3
   },
   "context": {
@@ -33,60 +32,25 @@
       }
     }
   },
-  "figure_format": "ten one-column figures",
-  "fusion_context_win_rate": {
-    "groupings": [
-      "Genomic_Region",
-      "CpG_Island_Context",
-      "ATAC_Stratum",
-      "H3K27ac_Stratum"
-    ],
-    "interpretation": "Descriptive post hoc per-locus win rates; not model-selection criteria.",
-    "overall_fusion_lower_error_percent": 59.52578095596538,
-    "stratum_count": 16
-  },
-  "fusion_locus_error": {
-    "absolute_error_tie_count": 26,
-    "fusion_lower_error_count": 15816,
-    "fusion_lower_error_fraction": 0.5952578095596538,
-    "heldout_cpg_count": 26570,
-    "mean_sequence_minus_fusion_absolute_error": 0.010429121957599496,
-    "median_sequence_minus_fusion_absolute_error": 0.001911163330078132,
-    "sequence_lower_error_count": 10728
-  },
-  "information_source_gains": {
-    "mean_improvements": {
-      "beta_mae": {
-        "Add context to sequence": 0.010629859629477734,
-        "Add sequence to context": 0.040278242659204606
-      },
-      "beta_rmse": {
-        "Add context to sequence": 0.019554872365272907,
-        "Add sequence to context": 0.0644139827772141
-      },
-      "roc_auc": {
-        "Add context to sequence": 0.01111649796155989,
-        "Add sequence to context": 0.04923530198875977
-      }
-    }
-  },
+  "figure_format": "six one-column manuscript figures",
   "input_sha256": {
     "results/journal/biological_context/fusion_gain_by_context.csv": "91b51f3b702f470fed523508edc895157736df8d180526183c23485c08f8ad77",
-    "results/journal/biological_context/heldout_cpg_context_assignments.csv": "913893f84abcefefe711aeb4d982e9e9b12cd0350bb3febb4c8e3c6a88f2ae98",
     "results/journal/biological_context/variant_response_by_context.csv": "f45215e0b24c5510b617302a0ae460985a6af7cd39c620e1f5ff0a16cdb37f69",
     "results/journal/biological_context/variant_response_by_distance.csv": "59bb36a0aed34214de7c88a08b5bb45c961fbfb7211c0dff577ceb1c5aaa56a6",
     "results/journal/candidates/candidate_matched_background_statistics.csv": "380426e595fb24086a30b590b239cb29b9a999a9d7f32019b6daed58417f5f43",
     "results/journal/candidates/candidate_seed_scores_long.csv": "ed1d1dd7b9390babb3e748ecddd65ebcec39a8cf5904fd4d126b9f1ad3dfb8b8",
     "results/journal/candidates/top_candidate_matched_comparators_long.csv": "a62467b787e9797af61b0548668b728fe44376c8dfe633cc6a8f8c245f2f4540",
     "results/journal/egtex_mqtl_positive_control/mqtl_predictions_seed_aggregate.csv": "2d3380bce6956572c02de0380c2cfc3326e301f66f3d892b9a8a8247a574545a",
-    "results/journal/paired_model_bootstrap/model_metrics_recomputed.csv": "e624f7d5a2678be5b677934b7f76802a93d004318f42516758ee0c10bbac5a10",
-    "results/journal/seed42/fusion/predictions.csv": "cf593b00a6ec7d60a74b4e2d12d925545400bb97581e59481c1e8085cfc64957",
-    "results/journal/seed42/sequence/predictions.csv": "0a90be817a7a3a1464a9fcccea6a503b1b0a2695fc4387aad94c262b5e3e6647",
-    "results/journal/seed43/fusion/predictions.csv": "e433390d7e6cc4f1dcd28099719bf4b63e48b9949fe8bd4fa896329bd420c02c",
-    "results/journal/seed43/sequence/predictions.csv": "e7dd0070b2d881070f8db95cc997e184d20c8aa86bc8a2ff6e2c6f5a475ce82d",
-    "results/journal/seed44/fusion/predictions.csv": "d7b798adb6da62fc1fbae9d4e254ca38be7a866af6382228d435e624d84539cc",
-    "results/journal/seed44/sequence/predictions.csv": "7299a2e4e17448931bf32850892817a94e043a8704be55a70d3153bf9b7d46ef"
+    "results/journal/paired_model_bootstrap/model_metrics_recomputed.csv": "e624f7d5a2678be5b677934b7f76802a93d004318f42516758ee0c10bbac5a10"
   },
+  "manuscript_figures": [
+    "candidate_response_by_context.png",
+    "fusion_gain_by_epigenomic_context.png",
+    "model_incremental_performance.png",
+    "mqtl_magnitude_rank.png",
+    "mqtl_signed_rank.png",
+    "top_candidate_matched_background.png"
+  ],
   "mqtl": {
     "association_count": 81,
     "direction_concordance": 0.7901234567901234,
@@ -101,11 +65,6 @@
       44
     ]
   },
-  "seeds": [
-    42,
-    43,
-    44
-  ],
   "top_candidate": {
     "Absolute_Delta_Beta_Rank": 1,
     "Absolute_Distance_From_Target_CpG": 9,
