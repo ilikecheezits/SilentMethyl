@@ -7,8 +7,6 @@ checkpoints or recomputing predictions.
 
 Outputs
 -------
-model_incremental_performance.png
-information_source_gains.png
 fusion_gain_by_genomic_region.png
 fusion_gain_by_epigenomic_context.png
 candidate_response_by_context.png
@@ -192,72 +190,60 @@ def plot_performance(path: Path, output: Path) -> dict:
         ["Analysis", "Seed", "Model", "beta_mae", "beta_rmse", "roc_auc"],
         path,
     )
-    # Use the frozen cross-seed ensemble as the single reported point for each
-    # architecture. Seed-level variation is analyzed elsewhere and is omitted
-    # here so this figure communicates only the incremental model comparison.
     frame = frame[
-        (frame["Analysis"].astype(str) == "cross_seed_ensemble")
+        (frame["Analysis"].astype(str) == "individual_seed")
         & frame["Model"].isin(MODEL_ORDER)
     ].copy()
-    if frame["Model"].duplicated().any():
-        raise ValueError("Expected one cross-seed ensemble row per model")
-    frame = frame.set_index("Model").reindex(MODEL_ORDER)
-    if frame[["beta_mae", "roc_auc"]].isna().any().any():
-        raise ValueError("Incomplete cross-seed ensemble model grid")
+    frame["Seed"] = pd.to_numeric(frame["Seed"], errors="raise").astype(int)
+    seeds = sorted(frame["Seed"].unique())
+    if len(seeds) < 2:
+        raise ValueError("At least two seeds are required")
 
-    display_names = ("Context", "Sequence", "Fusion")
-    fig, axes = plt.subplots(2, 1, figsize=(ONE_COLUMN_WIDTH, 4.25), sharex=True)
+    fig, axes = plt.subplots(3, 1, figsize=(ONE_COLUMN_WIDTH, 6.0))
     positions = np.arange(3)
     for axis, metric, label in zip(
         axes,
-        ("beta_mae", "roc_auc"),
-        (r"Beta MAE $\downarrow$", r"ROC-AUC $\uparrow$"),
+        ("beta_mae", "beta_rmse", "roc_auc"),
+        (r"Beta MAE $\downarrow$", r"Beta RMSE $\downarrow$", r"ROC-AUC $\uparrow$"),
     ):
-        values = pd.to_numeric(frame[metric], errors="raise").to_numpy(float)
-        axis.plot(positions, values, color="0.76", linewidth=1.25, zorder=1)
-        for position, model, value, display_name in zip(
-            positions, MODEL_ORDER, values, display_names
+        values = (
+            frame.pivot(index="Seed", columns="Model", values=metric)
+            .reindex(index=seeds, columns=MODEL_ORDER)
+        )
+        if values.isna().any().any():
+            raise ValueError(f"Incomplete seed/model grid for {metric}")
+        for _, row in values.iterrows():
+            axis.plot(positions, row.to_numpy(float), color="0.80", linewidth=0.9)
+            axis.scatter(positions, row.to_numpy(float), color="0.62", s=13, zorder=2)
+        means = values.mean(axis=0).to_numpy(float)
+        standard_deviations = values.std(axis=0, ddof=1).to_numpy(float)
+        for position, model, mean, standard_deviation in zip(
+            positions, MODEL_ORDER, means, standard_deviations
         ):
-            axis.scatter(
+            axis.errorbar(
                 position,
-                value,
-                s=58,
+                mean,
+                yerr=standard_deviation,
+                fmt="o",
+                markersize=5.5,
+                capsize=2.5,
                 color=MODEL_COLORS[model],
-                edgecolor="white",
-                linewidth=0.8,
-                label=display_name,
+                ecolor=MODEL_COLORS[model],
                 zorder=3,
             )
+        axis.set_xticks(positions, ["Context", "Sequence", "Fusion"])
         axis.set_ylabel(label)
         axis.grid(axis="y", alpha=0.18)
         axis.spines[["top", "right"]].set_visible(False)
     axes[0].tick_params(labelbottom=False)
-    axes[1].set_xticks(positions, display_names)
+    axes[1].tick_params(labelbottom=False)
     axes[0].set_title("Held-out chromosome performance")
-    handles, labels = axes[0].get_legend_handles_labels()
-    axes[0].legend(
-        handles,
-        labels,
-        loc="upper center",
-        bbox_to_anchor=(0.5, 1.02),
-        ncol=3,
-        frameon=True,
-        facecolor="white",
-        edgecolor="0.82",
-        handletextpad=0.35,
-        columnspacing=0.8,
-    )
-    fig.tight_layout(pad=0.6, h_pad=0.65)
+    fig.tight_layout(pad=0.6, h_pad=0.7)
     save_figure(fig, output)
-    return {
-        "models": list(display_names),
-        "analysis": "cross_seed_ensemble",
-        "uncertainty_displayed": False,
-    }
+    return {"seeds": [int(seed) for seed in seeds]}
 
 
 def plot_information_gains(path: Path, output: Path) -> dict:
-    """Show the two valid incremental comparisons on a positive-is-better scale."""
     frame = pd.read_csv(path)
     require_columns(
         frame,
@@ -352,7 +338,6 @@ def _draw_gain_panel(
     gain = pd.to_numeric(
         subset["Sequence_Minus_Fusion_Beta_MAE"], errors="raise"
     ).to_numpy(float)
-    # Stored intervals are fusion minus sequence, so negate and reverse them.
     low = -pd.to_numeric(subset["Bootstrap_CI_High"], errors="raise").to_numpy(float)
     high = -pd.to_numeric(subset["Bootstrap_CI_Low"], errors="raise").to_numpy(float)
     positions = np.arange(len(subset))

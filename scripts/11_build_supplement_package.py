@@ -39,7 +39,6 @@ class Item:
 
 
 STATIC_ITEMS = (
-    # S1: complete somatic candidate outputs.
     Item("S1", "results/journal/candidates/candidate_matched_background_statistics.csv",
          "Supplementary_Data_S1_Candidates/S1_complete_candidate_ranking.csv",
          "Complete 440-candidate fusion-ensemble ranking with matched-background and orientation diagnostics."),
@@ -86,7 +85,6 @@ STATIC_ITEMS = (
          "Supplementary_Data_S1_Candidates/S1_top_candidate_case_study.csv",
          "Data underlying the rank-1 candidate case-study figure."),
 
-    # S2: external positive-control support.
     Item("S2", "results/journal/egtex_mqtl_positive_control/validated_heldout_cohort.csv",
          "Supplementary_Data_S2_mQTL_Positive_Control/S2_all_81_associations.csv",
          "Complete held-out 81-association eGTEx breast mQTL cohort with probe geometry."),
@@ -112,7 +110,6 @@ STATIC_ITEMS = (
          "Supplementary_Data_S2_mQTL_Positive_Control/S2_run_summary.json",
          "Positive-control inputs, checkpoint hashes, parameters, and nested results."),
 
-    # S3: matched significant-versus-nonsignificant lead analysis.
     Item("S3", "results/journal/egtex_mqtl_matched_negative/eligible_significant_and_nonsignificant_leads.csv",
          "Supplementary_Data_S3_mQTL_Matched_Negative/S3_eligible_lead_pool.csv",
          "Eligible significant and nonsignificant lead associations before assignment."),
@@ -138,7 +135,6 @@ STATIC_ITEMS = (
          "Supplementary_Data_S3_mQTL_Matched_Negative/S3_run_summary.json",
          "Matching specification, eligibility audit, checkpoint hashes, and metrics."),
 
-    # S4: held-out model performance and paired genomic uncertainty.
     Item("S4", "results/journal/paired_model_bootstrap/model_metrics_recomputed.csv",
          "Supplementary_Data_S4_Model_Performance/S4_model_metrics_recomputed.csv",
          "Per-seed and ensemble held-out metrics recomputed from aligned predictions."),
@@ -170,7 +166,6 @@ STATIC_ITEMS = (
          "Supplementary_Data_S4_Model_Performance/S4_manuscript_figure_run_summary.json",
          "Input hashes and numerical summaries for the generated manuscript figures."),
 
-    # S5: target construction and probe-quality sensitivity.
     Item("S5", "results/journal/target_qc/hm450_manifest_audit.json",
          "Supplementary_Data_S5_Target_QC/S5_hm450_manifest_audit.json",
          "Manifest identity and split-level MASK_general audit."),
@@ -187,7 +182,6 @@ STATIC_ITEMS = (
          "Supplementary_Data_S5_Target_QC/S5_test_coverage_per_probe.csv",
          "Observed-normal count for every held-out CpG."),
 
-    # S6: provenance and reproducibility records.  Controlled/raw data are not copied.
     Item("S6", "reproducibility/data_purity_audit.json",
          "Supplementary_Data_S6_Reproducibility/S6_data_purity_audit.json",
          "Processed-data leakage, sequence, split, and feature audit."),
@@ -240,28 +234,6 @@ STATIC_ITEMS = (
     # S7: published-variant application. These are optional because the
     # prespecified variant may have no unmasked HM450 CpG inside the trained
     # 1,000-bp window; in that case only the input, audit, and run summary exist.
-    Item("S7", "results/journal/known_variant_application/known_variant_input.csv",
-         "Supplementary_Data_S7_Known_Variant/S7_known_variant_input.csv",
-         "Prespecified published variant and literature metadata.", False),
-    Item("S7", "results/journal/known_variant_application/known_variant_visibility_audit.csv",
-         "Supplementary_Data_S7_Known_Variant/S7_visibility_audit.csv",
-         "Audit of nearby HM450 CpGs, reference alleles, model visibility, and probe QC.", False),
-    Item("S7", "results/journal/known_variant_application/known_variant_model_visible_cpgs.csv",
-         "Supplementary_Data_S7_Known_Variant/S7_model_visible_cpgs.csv",
-         "All unmasked target CpGs for which the prespecified SNV is visible to SilentMethyl.", False),
-    Item("S7", "results/journal/known_variant_application/known_variant_predictions_all_seeds.csv",
-         "Supplementary_Data_S7_Known_Variant/S7_predictions_all_seeds.csv",
-         "Per-seed forward, reverse-complement, and averaged published-variant predictions.", False),
-    Item("S7", "results/journal/known_variant_application/known_variant_predictions_ensemble.csv",
-         "Supplementary_Data_S7_Known_Variant/S7_predictions_ensemble.csv",
-         "Cross-seed predictions for every model-visible published-variant/CpG pair.", False),
-    Item("S7", "results/journal/known_variant_application/known_variant_primary_case.csv",
-         "Supplementary_Data_S7_Known_Variant/S7_primary_nearest_cpg_case.csv",
-         "Nearest eligible CpG selected without using model scores.", False),
-    Item("S7", "results/journal/known_variant_application/run_summary.json",
-         "Supplementary_Data_S7_Known_Variant/S7_run_summary.json",
-         "Known-variant selection rule, split-aware interpretation, and input hashes.", False),
-
     # Selected submission-facing figure assets.  These are optional because a
     # journal may instead request a compiled supplementary PDF.
     Item("SF", "results/journal/egtex_mqtl_positive_control/plots/sequence_effect_rank_scatter.png",
@@ -294,12 +266,6 @@ STATIC_ITEMS = (
     Item("SF", "results/journal/biological_context/plots/variant_response_by_distance.png",
          "Supplementary_Figures/SF9_variant_response_by_distance.png",
          "Predicted sequence responses summarized by variant-to-CpG distance.", False),
-    Item("SF", "results/journal/manuscript_figures/model_incremental_performance.png",
-         "Supplementary_Figures/SF10_model_incremental_performance.png",
-         "Incremental held-out performance of context-only, sequence-only, and fusion models.", False),
-    Item("SF", "results/journal/manuscript_figures/information_source_gains.png",
-         "Supplementary_Figures/SF10b_information_source_gains.png",
-         "Explicit gains from adding sequence to context and context to sequence.", False),
     Item("SF", "results/journal/manuscript_figures/candidate_response_by_context.png",
          "Supplementary_Figures/SF10c_candidate_response_by_context.png",
          "Candidate response magnitude by target-CpG region and variant-to-CpG distance.", False),
@@ -312,9 +278,6 @@ STATIC_ITEMS = (
     Item("SF", "results/journal/manuscript_figures/top_candidate_matched_background.png",
          "Supplementary_Figures/SF12_top_candidate_case_study.png",
          "Matched-background view of the first-ranked candidate.", False),
-    Item("SF", "results/journal/known_variant_application/known_variant_primary_case.png",
-         "Supplementary_Figures/SF13_known_variant_primary_case.png",
-         "Per-seed predicted response for the nearest eligible CpG of the published variant.", False),
 )
 
 
@@ -480,9 +443,6 @@ unless a file explicitly states otherwise.
 - **Supplementary Data S6 — reproducibility:** target/candidate construction
   manifests, participant and matrix audits, environment information, dependency
   versions, reproduction instructions, and SHA-256 manifests.
-- **Supplementary Data S7 — published-variant application:** the prespecified
-  variant, model-visibility audit, split-aware CpG targets, and frozen-model
-  predictions when an eligible target CpG exists.
 - **Supplementary Figures:** selected non-primary analysis figures. Journals may
   request these as a compiled supplementary PDF instead.
 
