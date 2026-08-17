@@ -681,7 +681,7 @@ def plot_candidate(
         xy=(x, peak * 1.04),
         xytext=(0, 0),
         textcoords="offset points",
-        ha="center",
+        ha="right",
         va="bottom",
         fontsize=8.0,
         color="#9A3200",
