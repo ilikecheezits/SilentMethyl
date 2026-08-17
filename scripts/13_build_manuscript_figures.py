@@ -201,7 +201,7 @@ def plot_performance(path: Path, output: Path) -> dict:
         raise ValueError("At least two seeds are required")
 
     # 1x3 layout to place them horizontally
-    fig, axes = plt.subplots(1, 3, figsize=(ONE_COLUMN_WIDTH, 4.35))
+    fig, axes = plt.subplots(1, 3, figsize=(ONE_COLUMN_WIDTH, 3))
     positions = np.arange(3)
     
     metrics = ("m_mae", "beta_mae", "roc_auc")
