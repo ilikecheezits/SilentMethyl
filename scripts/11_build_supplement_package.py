@@ -231,52 +231,34 @@ STATIC_ITEMS = (
          "Supplementary_Data_S6_Reproducibility/S6_python_requirements.txt",
          "Recorded Python dependencies."),
 
-    # S7: published-variant application. These are optional because the
-    # prespecified variant may have no unmasked HM450 CpG inside the trained
-    # 1,000-bp window; in that case only the input, audit, and run summary exist.
-    # Selected submission-facing figure assets.  These are optional because a
+    # The manuscript-figure outputs are the canonical sources for the relevant
+    # supplementary panels. Legacy exploratory plots should be kept out unless
+    # they are explicitly needed for a manuscript narrative.
+    # Selected submission-facing figure assets. These are optional because a
     # journal may instead request a compiled supplementary PDF.
-    Item("SF", "results/journal/egtex_mqtl_positive_control/plots/sequence_effect_rank_scatter.png",
-         "Supplementary_Figures/SF1_sequence_mQTL_rank_scatter.png",
-         "Sequence-only positive-control rank scatter.", False),
-    Item("SF", "results/journal/egtex_mqtl_positive_control/plots/fusion_vs_sequence_delta_m.png",
-         "Supplementary_Figures/SF2_fusion_vs_sequence_mQTL_effects.png",
-         "Fusion versus sequence-only allelic-score comparison.", False),
-    Item("SF", "results/journal/egtex_mqtl_matched_negative/plots/fusion_matched_negative_discrimination.png",
-         "Supplementary_Figures/SF3_fusion_matched_negative.png",
-         "Fusion matched-negative discrimination plot.", False),
-    Item("SF", "results/journal/egtex_mqtl_matched_negative/plots/sequence_matched_negative_discrimination.png",
-         "Supplementary_Figures/SF4_sequence_matched_negative.png",
-         "Sequence-only matched-negative discrimination plot.", False),
-    Item("SF", "results/journal/candidates/plots/matched_background_rank1.png",
-         "Supplementary_Figures/SF5_candidate_rank1_background.png",
-         "Matched-background display for the first-ranked candidate.", False),
-    Item("SF", "results/journal/candidates/plots/matched_background_rank2.png",
-         "Supplementary_Figures/SF6_candidate_rank2_background.png",
-         "Matched-background display for the second-ranked candidate.", False),
-    Item("SF", "results/journal/candidates/plots/matched_background_rank3.png",
-         "Supplementary_Figures/SF7_candidate_rank3_background.png",
-         "Matched-background display for the third-ranked candidate.", False),
+    Item("SF", "results/journal/manuscript_figures/model_incremental_performance.png",
+         "Supplementary_Figures/SF1_model_incremental_performance.png",
+         "Seed-separated held-out performance panel for context, sequence, and fusion models.", False),
+    Item("SF", "results/journal/manuscript_figures/information_source_gains.png",
+         "Supplementary_Figures/SF2_information_source_gains.png",
+         "Residual gains from adding sequence or context information to the model.", False),
     Item("SF", "results/journal/manuscript_figures/fusion_gain_by_genomic_region.png",
-         "Supplementary_Figures/SF8a_fusion_gain_by_genomic_region.png",
+         "Supplementary_Figures/SF3_fusion_gain_by_genomic_region.png",
          "One-column fusion improvement plot across GENCODE genomic regions.", False),
     Item("SF", "results/journal/manuscript_figures/fusion_gain_by_epigenomic_context.png",
-         "Supplementary_Figures/SF8b_fusion_gain_by_epigenomic_context.png",
+         "Supplementary_Figures/SF4_fusion_gain_by_epigenomic_context.png",
          "One-column fusion improvement plot across CpG-island, ATAC, and H3K27ac strata.", False),
-    Item("SF", "results/journal/biological_context/plots/variant_response_by_distance.png",
-         "Supplementary_Figures/SF9_variant_response_by_distance.png",
-         "Predicted sequence responses summarized by variant-to-CpG distance.", False),
     Item("SF", "results/journal/manuscript_figures/candidate_response_by_context.png",
-         "Supplementary_Figures/SF10c_candidate_response_by_context.png",
+         "Supplementary_Figures/SF5_candidate_response_by_context.png",
          "Candidate response magnitude by target-CpG region and variant-to-CpG distance.", False),
     Item("SF", "results/journal/manuscript_figures/mqtl_signed_rank.png",
-         "Supplementary_Figures/SF11a_mQTL_signed_rank.png",
+         "Supplementary_Figures/SF6_mQTL_signed_rank.png",
          "Signed eGTEx mQTL rank agreement for the fusion ensemble.", False),
     Item("SF", "results/journal/manuscript_figures/mqtl_magnitude_rank.png",
-         "Supplementary_Figures/SF11b_mQTL_magnitude_rank.png",
+         "Supplementary_Figures/SF7_mQTL_magnitude_rank.png",
          "Absolute eGTEx mQTL magnitude-rank agreement for the fusion ensemble.", False),
     Item("SF", "results/journal/manuscript_figures/top_candidate_matched_background.png",
-         "Supplementary_Figures/SF12_top_candidate_case_study.png",
+         "Supplementary_Figures/SF8_top_candidate_case_study.png",
          "Matched-background view of the first-ranked candidate.", False),
 )
 
