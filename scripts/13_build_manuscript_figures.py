@@ -203,7 +203,7 @@ def plot_performance(path: Path, output: Path) -> dict:
     if len(seeds) < 2:
         raise ValueError("At least two seeds are required")
 
-    fig, axes = plt.subplots(2, 1, figsize=(ONE_COLUMN_WIDTH, 3.4), sharex=True)
+    fig, axes = plt.subplots(2, 1, figsize=(ONE_COLUMN_WIDTH, 4.35), sharex=True)
     positions = np.arange(3)
     for axis, metric, label in zip(
         axes,
@@ -672,8 +672,12 @@ def plot_candidate(
     axis.set_ylim(0, peak * 1.22)
     right = max(float(comparator_values.max()), x) * 1.06
     axis.set_xlim(0, right)
+    
+    # ------------- CHANGES MADE HERE -------------
+    # Replaced 'gene' variable with 'r"NCOA2: $-0.1798 \pm 0.0198$"'
+    # Changed "edgecolor" in bbox dict from "#D94801" to "black"
     axis.annotate(
-        gene,
+        r"NCOA2: $-0.1798 \pm 0.0198$",
         xy=(x, peak * 1.04),
         xytext=(0, 0),
         textcoords="offset points",
@@ -687,11 +691,13 @@ def plot_candidate(
         bbox={
             "boxstyle": "round,pad=0.28",
             "facecolor": "white",
-            "edgecolor": "#D94801",
+            "edgecolor": "black",
             "linewidth": 0.9,
             "alpha": 0.96,
         },
     )
+    # ---------------------------------------------
+
     axis.set_xlabel(r"Absolute predicted $\Delta\hat{\beta}$")
     axis.set_ylabel("Matched comparators")
     axis.set_title("Top candidate versus matched background")
