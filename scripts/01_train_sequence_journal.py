@@ -31,12 +31,6 @@ from training_common import (
 
 
 class ResilientSummaryWriter:
-    """TensorBoard wrapper that never lets event-file I/O kill training.
-
-    TensorBoard is diagnostic only. If its event file becomes unwritable (for
-    example a transient shared-filesystem EIO), the writer is disabled for the
-    remainder of the process while model training/checkpointing continues.
-    """
 
     def __init__(self, log_dir: str, logger: logging.Logger) -> None:
         self.log_dir = log_dir
@@ -99,7 +93,6 @@ class ResilientSummaryWriter:
 
 
 def atomic_torch_save(obj, path: str, logger: logging.Logger, retries: int = 3) -> None:
-    """Write a PyTorch checkpoint atomically, retrying transient filesystem errors."""
     import time
 
     tmp_path = f"{path}.tmp.{os.getpid()}"
@@ -132,7 +125,6 @@ def atomic_torch_save(obj, path: str, logger: logging.Logger, retries: int = 3) 
 
 
 def atomic_dataframe_to_csv(df: pd.DataFrame, path: str, logger: logging.Logger, retries: int = 3) -> None:
-    """Atomically write a CSV, retrying transient filesystem errors."""
     import time
 
     tmp_path = f"{path}.tmp.{os.getpid()}"

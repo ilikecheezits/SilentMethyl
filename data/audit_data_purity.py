@@ -1,12 +1,5 @@
 #!/usr/bin/env python3
-"""Streaming integrity audit for SilentMethyl journal-v2 data files.
-
-Run from data/datafiles:
-    python audit_data_purity.py --data-dir .
-
-The script does not modify any dataset. It writes data_purity_audit.json and
-returns exit code 1 if a hard integrity error is found.
-"""
+"""Audit processed SilentMethyl data files for integrity errors."""
 
 from __future__ import annotations
 
@@ -309,7 +302,6 @@ def audit_training_file(
             except Exception:
                 audit.error("invalid_training_rc_phylo_fields", ident)
 
-    # Range warnings: report rather than fail because BigWig scales are track-specific.
     for feature, stats in feature_stats.items():
         result = stats.result()
         if feature.startswith("Ref_") and result["min"] is not None and result["min"] < 0:
@@ -458,8 +450,6 @@ def audit_candidate_file(
             if len(h100rc) == 100 and h100rc[49:51] != "CG":
                 audit.error("candidate_healthy_100bp_rc_not_cpg_centered", ident)
 
-            # A mutation in either base of the target CpG destroys/changes the target
-            # being predicted and should not be retained for this analysis.
             if len(m5) == 5000 and m5[CENTER_C:CENTER_G + 1] != "CG":
                 central_cpg_destroyed += 1
                 audit.error("candidate_mutation_changes_target_cpg", ident)
@@ -635,7 +625,6 @@ def main() -> int:
             audit.error("test_only_file_missing_expected_candidate", ident)
         for ident in sorted(test_only_ids - full_test_ids)[:MAX_EXAMPLES]:
             audit.error("test_only_file_contains_unexpected_candidate", ident)
-        # Ensure the total discrepancy is preserved, even if examples are capped.
         missing_n = len(full_test_ids - test_only_ids)
         unexpected_n = len(test_only_ids - full_test_ids)
         if missing_n > MAX_EXAMPLES:

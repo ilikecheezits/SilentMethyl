@@ -1,24 +1,5 @@
 #!/usr/bin/env python3
-"""Candidate scoring plus matched observed-synonymous background analysis.
-
-Primary inference is exactly aligned with the final SilentMethyl evaluation:
-for every checkpoint and every WT/MUT sequence, evaluate both the forward and
-reverse-complement orientations, swap the two ordered target-base PhyloP
-features (and their explicit missingness indicators) under RC, convert each
-orientation's M-value to beta, average beta across orientations, and only then
-compute mutant - wild-type delta beta.
-
-The script accepts any explicit list of trained seeds.  ``--seeds 42`` is a
-valid single-seed run.  Later, ``--seeds 42 43 44`` reruns the same analysis
-without changing code. When multiple seeds are supplied, background comparison
-uses the cross-seed mean RC-averaged delta beta; with one seed, that mean is
-simply the one available model's delta beta.
-
-The comparator pool contains other observed synonymous candidates selected by
-progressively broader similarity-priority tiers. Results are descriptive
-background percentiles and tail probabilities, not a random-mutation null or a
-formal hypothesis test.
-"""
+"""Score candidates and compare them with matched synonymous backgrounds."""
 
 from __future__ import annotations
 
@@ -41,7 +22,6 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 
 
 def find_project_root(start: str | Path) -> Path:
-    """Locate the project without requiring a particular launch directory."""
     start = Path(start).resolve()
     candidates = [start, *start.parents, Path.cwd().resolve(), *Path.cwd().resolve().parents]
     seen: set[Path] = set()
@@ -236,7 +216,6 @@ def validate_candidate_table(df: pd.DataFrame, input_path: str) -> None:
 
 
 def apply_probe_qc(df: pd.DataFrame, manifest_path: str, include_masked: bool) -> pd.DataFrame:
-    """Attach MASK_general and make unmasked probes the default primary cohort."""
     manifest = pd.read_csv(manifest_path, sep="\t", compression="infer", low_memory=False)
     probe_col = next((c for c in ("probeID", "IlmnID", "Name") if c in manifest.columns), None)
     if probe_col is None or "MASK_general" not in manifest.columns:
@@ -263,7 +242,6 @@ def build_model_visible_cohort(
     raw_df: pd.DataFrame,
     window_size: int,
 ) -> tuple[pd.DataFrame, list[str], list[str], torch.Tensor, torch.Tensor]:
-    """Filter to candidates whose unique SNV is actually visible in the model crop."""
     records: list[dict] = []
     wt_sequences: list[str] = []
     mut_sequences: list[str] = []
@@ -374,11 +352,6 @@ def infer_sequences(
         with autocast_context(device, bool(use_amp and device.type == "cuda")):
             _, m_pred, gate = model(batch_tab, batch_missing, ids, attention_mask)
 
-        # Primary candidate scoring must genuinely remain FP32 because Delta beta is
-        # obtained by subtracting nearly identical WT and mutant predictions. Merely
-        # disabling autocast is insufficient if a model was instantiated in a lower
-        # dtype by its Hugging Face config, so fail loudly instead of silently
-        # quantizing the counterfactual effects.
         if not use_amp and m_pred.dtype != torch.float32:
             raise RuntimeError(
                 f"FP32 candidate inference requested, but regression output dtype is {m_pred.dtype}. "
@@ -436,9 +409,6 @@ def score_seed(
             f"Strict fusion checkpoint mismatch for seed {seed}: "
             f"missing={missing_keys}, unexpected={unexpected_keys}"
         )
-    # Force the full model to FP32 for primary counterfactual inference. This is
-    # intentionally stronger than only disabling autocast because some HF custom
-    # configurations can instantiate modules in their configured torch_dtype.
     if not args.amp:
         model = model.float()
     model = model.to(device)
@@ -726,7 +696,6 @@ def main() -> None:
     )
     atomic_csv(comparators_long, out / "top_candidate_matched_comparators_long.csv")
 
-    # Plots retrieve comparator rows by immutable UID, so sorting is harmless.
     for rank, target in scored.head(args.plot_top_k).iterrows():
         uid = str(target["Variant_UID"])
         original_index = int(scored_unsorted.index[scored_unsorted["Variant_UID"].eq(uid)][0])

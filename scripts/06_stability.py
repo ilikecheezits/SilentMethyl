@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""Measure candidate-score stability across one or more trained runs.
-
-A run can be a conventional training seed (loaded from ``--scores-template``)
-or any explicitly labelled model tweak supplied as ``--run LABEL=CSV``.  A
-single run still produces orientation diagnostics and a candidate table;
-cross-run comparisons are added automatically when two or more runs exist.
-"""
+"""Measure candidate-score stability across trained runs."""
 
 from __future__ import annotations
 

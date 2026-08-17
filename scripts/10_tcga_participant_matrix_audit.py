@@ -1,16 +1,5 @@
 #!/usr/bin/env python3
-"""Audit TCGA-BRCA normal-sample selection, participants, and matrix provenance.
-
-This script is read-only with respect to source data. It verifies that the
-saved sample list matches the sample-type-11 columns selected from the archived
-methylation matrix, parses TCGA participant/sample/aliquot identifiers, records
-matrix and manifest provenance, and writes machine-readable audit outputs.
-
-If more than one selected column belongs to the same participant, the script
-also streams the matrix and compares the original column-weighted median with
-an equal-participant median (participant medians followed by a cohort median).
-No training data or checkpoints are modified.
-"""
+"""Audit TCGA-BRCA normal-sample selection and matrix provenance."""
 
 from __future__ import annotations
 

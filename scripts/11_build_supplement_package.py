@@ -1,14 +1,5 @@
 #!/usr/bin/env python3
-"""Build the submission-facing SilentMethyl supplementary data package.
-
-The package is intentionally smaller than ``results/``.  It contains the
-complete tables needed to inspect manuscript claims, per-seed held-out
-predictions, analysis summaries, QC/provenance records, and selected figure
-assets.  It excludes raw controlled-access data, reference tracks, model
-checkpoints, TensorBoard events, and transient logs.
-
-Run from the project root after scripts 02--10 and 12--14 have completed.
-"""
+"""Build the SilentMethyl supplementary data package from frozen result tables."""
 
 from __future__ import annotations
 
@@ -81,7 +72,7 @@ STATIC_ITEMS = (
     Item("S1", "results/journal/candidates/model_comparison/sequence_vs_fusion_summary.json",
          "Supplementary_Data_S1_Candidates/S1_sequence_vs_fusion_summary.json",
          "Summary of candidate agreement between sequence-only and fusion models."),
-    Item("S1", "results/journal/manuscript_figures/top_candidate_case_study.csv",
+    Item("S1", "results/journal/candidates/top_candidate_case_study.csv",
          "Supplementary_Data_S1_Candidates/S1_top_candidate_case_study.csv",
          "Data underlying the rank-1 candidate case-study figure."),
 
@@ -231,35 +222,27 @@ STATIC_ITEMS = (
          "Supplementary_Data_S6_Reproducibility/S6_python_requirements.txt",
          "Recorded Python dependencies."),
 
-    # The manuscript-figure outputs are the canonical sources for the relevant
-    # supplementary panels. Legacy exploratory plots should be kept out unless
-    # they are explicitly needed for a manuscript narrative.
-    # Selected submission-facing figure assets. These are optional because a
-    # journal may instead request a compiled supplementary PDF.
-    Item("SF", "results/journal/manuscript_figures/model_incremental_performance.png",
-         "Supplementary_Figures/SF1_model_incremental_performance.png",
-         "Seed-separated held-out performance panel for context, sequence, and fusion models.", False),
-    Item("SF", "results/journal/manuscript_figures/information_source_gains.png",
-         "Supplementary_Figures/SF2_information_source_gains.png",
-         "Residual gains from adding sequence or context information to the model.", False),
-    Item("SF", "results/journal/manuscript_figures/fusion_gain_by_genomic_region.png",
-         "Supplementary_Figures/SF3_fusion_gain_by_genomic_region.png",
-         "One-column fusion improvement plot across GENCODE genomic regions.", False),
-    Item("SF", "results/journal/manuscript_figures/fusion_gain_by_epigenomic_context.png",
-         "Supplementary_Figures/SF4_fusion_gain_by_epigenomic_context.png",
-         "One-column fusion improvement plot across CpG-island, ATAC, and H3K27ac strata.", False),
-    Item("SF", "results/journal/manuscript_figures/candidate_response_by_context.png",
-         "Supplementary_Figures/SF5_candidate_response_by_context.png",
-         "Candidate response magnitude by target-CpG region and variant-to-CpG distance.", False),
-    Item("SF", "results/journal/manuscript_figures/mqtl_signed_rank.png",
-         "Supplementary_Figures/SF6_mQTL_signed_rank.png",
-         "Signed eGTEx mQTL rank agreement for the fusion ensemble.", False),
-    Item("SF", "results/journal/manuscript_figures/mqtl_magnitude_rank.png",
-         "Supplementary_Figures/SF7_mQTL_magnitude_rank.png",
-         "Absolute eGTEx mQTL magnitude-rank agreement for the fusion ensemble.", False),
-    Item("SF", "results/journal/manuscript_figures/top_candidate_matched_background.png",
-         "Supplementary_Figures/SF8_top_candidate_case_study.png",
-         "Matched-background view of the first-ranked candidate.", False),
+    Item("SF", "results/journal/egtex_mqtl_positive_control/plots/sequence_effect_rank_scatter.png",
+         "Supplementary_Figures/SF1_sequence_mQTL_rank_scatter.png",
+         "Sequence-only eGTEx mQTL rank scatter.", False),
+    Item("SF", "results/journal/egtex_mqtl_positive_control/plots/fusion_vs_sequence_delta_m.png",
+         "Supplementary_Figures/SF2_fusion_vs_sequence_mQTL_effects.png",
+         "Fusion versus sequence mQTL effect comparison.", False),
+    Item("SF", "results/journal/egtex_mqtl_matched_negative/plots/fusion_matched_negative_discrimination.png",
+         "Supplementary_Figures/SF3_fusion_matched_negative.png",
+         "Fusion matched-negative discrimination.", False),
+    Item("SF", "results/journal/egtex_mqtl_matched_negative/plots/sequence_matched_negative_discrimination.png",
+         "Supplementary_Figures/SF4_sequence_matched_negative.png",
+         "Sequence matched-negative discrimination.", False),
+    Item("SF", "results/journal/candidates/plots/matched_background_rank2.png",
+         "Supplementary_Figures/SF5_candidate_rank2_background.png",
+         "Rank-2 candidate versus matched background.", False),
+    Item("SF", "results/journal/candidates/plots/matched_background_rank3.png",
+         "Supplementary_Figures/SF6_candidate_rank3_background.png",
+         "Rank-3 candidate versus matched background.", False),
+    Item("SF", "results/journal/biological_context/plots/fusion_gain_by_genomic_region.png",
+         "Supplementary_Figures/SF7_fusion_gain_by_genomic_region.png",
+         "Fusion improvement by GENCODE genomic region.", False),
 )
 
 
@@ -378,7 +361,7 @@ def validate_primary_tables(project: Path) -> None:
         "results/journal/egtex_mqtl_positive_control/validated_heldout_cohort.csv": 81,
         "results/journal/egtex_mqtl_matched_negative/matched_lead_cohort.csv": 70,
         "results/journal/biological_context/heldout_cpg_context_assignments.csv": 26_570,
-        "results/journal/manuscript_figures/top_candidate_case_study.csv": 1,
+        "results/journal/candidates/top_candidate_case_study.csv": 1,
     }
     for relative, expected in checks.items():
         path = project / relative
@@ -425,8 +408,8 @@ unless a file explicitly states otherwise.
 - **Supplementary Data S6 — reproducibility:** target/candidate construction
   manifests, participant and matrix audits, environment information, dependency
   versions, reproduction instructions, and SHA-256 manifests.
-- **Supplementary Figures:** selected non-primary analysis figures. Journals may
-  request these as a compiled supplementary PDF instead.
+- **Supplementary Figures:** non-manuscript analysis plots only. The six
+  manuscript figures are not duplicated here.
 
 ## Interpretation boundaries
 

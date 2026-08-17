@@ -1,16 +1,5 @@
 #!/usr/bin/env python3
-"""Combined no-retraining QC for target coverage and the HM450 probe mask.
-
-Run from the SilentMethyl project root after seed-42 testing has completed:
-
-    python scripts/00_target_qc.py
-
-The raw HM450 matrix is streamed once to count observed normal samples for the
-held-out CpGs. Existing test predictions are evaluated at fixed coverage
-thresholds and in non-overlapping coverage bins. The same command summarizes
-the provider-supplied MASK_general flag and verifies split membership against
-that flag without attempting to reverse-engineer the provider's aggregate.
-"""
+"""QC held-out coverage and the HM450 probe mask."""
 
 from __future__ import annotations
 

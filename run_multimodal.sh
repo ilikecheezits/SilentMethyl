@@ -20,8 +20,6 @@ source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate silentmethyl
 
 SEED=${SEED:-42}
-# Towers are frozen by default in 01_train_fusion_journal.py, so a larger
-# physical batch is usually feasible. Effective batch remains 32.
 BATCH_SIZE=${BATCH_SIZE:-32}
 GRAD_ACCUM_STEPS=${GRAD_ACCUM_STEPS:-1}
 SEED_DIR="checkpoints_journal/seed${SEED}"

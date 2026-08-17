@@ -19,9 +19,6 @@ module load cuda/12.4.0
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate silentmethyl
 
-# Physical batch can be overridden at submission time, e.g.
-#   sbatch --export=ALL,BATCH_SIZE=8,GRAD_ACCUM_STEPS=4 run_baseline.sh
-# Keep BATCH_SIZE * GRAD_ACCUM_STEPS = 32 for the same effective batch.
 BATCH_SIZE=${BATCH_SIZE:-16}
 GRAD_ACCUM_STEPS=${GRAD_ACCUM_STEPS:-2}
 SEED=${SEED:-42}

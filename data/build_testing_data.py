@@ -1,12 +1,5 @@
 #!/usr/bin/env python3
-"""Build the cleaned SilentMethyl somatic synonymous-variant application cohort.
-
-This journal-oriented builder removes the cBioPortal methylation-availability
-filter and all gene-level methylation pseudo-targets. Candidate eligibility is
-verified locally against the fixed GENCODE v44 annotation, GDC identifiers and
-query results are preserved, held-out status is inherited from the training
-split manifest, and both forward and reverse-complement model inputs are emitted.
-"""
+"""Build the somatic synonymous-variant application cohort."""
 
 from __future__ import annotations
 
@@ -254,8 +247,6 @@ def load_transcript_models(gtf_path: Path, transcript_ids: set[str]) -> dict[str
 def prepare_transcript_models(models: dict[str, dict], genome: Fasta) -> dict[str, dict]:
     prepared: dict[str, dict] = {}
     for transcript_id, model in tqdm(models.items(), desc="Constructing transcript CDS sequences"):
-        # Restrict the primary cohort to complete protein-coding CDS models.
-        # Incomplete 5' CDS annotations do not provide an unambiguous codon frame.
         tags_lower = {tag.lower() for tag in model.get("tags", [])}
         if model.get("transcript_type") != "protein_coding" or "cds_start_nf" in tags_lower:
             continue
@@ -671,7 +662,6 @@ def main() -> None:
     variants, aggregation_stats = aggregate_gdc_variants(hits)
     print(f"Parsed {len(variants):,} unique single-nucleotide substitutions from {len(hits):,} GDC records.")
 
-    # Verify reference alleles before transcript annotation.
     reference_valid_variants: list[dict] = []
     reference_mismatch = 0
     for variant in variants:
@@ -746,10 +736,6 @@ def main() -> None:
                 counters["variant_outside_5kb_window"] += 1
                 continue
 
-            # The centered CpG itself is the prediction target. A substitution at
-            # either target base (offset 0 = C, offset 1 = G) changes/removes the
-            # CpG whose methylation beta value the model is defined to predict,
-            # so such variants are not valid counterfactual perturbations.
             if offset in (0, 1):
                 counters["variant_overlaps_target_cpg"] += 1
                 continue

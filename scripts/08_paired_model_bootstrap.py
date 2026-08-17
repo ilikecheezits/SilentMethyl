@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""Paired genomic-block bootstrap for held-out model-performance differences.
-
-Reads the predictions.csv files already produced by the journal test scripts.
-No model loading or retraining is performed. Regression differences are
-reported as model A minus model B (negative favors A); AUROC differences are
-reported as model A minus model B (positive favors A).
-"""
+"""Bootstrap paired held-out differences among models."""
 
 from __future__ import annotations
 
@@ -152,12 +146,6 @@ def _auc_quadratic_components(
     block_index: np.ndarray,
     n_blocks: int,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Represent weighted AUROC as c.T @ M @ c for resampled block counts c.
-
-    This is exact, including 0.5 credit for tied positive/negative scores. The
-    expensive score ordering is performed once rather than once per bootstrap
-    replicate.
-    """
     order = np.argsort(scores, kind="mergesort")
     score_sorted = scores[order]
     y_sorted = y[order].astype(np.int8)
@@ -255,9 +243,6 @@ def bootstrap_pair(
     if n_blocks < 2:
         raise ValueError("Need at least two genomic blocks for block bootstrap")
 
-    # Drawing n_blocks items with replacement is exactly equivalent to a
-    # multinomial vector of block multiplicities. All 5,000 replicates can then
-    # be evaluated by matrix operations.
     rng = np.random.default_rng(random_seed)
     block_counts = rng.multinomial(
         n_blocks,

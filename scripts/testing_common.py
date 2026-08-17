@@ -67,7 +67,6 @@ def save_standard_figures(
     binary_true = predictions["binary_true"].to_numpy(dtype=int)
     class_prob = predictions["class_prob_rc_avg"].to_numpy(dtype=float)
 
-    # 1. Density scatter: all final predictions are forward/RC averages.
     fig, ax = plt.subplots(figsize=(7, 6))
     hb = ax.hexbin(beta_true, beta_pred, gridsize=45, bins="log", mincnt=1)
     ax.plot([0, 1], [0, 1], "--", linewidth=1.5, label="Ideal fit")
@@ -79,7 +78,6 @@ def save_standard_figures(
     fig.savefig(out / "fig_1_density_scatter.png", dpi=300)
     plt.close(fig)
 
-    # 2a. Signed error.
     signed = beta_pred - beta_true
     fig, ax = plt.subplots(figsize=(7, 5))
     ax.hist(signed, bins=60)
@@ -97,7 +95,6 @@ def save_standard_figures(
     fig.savefig(out / "fig_2a_signed_error.png", dpi=300)
     plt.close(fig)
 
-    # 2b. Absolute error.
     absolute = np.abs(signed)
     fig, ax = plt.subplots(figsize=(7, 5))
     ax.hist(absolute, bins=60)
@@ -108,7 +105,6 @@ def save_standard_figures(
     fig.savefig(out / "fig_2b_absolute_error.png", dpi=300)
     plt.close(fig)
 
-    # 3. Beta distributions. Histogram density avoids KDE version/dependency drift.
     bins = np.linspace(0.0, 1.0, 61)
     fig, ax = plt.subplots(figsize=(7, 5))
     ax.hist(beta_true, bins=bins, density=True, histtype="step", linewidth=1.8, label="True")
@@ -119,7 +115,6 @@ def save_standard_figures(
     fig.savefig(out / "fig_3_beta_distribution.png", dpi=300)
     plt.close(fig)
 
-    # 4. ROC.
     if len(np.unique(binary_true)) == 2 and np.isfinite(metrics.get("auc", np.nan)):
         fpr, tpr, _ = roc_curve(binary_true, class_prob)
         fig, ax = plt.subplots(figsize=(6, 6))
@@ -131,7 +126,6 @@ def save_standard_figures(
         fig.savefig(out / "fig_4_roc.png", dpi=300)
         plt.close(fig)
 
-        # 5. Calibration.
         fraction_positive, mean_predicted = calibration_curve(binary_true, class_prob, n_bins=10, strategy="uniform")
         fig, ax = plt.subplots(figsize=(6, 6))
         ax.plot(mean_predicted, fraction_positive, marker="o", linewidth=1.8, label=model_label)

@@ -1,23 +1,5 @@
 #!/usr/bin/env python3
-"""Matched significant-versus-nonsignificant eGTEx lead-mQTL benchmark.
-
-This analysis asks whether the magnitude of SilentMethyl's local allelic score
-distinguishes significant breast-tissue lead mQTL associations from matched
-nonsignificant lead associations.  It uses only the compact eGTEx
-``regular.perm.fdr`` table (one lead association per CpG), the untouched
-chromosome-8/9 SilentMethyl test split, and frozen journal checkpoints.
-
-The comparison is deliberately described as *significant versus
-nonsignificant leads*.  A nonsignificant association is not necessarily a
-biological null: limited power, LD, and lead-variant selection remain possible.
-Accordingly, AUROC/AUPRC and within-match-set permutation tests measure
-discrimination against this comparator cohort, not causal-variant discovery.
-
-The script imports the current ``04_mqtl_positive_control.py`` at runtime and
-reuses its model loading, FP32 REF/ALT inference, reverse-complement averaging,
-HM450 probe geometry, and seed aggregation.  Keep both scripts together in the
-project's ``scripts`` directory.
-"""
+"""Compare significant and matched nonsignificant eGTEx leads."""
 
 from __future__ import annotations
 
@@ -276,7 +258,6 @@ def prepare_eligible_leads(args: argparse.Namespace, pc) -> tuple[pd.DataFrame, 
     merged["titv"] = [titv_class(r, a) for r, a in zip(merged["ref"], merged["alt"])]
     merged["true_median_beta"] = pd.to_numeric(merged["Median_Beta"], errors="raise")
 
-    # Keep only groups relevant to the binary comparison before the manifest merge.
     merged["association_class"] = np.where(
         merged["qval"] < args.positive_q_threshold,
         "significant",
@@ -349,7 +330,6 @@ def match_leads(eligible: pd.DataFrame, args: argparse.Namespace) -> tuple[pd.Da
             + rng.uniform(0.0, 1e-9, n_negative)
         )
         cost[i, :n_negative] = np.where(valid, pair_cost, invalid_cost)
-        # A private dummy column permits this positive to remain unmatched.
         cost[i, n_negative + i] = unmatched_cost
 
     row_indices, column_indices = linear_sum_assignment(cost)
@@ -466,7 +446,6 @@ def build_sequences_and_context(matched: pd.DataFrame, pc):
 
 
 def matching_balance(matched: pd.DataFrame) -> pd.DataFrame:
-    """Summarize balance with each match set contributing equal weight."""
     rows = []
     for variable in ("maf", "absolute_distance_bp", "true_median_beta"):
         anchor = (
@@ -532,7 +511,6 @@ def point_metrics(frame: pd.DataFrame, score_column: str) -> dict:
 
 
 def fast_binary_metrics(labels: np.ndarray, scores: np.ndarray) -> dict[str, float]:
-    """Compute rank-based binary metrics without repeated estimator setup."""
     labels = np.asarray(labels, dtype=np.int8)
     scores = np.asarray(scores, dtype=float)
     n_positive = int(labels.sum())
@@ -540,7 +518,6 @@ def fast_binary_metrics(labels: np.ndarray, scores: np.ndarray) -> dict[str, flo
     if n_positive == 0 or n_negative == 0:
         return {"auroc": np.nan, "average_precision": np.nan}
 
-    # Average ranks make the AUROC expression exact in the presence of ties.
     ranks = pd.Series(scores).rank(method="average").to_numpy(dtype=float)
     auc = (
         ranks[labels == 1].sum() - n_positive * (n_positive + 1) / 2.0

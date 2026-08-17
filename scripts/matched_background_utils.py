@@ -1,18 +1,4 @@
-"""Matched observed-synonymous background utilities for candidate analysis.
-
-The comparator pool is the other *eligible held-out observed synonymous SNVs*
-in exactly the same candidate cohort being scored. Synonymous eligibility is
-verified upstream against the fixed GENCODE v44 annotation by
-``build_testing_data.py``; this module deliberately does not re-annotate coding
-consequence.
-
-Comparator selection is hierarchical and deterministic. It prioritizes
-mutation spectrum, trinucleotide context, CpG creation/destruction status,
-distance from the centered target CpG, and, when available, gene identity.
-These are similarity priorities, not a claim that every fallback comparator is
-biologically exchangeable with its target. Outputs are descriptive tail
-probabilities and percentiles rather than formal null-test p-values.
-"""
+"""Utilities for matched synonymous-background comparisons."""
 
 from __future__ import annotations
 
@@ -34,7 +20,6 @@ def reverse_complement(sequence: str) -> str:
 
 
 def find_single_snv_difference(wt: str, mut: str) -> tuple[int, str, str]:
-    """Return the unique changed index and alleles; reject non-SNV pairs."""
     wt = str(wt).upper()
     mut = str(mut).upper()
     if len(wt) != len(mut):
@@ -57,7 +42,6 @@ def trinucleotide_context(sequence: str, index: int) -> str:
 
 
 def canonical_sbs_context(trinucleotide: str, ref: str, alt: str) -> tuple[str, str]:
-    """Return canonical SBS6/SBS96 labels with C/T as reference bases."""
     tri = str(trinucleotide).upper()
     ref = str(ref).upper()
     alt = str(alt).upper()
@@ -79,7 +63,6 @@ def transition_transversion(ref: str, alt: str) -> str:
 
 
 def cpg_effect(wt: str, mut: str, index: int) -> str:
-    """Classify non-target CpGs created/destroyed by the observed SNV."""
     wt = str(wt).upper()
     mut = str(mut).upper()
     starts = [start for start in (index - 1, index) if 0 <= start < len(wt) - 1]
@@ -106,7 +89,6 @@ def _first_present(row: pd.Series, names: tuple[str, ...], default):
 
 
 def make_variant_uid(row: pd.Series) -> str:
-    """Prefer the immutable cleaned-cohort Candidate_ID when available."""
     candidate_id = _first_present(row, ("Candidate_ID",), None)
     if candidate_id is not None:
         return str(candidate_id)
@@ -121,7 +103,6 @@ def annotate_variant(
     mutant_sequence: str,
     window_size: int = 1000,
 ) -> dict:
-    """Create canonical matching metadata for one cleaned candidate row."""
     wt_sequence = str(wt_sequence).upper()
     mutant_sequence = str(mutant_sequence).upper()
     if len(wt_sequence) != window_size or len(mutant_sequence) != window_size:
@@ -176,8 +157,6 @@ class MatchTier:
     max_distance_difference: int | None = None
 
 
-# Prespecified similarity-priority hierarchy. Later tiers provide progressively
-# broader background context when narrow tiers contain too few comparators.
 MATCH_TIERS: tuple[MatchTier, ...] = (
     MatchTier(
         "T1_same_gene_SBS96_CpG_distance25",
@@ -258,7 +237,6 @@ def choose_matched_comparators(
     max_comparators: int = 1000,
     random_seed: int = 42,
 ) -> tuple[np.ndarray, str, bool]:
-    """Choose the narrowest available similarity-priority tier."""
     target = candidates.iloc[target_index]
     chosen_indices: np.ndarray | None = None
     chosen_tier = MATCH_TIERS[-1].name
@@ -314,7 +292,6 @@ def compute_matched_background_statistics(
     max_comparators: int = 1000,
     random_seed: int = 42,
 ) -> tuple[pd.DataFrame, dict[str, np.ndarray]]:
-    """Compute descriptive matched-background statistics for every candidate."""
     required = {
         "Variant_UID",
         "Gene",

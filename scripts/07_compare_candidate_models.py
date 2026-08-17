@@ -1,12 +1,5 @@
 #!/usr/bin/env python3
-"""Compare three-seed sequence-only and gated-fusion candidate effects.
-
-This is a standalone follow-up analysis. It does not modify the existing
-05_matched_background.py outputs. It reuses that script's cohort/QC helpers,
-scores the same eligible candidates with sequence-only checkpoints, applies
-the same descriptive matched-background procedure, and compares the resulting
-sequence ensemble with the existing fusion ensemble.
-"""
+"""Compare sequence-only and fusion candidate effects."""
 
 from __future__ import annotations
 
@@ -31,7 +24,7 @@ PROJECT_SCRIPTS = PROJECT_ROOT / "scripts"
 if str(PROJECT_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(PROJECT_SCRIPTS))
 
-from training_common import (  # noqa: E402
+from training_common import (
     SequenceOnlyModel,
     autocast_context,
     get_tokenizer,
@@ -40,7 +33,7 @@ from training_common import (  # noqa: E402
     reverse_complement,
     set_seed,
 )
-from matched_background_utils import compute_matched_background_statistics  # noqa: E402
+from matched_background_utils import compute_matched_background_statistics
 
 
 LOGGER = logging.getLogger("silentmethyl.candidate_model_comparison")

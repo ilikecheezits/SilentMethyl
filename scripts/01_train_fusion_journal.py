@@ -34,12 +34,6 @@ from training_common import (
 
 
 class ResilientSummaryWriter:
-    """TensorBoard wrapper that never lets event-file I/O kill training.
-
-    TensorBoard is diagnostic only. If its event file becomes unwritable (for
-    example a transient shared-filesystem EIO), the writer is disabled for the
-    remainder of the process while model training/checkpointing continues.
-    """
 
     def __init__(self, log_dir: str, logger: logging.Logger) -> None:
         self.log_dir = log_dir
@@ -102,7 +96,6 @@ class ResilientSummaryWriter:
 
 
 def atomic_torch_save(obj, path: str, logger: logging.Logger, retries: int = 3) -> None:
-    """Write a PyTorch checkpoint atomically, retrying transient filesystem errors."""
     import time
 
     tmp_path = f"{path}.tmp.{os.getpid()}"
@@ -135,7 +128,6 @@ def atomic_torch_save(obj, path: str, logger: logging.Logger, retries: int = 3) 
 
 
 def atomic_dataframe_to_csv(df: pd.DataFrame, path: str, logger: logging.Logger, retries: int = 3) -> None:
-    """Atomically write a CSV, retrying transient filesystem errors."""
     import time
 
     tmp_path = f"{path}.tmp.{os.getpid()}"
@@ -200,15 +192,6 @@ def _quantiles(x: np.ndarray, prefix: str) -> dict[str, float]:
 
 
 def evaluate(model, loader, device, amp_enabled):
-    """Evaluate both orientations and return predictive + gate diagnostics.
-
-    Gate values are *descriptive learned modality scalings*, not causal feature
-    attributions. Because both modality embeddings are LayerNorm-normalized
-    before gating, the two scalar gates are on a more comparable scale. The
-    gates are independent sigmoids, so they are NOT constrained to sum to 1.
-    For an intuitive relative-share summary only, we additionally report
-    g_DNA / (g_DNA + g_EPI).
-    """
     model.eval()
 
     row_indices = []
@@ -285,7 +268,6 @@ def evaluate(model, loader, device, amp_enabled):
     denom = np.maximum(dna_gate + epi_gate, 1e-12)
     dna_share = dna_gate / denom
 
-    # Orientation consistency of learned modality utilization.
     share_fwd = gf[:, 0] / np.maximum(gf[:, 0] + gf[:, 1], 1e-12)
     share_rc = gr[:, 0] / np.maximum(gr[:, 0] + gr[:, 1], 1e-12)
 
@@ -309,9 +291,6 @@ def evaluate(model, loader, device, amp_enabled):
     metrics.update(_quantiles(epi_gate, "gate_epi"))
     metrics.update(_quantiles(dna_share, "gate_dna_share"))
 
-    # Per-locus table used later for interpretability analyses.  The normalized
-    # share is only a descriptive relative-weight summary; independent raw gate
-    # values remain the primary outputs.
     source_df = loader.dataset.df.iloc[row_indices].reset_index(drop=True)
     gate_df = pd.DataFrame(
         {
@@ -445,9 +424,6 @@ def main():
         persistent_workers=False,
     )
 
-    # Main model is intentionally gated-only.  A plain-concatenation model, if
-    # run, should be treated as a separate ablation rather than an alternative
-    # "main" fusion mode.
     model = FusionModel(
         args.model_path,
         fusion_mode="gated",
@@ -455,17 +431,12 @@ def main():
         local_dir=args.local_model_dir,
     )
 
-    # Load only the independently trained modality encoders.  Prediction heads
-    # and the gate network start fresh.
     load_submodule_from_checkpoint(
         model.sequence_encoder, args.sequence_weights, "sequence_encoder", map_location="cpu"
     )
     load_submodule_from_checkpoint(
         model.epi_encoder, args.epi_weights, "epi_encoder", map_location="cpu"
     )
-    # Both loads above are strict at the encoder-submodule level.  Log immutable
-    # hashes so the exact ancestor checkpoints used by this fusion run are
-    # recoverable even if a live best_weights.pth is later overwritten.
     sequence_sha256 = _sha256(args.sequence_weights)
     epi_sha256 = _sha256(args.epi_weights)
     logger.info("Loaded sequence ancestor strictly: %s", args.sequence_weights)
@@ -565,8 +536,6 @@ def main():
         train_loader = make_train_loader(train_dataset, args, epoch)
         model.train()
 
-        # If the modality towers are frozen, hold them in eval mode as well so
-        # their dropout does not add noise while learning the fusion/gate logic.
         if not args.unfreeze_towers:
             model.sequence_encoder.eval()
             model.epi_encoder.eval()

@@ -1,19 +1,5 @@
 #!/usr/bin/env python3
-"""Post hoc biological-context analysis using existing SilentMethyl outputs.
-
-This script does not load model checkpoints or perform model inference.  It
-combines the held-out prediction tables from seeds 42--44 with the processed
-test metadata, GENCODE gene annotations, and the HM450 CpG-island annotation.
-It then asks two focused questions:
-
-1. How do context-only, sequence-only, and fusion performance vary across
-   gene regions, CpG-island position, and MCF-10A ATAC and H3K27ac strata?
-2. How do predicted candidate responses and external mQTL agreement vary with
-   target-CpG context and variant--CpG distance?
-
-All stratified results are descriptive, post hoc analyses.  The primary model
-comparison remains the prespecified chromosome-held-out evaluation.
-"""
+"""Stratify frozen held-out results by genomic and epigenomic context."""
 
 from __future__ import annotations
 
@@ -181,7 +167,6 @@ def load_test_metadata(path: Path) -> pd.DataFrame:
 
 
 def _merge_intervals(intervals: list[tuple[int, int]]) -> tuple[list[int], list[int]]:
-    """Merge 1-based inclusive intervals and return parallel start/end arrays."""
     if not intervals:
         return [], []
     intervals.sort()
@@ -204,12 +189,6 @@ def load_gencode_regions(
     path: Path,
     chromosomes: set[str],
 ) -> dict[str, dict[str, tuple[list[int], list[int]]]]:
-    """Load GENCODE intervals needed for an exclusive target-CpG annotation.
-
-    Promoters are defined relative to each transcript TSS as 1,500 bp upstream
-    through 200 bp downstream.  UTR and gene intervals use GENCODE v44 features.
-    The eventual hierarchy is promoter/TSS, UTR, gene body, then intergenic.
-    """
     if not path.is_file():
         raise FileNotFoundError(path)
     raw: dict[str, dict[str, list[tuple[int, int]]]] = {
@@ -253,8 +232,6 @@ def annotate_genomic_region(test: pd.DataFrame, gtf_path: Path) -> pd.DataFrame:
     intervals = load_gencode_regions(gtf_path, set(test["chr"].astype(str)))
     labels: list[str] = []
     for row in test[["chr", "pos"]].itertuples(index=False):
-        # SilentMethyl pos is the 0-based position of the CpG cytosine; GTF is
-        # 1-based inclusive.
         position_1based = int(row.pos) + 1
         chrom = str(row.chr)
         groups = intervals.get(chrom, {})
@@ -614,7 +591,6 @@ def summarize_variant_context(
     mqtl: pd.DataFrame,
     assignments: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Describe responses by variant context and paired target-CpG context."""
     context_columns = [
         "Genomic_Region",
         "CpG_Island_Context",
@@ -700,7 +676,6 @@ def annotate_candidate_variant_regions(
     candidates: pd.DataFrame,
     gtf_path: Path,
 ) -> pd.DataFrame:
-    """Assign each candidate SNV to an exclusive GENCODE genomic region."""
     require_columns(candidates, ["chr"], "candidate table")
     if "Variant_Position_0based" in candidates.columns:
         position = pd.to_numeric(

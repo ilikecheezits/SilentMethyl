@@ -1,38 +1,5 @@
 #!/usr/bin/env python3
-"""External eGTEx breast mQTL positive-control validation for SilentMethyl.
-
-This script evaluates whether frozen SilentMethyl journal checkpoints recover
-the direction and relative magnitude of experimentally observed local breast
-mQTL effects.  The strict primary benchmark is the 81 q<0.05 lead mQTLs whose
-CpGs and sequence perturbations fall in the chromosome-8/9 test split and the
-trained 1,000-bp model window.
-
-For every CpG/variant pair the script:
-
-1. reconstructs the REF (WT) and ALT sequence with coordinate/allele audits;
-2. keeps the reference epigenomic context fixed between REF and ALT;
-3. evaluates forward and reverse-complement orientations in FP32 by default;
-4. computes ALT-minus-REF changes in predicted M-value and beta; and
-5. compares those changes with the eGTEx QTLtools slope; and
-6. repeats the statistics after conservative HM450 probe-footprint exclusions.
-
-QTLtools regresses the phenotype on VCF genotype dosage.  Under the standard
-VCF definition, dosage counts the ALT allele; therefore the default alignment
-is positive slope == higher methylation with more ALT alleles.  The alignment
-is explicit and recorded in every output.  Use ``--slope-effect-allele ref``
-only if independent provenance shows that a transformed input reversed it.
-
-These eGTEx variants are inherited/germline mQTL alleles, whereas the downstream
-TCGA application scores somatic synonymous variants.  The benchmark therefore
-validates that the learned local sequence response recovers an external,
-tissue-matched allelic methylation signal; it does not prove identical effect
-distributions or mechanisms in the somatic candidate domain.
-
-The script never loads the train/validation mQTL rows and contains no effect
-threshold selection.  Thus the held-out benchmark cannot be used silently for
-model selection. Probe-footprint exclusions are labelled post hoc sensitivity
-analyses and do not redefine the frozen primary cohort.
-"""
+"""Evaluate frozen checkpoints on held-out eGTEx breast mQTLs."""
 
 from __future__ import annotations
 
@@ -56,13 +23,10 @@ from scipy.stats import binomtest, pearsonr, rankdata, spearmanr
 from sklearn.metrics import roc_auc_score
 from tqdm import tqdm
 
-# This file lives in SilentMethyl/scripts/experiments. Resolve all project paths
-# from project markers rather than the launch directory.
 SCRIPT_DIR = Path(__file__).resolve().parent
 
 
 def find_project_root(start: str | Path) -> Path:
-    """Locate the project without requiring a particular launch directory."""
     start = Path(start).resolve()
     candidates = [start, *start.parents, Path.cwd().resolve(), *Path.cwd().resolve().parents]
     seen: set[Path] = set()
@@ -300,15 +264,6 @@ def annotate_hm450_probe_geometry(
     cohort: pd.DataFrame,
     manifest_path: str | Path,
 ) -> tuple[pd.DataFrame, dict]:
-    """Attach probe coordinates and conservative hybridization-artifact flags.
-
-    ``probeBeg``/``probeEnd`` come from the provider's mapped hg38 probe
-    annotation.  We record both the usual half-open overlap and a conservative
-    closed interval expanded by one nucleotide on each side.  The latter
-    protects the sensitivity analysis against endpoint convention and
-    strand-dependent extension-boundary ambiguity; it is deliberately not used
-    to redefine the frozen 81-row primary benchmark.
-    """
     manifest_path = Path(manifest_path)
     columns = [
         "CpG_chrm",
@@ -391,10 +346,6 @@ def annotate_hm450_probe_geometry(
         - annotated["cpg_pos0"].to_numpy(dtype=np.int64)
     )
     unique_offsets = sorted(np.unique(coordinate_offsets).tolist())
-    # The annotation represents a CpG as a two-base, zero-based half-open
-    # interval: CpG_end is therefore target-C position + 2.  Requiring this
-    # relation also verifies that benchmark and manifest coordinates share the
-    # same hg38 convention before probe intervals are used.
     if unique_offsets != [2]:
         raise ValueError(
             "Unexpected HM450 CpG coordinate relation: "
@@ -1168,7 +1119,6 @@ def compute_probe_overlap_sensitivity(
     aggregate: pd.DataFrame,
     args: argparse.Namespace,
 ) -> tuple[pd.DataFrame, dict]:
-    """Recompute all statistics after two post hoc probe-footprint exclusions."""
     definitions = (
         (
             "exclude_closed_probe_span",
@@ -1190,8 +1140,6 @@ def compute_probe_overlap_sensitivity(
         if retained.empty:
             raise ValueError(f"Probe sensitivity subset {label} is empty")
 
-        # Use a distinct deterministic resampling stream for each sensitivity
-        # definition without changing the frozen point estimates.
         sensitivity_args = argparse.Namespace(**vars(args))
         sensitivity_args.statistics_seed = args.statistics_seed + 100_000 * (subset_index + 1)
         metrics_frame, metrics_nested = compute_metrics(retained, sensitivity_args)
@@ -1228,7 +1176,6 @@ def _zero_rank_boundary(values: np.ndarray, ranks: np.ndarray) -> float:
 
 
 def save_model_plots(frame: pd.DataFrame, metrics: dict, output_dir: Path) -> None:
-    """Write the single primary rank plot for one model."""
     output_dir.mkdir(parents=True, exist_ok=True)
     model_name = str(frame["model"].iloc[0])
     observed = frame["slope_alt_aligned"].to_numpy(dtype=float)
@@ -1339,7 +1286,6 @@ def _loo_metrics(frame: pd.DataFrame) -> dict[str, float | int]:
 
 
 def save_leave_one_variant_out(aggregate: pd.DataFrame, output_dir: Path) -> None:
-    """Run variant-cluster influence analysis on each model's seed aggregate."""
     rows: list[dict[str, object]] = []
     summaries: list[str] = []
     for model_name, group in aggregate.groupby("model", sort=True):

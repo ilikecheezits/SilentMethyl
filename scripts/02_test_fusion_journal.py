@@ -198,8 +198,6 @@ def main():
         tabular_dim=9,
         local_dir=args.local_model_dir,
     )
-    # The saved best fusion checkpoint is a full model state_dict, including the
-    # already-trained sequence/context towers, gate network, norms, and heads.
     model.load_state_dict(load_model_state(args.weights_path, map_location="cpu"), strict=True)
     model = model.to(device)
     model.eval()

@@ -56,8 +56,6 @@ def centered_crop(seq: str, window_size: int) -> str:
     seq = seq.upper()
     if window_size <= 0 or window_size > len(seq):
         raise ValueError(f"window_size={window_size} is invalid for sequence length {len(seq)}")
-    # The 5-kb builder places the target C at index 2499 and G at 2500.
-    # For an even crop this keeps them at indices window/2-1 and window/2.
     center_right = len(seq) // 2
     start = center_right - (window_size // 2)
     end = start + window_size
@@ -65,13 +63,11 @@ def centered_crop(seq: str, window_size: int) -> str:
 
 
 def m_to_beta_tensor(m_value: torch.Tensor) -> torch.Tensor:
-    # M = log2(beta / (1-beta)), hence beta = sigmoid(M * ln 2).
     return torch.sigmoid(m_value * math.log(2.0))
 
 
 def m_to_beta_numpy(m_value: np.ndarray) -> np.ndarray:
     x = np.asarray(m_value, dtype=np.float64) * math.log(2.0)
-    # Numerically stable logistic.
     out = np.empty_like(x)
     positive = x >= 0
     out[positive] = 1.0 / (1.0 + np.exp(-x[positive]))
@@ -81,16 +77,10 @@ def m_to_beta_numpy(m_value: np.ndarray) -> np.ndarray:
 
 
 def deterministic_rc_choice(seed: int, epoch: int, idx: int, probability: float) -> bool:
-    """Reproducible pseudo-random orientation choice for one sample in one epoch.
-
-    This avoids dependence on DataLoader worker RNG state and makes epoch-level
-    resume exactly reproducible. Dataset length remains N, not 2N.
-    """
     if probability <= 0.0:
         return False
     if probability >= 1.0:
         return True
-    # Stable integer seed independent of Python hash randomization.
     local_seed = (
         (int(seed) * 0x9E3779B185EBCA87)
         ^ (int(epoch) * 0xC2B2AE3D27D4EB4F)
@@ -130,13 +120,6 @@ def validate_split_dataframe(df: pd.DataFrame, expected_split: str, name: str) -
 
 
 class OrientationAwareDataset(Dataset):
-    """One row per locus, with stochastic RC view only during training.
-
-    For training, exactly one orientation is returned per __getitem__. For
-    validation/testing, both forward and RC views are returned for deterministic
-    test-time averaging. Regional epigenomic features stay unchanged; the two
-    ordered central-base PhyloP values and their missingness indicators swap.
-    """
 
     def __init__(
         self,
@@ -180,7 +163,6 @@ class OrientationAwareDataset(Dataset):
             raise ValueError("Missingness indicators must be binary 0/1")
 
         if use_rc:
-            # Ordered central-base PhyloP positions reverse under RC.
             values[-2], values[-1] = values[-1], values[-2]
             missing[-2], missing[-1] = missing[-1], missing[-2]
 
@@ -342,8 +324,6 @@ class FusionModel(nn.Module):
             )
             head_dim = hidden_size
         else:
-            # Literal direct-concatenation comparator: normalized DNA and context
-            # embeddings are concatenated and sent straight to the common heads.
             head_dim = hidden_size * 2
 
         self.heads = DualHeads(head_dim)
@@ -373,25 +353,9 @@ def patch_and_load_dnabert(
     model_path: str = "zhihan1996/DNABERT-2-117M",
     local_dir: str = "./dnabert2_local",
 ):
-    """Load DNABERT-2 pretrained weights without the HF meta-device path.
-
-    DNABERT-2's custom model can fail under ``AutoModel.from_pretrained`` on
-    some PyTorch/Transformers combinations with a meta-vs-CPU ALiBi error.
-    We therefore instantiate on CPU with ``AutoModel.from_config`` (the same
-    workaround used by the older working cluster script), then manually load
-    the released checkpoint.
-
-    Crucially, the released checkpoint may prefix the base-model weights with
-    ``bert.`` while the instantiated ``BertModel`` expects unprefixed keys.
-    The loader below selects the prefix normalization with maximal parameter
-    overlap and refuses to continue unless *every named model parameter* is
-    initialized from the pretrained checkpoint.  This prevents the previous
-    silent random-backbone failure caused by ``strict=False``.
-    """
     logging.info("--- Performing DNABERT-2 cluster-safe pretrained loading ---")
     local_dir = str(local_dir)
 
-    # Materialize a local copy once.
     if not os.path.exists(local_dir):
         os.makedirs(local_dir, exist_ok=True)
         logging.info("Downloading DNABERT-2 repository into %s", local_dir)
@@ -404,7 +368,6 @@ def patch_and_load_dnabert(
             else:
                 shutil.copy2(src, dst)
 
-    # Cluster-safe Triton/FlashAttention neutralization.
     triton_file = os.path.join(local_dir, "flash_attn_triton.py")
     if os.path.exists(triton_file):
         with open(triton_file, "w") as handle:
@@ -421,8 +384,6 @@ def patch_and_load_dnabert(
     with open(config_path, "w") as handle:
         json.dump(config_data, handle)
 
-    # from_config avoids the DNABERT-2 meta-device/ALiBi failure seen with
-    # AutoModel.from_pretrained on the Bridges-2 software stack.
     config = AutoConfig.from_pretrained(
         local_dir,
         trust_remote_code=True,
@@ -431,7 +392,6 @@ def patch_and_load_dnabert(
     config.output_attentions = False
     base_model = AutoModel.from_config(config, trust_remote_code=True)
 
-    # Prefer the already-materialized checkpoint; download only as a fallback.
     local_weights = os.path.join(local_dir, "pytorch_model.bin")
     if os.path.exists(local_weights):
         weights_path = local_weights
@@ -447,16 +407,12 @@ def patch_and_load_dnabert(
     model_state = base_model.state_dict()
     parameter_names = {name for name, _ in base_model.named_parameters()}
 
-    # The released checkpoint has appeared with different wrapper prefixes
-    # across versions.  Pick the normalization that matches the greatest
-    # number of actual base-model parameters instead of assuming one format.
     prefix_candidates = ("", "bert.", "module.", "module.bert.", "model.", "model.bert.")
 
     def remap_with_prefix(prefix: str):
         mapped = {}
         for key, value in raw_state.items():
             new_key = key[len(prefix):] if prefix and key.startswith(prefix) else key
-            # Do not let a non-prefixed key overwrite a genuinely stripped key.
             if new_key not in mapped:
                 mapped[new_key] = value
         return mapped
@@ -476,18 +432,11 @@ def patch_and_load_dnabert(
 
     assert best_mapped is not None
 
-    # The released DNABERT-2 checkpoint does not contain the optional BERT
-    # pooler parameters.  This project never uses pooled_output from DNABERT-2;
-    # SequenceEncoder builds its own Conv1D + learned attention pooling over
-    # last_hidden_state.  Therefore these two randomly initialized, unused
-    # pooler parameters are the only acceptable missing parameters.
     allowed_missing_parameters = {
         "pooler.dense.weight",
         "pooler.dense.bias",
     }
 
-    # Require every non-pooler pretrained model parameter to be present and
-    # shape-compatible.  Any other missing/mismatched parameter is fatal.
     missing_parameters = []
     mismatched_parameters = []
     for name in sorted(parameter_names):
@@ -514,8 +463,6 @@ def patch_and_load_dnabert(
             f"mismatched[:3]={mismatched_parameters[:3]}"
         )
 
-    # Load only keys belonging to this base model. Extra task-head keys in a
-    # wrapped checkpoint, if any, are intentionally ignored.
     compatible_state = {
         key: value
         for key, value in best_mapped.items()
@@ -523,8 +470,6 @@ def patch_and_load_dnabert(
     }
     missing_after, unexpected_after = base_model.load_state_dict(compatible_state, strict=False)
 
-    # Missing non-parameter buffers can be recreated by the model implementation.
-    # The only permitted missing parameters are the unused optional pooler.
     missing_parameter_after = [key for key in missing_after if key in parameter_names]
     disallowed_missing_after = [
         key for key in missing_parameter_after if key not in allowed_missing_parameters
@@ -558,7 +503,6 @@ def get_tokenizer(model_path: str):
 
 
 def get_dnabert_hidden_size(model_path: str, local_dir: str = "./dnabert2_local") -> int:
-    # Prefer patched local config when available to ensure architecture agreement.
     config_source = local_dir if os.path.exists(os.path.join(local_dir, "config.json")) else model_path
     config = AutoConfig.from_pretrained(config_source, trust_remote_code=True)
     return int(config.hidden_size)

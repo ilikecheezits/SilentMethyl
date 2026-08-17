@@ -15,7 +15,7 @@ umask 027
 ROOT=/ocean/projects/med250012p/szhang37/SilentMethyl
 cd "$ROOT"
 
-if (( $# == 0 )); then
+if (( $
   echo "Usage: sbatch run_experiments.sh SEED [SEED ...]" >&2
   echo "Example: sbatch run_experiments.sh 42 43 44" >&2
   exit 2

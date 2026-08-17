@@ -1,25 +1,5 @@
 #!/usr/bin/env python3
-"""Build SilentMethyl manuscript figures sized for one journal column.
-
-This is a standalone replacement for ``13_build_manuscript_figures.py``.
-It reads frozen result tables and creates manuscript figures without loading model
-checkpoints or recomputing predictions.
-
-Outputs
--------
-fusion_gain_by_genomic_region.png
-fusion_gain_by_epigenomic_context.png
-candidate_response_by_context.png
-mqtl_signed_rank.png
-mqtl_magnitude_rank.png
-top_candidate_matched_background.png
-fusion_vs_sequence_locus_error.png
-fusion_locus_win_rate_by_context.png
-fusion_vs_sequence_locus_errors.csv
-fusion_locus_advantage_by_context.csv
-top_candidate_case_study.csv
-run_summary.json
-"""
+"""Build the six one-column SilentMethyl manuscript figures."""
 
 from __future__ import annotations
 
@@ -44,6 +24,14 @@ from scipy.stats import spearmanr
 MODEL_ORDER = ("epi", "sequence", "fusion")
 MODEL_COLORS = {"epi": "#5AA469", "sequence": "#4C78A8", "fusion": "#E07B39"}
 ONE_COLUMN_WIDTH = 3.45
+MANUSCRIPT_FIGURES = (
+    "candidate_response_by_context.png",
+    "fusion_gain_by_epigenomic_context.png",
+    "model_incremental_performance.png",
+    "mqtl_magnitude_rank.png",
+    "mqtl_signed_rank.png",
+    "top_candidate_matched_background.png",
+)
 
 plt.rcParams.update(
     {
@@ -71,18 +59,6 @@ def arguments() -> argparse.Namespace:
         type=Path,
         default=Path("results/journal/biological_context/fusion_gain_by_context.csv"),
     )
-    parser.add_argument(
-        "--context-assignment-path",
-        type=Path,
-        default=Path(
-            "results/journal/biological_context/heldout_cpg_context_assignments.csv"
-        ),
-    )
-    parser.add_argument(
-        "--prediction-template",
-        default="results/journal/seed{seed}/{model}/predictions.csv",
-    )
-    parser.add_argument("--seeds", nargs="+", type=int, default=[42, 43, 44])
     parser.add_argument(
         "--variant-context-path",
         type=Path,
@@ -125,6 +101,18 @@ def arguments() -> argparse.Namespace:
         type=Path,
         default=Path("results/journal/manuscript_figures"),
     )
+    parser.add_argument(
+        "--case-study-path",
+        type=Path,
+        default=Path("results/journal/candidates/top_candidate_case_study.csv"),
+    )
+    parser.add_argument(
+        "--genomic-region-output",
+        type=Path,
+        default=Path(
+            "results/journal/biological_context/plots/fusion_gain_by_genomic_region.png"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -159,14 +147,23 @@ def save_json(payload: dict, path: Path) -> None:
 
 
 def save_csv(frame: pd.DataFrame, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + f".tmp.{os.getpid()}")
     frame.to_csv(temporary, index=False)
     temporary.replace(path)
 
 
 def save_figure(fig: plt.Figure, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, bbox_inches="tight", facecolor="white")
     plt.close(fig)
+
+
+def keep_manuscript_outputs(output_dir: Path) -> None:
+    allowed = set(MANUSCRIPT_FIGURES) | {"run_summary.json"}
+    for path in output_dir.iterdir():
+        if path.is_file() and path.name not in allowed:
+            path.unlink()
 
 
 def rank_percentile(values: pd.Series) -> pd.Series:
@@ -187,7 +184,7 @@ def plot_performance(path: Path, output: Path) -> dict:
     frame = pd.read_csv(path)
     require_columns(
         frame,
-        ["Analysis", "Seed", "Model", "beta_mae", "beta_rmse", "roc_auc"],
+        ["Analysis", "Seed", "Model", "beta_mae", "roc_auc"],
         path,
     )
     frame = frame[
@@ -199,12 +196,12 @@ def plot_performance(path: Path, output: Path) -> dict:
     if len(seeds) < 2:
         raise ValueError("At least two seeds are required")
 
-    fig, axes = plt.subplots(3, 1, figsize=(ONE_COLUMN_WIDTH, 6.0))
+    fig, axes = plt.subplots(2, 1, figsize=(ONE_COLUMN_WIDTH, 4.35), sharex=True)
     positions = np.arange(3)
     for axis, metric, label in zip(
         axes,
-        ("beta_mae", "beta_rmse", "roc_auc"),
-        (r"Beta MAE $\downarrow$", r"Beta RMSE $\downarrow$", r"ROC-AUC $\uparrow$"),
+        ("beta_mae", "roc_auc"),
+        (r"Beta MAE $\downarrow$", r"ROC-AUC $\uparrow$"),
     ):
         values = (
             frame.pivot(index="Seed", columns="Model", values=metric)
@@ -236,88 +233,10 @@ def plot_performance(path: Path, output: Path) -> dict:
         axis.grid(axis="y", alpha=0.18)
         axis.spines[["top", "right"]].set_visible(False)
     axes[0].tick_params(labelbottom=False)
-    axes[1].tick_params(labelbottom=False)
     axes[0].set_title("Held-out chromosome performance")
     fig.tight_layout(pad=0.6, h_pad=0.7)
     save_figure(fig, output)
     return {"seeds": [int(seed) for seed in seeds]}
-
-
-def plot_information_gains(path: Path, output: Path) -> dict:
-    frame = pd.read_csv(path)
-    require_columns(
-        frame,
-        ["Analysis", "Seed", "Model", "beta_mae", "beta_rmse", "roc_auc"],
-        path,
-    )
-    frame = frame[
-        (frame["Analysis"].astype(str) == "individual_seed")
-        & frame["Model"].isin(MODEL_ORDER)
-    ].copy()
-    frame["Seed"] = pd.to_numeric(frame["Seed"], errors="raise").astype(int)
-    seeds = sorted(frame["Seed"].unique())
-    comparisons = (
-        ("epi", "Add sequence\nto context"),
-        ("sequence", "Add context\nto sequence"),
-    )
-    specifications = (
-        ("beta_mae", "MAE improvement", "lower"),
-        ("beta_rmse", "RMSE improvement", "lower"),
-        ("roc_auc", "AUROC improvement", "higher"),
-    )
-    fig, axes = plt.subplots(3, 1, figsize=(ONE_COLUMN_WIDTH, 5.65))
-    summary: dict[str, dict[str, float]] = {}
-    for axis, (metric, label, direction) in zip(axes, specifications):
-        wide = frame.pivot(index="Seed", columns="Model", values=metric).reindex(
-            index=seeds, columns=MODEL_ORDER
-        )
-        if wide.isna().any().any():
-            raise ValueError(f"Incomplete seed/model grid for {metric}")
-        values = []
-        for baseline, _ in comparisons:
-            if direction == "lower":
-                values.append(wide[baseline] - wide["fusion"])
-            else:
-                values.append(wide["fusion"] - wide[baseline])
-        gain = pd.concat(values, axis=1)
-        gain.columns = [label_text for _, label_text in comparisons]
-        for seed_index, (_, row) in enumerate(gain.iterrows()):
-            jitter = (seed_index - (len(gain) - 1) / 2) * 0.055
-            axis.scatter(
-                np.arange(2) + jitter,
-                row.to_numpy(float),
-                s=17,
-                color="0.48",
-                alpha=0.8,
-                zorder=2,
-            )
-        means = gain.mean(axis=0)
-        sd = gain.std(axis=0, ddof=1)
-        axis.errorbar(
-            np.arange(2),
-            means.to_numpy(float),
-            yerr=sd.to_numpy(float),
-            fmt="o",
-            color="#D95F02",
-            ecolor="#7F7F7F",
-            markersize=5.5,
-            capsize=2.5,
-            zorder=3,
-        )
-        axis.axhline(0, color="0.45", linewidth=0.8, linestyle="--")
-        axis.set_xticks(np.arange(2), [label_text for _, label_text in comparisons])
-        axis.set_ylabel(label)
-        axis.grid(axis="y", alpha=0.16)
-        axis.spines[["top", "right"]].set_visible(False)
-        summary[metric] = {
-            key.replace("\n", " "): float(value) for key, value in means.items()
-        }
-    axes[0].tick_params(labelbottom=False)
-    axes[1].tick_params(labelbottom=False)
-    axes[0].set_title("Incremental value of each information source")
-    fig.tight_layout(pad=0.6, h_pad=0.7)
-    save_figure(fig, output)
-    return {"mean_improvements": summary}
 
 
 def _draw_gain_panel(
@@ -447,7 +366,7 @@ def plot_candidate_context(
         (context["Dataset"].astype(str) == candidate_label)
         & (context["Grouping"].astype(str) == "Variant_Genomic_Region")
     ].copy()
-    region_order = ["Promoter/TSS", "UTR", "Gene body", "Intergenic"]
+    region_order = ["Promoter/TSS", "UTR", "Gene body"]
     region["Stratum"] = pd.Categorical(region["Stratum"], region_order, ordered=True)
     region.dropna(subset=["Stratum"], inplace=True)
     region.sort_values("Stratum", inplace=True)
@@ -485,349 +404,6 @@ def plot_candidate_context(
     return {
         "region_rows": int(len(region)),
         "distance_rows": int(len(by_distance)),
-        "interpretation": (
-            "Descriptive post hoc stratification by candidate-variant region "
-            "and variant-to-target-CpG distance."
-        ),
-    }
-
-
-def prediction_input_paths(template: str, seeds: list[int]) -> list[Path]:
-    return [
-        Path(template.format(seed=seed, model=model))
-        for seed in seeds
-        for model in ("sequence", "fusion")
-    ]
-
-
-def load_fusion_locus_comparison(
-    template: str,
-    seeds: list[int],
-) -> pd.DataFrame:
-    """Build one cross-seed sequence/fusion comparison row per held-out CpG."""
-    required = ["probeID", "true_beta", "pred_beta_rc_avg"]
-    rows: list[pd.DataFrame] = []
-    reference_truth: pd.DataFrame | None = None
-
-    for seed in seeds:
-        for model in ("sequence", "fusion"):
-            path = Path(template.format(seed=seed, model=model))
-            if not path.is_file():
-                raise FileNotFoundError(path)
-            frame = pd.read_csv(path)
-            require_columns(frame, required, path)
-            frame = frame[required].copy()
-            frame["probeID"] = frame["probeID"].astype(str)
-            frame["true_beta"] = pd.to_numeric(frame["true_beta"], errors="raise")
-            frame["pred_beta_rc_avg"] = pd.to_numeric(
-                frame["pred_beta_rc_avg"], errors="raise"
-            )
-            if frame["probeID"].duplicated().any():
-                raise ValueError(f"Duplicate probeID values in {path}")
-
-            current_truth = frame[["probeID", "true_beta"]].sort_values("probeID")
-            current_truth.reset_index(drop=True, inplace=True)
-            if reference_truth is None:
-                reference_truth = current_truth
-            else:
-                if current_truth["probeID"].tolist() != reference_truth["probeID"].tolist():
-                    raise ValueError(f"Held-out probe set differs in {path}")
-                if not np.allclose(
-                    current_truth["true_beta"],
-                    reference_truth["true_beta"],
-                    rtol=0,
-                    atol=1e-10,
-                ):
-                    raise ValueError(f"Held-out beta targets differ in {path}")
-
-            frame["Seed"] = int(seed)
-            frame["Model"] = model
-            rows.append(frame[["probeID", "true_beta", "pred_beta_rc_avg", "Seed", "Model"]])
-
-    if reference_truth is None:
-        raise ValueError("No held-out prediction tables were loaded")
-
-    long = pd.concat(rows, ignore_index=True)
-    ensemble = (
-        long.groupby(["Model", "probeID"], as_index=False)["pred_beta_rc_avg"]
-        .mean()
-    )
-    wide = ensemble.pivot(
-        index="probeID", columns="Model", values="pred_beta_rc_avg"
-    ).reset_index()
-    if wide[["sequence", "fusion"]].isna().any().any():
-        raise ValueError("Incomplete sequence/fusion ensemble prediction grid")
-
-    comparison = reference_truth.merge(wide, on="probeID", validate="one_to_one")
-    comparison.rename(
-        columns={
-            "sequence": "Sequence_Predicted_Beta",
-            "fusion": "Fusion_Predicted_Beta",
-        },
-        inplace=True,
-    )
-    comparison["Sequence_Absolute_Error"] = (
-        comparison["Sequence_Predicted_Beta"] - comparison["true_beta"]
-    ).abs()
-    comparison["Fusion_Absolute_Error"] = (
-        comparison["Fusion_Predicted_Beta"] - comparison["true_beta"]
-    ).abs()
-    comparison["Sequence_Minus_Fusion_Absolute_Error"] = (
-        comparison["Sequence_Absolute_Error"]
-        - comparison["Fusion_Absolute_Error"]
-    )
-    tolerance = 1e-12
-    comparison["Fusion_Improved"] = (
-        comparison["Sequence_Minus_Fusion_Absolute_Error"] > tolerance
-    )
-    comparison["Absolute_Error_Tie"] = (
-        comparison["Sequence_Minus_Fusion_Absolute_Error"].abs() <= tolerance
-    )
-    return comparison
-
-
-def plot_fusion_locus_error(
-    comparison: pd.DataFrame,
-    output: Path,
-) -> dict:
-    """Compare sequence and fusion errors for every held-out CpG."""
-    sequence_error = comparison["Sequence_Absolute_Error"].to_numpy(float)
-    fusion_error = comparison["Fusion_Absolute_Error"].to_numpy(float)
-    improved = comparison["Fusion_Improved"].to_numpy(bool)
-    tied = comparison["Absolute_Error_Tie"].to_numpy(bool)
-    not_improved = ~improved & ~tied
-
-    fig, axis = plt.subplots(figsize=(ONE_COLUMN_WIDTH, 3.35))
-    axis.scatter(
-        sequence_error[not_improved],
-        fusion_error[not_improved],
-        s=3.0,
-        color="0.58",
-        alpha=0.16,
-        linewidth=0,
-        rasterized=True,
-        label="Sequence better",
-    )
-    axis.scatter(
-        sequence_error[improved],
-        fusion_error[improved],
-        s=3.0,
-        color=MODEL_COLORS["fusion"],
-        alpha=0.18,
-        linewidth=0,
-        rasterized=True,
-        label="Fusion better",
-    )
-    if tied.any():
-        axis.scatter(
-            sequence_error[tied],
-            fusion_error[tied],
-            s=3.0,
-            color="0.30",
-            alpha=0.20,
-            linewidth=0,
-            rasterized=True,
-            label="Tied",
-        )
-
-    maximum = float(max(sequence_error.max(), fusion_error.max()))
-    plot_limit = maximum * 1.025 if maximum > 0 else 1.0
-    axis.plot(
-        [0, plot_limit],
-        [0, plot_limit],
-        color="0.35",
-        linestyle="--",
-        linewidth=0.9,
-        label="Equal error",
-    )
-    axis.set(
-        xlim=(0, plot_limit),
-        ylim=(0, plot_limit),
-        xlabel="Sequence-only absolute beta error",
-        ylabel="Fusion absolute beta error",
-        title="Fusion error at individual held-out CpGs",
-    )
-    axis.set_aspect("equal", adjustable="box")
-    axis.grid(alpha=0.12)
-
-    gain = comparison["Sequence_Minus_Fusion_Absolute_Error"]
-    win_rate = float(improved.mean())
-    axis.text(
-        0.04,
-        0.96,
-        f"Fusion lower error: {100 * win_rate:.1f}%\n"
-        f"Mean paired gain: {gain.mean():.4f}",
-        transform=axis.transAxes,
-        va="top",
-        fontsize=6.5,
-        bbox={
-            "boxstyle": "round,pad=0.22",
-            "facecolor": "white",
-            "edgecolor": "0.78",
-            "alpha": 0.92,
-        },
-    )
-    axis.legend(
-        loc="lower right",
-        frameon=True,
-        facecolor="white",
-        edgecolor="0.82",
-        framealpha=0.90,
-        fontsize=5.8,
-        markerscale=2.2,
-    )
-    fig.tight_layout(pad=0.55)
-    save_figure(fig, output)
-    return {
-        "heldout_cpg_count": int(len(comparison)),
-        "fusion_lower_error_count": int(improved.sum()),
-        "sequence_lower_error_count": int(not_improved.sum()),
-        "absolute_error_tie_count": int(tied.sum()),
-        "fusion_lower_error_fraction": win_rate,
-        "mean_sequence_minus_fusion_absolute_error": float(gain.mean()),
-        "median_sequence_minus_fusion_absolute_error": float(gain.median()),
-    }
-
-
-def summarize_locus_advantage_by_context(
-    comparison: pd.DataFrame,
-    context_path: Path,
-) -> pd.DataFrame:
-    context = pd.read_csv(context_path)
-    require_columns(context, ["probeID"], context_path)
-    context["probeID"] = context["probeID"].astype(str)
-    if context["probeID"].duplicated().any():
-        raise ValueError(f"Duplicate probeID values in {context_path}")
-
-    specifications = (
-        ("Genomic_Region", ["Promoter/TSS", "UTR", "Gene body", "Intergenic"]),
-        (
-            "CpG_Island_Context",
-            ["Island", "Shore", "Shelf", "Open sea", "Unclassified"],
-        ),
-        ("ATAC_Stratum", ["Q1 low", "Q2", "Q3", "Q4 high", "Missing"]),
-        ("H3K27ac_Stratum", ["Q1 low", "Q2", "Q3", "Q4 high", "Missing"]),
-    )
-    available = [(grouping, order) for grouping, order in specifications if grouping in context]
-    if not available:
-        raise ValueError(
-            f"{context_path} contains none of the supported biological-context columns"
-        )
-    use_columns = ["probeID", *[grouping for grouping, _ in available]]
-    annotated = comparison.merge(
-        context[use_columns], on="probeID", how="inner", validate="one_to_one"
-    )
-    if len(annotated) != len(comparison):
-        raise ValueError(
-            f"Context assignments matched {len(annotated)} of {len(comparison)} held-out CpGs"
-        )
-
-    rows: list[dict[str, object]] = []
-    for grouping, order in available:
-        values = annotated[grouping].fillna("Missing").astype(str)
-        for stratum in order:
-            group = annotated[values == stratum]
-            if group.empty:
-                continue
-            gain = group["Sequence_Minus_Fusion_Absolute_Error"]
-            rows.append(
-                {
-                    "Grouping": grouping,
-                    "Stratum": stratum,
-                    "N_CpGs": int(len(group)),
-                    "Fusion_Lower_Error_Count": int(group["Fusion_Improved"].sum()),
-                    "Fusion_Lower_Error_Percent": float(
-                        100.0 * group["Fusion_Improved"].mean()
-                    ),
-                    "Mean_Sequence_Minus_Fusion_Absolute_Error": float(gain.mean()),
-                    "Median_Sequence_Minus_Fusion_Absolute_Error": float(gain.median()),
-                }
-            )
-    return pd.DataFrame(rows)
-
-
-def plot_fusion_win_rate_by_context(
-    summary: pd.DataFrame,
-    overall_win_rate: float,
-    output: Path,
-) -> dict:
-    display = {
-        "Genomic_Region": "Genomic region",
-        "CpG_Island_Context": "CpG-island relation",
-        "ATAC_Stratum": "ATAC signal",
-        "H3K27ac_Stratum": "H3K27ac signal",
-    }
-    groupings = [name for name in display if name in set(summary["Grouping"])]
-    fig, axes = plt.subplots(
-        len(groupings),
-        1,
-        figsize=(ONE_COLUMN_WIDTH, 1.55 * len(groupings) + 0.55),
-        sharex=True,
-    )
-    axes = np.atleast_1d(axes)
-
-    all_rates = pd.to_numeric(
-        summary["Fusion_Lower_Error_Percent"], errors="raise"
-    ).to_numpy(float)
-    overall_percent = 100.0 * overall_win_rate
-    lower = max(0.0, min(50.0, float(all_rates.min()), overall_percent) - 4.0)
-    upper = min(100.0, max(50.0, float(all_rates.max()), overall_percent) + 4.0)
-
-    for axis, grouping in zip(axes, groupings):
-        current = summary[summary["Grouping"] == grouping].copy()
-        positions = np.arange(len(current))
-        rates = current["Fusion_Lower_Error_Percent"].to_numpy(float)
-        axis.scatter(
-            rates,
-            positions,
-            s=27,
-            color=MODEL_COLORS["fusion"],
-            edgecolor="white",
-            linewidth=0.6,
-            zorder=3,
-        )
-        for position, rate in zip(positions, rates):
-            axis.plot(
-                [lower, rate],
-                [position, position],
-                color="#F2B37F",
-                linewidth=1.6,
-                zorder=1,
-            )
-        labels = [
-            f"{row.Stratum}  (n={int(row.N_CpGs):,})"
-            for row in current.itertuples(index=False)
-        ]
-        axis.set_yticks(positions, labels)
-        axis.invert_yaxis()
-        axis.axvline(50.0, color="0.55", linestyle="--", linewidth=0.75)
-        axis.axvline(overall_percent, color="#B24C00", linestyle=":", linewidth=0.9)
-        axis.set_title(display[grouping], loc="left")
-        axis.grid(axis="x", alpha=0.13)
-        axis.spines[["top", "right"]].set_visible(False)
-    axes[-1].set_xlim(lower, upper)
-    axes[-1].set_xlabel("Held-out CpGs with lower fusion error (%)")
-    axes[0].set_title(
-        "Fusion advantage across biological contexts\n" + axes[0].get_title(),
-        loc="left",
-    )
-    axes[0].text(
-        0.99,
-        1.02,
-        f"Dotted line: overall {overall_percent:.1f}%",
-        transform=axes[0].transAxes,
-        ha="right",
-        va="bottom",
-        fontsize=5.7,
-        color="#8F3B00",
-    )
-    fig.tight_layout(pad=0.55, h_pad=0.65)
-    save_figure(fig, output)
-    return {
-        "groupings": groupings,
-        "stratum_count": int(len(summary)),
-        "overall_fusion_lower_error_percent": float(overall_percent),
-        "interpretation": "Descriptive post hoc per-locus win rates; not model-selection criteria.",
     }
 
 
@@ -877,7 +453,6 @@ def plot_mqtl(path: Path, signed_output: Path, magnitude_output: Path) -> dict:
         [0, 100], [0, 100], color="0.45", linewidth=0.8,
         linestyle="--", label="Identical rank"
     )
-    # Percentile positions of zero separate negative from positive responses.
     axis.axvline(100.0 * float((observed < 0).mean()), color="0.60", linewidth=0.65, linestyle=":")
     axis.axhline(100.0 * float((predicted < 0).mean()), color="0.60", linewidth=0.65, linestyle=":")
     axis.set(
@@ -1004,17 +579,38 @@ def plot_candidate(
         raise ValueError(f"No matched comparators were found for {uid}")
 
     fig, axis = plt.subplots(figsize=(ONE_COLUMN_WIDTH, 2.55))
-    axis.hist(comparator_values, bins="auto", color="#9ECAE1", edgecolor="white")
-    axis.axvline(
-        abs(target_effect),
-        color="#D94801",
-        linewidth=2,
-        label=rf"{gene}: {abs(target_effect):.3f}",
+    counts, _, _ = axis.hist(
+        comparator_values, bins="auto", color="#9ECAE1", edgecolor="white"
+    )
+    x = abs(target_effect)
+    peak = float(np.max(counts)) if len(counts) else 1.0
+    axis.axvline(x, color="#D94801", linewidth=2.0, zorder=3, clip_on=False)
+    axis.set_ylim(0, peak * 1.22)
+    right = max(float(comparator_values.max()), x) * 1.06
+    axis.set_xlim(0, right)
+    axis.annotate(
+        gene,
+        xy=(x, peak * 1.04),
+        xytext=(0, 0),
+        textcoords="offset points",
+        ha="center",
+        va="bottom",
+        fontsize=8.0,
+        color="#9A3200",
+        clip_on=False,
+        annotation_clip=False,
+        zorder=5,
+        bbox={
+            "boxstyle": "round,pad=0.28",
+            "facecolor": "white",
+            "edgecolor": "#D94801",
+            "linewidth": 0.9,
+            "alpha": 0.96,
+        },
     )
     axis.set_xlabel(r"Absolute predicted $\Delta\hat{\beta}$")
     axis.set_ylabel("Matched comparators")
     axis.set_title("Top candidate versus matched background")
-    axis.legend(frameon=False, loc="upper right")
     axis.grid(axis="y", alpha=0.18)
     axis.spines[["top", "right"]].set_visible(False)
     fig.tight_layout(pad=0.6)
@@ -1058,20 +654,15 @@ def plot_candidate(
 
 def main() -> None:
     args = arguments()
-    locus_prediction_inputs = prediction_input_paths(
-        args.prediction_template, args.seeds
-    )
     inputs = (
         args.metrics_path,
         args.context_path,
-        args.context_assignment_path,
         args.variant_context_path,
         args.variant_distance_path,
         args.mqtl_path,
         args.candidate_path,
         args.candidate_seed_path,
         args.comparator_path,
-        *locus_prediction_inputs,
     )
     for path in inputs:
         if not path.is_file():
@@ -1081,12 +672,9 @@ def main() -> None:
     performance = plot_performance(
         args.metrics_path, args.output_dir / "model_incremental_performance.png"
     )
-    information_gains = plot_information_gains(
-        args.metrics_path, args.output_dir / "information_source_gains.png"
-    )
     context = plot_context(
         args.context_path,
-        args.output_dir / "fusion_gain_by_genomic_region.png",
+        args.genomic_region_output,
         args.output_dir / "fusion_gain_by_epigenomic_context.png",
     )
     candidate_context = plot_candidate_context(
@@ -1104,52 +692,26 @@ def main() -> None:
         args.candidate_seed_path,
         args.comparator_path,
         args.output_dir / "top_candidate_matched_background.png",
-        args.output_dir / "top_candidate_case_study.csv",
+        args.case_study_path,
     )
-    locus_comparison = load_fusion_locus_comparison(
-        args.prediction_template, args.seeds
-    )
-    save_csv(
-        locus_comparison,
-        args.output_dir / "fusion_vs_sequence_locus_errors.csv",
-    )
-    fusion_locus_error = plot_fusion_locus_error(
-        locus_comparison,
-        args.output_dir / "fusion_vs_sequence_locus_error.png",
-    )
-    locus_context_summary = summarize_locus_advantage_by_context(
-        locus_comparison,
-        args.context_assignment_path,
-    )
-    save_csv(
-        locus_context_summary,
-        args.output_dir / "fusion_locus_advantage_by_context.csv",
-    )
-    fusion_context_win_rate = plot_fusion_win_rate_by_context(
-        locus_context_summary,
-        fusion_locus_error["fusion_lower_error_fraction"],
-        args.output_dir / "fusion_locus_win_rate_by_context.png",
-    )
+    keep_manuscript_outputs(args.output_dir)
     save_json(
         {
             "analysis_status": "COMPLETE",
-            "figure_format": "ten one-column figures",
+            "figure_format": "six one-column manuscript figures",
+            "manuscript_figures": list(MANUSCRIPT_FIGURES),
             "performance": performance,
-            "information_source_gains": information_gains,
             "context": context,
             "candidate_context": candidate_context,
             "mqtl": mqtl,
             "top_candidate": candidate,
-            "fusion_locus_error": fusion_locus_error,
-            "fusion_context_win_rate": fusion_context_win_rate,
-            "seeds": [int(seed) for seed in args.seeds],
             "input_sha256": {str(path): sha256(path) for path in inputs},
         },
         args.output_dir / "run_summary.json",
     )
     print("SilentMethyl one-column manuscript figures")
     print(f"  output: {args.output_dir}")
-    print("  figures: 10")
+    print("  figures: 6")
 
 
 if __name__ == "__main__":

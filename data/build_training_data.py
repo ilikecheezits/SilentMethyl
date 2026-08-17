@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
-"""Build leakage-resistant training, validation, and test data for SilentMethyl.
-
-Key changes from the original pipeline:
-  * chromosome-held-out splits are assigned before any reverse-complement data are created;
-  * forward and reverse-complement sequence representations are both emitted;
-  * ordered central-base PhyloP features are swapped under reverse complement;
-  * missing BigWig values are tracked explicitly and imputed from the training split only;
-  * exact split, sample, input, and output provenance is written to JSON manifests.
-"""
+"""Build chromosome-held-out training, validation, and test tables."""
 
 from __future__ import annotations
 
@@ -37,8 +29,6 @@ CENTER_G_INDEX = 2500
 FASTA_SLICE = slice(2450, 2550)
 VALID_CHROMS = tuple([f"chr{i}" for i in range(1, 23)] + ["chrX", "chrY"])
 
-# These sets are fixed before observing model performance. They place roughly
-# chromosome-sized 10% partitions into validation and test data.
 DEFAULT_VAL_CHROMS = ("chr10", "chr11")
 DEFAULT_TEST_CHROMS = ("chr8", "chr9")
 
@@ -145,7 +135,6 @@ def open_bigwig_handles(paths: dict[str, Path]) -> dict[str, pyBigWig.pyBigWig]:
 
 
 def get_bw_signal(bw_obj: pyBigWig.pyBigWig, chrom: str, start: int, end: int) -> float:
-    """Return a finite mean signal or NaN. Missingness is never encoded as 0."""
     try:
         bw_chroms = bw_obj.chroms()
         query_chrom = chrom
@@ -369,9 +358,6 @@ def main() -> None:
         imputation_values[feature_name] = median_value
         df_master[feature_name] = df_master[feature_name].fillna(median_value).astype(np.float32)
 
-    # Store compact 100-bp forward/RC model views. The full 5-kb RC window is
-    # reconstructed on demand from Healthy_5000bp_DNA, avoiding a multi-gigabyte
-    # duplicated CSV column. Splitting has already occurred at this point.
     df_master["Healthy_100bp_DNA"] = df_master["Healthy_5000bp_DNA"].str[FASTA_SLICE]
     df_master["Healthy_100bp_DNA_RC"] = df_master["Healthy_100bp_DNA"].map(reverse_complement)
     invalid_forward = df_master["Healthy_100bp_DNA"].str[49:51].ne("CG")
