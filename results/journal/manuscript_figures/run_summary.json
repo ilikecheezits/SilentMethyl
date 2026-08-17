@@ -1,0 +1,134 @@
+{
+  "analysis_status": "COMPLETE",
+  "candidate_context": {
+    "distance_rows": 4,
+    "interpretation": "Descriptive post hoc stratification by candidate-variant region and variant-to-target-CpG distance.",
+    "region_rows": 3
+  },
+  "context": {
+    "fusion_gain": {
+      "ATAC_Stratum": {
+        "Q1 low": 0.0085362483540997,
+        "Q2": 0.0082899840709673,
+        "Q3": 0.0110288763763354,
+        "Q4 high": 0.0138611843700786
+      },
+      "CpG_Island_Context": {
+        "Island": 0.0073336420102855,
+        "Open sea": 0.0098560690618317,
+        "Shelf": 0.0067045801793735,
+        "Shore": 0.0161605014687862
+      },
+      "Genomic_Region": {
+        "Gene body": 0.010122189428522,
+        "Intergenic": 0.0087901976722135,
+        "Promoter/TSS": 0.0108691805358302,
+        "UTR": 0.0130224084876524
+      },
+      "H3K27ac_Stratum": {
+        "Q1 low": 0.0078689535028606,
+        "Q2": 0.0075349473624508,
+        "Q3": 0.0115316173441587,
+        "Q4 high": 0.014728457884845
+      }
+    }
+  },
+  "figure_format": "ten one-column figures",
+  "fusion_context_win_rate": {
+    "groupings": [
+      "Genomic_Region",
+      "CpG_Island_Context",
+      "ATAC_Stratum",
+      "H3K27ac_Stratum"
+    ],
+    "interpretation": "Descriptive post hoc per-locus win rates; not model-selection criteria.",
+    "overall_fusion_lower_error_percent": 59.52578095596538,
+    "stratum_count": 16
+  },
+  "fusion_locus_error": {
+    "absolute_error_tie_count": 26,
+    "fusion_lower_error_count": 15816,
+    "fusion_lower_error_fraction": 0.5952578095596538,
+    "heldout_cpg_count": 26570,
+    "mean_sequence_minus_fusion_absolute_error": 0.010429121957599496,
+    "median_sequence_minus_fusion_absolute_error": 0.001911163330078132,
+    "sequence_lower_error_count": 10728
+  },
+  "information_source_gains": {
+    "mean_improvements": {
+      "beta_mae": {
+        "Add context to sequence": 0.010629859629477734,
+        "Add sequence to context": 0.040278242659204606
+      },
+      "beta_rmse": {
+        "Add context to sequence": 0.019554872365272907,
+        "Add sequence to context": 0.0644139827772141
+      },
+      "roc_auc": {
+        "Add context to sequence": 0.01111649796155989,
+        "Add sequence to context": 0.04923530198875977
+      }
+    }
+  },
+  "input_sha256": {
+    "results/journal/biological_context/fusion_gain_by_context.csv": "91b51f3b702f470fed523508edc895157736df8d180526183c23485c08f8ad77",
+    "results/journal/biological_context/heldout_cpg_context_assignments.csv": "913893f84abcefefe711aeb4d982e9e9b12cd0350bb3febb4c8e3c6a88f2ae98",
+    "results/journal/biological_context/variant_response_by_context.csv": "f45215e0b24c5510b617302a0ae460985a6af7cd39c620e1f5ff0a16cdb37f69",
+    "results/journal/biological_context/variant_response_by_distance.csv": "59bb36a0aed34214de7c88a08b5bb45c961fbfb7211c0dff577ceb1c5aaa56a6",
+    "results/journal/candidates/candidate_matched_background_statistics.csv": "380426e595fb24086a30b590b239cb29b9a999a9d7f32019b6daed58417f5f43",
+    "results/journal/candidates/candidate_seed_scores_long.csv": "ed1d1dd7b9390babb3e748ecddd65ebcec39a8cf5904fd4d126b9f1ad3dfb8b8",
+    "results/journal/candidates/top_candidate_matched_comparators_long.csv": "a62467b787e9797af61b0548668b728fe44376c8dfe633cc6a8f8c245f2f4540",
+    "results/journal/egtex_mqtl_positive_control/mqtl_predictions_seed_aggregate.csv": "2d3380bce6956572c02de0380c2cfc3326e301f66f3d892b9a8a8247a574545a",
+    "results/journal/paired_model_bootstrap/model_metrics_recomputed.csv": "e624f7d5a2678be5b677934b7f76802a93d004318f42516758ee0c10bbac5a10",
+    "results/journal/seed42/fusion/predictions.csv": "cf593b00a6ec7d60a74b4e2d12d925545400bb97581e59481c1e8085cfc64957",
+    "results/journal/seed42/sequence/predictions.csv": "0a90be817a7a3a1464a9fcccea6a503b1b0a2695fc4387aad94c262b5e3e6647",
+    "results/journal/seed43/fusion/predictions.csv": "e433390d7e6cc4f1dcd28099719bf4b63e48b9949fe8bd4fa896329bd420c02c",
+    "results/journal/seed43/sequence/predictions.csv": "e7dd0070b2d881070f8db95cc997e184d20c8aa86bc8a2ff6e2c6f5a475ce82d",
+    "results/journal/seed44/fusion/predictions.csv": "d7b798adb6da62fc1fbae9d4e254ca38be7a866af6382228d435e624d84539cc",
+    "results/journal/seed44/sequence/predictions.csv": "7299a2e4e17448931bf32850892817a94e043a8704be55a70d3153bf9b7d46ef"
+  },
+  "mqtl": {
+    "association_count": 81,
+    "direction_concordance": 0.7901234567901234,
+    "display_scale": "average-tie percentile ranks (0--100)",
+    "magnitude_spearman": 0.2165085817524842,
+    "signed_spearman": 0.6100948509485095
+  },
+  "performance": {
+    "seeds": [
+      42,
+      43,
+      44
+    ]
+  },
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "top_candidate": {
+    "Absolute_Delta_Beta_Rank": 1,
+    "Absolute_Distance_From_Target_CpG": 9,
+    "Alternate_Codon": "GGT",
+    "Amino_Acid": "G",
+    "CpG_Effect": "destroyed",
+    "Delta_RC_Sign_Agreement_Fraction": 1.0,
+    "Empirical_Matched_Background_Percentile": 100.0,
+    "GDC_Genomic_DNA_Change": "chr8:g.70148394G>A",
+    "GDC_Occurrence_Count": 1,
+    "Gene": "NCOA2",
+    "Interpretation": "Model-derived case study for hypothesis generation, not causal validation.",
+    "Matched_Background_Tier": "T4_SBS6_CpG_distance100",
+    "Matched_Comparator_Count": 66,
+    "Matched_Comparator_Median_Absolute_Delta_Beta": 0.00665978590647375,
+    "Mean_Delta_RC_Absolute_Difference": 0.0979636386036872,
+    "Per_Seed_Predicted_Delta_Beta": "-0.16221637,-0.16966262,-0.20748758",
+    "Predicted_Delta_Beta": -0.1797888576984405,
+    "Predicted_Delta_Beta_SD": 0.0198204648180479,
+    "Reference_Codon": "GGC",
+    "Seeds": "42,43,44",
+    "Selected_Transcript_ID": "ENST00000452400.7",
+    "Variant_UID": "chr8_70148394_G_A__cg20699548__ENST00000452400_7",
+    "probeID": "cg20699548"
+  }
+}
