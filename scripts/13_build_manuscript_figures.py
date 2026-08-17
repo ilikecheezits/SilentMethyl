@@ -188,7 +188,7 @@ def plot_performance(path: Path, output: Path) -> dict:
     frame = pd.read_csv(path)
     require_columns(
         frame,
-        ["Analysis", "Seed", "Model", "beta_mae", "roc_auc"],
+        ["Analysis", "Seed", "Model", "m_mae", "beta_mae", "roc_auc"],
         path,
     )
     frame = frame[
@@ -199,46 +199,55 @@ def plot_performance(path: Path, output: Path) -> dict:
     seeds = sorted(frame["Seed"].unique())
     if len(seeds) < 2:
         raise ValueError("At least two seeds are required")
-
-    fig, axes = plt.subplots(2, 1, figsize=(ONE_COLUMN_WIDTH, 4.35), sharex=True)
+    
+    fig, axes = plt.subplots(1, 3, figsize=(ONE_COLUMN_WIDTH, 4.35))
     positions = np.arange(3)
-    for axis, metric, label in zip(
-        axes,
-        ("beta_mae", "roc_auc"),
-        (r"Beta MAE $\downarrow$", r"ROC-AUC $\uparrow$"),
-    ):
+    
+
+    metrics = ("m_mae", "beta_mae", "roc_auc")
+    labels = (r"M-value MAE $\downarrow$", r"Beta MAE $\downarrow$", r"ROC-AUC $\uparrow$")
+
+    for axis, metric, label in zip(axes, metrics, labels):
         values = (
             frame.pivot(index="Seed", columns="Model", values=metric)
             .reindex(index=seeds, columns=MODEL_ORDER)
         )
         if values.isna().any().any():
             raise ValueError(f"Incomplete seed/model grid for {metric}")
-        for _, row in values.iterrows():
-            axis.plot(positions, row.to_numpy(float), color="0.80", linewidth=0.9)
-            axis.scatter(positions, row.to_numpy(float), color="0.62", s=13, zorder=2)
+            
         means = values.mean(axis=0).to_numpy(float)
         standard_deviations = values.std(axis=0, ddof=1).to_numpy(float)
-        for position, model, mean, standard_deviation in zip(
-            positions, MODEL_ORDER, means, standard_deviations
-        ):
-            axis.errorbar(
-                position,
-                mean,
-                yerr=standard_deviation,
-                fmt="o",
-                markersize=5.5,
-                capsize=2.5,
-                color=MODEL_COLORS[model],
-                ecolor=MODEL_COLORS[model],
-                zorder=3,
+        colors = [MODEL_COLORS[m] for m in MODEL_ORDER]
+
+        axis.bar(
+            positions,
+            means,
+            yerr=standard_deviations,
+            color=colors,
+            capsize=2.5,
+            edgecolor="none",
+            alpha=0.9,
+            error_kw=dict(lw=1.0, ecolor='0.25')
+        )
+        for _, row in values.iterrows():
+            axis.scatter(
+                positions, 
+                row.to_numpy(float), 
+                color="0.1", 
+                s=7, 
+                zorder=3, 
+                alpha=0.5
             )
-        axis.set_xticks(positions, ["Context", "Sequence", "Fusion"])
-        axis.set_ylabel(label)
+
+        axis.set_xticks(positions)
+        axis.set_xticklabels(["Context", "Sequence", "Fusion"], rotation=45, ha="right")
+        
+        axis.set_ylim(bottom=0)
+        axis.set_title(label, fontsize=8.0)
         axis.grid(axis="y", alpha=0.18)
         axis.spines[["top", "right"]].set_visible(False)
-    axes[0].tick_params(labelbottom=False)
-    axes[0].set_title("Held-out chromosome performance")
-    fig.tight_layout(pad=0.6, h_pad=0.7)
+
+    fig.tight_layout(pad=0.4, w_pad=0.8)
     save_figure(fig, output)
     return {"seeds": [int(seed) for seed in seeds]}
 
