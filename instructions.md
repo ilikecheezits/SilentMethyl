@@ -287,7 +287,9 @@ cd supplementary_package
 sha256sum -c SHA256SUMS.txt
 ```
 
-The package includes the numbered S1-S6 folders and the partner manifest and verification files used for the manuscript package.
+The package includes S1–S6 tables plus two supplementary figures
+(`information_source_gains` and `fusion_gain_by_genomic_region`). The six
+main-text figures are not duplicated in the package.
 
 ## 9. Recommended execution order
 

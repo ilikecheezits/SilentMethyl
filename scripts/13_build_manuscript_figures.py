@@ -113,6 +113,13 @@ def arguments() -> argparse.Namespace:
             "results/journal/biological_context/plots/fusion_gain_by_genomic_region.png"
         ),
     )
+    parser.add_argument(
+        "--information-gains-output",
+        type=Path,
+        default=Path(
+            "results/journal/biological_context/plots/information_source_gains.png"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -237,6 +244,83 @@ def plot_performance(path: Path, output: Path) -> dict:
     fig.tight_layout(pad=0.6, h_pad=0.7)
     save_figure(fig, output)
     return {"seeds": [int(seed) for seed in seeds]}
+
+
+def plot_information_gains(path: Path, output: Path) -> dict:
+    frame = pd.read_csv(path)
+    require_columns(
+        frame,
+        ["Analysis", "Seed", "Model", "beta_mae", "beta_rmse", "roc_auc"],
+        path,
+    )
+    frame = frame[
+        (frame["Analysis"].astype(str) == "individual_seed")
+        & frame["Model"].isin(MODEL_ORDER)
+    ].copy()
+    frame["Seed"] = pd.to_numeric(frame["Seed"], errors="raise").astype(int)
+    seeds = sorted(frame["Seed"].unique())
+    comparisons = (
+        ("epi", "Add sequence\nto context"),
+        ("sequence", "Add context\nto sequence"),
+    )
+    specifications = (
+        ("beta_mae", "MAE improvement", "lower"),
+        ("beta_rmse", "RMSE improvement", "lower"),
+        ("roc_auc", "AUROC improvement", "higher"),
+    )
+    fig, axes = plt.subplots(3, 1, figsize=(ONE_COLUMN_WIDTH, 5.65))
+    summary: dict[str, dict[str, float]] = {}
+    for axis, (metric, label, direction) in zip(axes, specifications):
+        wide = frame.pivot(index="Seed", columns="Model", values=metric).reindex(
+            index=seeds, columns=MODEL_ORDER
+        )
+        if wide.isna().any().any():
+            raise ValueError(f"Incomplete seed/model grid for {metric}")
+        values = []
+        for baseline, _ in comparisons:
+            if direction == "lower":
+                values.append(wide[baseline] - wide["fusion"])
+            else:
+                values.append(wide["fusion"] - wide[baseline])
+        gain = pd.concat(values, axis=1)
+        gain.columns = [label_text for _, label_text in comparisons]
+        for seed_index, (_, row) in enumerate(gain.iterrows()):
+            jitter = (seed_index - (len(gain) - 1) / 2) * 0.055
+            axis.scatter(
+                np.arange(2) + jitter,
+                row.to_numpy(float),
+                s=17,
+                color="0.48",
+                alpha=0.8,
+                zorder=2,
+            )
+        means = gain.mean(axis=0)
+        sd = gain.std(axis=0, ddof=1)
+        axis.errorbar(
+            np.arange(2),
+            means.to_numpy(float),
+            yerr=sd.to_numpy(float),
+            fmt="o",
+            color="#D95F02",
+            ecolor="#7F7F7F",
+            markersize=5.5,
+            capsize=2.5,
+            zorder=3,
+        )
+        axis.axhline(0, color="0.45", linewidth=0.8, linestyle="--")
+        axis.set_xticks(np.arange(2), [label_text for _, label_text in comparisons])
+        axis.set_ylabel(label)
+        axis.grid(axis="y", alpha=0.16)
+        axis.spines[["top", "right"]].set_visible(False)
+        summary[metric] = {
+            key.replace("\n", " "): float(value) for key, value in means.items()
+        }
+    axes[0].tick_params(labelbottom=False)
+    axes[1].tick_params(labelbottom=False)
+    axes[0].set_title("Incremental value of each information source")
+    fig.tight_layout(pad=0.6, h_pad=0.7)
+    save_figure(fig, output)
+    return {"mean_improvements": summary}
 
 
 def _draw_gain_panel(
@@ -672,6 +756,9 @@ def main() -> None:
     performance = plot_performance(
         args.metrics_path, args.output_dir / "model_incremental_performance.png"
     )
+    information_gains = plot_information_gains(
+        args.metrics_path, args.information_gains_output
+    )
     context = plot_context(
         args.context_path,
         args.genomic_region_output,
@@ -701,6 +788,7 @@ def main() -> None:
             "figure_format": "six one-column manuscript figures",
             "manuscript_figures": list(MANUSCRIPT_FIGURES),
             "performance": performance,
+            "information_source_gains": information_gains,
             "context": context,
             "candidate_context": candidate_context,
             "mqtl": mqtl,

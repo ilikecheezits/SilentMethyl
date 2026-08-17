@@ -51,27 +51,15 @@ STATIC_ITEMS = (
     Item("S1", "results/journal/candidates/model_comparison/candidate_sequence_vs_fusion.csv",
          "Supplementary_Data_S1_Candidates/S1_sequence_vs_fusion_candidates.csv",
          "Candidate-level sequence-only versus fusion comparison."),
-    Item("S1", "results/journal/candidates/model_comparison/sequence/candidate_matched_background_statistics.csv",
-         "Supplementary_Data_S1_Candidates/S1_complete_sequence_only_candidate_ranking.csv",
-         "Complete sequence-only candidate ranking and matched-background descriptors."),
-    Item("S1", "results/journal/candidates/model_comparison/sequence/candidate_seed_scores_long.csv",
-         "Supplementary_Data_S1_Candidates/S1_sequence_only_candidate_scores_by_seed.csv",
-         "Per-seed forward, reverse-complement, and averaged sequence-only candidate scores."),
     Item("S1", "results/journal/candidates/model_comparison/pairwise_seed_stability_by_model.csv",
          "Supplementary_Data_S1_Candidates/S1_seed_stability_by_model.csv",
          "Fusion and sequence-only seed-stability comparison."),
     Item("S1", "results/journal/candidates/top_candidate_matched_comparators_long.csv",
          "Supplementary_Data_S1_Candidates/S1_top_candidate_comparators.csv",
-         "Comparator records used for the displayed top-candidate background plots."),
+         "Comparator records for the rank-1 matched-background figure."),
     Item("S1", "results/journal/candidates/candidate_analysis_summary.json",
          "Supplementary_Data_S1_Candidates/S1_candidate_analysis_summary.json",
-         "Candidate-analysis configuration, checkpoint hashes, and interpretation."),
-    Item("S1", "results/journal/candidates/stability/stability_summary.json",
-         "Supplementary_Data_S1_Candidates/S1_stability_summary.json",
-         "Candidate-stability run manifest."),
-    Item("S1", "results/journal/candidates/model_comparison/sequence_vs_fusion_summary.json",
-         "Supplementary_Data_S1_Candidates/S1_sequence_vs_fusion_summary.json",
-         "Summary of candidate agreement between sequence-only and fusion models."),
+         "Candidate-analysis configuration and checkpoint hashes."),
     Item("S1", "results/journal/candidates/top_candidate_case_study.csv",
          "Supplementary_Data_S1_Candidates/S1_top_candidate_case_study.csv",
          "Data underlying the rank-1 candidate case-study figure."),
@@ -79,9 +67,6 @@ STATIC_ITEMS = (
     Item("S2", "results/journal/egtex_mqtl_positive_control/validated_heldout_cohort.csv",
          "Supplementary_Data_S2_mQTL_Positive_Control/S2_all_81_associations.csv",
          "Complete held-out 81-association eGTEx breast mQTL cohort with probe geometry."),
-    Item("S2", "results/journal/egtex_mqtl_positive_control/mqtl_predictions_all_models_seeds.csv",
-         "Supplementary_Data_S2_mQTL_Positive_Control/S2_predictions_all_models_all_seeds.csv",
-         "Per-seed fusion and sequence-only predictions for all positive-control associations."),
     Item("S2", "results/journal/egtex_mqtl_positive_control/mqtl_predictions_seed_aggregate.csv",
          "Supplementary_Data_S2_mQTL_Positive_Control/S2_cross_seed_predictions.csv",
          "Cross-seed mQTL prediction aggregates for both models."),
@@ -101,9 +86,6 @@ STATIC_ITEMS = (
          "Supplementary_Data_S2_mQTL_Positive_Control/S2_run_summary.json",
          "Positive-control inputs, checkpoint hashes, parameters, and nested results."),
 
-    Item("S3", "results/journal/egtex_mqtl_matched_negative/eligible_significant_and_nonsignificant_leads.csv",
-         "Supplementary_Data_S3_mQTL_Matched_Negative/S3_eligible_lead_pool.csv",
-         "Eligible significant and nonsignificant lead associations before assignment."),
     Item("S3", "results/journal/egtex_mqtl_matched_negative/matched_lead_cohort.csv",
          "Supplementary_Data_S3_mQTL_Matched_Negative/S3_matched_35_pair_cohort.csv",
          "Final 35 significant/nonsignificant matched pairs (70 rows)."),
@@ -113,9 +95,6 @@ STATIC_ITEMS = (
     Item("S3", "results/journal/egtex_mqtl_matched_negative/matching_balance.csv",
          "Supplementary_Data_S3_mQTL_Matched_Negative/S3_matching_balance.csv",
          "Balance diagnostics for matched variables."),
-    Item("S3", "results/journal/egtex_mqtl_matched_negative/matched_lead_predictions_all_models_seeds.csv",
-         "Supplementary_Data_S3_mQTL_Matched_Negative/S3_predictions_all_models_all_seeds.csv",
-         "Per-seed predictions for every matched lead and both models."),
     Item("S3", "results/journal/egtex_mqtl_matched_negative/matched_lead_predictions_seed_aggregate.csv",
          "Supplementary_Data_S3_mQTL_Matched_Negative/S3_cross_seed_predictions.csv",
          "Cross-seed matched-lead prediction aggregates."),
@@ -141,18 +120,12 @@ STATIC_ITEMS = (
     Item("S4", "results/journal/biological_context/fusion_gain_by_context.csv",
          "Supplementary_Data_S4_Model_Performance/S4_fusion_gain_by_context.csv",
          "Fusion-versus-sequence Beta-MAE gain by genomic and epigenomic context."),
-    Item("S4", "results/journal/biological_context/heldout_cpg_context_assignments.csv",
-         "Supplementary_Data_S4_Model_Performance/S4_heldout_cpg_context_assignments.csv",
-         "Biological-context assignments for all held-out CpGs."),
     Item("S4", "results/journal/biological_context/variant_response_by_distance.csv",
          "Supplementary_Data_S4_Model_Performance/S4_variant_response_by_distance.csv",
          "Candidate response and mQTL agreement summarized by variant-to-CpG distance."),
     Item("S4", "results/journal/biological_context/variant_response_by_context.csv",
          "Supplementary_Data_S4_Model_Performance/S4_variant_response_by_context.csv",
          "Candidate response summarized by variant and target-CpG context, with mQTL agreement by target-CpG context."),
-    Item("S4", "results/journal/biological_context/run_summary.json",
-         "Supplementary_Data_S4_Model_Performance/S4_biological_context_run_summary.json",
-         "Configuration and input hashes for the post hoc biological-context analysis."),
     Item("S4", "results/journal/manuscript_figures/run_summary.json",
          "Supplementary_Data_S4_Model_Performance/S4_manuscript_figure_run_summary.json",
          "Input hashes and numerical summaries for the generated manuscript figures."),
@@ -169,9 +142,6 @@ STATIC_ITEMS = (
     Item("S5", "results/journal/target_qc/coverage_error_correlations.csv",
          "Supplementary_Data_S5_Target_QC/S5_coverage_error_correlations.csv",
          "Coverage versus absolute prediction-error correlations."),
-    Item("S5", "results/journal/target_qc/test_coverage_per_probe.csv",
-         "Supplementary_Data_S5_Target_QC/S5_test_coverage_per_probe.csv",
-         "Observed-normal count for every held-out CpG."),
 
     Item("S6", "reproducibility/data_purity_audit.json",
          "Supplementary_Data_S6_Reproducibility/S6_data_purity_audit.json",
@@ -222,28 +192,26 @@ STATIC_ITEMS = (
          "Supplementary_Data_S6_Reproducibility/S6_python_requirements.txt",
          "Recorded Python dependencies."),
 
-    Item("SF", "results/journal/egtex_mqtl_positive_control/plots/sequence_effect_rank_scatter.png",
-         "Supplementary_Figures/SF1_sequence_mQTL_rank_scatter.png",
-         "Sequence-only eGTEx mQTL rank scatter.", False),
-    Item("SF", "results/journal/egtex_mqtl_positive_control/plots/fusion_vs_sequence_delta_m.png",
-         "Supplementary_Figures/SF2_fusion_vs_sequence_mQTL_effects.png",
-         "Fusion versus sequence mQTL effect comparison.", False),
-    Item("SF", "results/journal/egtex_mqtl_matched_negative/plots/fusion_matched_negative_discrimination.png",
-         "Supplementary_Figures/SF3_fusion_matched_negative.png",
-         "Fusion matched-negative discrimination.", False),
-    Item("SF", "results/journal/egtex_mqtl_matched_negative/plots/sequence_matched_negative_discrimination.png",
-         "Supplementary_Figures/SF4_sequence_matched_negative.png",
-         "Sequence matched-negative discrimination.", False),
-    Item("SF", "results/journal/candidates/plots/matched_background_rank2.png",
-         "Supplementary_Figures/SF5_candidate_rank2_background.png",
-         "Rank-2 candidate versus matched background.", False),
-    Item("SF", "results/journal/candidates/plots/matched_background_rank3.png",
-         "Supplementary_Figures/SF6_candidate_rank3_background.png",
-         "Rank-3 candidate versus matched background.", False),
+    Item("SF", "results/journal/biological_context/plots/information_source_gains.png",
+         "Supplementary_Figures/SF1_information_source_gains.png",
+         "Residual gains from adding sequence or context to the other modality.", False),
     Item("SF", "results/journal/biological_context/plots/fusion_gain_by_genomic_region.png",
-         "Supplementary_Figures/SF7_fusion_gain_by_genomic_region.png",
+         "Supplementary_Figures/SF2_fusion_gain_by_genomic_region.png",
          "Fusion improvement by GENCODE genomic region.", False),
 )
+
+MANUSCRIPT_FIGURE_NAMES = {
+    "candidate_response_by_context.png",
+    "fusion_gain_by_epigenomic_context.png",
+    "model_incremental_performance.png",
+    "mqtl_magnitude_rank.png",
+    "mqtl_signed_rank.png",
+    "top_candidate_matched_background.png",
+}
+ALLOWED_SUPPLEMENTARY_FIGURES = {
+    "Supplementary_Figures/SF1_information_source_gains.png",
+    "Supplementary_Figures/SF2_fusion_gain_by_genomic_region.png",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -336,21 +304,13 @@ def dynamic_items() -> list[Item]:
     items: list[Item] = []
     for seed in SEEDS:
         for model in MODELS:
-            items.extend(
-                [
-                    Item(
-                        "S4",
-                        f"results/journal/seed{seed}/{model}/metrics.json",
-                        f"Supplementary_Data_S4_Model_Performance/per_seed/seed{seed}_{model}_metrics.json",
-                        f"Held-out metrics for {model}, seed {seed}.",
-                    ),
-                    Item(
-                        "S4",
-                        f"results/journal/seed{seed}/{model}/predictions.csv",
-                        f"Supplementary_Data_S4_Model_Performance/per_seed/seed{seed}_{model}_predictions.csv",
-                        f"Complete chromosome-held-out predictions for {model}, seed {seed}.",
-                    ),
-                ]
+            items.append(
+                Item(
+                    "S4",
+                    f"results/journal/seed{seed}/{model}/metrics.json",
+                    f"Supplementary_Data_S4_Model_Performance/per_seed/seed{seed}_{model}_metrics.json",
+                    f"Held-out metrics for {model}, seed {seed}.",
+                )
             )
     return items
 
@@ -390,26 +350,25 @@ unless a file explicitly states otherwise.
 
 ## Contents
 
-- **Supplementary Data S1 — Candidates:** all 440 primary somatic candidates,
-  per-seed effects, cross-seed/RC stability, matched-background descriptors,
-  and sequence-versus-fusion comparisons.
-- **Supplementary Data S2 — mQTL positive control:** the complete 81-association
-  cohort, explicit conservative 53-association probe-filtered subset, per-seed
-  predictions, clustered metrics, probe audit, and leave-one-variant-out results.
-- **Supplementary Data S3 — mQTL matched negative:** the eligible lead pool,
-  final 35 matched pairs, matching balance and assignments, all predictions,
-  and discrimination/permutation statistics.
-- **Supplementary Data S4 — model performance:** complete held-out predictions
-  and metrics for three architectures across seeds 42, 43, and 44, plus paired
-  genomic-region comparisons, biological-context stratification, and figure
-  source summaries.
-- **Supplementary Data S5 — target QC:** HM450 mask audit and normal-sample
-  coverage sensitivity, including coverage for every held-out probe.
-- **Supplementary Data S6 — reproducibility:** target/candidate construction
-  manifests, participant and matrix audits, environment information, dependency
-  versions, reproduction instructions, and SHA-256 manifests.
-- **Supplementary Figures:** non-manuscript analysis plots only. The six
-  manuscript figures are not duplicated here.
+- **Supplementary Data S1 — Candidates:** the 440-candidate ranking, per-seed
+  scores, stability tables, sequence-versus-fusion comparison, and the rank-1
+  case-study source table.
+- **Supplementary Data S2 — mQTL positive control:** the 81-association cohort,
+  cross-seed aggregates, clustered metrics, probe-footprint sensitivity, and
+  leave-one-variant-out results.
+- **Supplementary Data S3 — mQTL matched negative:** the final 35 matched pairs,
+  matching balance, cross-seed aggregates, and discrimination statistics.
+- **Supplementary Data S4 — model performance:** per-seed held-out metrics,
+  paired genomic-block bootstrap differences, and biological-context source
+  tables for the manuscript and supplementary figures.
+- **Supplementary Data S5 — target QC:** HM450 mask audit and coverage
+  sensitivity summaries.
+- **Supplementary Data S6 — reproducibility:** construction manifests, audits,
+  environment information, and SHA-256 manifests.
+- **Supplementary Figures:** only the two manuscript-aligned panels that are
+  not main-text figures (`information_source_gains` and
+  `fusion_gain_by_genomic_region`). Exploratory plot directories and known-variant
+  application figures are excluded.
 
 ## Interpretation boundaries
 
@@ -451,6 +410,18 @@ def main() -> None:
 
     validate_primary_tables(project)
     items = list(STATIC_ITEMS) + dynamic_items()
+    figure_destinations = [item.destination for item in items if item.supplement_id == "SF"]
+    unexpected = [path for path in figure_destinations if path not in ALLOWED_SUPPLEMENTARY_FIGURES]
+    if unexpected:
+        raise ValueError(f"Unexpected supplementary figures: {unexpected}")
+    overlap = [
+        item.destination
+        for item in items
+        if Path(item.destination).name in MANUSCRIPT_FIGURE_NAMES
+        or Path(item.source).name in MANUSCRIPT_FIGURE_NAMES
+    ]
+    if overlap:
+        raise ValueError(f"Manuscript figures must not be packaged as supplementary files: {overlap}")
     missing = [item for item in items if item.required and not (project / item.source).is_file()]
     if missing and not args.allow_missing_required:
         print("Missing required supplement sources:", file=sys.stderr)
