@@ -199,11 +199,11 @@ def plot_performance(path: Path, output: Path) -> dict:
     seeds = sorted(frame["Seed"].unique())
     if len(seeds) < 2:
         raise ValueError("At least two seeds are required")
-    
+
+    # 1x3 layout to place them horizontally
     fig, axes = plt.subplots(1, 3, figsize=(ONE_COLUMN_WIDTH, 4.35))
     positions = np.arange(3)
     
-
     metrics = ("m_mae", "beta_mae", "roc_auc")
     labels = (r"M-value MAE $\downarrow$", r"Beta MAE $\downarrow$", r"ROC-AUC $\uparrow$")
 
@@ -219,6 +219,7 @@ def plot_performance(path: Path, output: Path) -> dict:
         standard_deviations = values.std(axis=0, ddof=1).to_numpy(float)
         colors = [MODEL_COLORS[m] for m in MODEL_ORDER]
 
+        # Draw the bar chart with error bars
         axis.bar(
             positions,
             means,
@@ -229,19 +230,12 @@ def plot_performance(path: Path, output: Path) -> dict:
             alpha=0.9,
             error_kw=dict(lw=1.0, ecolor='0.25')
         )
-        for _, row in values.iterrows():
-            axis.scatter(
-                positions, 
-                row.to_numpy(float), 
-                color="0.1", 
-                s=7, 
-                zorder=3, 
-                alpha=0.5
-            )
 
+        # Format axes
         axis.set_xticks(positions)
         axis.set_xticklabels(["Context", "Sequence", "Fusion"], rotation=45, ha="right")
         
+        # Explicitly start the Y-axis at 0
         axis.set_ylim(bottom=0)
         axis.set_title(label, fontsize=8.0)
         axis.grid(axis="y", alpha=0.18)
