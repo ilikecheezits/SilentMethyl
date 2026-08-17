@@ -33,6 +33,22 @@
     }
   },
   "figure_format": "six one-column manuscript figures",
+  "information_source_gains": {
+    "mean_improvements": {
+      "beta_mae": {
+        "Add context to sequence": 0.010629859629477734,
+        "Add sequence to context": 0.040278242659204606
+      },
+      "beta_rmse": {
+        "Add context to sequence": 0.019554872365272907,
+        "Add sequence to context": 0.0644139827772141
+      },
+      "roc_auc": {
+        "Add context to sequence": 0.01111649796155989,
+        "Add sequence to context": 0.04923530198875977
+      }
+    }
+  },
   "input_sha256": {
     "results/journal/biological_context/fusion_gain_by_context.csv": "91b51f3b702f470fed523508edc895157736df8d180526183c23485c08f8ad77",
     "results/journal/biological_context/variant_response_by_context.csv": "f45215e0b24c5510b617302a0ae460985a6af7cd39c620e1f5ff0a16cdb37f69",
