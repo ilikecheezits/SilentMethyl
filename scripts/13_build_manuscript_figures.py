@@ -203,7 +203,7 @@ def plot_performance(path: Path, output: Path) -> dict:
     if len(seeds) < 2:
         raise ValueError("At least two seeds are required")
 
-    fig, axes = plt.subplots(2, 1, figsize=(ONE_COLUMN_WIDTH, 4.35), sharex=True)
+    fig, axes = plt.subplots(2, 1, figsize=(ONE_COLUMN_WIDTH, 3.4), sharex=True)
     positions = np.arange(3)
     for axis, metric, label in zip(
         axes,
