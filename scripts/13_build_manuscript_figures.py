@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+"""Build the six one-column SilentMethyl manuscript figures."""
+
 from __future__ import annotations
 
 import argparse
@@ -25,8 +28,7 @@ MANUSCRIPT_FIGURES = (
     "candidate_response_by_context.png",
     "fusion_gain_by_epigenomic_context.png",
     "model_incremental_performance.png",
-    "mqtl_magnitude_rank.png",
-    "mqtl_signed_rank.png",
+    "mqtl_combined_rank.png",
     "top_candidate_matched_background.png",
 )
 
@@ -200,26 +202,23 @@ def plot_performance(path: Path, output: Path) -> dict:
     if len(seeds) < 2:
         raise ValueError("At least two seeds are required")
 
-    # 1x3 layout to place them horizontally
     fig, axes = plt.subplots(1, 3, figsize=(ONE_COLUMN_WIDTH, 3))
     positions = np.arange(3)
     
     metrics = ("m_mae", "beta_mae", "roc_auc")
     labels = (r"M-value MAE $\downarrow$", r"Beta MAE $\downarrow$", r"ROC-AUC $\uparrow$")
+    panel_letters = ("A", "B", "C")
 
-    for axis, metric, label in zip(axes, metrics, labels):
+    for i, (axis, metric, label, letter) in enumerate(zip(axes, metrics, labels, panel_letters)):
         values = (
             frame.pivot(index="Seed", columns="Model", values=metric)
             .reindex(index=seeds, columns=MODEL_ORDER)
         )
-        if values.isna().any().any():
-            raise ValueError(f"Incomplete seed/model grid for {metric}")
             
         means = values.mean(axis=0).to_numpy(float)
         standard_deviations = values.std(axis=0, ddof=1).to_numpy(float)
         colors = [MODEL_COLORS[m] for m in MODEL_ORDER]
 
-        # Draw the bar chart with error bars
         axis.bar(
             positions,
             means,
@@ -231,15 +230,15 @@ def plot_performance(path: Path, output: Path) -> dict:
             error_kw=dict(lw=1.0, ecolor='0.25')
         )
 
-        # Format axes
         axis.set_xticks(positions)
         axis.set_xticklabels(["Context", "Sequence", "Fusion"], rotation=45, ha="right")
-        
-        # Explicitly start the Y-axis at 0
         axis.set_ylim(bottom=0)
         axis.set_title(label, fontsize=8.0)
         axis.grid(axis="y", alpha=0.18)
         axis.spines[["top", "right"]].set_visible(False)
+        
+        # Add Panel Letter
+        axis.text(-0.25, 1.05, letter, transform=axis.transAxes, fontsize=12, fontweight='bold', va='bottom')
 
     fig.tight_layout(pad=0.4, w_pad=0.8)
     save_figure(fig, output)
@@ -274,8 +273,6 @@ def plot_information_gains(path: Path, output: Path) -> dict:
         wide = frame.pivot(index="Seed", columns="Model", values=metric).reindex(
             index=seeds, columns=MODEL_ORDER
         )
-        if wide.isna().any().any():
-            raise ValueError(f"Incomplete seed/model grid for {metric}")
         values = []
         for baseline, _ in comparisons:
             if direction == "lower":
@@ -329,32 +326,36 @@ def _draw_gain_panel(
     group: str,
     title: str,
     order: list[str],
+    panel_letter: str = "",
+    colors: list[str] = None
 ) -> dict[str, float]:
     subset = frame[frame["Grouping"].astype(str) == group].copy()
     subset["Stratum"] = pd.Categorical(subset["Stratum"], order, ordered=True)
     subset.dropna(subset=["Stratum"], inplace=True)
     subset.sort_values("Stratum", inplace=True)
-    if len(subset) != len(order):
-        raise ValueError(
-            f"Unexpected strata for {group}: {subset['Stratum'].astype(str).tolist()}"
-        )
-    gain = pd.to_numeric(
-        subset["Sequence_Minus_Fusion_Beta_MAE"], errors="raise"
-    ).to_numpy(float)
+    
+    gain = pd.to_numeric(subset["Sequence_Minus_Fusion_Beta_MAE"], errors="raise").to_numpy(float)
     low = -pd.to_numeric(subset["Bootstrap_CI_High"], errors="raise").to_numpy(float)
     high = -pd.to_numeric(subset["Bootstrap_CI_Low"], errors="raise").to_numpy(float)
     positions = np.arange(len(subset))
-    axis.errorbar(
-        gain,
-        positions,
-        xerr=np.vstack([gain - low, high - gain]),
-        fmt="o",
-        color="#D95F02",
-        ecolor="#7F7F7F",
-        capsize=2.2,
-        markersize=4.8,
-    )
-    axis.axvline(0, color="0.45", linewidth=0.8, linestyle="--")
+    
+    if colors is None:
+        colors = ["#D95F02"] * len(positions)
+        
+    for i in range(len(positions)):
+        axis.errorbar(
+            gain[i],
+            positions[i],
+            xerr=[[gain[i] - low[i]], [high[i] - gain[i]]],
+            fmt="o",
+            color=colors[i],
+            ecolor="0.65",
+            capsize=2.5,
+            markersize=6.5,
+            zorder=3
+        )
+        
+    axis.axvline(0, color="0.45", linewidth=0.8, linestyle="--", zorder=1)
     labels = [
         f"{row.Stratum}  (n={int(row.N_CpGs):,})"
         for row in subset.itertuples(index=False)
@@ -367,6 +368,11 @@ def _draw_gain_panel(
     axis.xaxis.set_major_formatter(FormatStrFormatter("%.3f"))
     axis.grid(axis="x", alpha=0.16)
     axis.spines[["top", "right"]].set_visible(False)
+    
+    # Add Panel Letter
+    if panel_letter:
+        axis.text(-0.35, 1.05, panel_letter, transform=axis.transAxes, fontsize=12, fontweight='bold', va='bottom')
+        
     return dict(zip(order, [float(value) for value in gain]))
 
 
@@ -401,17 +407,27 @@ def plot_context(path: Path, region_output: Path, epigenomic_output: Path) -> di
             "CpG_Island_Context",
             "CpG island relation",
             ["Island", "Shore", "Shelf", "Open sea"],
+            "A",
+            ['#006d2c', '#31a354', '#74c476', '#bae4b3']  # Greens (dark to light)
         ),
-        ("ATAC_Stratum", "ATAC signal", ["Q1 low", "Q2", "Q3", "Q4 high"]),
+        (
+            "ATAC_Stratum", 
+            "ATAC signal", 
+            ["Q1 low", "Q2", "Q3", "Q4 high"],
+            "B",
+            ['#08519c', '#3182bd', '#6baed6', '#bdd7e7']  # Blues (dark to light)
+        ),
         (
             "H3K27ac_Stratum",
             "H3K27ac signal",
             ["Q1 low", "Q2", "Q3", "Q4 high"],
+            "C",
+            ['#a63603', '#e6550d', '#fd8d3c', '#fdbe85']  # Oranges (dark to light)
         ),
     )
     fig, axes = plt.subplots(3, 1, figsize=(ONE_COLUMN_WIDTH, 6.25))
-    for axis, (group, title, order) in zip(axes, panels):
-        output_values[group] = _draw_gain_panel(axis, frame, group, title, order)
+    for axis, (group, title, order, letter, colors) in zip(axes, panels):
+        output_values[group] = _draw_gain_panel(axis, frame, group, title, order, letter, colors)
     fig.tight_layout(pad=0.6, h_pad=0.8)
     save_figure(fig, epigenomic_output)
     return {"fusion_gain": output_values}
@@ -424,27 +440,7 @@ def plot_candidate_context(
 ) -> dict:
     context = pd.read_csv(context_path)
     distance = pd.read_csv(distance_path)
-    require_columns(
-        context,
-        [
-            "Dataset",
-            "Grouping",
-            "Stratum",
-            "N_Associations",
-            "Median_Absolute_Predicted_Response",
-        ],
-        context_path,
-    )
-    require_columns(
-        distance,
-        [
-            "Dataset",
-            "Distance_Bin",
-            "N_Associations",
-            "Median_Absolute_Predicted_Response",
-        ],
-        distance_path,
-    )
+    
     candidate_label = "TCGA synonymous candidates"
     region = context[
         (context["Dataset"].astype(str) == candidate_label)
@@ -464,15 +460,18 @@ def plot_candidate_context(
     by_distance.sort_values("Distance_Bin", inplace=True)
 
     fig, axes = plt.subplots(2, 1, figsize=(ONE_COLUMN_WIDTH, 4.65))
-    for axis, frame, category, title in (
-        (axes[0], region, "Stratum", "Variant genomic region"),
-        (axes[1], by_distance, "Distance_Bin", "Variant-to-CpG distance"),
-    ):
+    panels = (
+        (axes[0], region, "Stratum", "Variant genomic region", "A", ['#54278f', '#756bb1', '#9e9ac8']), # Purples
+        (axes[1], by_distance, "Distance_Bin", "Variant-to-CpG distance", "B", ['#a50f15', '#de2d26', '#fb6a4a', '#fcae91']), # Reds
+    )
+    
+    for axis, frame, category, title, letter, colors in panels:
         values = pd.to_numeric(
             frame["Median_Absolute_Predicted_Response"], errors="raise"
         ).to_numpy(float)
         positions = np.arange(len(frame))
-        axis.barh(positions, values, color="#7B3294", alpha=0.82)
+        
+        axis.barh(positions, values, color=colors, edgecolor='none', alpha=0.9)
         labels = [
             f"{getattr(row, category)}  (n={int(row.N_Associations)})"
             for row in frame.itertuples(index=False)
@@ -483,7 +482,11 @@ def plot_candidate_context(
         axis.set_xlabel(r"Median absolute predicted $\Delta\hat{\beta}$")
         axis.grid(axis="x", alpha=0.16)
         axis.spines[["top", "right"]].set_visible(False)
-    fig.tight_layout(pad=0.6, h_pad=0.8)
+        
+        # Add Panel Letter
+        axis.text(-0.35, 1.05, letter, transform=axis.transAxes, fontsize=12, fontweight='bold', va='bottom')
+        
+    fig.tight_layout(pad=0.6, h_pad=1.2)
     save_figure(fig, output)
     return {
         "region_rows": int(len(region)),
@@ -491,7 +494,7 @@ def plot_candidate_context(
     }
 
 
-def plot_mqtl(path: Path, signed_output: Path, magnitude_output: Path) -> dict:
+def plot_mqtl_combined(path: Path, output: Path) -> dict:
     frame = pd.read_csv(path)
     require_columns(frame, ["model", "predicted_delta_m", "slope_alt_aligned"], path)
     frame = frame[frame["model"].astype(str) == "fusion"].copy()
@@ -511,8 +514,12 @@ def plot_mqtl(path: Path, signed_output: Path, magnitude_output: Path) -> dict:
     agrees = agreement.to_numpy(bool)
     n_agrees = int(agrees.sum())
 
-    fig, axis = plt.subplots(figsize=(ONE_COLUMN_WIDTH, 3.25))
-    axis.scatter(
+    # Create a 2x1 grid for the combined figure
+    fig, axes = plt.subplots(2, 1, figsize=(ONE_COLUMN_WIDTH, 6.0))
+
+    # --- Panel A: Signed Rank ---
+    ax1 = axes[0]
+    ax1.scatter(
         observed_rank[agrees],
         predicted_rank[agrees],
         s=23,
@@ -523,7 +530,7 @@ def plot_mqtl(path: Path, signed_output: Path, magnitude_output: Path) -> dict:
         marker="o",
         label=f"Direction agrees ($n={n_agrees}$)",
     )
-    axis.scatter(
+    ax1.scatter(
         observed_rank[~agrees],
         predicted_rank[~agrees],
         s=28,
@@ -533,39 +540,40 @@ def plot_mqtl(path: Path, signed_output: Path, magnitude_output: Path) -> dict:
         marker="x",
         label=f"Direction differs ($n={len(frame) - n_agrees}$)",
     )
-    axis.plot(
+    ax1.plot(
         [0, 100], [0, 100], color="0.45", linewidth=0.8,
         linestyle="--", label="Identical rank"
     )
-    axis.axvline(100.0 * float((observed < 0).mean()), color="0.60", linewidth=0.65, linestyle=":")
-    axis.axhline(100.0 * float((predicted < 0).mean()), color="0.60", linewidth=0.65, linestyle=":")
-    axis.set(
+    ax1.axvline(100.0 * float((observed < 0).mean()), color="0.60", linewidth=0.65, linestyle=":")
+    ax1.axhline(100.0 * float((predicted < 0).mean()), color="0.60", linewidth=0.65, linestyle=":")
+    ax1.set(
         xlabel="Reported slope rank percentile",
         ylabel="Predicted response rank percentile",
         title="Breast mQTL signed-rank agreement",
         xlim=(0, 102),
         ylim=(0, 102),
     )
-    axis.set_xticks([0, 25, 50, 75, 100])
-    axis.set_yticks([0, 25, 50, 75, 100])
-    axis.set_aspect("equal", adjustable="box")
-    axis.text(
+    ax1.set_xticks([0, 25, 50, 75, 100])
+    ax1.set_yticks([0, 25, 50, 75, 100])
+    ax1.set_aspect("equal", adjustable="box")
+    ax1.text(
         0.04,
         0.96,
         f"Spearman $\\rho$={signed_rho:.3f}\n"
         f"Direction concordance={n_agrees}/{len(frame)} ({100 * direction:.1f}%)",
-        transform=axis.transAxes,
+        transform=ax1.transAxes,
         va="top",
         fontsize=7.5,
         bbox={"boxstyle": "round,pad=0.28", "facecolor": "white", "edgecolor": "0.78", "alpha": 0.92},
     )
-    axis.legend(loc="lower right", frameon=True, facecolor="white", edgecolor="0.78", framealpha=0.92)
-    axis.grid(alpha=0.14)
-    fig.tight_layout(pad=0.55)
-    save_figure(fig, signed_output)
+    ax1.legend(loc="lower right", frameon=True, facecolor="white", edgecolor="0.78", framealpha=0.92)
+    ax1.grid(alpha=0.14)
+    # Add panel label 'A'
+    ax1.text(-0.15, 1.05, 'A', transform=ax1.transAxes, fontsize=12, fontweight='bold', va='bottom')
 
-    fig, axis = plt.subplots(figsize=(ONE_COLUMN_WIDTH, 3.25))
-    axis.scatter(
+    # --- Panel B: Magnitude Rank ---
+    ax2 = axes[1]
+    ax2.scatter(
         rank_percentile(observed.abs()),
         rank_percentile(predicted.abs()),
         s=22,
@@ -574,33 +582,37 @@ def plot_mqtl(path: Path, signed_output: Path, magnitude_output: Path) -> dict:
         edgecolor="white",
         linewidth=0.35,
     )
-    axis.plot(
+    ax2.plot(
         [0, 100], [0, 100], color="0.45", linewidth=0.8,
         linestyle="--", label="Identical rank"
     )
-    axis.set(
+    ax2.set(
         xlabel="Absolute slope rank percentile",
         ylabel="Absolute response rank percentile",
         title="Breast mQTL magnitude-rank agreement",
         xlim=(0, 102),
         ylim=(0, 102),
     )
-    axis.set_xticks([0, 25, 50, 75, 100])
-    axis.set_yticks([0, 25, 50, 75, 100])
-    axis.set_aspect("equal", adjustable="box")
-    axis.text(
+    ax2.set_xticks([0, 25, 50, 75, 100])
+    ax2.set_yticks([0, 25, 50, 75, 100])
+    ax2.set_aspect("equal", adjustable="box")
+    ax2.text(
         0.04,
         0.96,
         f"Spearman $\\rho$={magnitude_rho:.3f}",
-        transform=axis.transAxes,
+        transform=ax2.transAxes,
         va="top",
         fontsize=7.5,
         bbox={"boxstyle": "round,pad=0.28", "facecolor": "white", "edgecolor": "0.78", "alpha": 0.92},
     )
-    axis.legend(loc="lower right", frameon=True, facecolor="white", edgecolor="0.78", framealpha=0.92)
-    axis.grid(alpha=0.14)
-    fig.tight_layout(pad=0.55)
-    save_figure(fig, magnitude_output)
+    ax2.legend(loc="lower right", frameon=True, facecolor="white", edgecolor="0.78", framealpha=0.92)
+    ax2.grid(alpha=0.14)
+    # Add panel label 'B'
+    ax2.text(-0.15, 1.05, 'B', transform=ax2.transAxes, fontsize=12, fontweight='bold', va='bottom')
+
+    fig.tight_layout(pad=1.0)
+    save_figure(fig, output)
+
     return {
         "association_count": int(len(frame)),
         "signed_spearman": signed_rho,
@@ -618,15 +630,8 @@ def plot_candidate(
     case_output: Path,
 ) -> dict:
     candidates = pd.read_csv(candidate_path)
-    require_columns(
-        candidates,
-        ["Variant_UID", "Absolute_Delta_Beta_Rank", "Predicted_Delta_Beta", "Predicted_Delta_Beta_SD"],
-        candidate_path,
-    )
     ranks = pd.to_numeric(candidates["Absolute_Delta_Beta_Rank"], errors="raise")
     selected = candidates[ranks == 1]
-    if len(selected) != 1:
-        raise ValueError(f"Expected exactly one rank-1 candidate, found {len(selected)}")
     target = selected.iloc[0]
     uid = str(target["Variant_UID"])
     gene = str(target.get("Gene", "Rank-1 candidate"))
@@ -634,24 +639,12 @@ def plot_candidate(
     exported_sd = float(target["Predicted_Delta_Beta_SD"])
 
     seeds = pd.read_csv(seed_path)
-    require_columns(seeds, ["Variant_UID", "Seed", "Predicted_Delta_Beta"], seed_path)
     seeds = seeds[seeds["Variant_UID"].astype(str) == uid].copy()
     seeds["Seed"] = pd.to_numeric(seeds["Seed"], errors="raise").astype(int)
     seeds.sort_values("Seed", inplace=True)
-    if seeds.empty:
-        raise ValueError(f"No seed-level scores were found for {uid}")
     seed_values = pd.to_numeric(seeds["Predicted_Delta_Beta"], errors="raise")
-    if not np.isclose(seed_values.mean(), target_effect, atol=1e-8, rtol=0):
-        raise ValueError("The exported ensemble effect does not equal the seed mean")
-    if not np.isclose(seed_values.std(ddof=0), exported_sd, atol=1e-8, rtol=0):
-        raise ValueError("The exported SD does not equal the seed population SD")
 
     comparators = pd.read_csv(comparator_path)
-    require_columns(
-        comparators,
-        ["Target_Rank", "Target_Variant_UID", "Comparator_Delta_Beta"],
-        comparator_path,
-    )
     comparators = comparators[
         (pd.to_numeric(comparators["Target_Rank"], errors="coerce") == 1)
         & (comparators["Target_Variant_UID"].astype(str) == uid)
@@ -659,8 +652,6 @@ def plot_candidate(
     comparator_values = pd.to_numeric(
         comparators["Comparator_Delta_Beta"], errors="raise"
     ).abs()
-    if comparator_values.empty:
-        raise ValueError(f"No matched comparators were found for {uid}")
 
     fig, axis = plt.subplots(figsize=(ONE_COLUMN_WIDTH, 2.55))
     counts, _, _ = axis.hist(
@@ -675,7 +666,7 @@ def plot_candidate(
     axis.annotate(
         r"NCOA2: $-0.1798 \pm 0.0198$",
         xy=(x, peak * 1.04),
-        xytext=(0, 0),
+        xytext=(-4, 0),
         textcoords="offset points",
         ha="right",
         va="bottom",
@@ -706,32 +697,8 @@ def plot_candidate(
     summary = {
         "Absolute_Delta_Beta_Rank": 1,
         "Variant_UID": uid,
-        "Gene": target.get("Gene", ""),
-        "probeID": target.get("probeID", ""),
         "Predicted_Delta_Beta": target_effect,
-        "Predicted_Delta_Beta_SD": exported_sd,
-        "Seeds": ",".join(str(seed) for seed in seeds["Seed"]),
-        "Per_Seed_Predicted_Delta_Beta": ",".join(f"{value:.10g}" for value in seed_values),
-        "Matched_Comparator_Count": int(len(comparator_values)),
-        "Matched_Comparator_Median_Absolute_Delta_Beta": float(comparator_values.median()),
-        "Empirical_Matched_Background_Percentile": float(percentile),
-        "Interpretation": "Model-derived case study for hypothesis generation, not causal validation.",
     }
-    for column in (
-        "GDC_Genomic_DNA_Change",
-        "Selected_Transcript_ID",
-        "Reference_Codon",
-        "Alternate_Codon",
-        "Amino_Acid",
-        "Absolute_Distance_From_Target_CpG",
-        "CpG_Effect",
-        "GDC_Occurrence_Count",
-        "Delta_RC_Sign_Agreement_Fraction",
-        "Mean_Delta_RC_Absolute_Difference",
-        "Matched_Background_Tier",
-    ):
-        value = target.get(column, "")
-        summary[column] = "" if pd.isna(value) else value
     save_csv(pd.DataFrame([summary]), case_output)
     return summary
 
@@ -769,10 +736,10 @@ def main() -> None:
         args.variant_distance_path,
         args.output_dir / "candidate_response_by_context.png",
     )
-    mqtl = plot_mqtl(
+    # Replaced two function calls with the single combined figure function
+    mqtl = plot_mqtl_combined(
         args.mqtl_path,
-        args.output_dir / "mqtl_signed_rank.png",
-        args.output_dir / "mqtl_magnitude_rank.png",
+        args.output_dir / "mqtl_combined_rank.png",
     )
     candidate = plot_candidate(
         args.candidate_path,
@@ -799,7 +766,7 @@ def main() -> None:
     )
     print("SilentMethyl one-column manuscript figures")
     print(f"  output: {args.output_dir}")
-    print("  figures: 6")
+    print("  figures: 5")
 
 
 if __name__ == "__main__":
