@@ -192,7 +192,8 @@ def load_gencode_regions(
     if not path.is_file():
         raise FileNotFoundError(path)
     raw: dict[str, dict[str, list[tuple[int, int]]]] = {
-        chrom: {"promoter": [], "utr": [], "gene": []} for chrom in chromosomes
+        chrom: {"promoter": [], "utr": [], "transcript": []}
+        for chrom in chromosomes
     }
     opener = gzip.open if path.suffix == ".gz" else open
     with opener(path, "rt") as handle:
@@ -206,11 +207,16 @@ def load_gencode_regions(
             if chrom not in raw:
                 continue
             feature = fields[2]
-            if feature not in {"transcript", "UTR", "gene"}:
+            if feature not in {"transcript", "UTR"}:
                 continue
             start, end = int(fields[3]), int(fields[4])
             strand = fields[6]
             if feature == "transcript":
+                # Use the union of annotated transcript spans for the gene-body
+                # category.  A GTF gene span can bridge bases that are outside
+                # every transcript when a gene has separated isoforms, which
+                # incorrectly inflates the gene-body class.
+                raw[chrom]["transcript"].append((start, end))
                 tss = start if strand == "+" else end
                 if strand == "+":
                     promoter = (max(1, tss - 1500), tss + 200)
@@ -219,8 +225,6 @@ def load_gencode_regions(
                 raw[chrom]["promoter"].append(promoter)
             elif feature == "UTR":
                 raw[chrom]["utr"].append((start, end))
-            elif feature == "gene":
-                raw[chrom]["gene"].append((start, end))
 
     return {
         chrom: {name: _merge_intervals(values) for name, values in groups.items()}
@@ -231,21 +235,49 @@ def load_gencode_regions(
 def annotate_genomic_region(test: pd.DataFrame, gtf_path: Path) -> pd.DataFrame:
     intervals = load_gencode_regions(gtf_path, set(test["chr"].astype(str)))
     labels: list[str] = []
+    overlap_sets: list[str] = []
+    promoter_hits: list[bool] = []
+    utr_hits: list[bool] = []
+    transcript_hits: list[bool] = []
     for row in test[["chr", "pos"]].itertuples(index=False):
+        # Model/HM450 positions are 0-based; GTF coordinates are 1-based,
+        # closed intervals.
         position_1based = int(row.pos) + 1
         chrom = str(row.chr)
         groups = intervals.get(chrom, {})
-        if _contains(groups.get("promoter", ([], [])), position_1based):
+        promoter_hit = _contains(groups.get("promoter", ([], [])), position_1based)
+        utr_hit = _contains(groups.get("utr", ([], [])), position_1based)
+        transcript_hit = _contains(groups.get("transcript", ([], [])), position_1based)
+        promoter_hits.append(promoter_hit)
+        utr_hits.append(utr_hit)
+        transcript_hits.append(transcript_hit)
+
+        # The categories are deliberately exclusive. A base can overlap the
+        # promoter of one transcript and the UTR/body of another, so priority
+        # must be applied after recording all overlaps.
+        if promoter_hit:
             label = "Promoter/TSS"
-        elif _contains(groups.get("utr", ([], [])), position_1based):
+        elif utr_hit:
             label = "UTR"
-        elif _contains(groups.get("gene", ([], [])), position_1based):
+        elif transcript_hit:
             label = "Gene body"
         else:
             label = "Intergenic"
         labels.append(label)
+        names = []
+        if promoter_hit:
+            names.append("Promoter/TSS")
+        if utr_hit:
+            names.append("UTR")
+        if transcript_hit:
+            names.append("Transcript span")
+        overlap_sets.append("; ".join(names) if names else "None")
     annotated = test.copy()
     annotated["Genomic_Region"] = labels
+    annotated["Promoter_TSS_Overlap"] = promoter_hits
+    annotated["UTR_Overlap"] = utr_hits
+    annotated["Transcript_Span_Overlap"] = transcript_hits
+    annotated["Genomic_Region_Overlap_Set"] = overlap_sets
     return annotated
 
 
@@ -704,7 +736,55 @@ def annotate_candidate_variant_regions(
     annotated["Variant_Genomic_Region"] = annotated_positions[
         "Genomic_Region"
     ].to_numpy()
+    for source, target in (
+        ("Promoter_TSS_Overlap", "Variant_Promoter_TSS_Overlap"),
+        ("UTR_Overlap", "Variant_UTR_Overlap"),
+        ("Transcript_Span_Overlap", "Variant_Transcript_Span_Overlap"),
+        ("Genomic_Region_Overlap_Set", "Variant_Genomic_Region_Overlap_Set"),
+    ):
+        annotated[target] = annotated_positions[source].to_numpy()
     return annotated
+
+
+def genomic_region_audit(
+    loci: pd.DataFrame,
+    candidates: pd.DataFrame,
+) -> pd.DataFrame:
+    """Return final-category and raw-overlap counts for manual verification."""
+    rows: list[dict[str, object]] = []
+    specifications = (
+        (
+            "Held-out target CpGs",
+            loci,
+            "Genomic_Region",
+            "Genomic_Region_Overlap_Set",
+        ),
+        (
+            "Candidate variant positions",
+            candidates,
+            "Variant_Genomic_Region",
+            "Variant_Genomic_Region_Overlap_Set",
+        ),
+    )
+    for dataset, frame, category_column, overlap_column in specifications:
+        total = int(len(frame))
+        for value, count in frame[category_column].value_counts(dropna=False).items():
+            rows.append({
+                "Dataset": dataset,
+                "Audit_Type": "Exclusive final category",
+                "Label": "Missing" if pd.isna(value) else str(value),
+                "N": int(count),
+                "Percent": 100.0 * int(count) / total if total else float("nan"),
+            })
+        for value, count in frame[overlap_column].value_counts(dropna=False).items():
+            rows.append({
+                "Dataset": dataset,
+                "Audit_Type": "Raw annotation overlap set",
+                "Label": "Missing" if pd.isna(value) else str(value),
+                "N": int(count),
+                "Percent": 100.0 * int(count) / total if total else float("nan"),
+            })
+    return pd.DataFrame(rows)
 
 
 def plot_context_gain(gain: pd.DataFrame, output_path: Path) -> None:
@@ -892,6 +972,10 @@ def main() -> None:
         "chr",
         "pos",
         "Genomic_Region",
+        "Promoter_TSS_Overlap",
+        "UTR_Overlap",
+        "Transcript_Span_Overlap",
+        "Genomic_Region_Overlap_Set",
         "CpG_Island_Context",
         "Ref_ATAC_Signal",
         "Ref_ATAC_Signal_Missing",
@@ -906,6 +990,11 @@ def main() -> None:
         args.candidate_path, args.mqtl_path
     )
     candidates = annotate_candidate_variant_regions(candidates, args.gencode_gtf)
+    assignment_audit = genomic_region_audit(locus_assignments, candidates)
+    atomic_csv(
+        assignment_audit,
+        output / "genomic_region_classification_audit.csv",
+    )
     atomic_csv(distance_summary, output / "variant_response_by_distance.csv")
     response_context = summarize_variant_context(
         candidates,
@@ -948,8 +1037,13 @@ def main() -> None:
         "genomic_region_strata": list(GENOMIC_REGION_ORDER),
         "genomic_region_definition": (
             "Exclusive hierarchy: GENCODE v44 transcript TSS -1500/+200 bp; "
-            "then GENCODE UTR; then GENCODE gene span; otherwise intergenic."
+            "then explicit GENCODE UTR features; then the union of GENCODE "
+            "transcript spans; otherwise intergenic. Input positions are "
+            "0-based and converted to the GTF's 1-based closed coordinates."
         ),
+        "genomic_region_audit_file": (
+            output / "genomic_region_classification_audit.csv"
+        ).as_posix(),
         "cpg_island_strata": list(ISLAND_ORDER) + ["Unclassified"],
     }
     atomic_json(payload, output / "run_summary.json")
