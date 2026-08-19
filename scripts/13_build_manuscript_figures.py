@@ -522,21 +522,21 @@ def plot_mqtl_combined(path: Path, output: Path) -> dict:
     ax1.scatter(
         observed_rank[agrees],
         predicted_rank[agrees],
-        s=23,
-        alpha=0.82,
+        s=18,
+        alpha=0.76,
         color="#2F6F9F",
         edgecolor="white",
-        linewidth=0.35,
+        linewidth=0.3,
         marker="o",
         label=f"Direction agrees ($n={n_agrees}$)",
     )
     ax1.scatter(
         observed_rank[~agrees],
         predicted_rank[~agrees],
-        s=28,
-        alpha=0.95,
+        s=20,
+        alpha=0.9,
         color="#D98C3F",
-        linewidth=1.35,
+        linewidth=1.1,
         marker="x",
         label=f"Direction differs ($n={len(frame) - n_agrees}$)",
     )
@@ -557,16 +557,26 @@ def plot_mqtl_combined(path: Path, output: Path) -> dict:
     ax1.set_yticks([0, 25, 50, 75, 100])
     ax1.set_aspect("equal", adjustable="box")
     ax1.text(
-        0.04,
-        0.96,
+        0.98,
+        0.98,
         f"Spearman $\\rho$={signed_rho:.3f}\n"
         f"Direction concordance={n_agrees}/{len(frame)} ({100 * direction:.1f}%)",
         transform=ax1.transAxes,
         va="top",
-        fontsize=7.5,
-        bbox={"boxstyle": "round,pad=0.28", "facecolor": "white", "edgecolor": "0.78", "alpha": 0.92},
+        ha="right",
+        fontsize=6.8,
+        bbox={"boxstyle": "round,pad=0.22", "facecolor": "white", "edgecolor": "0.78", "alpha": 0.9},
     )
-    ax1.legend(loc="lower right", frameon=True, facecolor="white", edgecolor="0.78", framealpha=0.92)
+    ax1.legend(
+        loc="upper left",
+        bbox_to_anchor=(0.02, 0.96),
+        frameon=True,
+        facecolor="white",
+        edgecolor="0.78",
+        framealpha=0.9,
+        fontsize=7.5,
+        borderaxespad=0.2,
+    )
     ax1.grid(alpha=0.14)
     # Add panel label 'A'
     ax1.text(-0.15, 1.05, 'A', transform=ax1.transAxes, fontsize=12, fontweight='bold', va='bottom')
@@ -576,11 +586,11 @@ def plot_mqtl_combined(path: Path, output: Path) -> dict:
     ax2.scatter(
         rank_percentile(observed.abs()),
         rank_percentile(predicted.abs()),
-        s=22,
-        alpha=0.78,
+        s=18,
+        alpha=0.76,
         color="#B24C63",
         edgecolor="white",
-        linewidth=0.35,
+        linewidth=0.3,
     )
     ax2.plot(
         [0, 100], [0, 100], color="0.45", linewidth=0.8,
@@ -597,15 +607,25 @@ def plot_mqtl_combined(path: Path, output: Path) -> dict:
     ax2.set_yticks([0, 25, 50, 75, 100])
     ax2.set_aspect("equal", adjustable="box")
     ax2.text(
-        0.04,
-        0.96,
+        0.98,
+        0.98,
         f"Spearman $\\rho$={magnitude_rho:.3f}",
         transform=ax2.transAxes,
         va="top",
-        fontsize=7.5,
-        bbox={"boxstyle": "round,pad=0.28", "facecolor": "white", "edgecolor": "0.78", "alpha": 0.92},
+        ha="right",
+        fontsize=6.8,
+        bbox={"boxstyle": "round,pad=0.22", "facecolor": "white", "edgecolor": "0.78", "alpha": 0.9},
     )
-    ax2.legend(loc="lower right", frameon=True, facecolor="white", edgecolor="0.78", framealpha=0.92)
+    ax2.legend(
+        loc="upper left",
+        bbox_to_anchor=(0.02, 0.96),
+        frameon=True,
+        facecolor="white",
+        edgecolor="0.78",
+        framealpha=0.9,
+        fontsize=7.5,
+        borderaxespad=0.2,
+    )
     ax2.grid(alpha=0.14)
     # Add panel label 'B'
     ax2.text(-0.15, 1.05, 'B', transform=ax2.transAxes, fontsize=12, fontweight='bold', va='bottom')
