@@ -293,9 +293,9 @@ def clinvar_to_candidates(
         gene = query_gene if query_gene in genes or not genes else genes[0]
         classification = summary.get("germline_classification", {}) or {}
         significance = str(classification.get("description", ""))
-        # ClinVar's search index can lag behind a record's current assertion.
-        # Recheck the live summary so a pathogenic query cannot retain a record
-        # that is now classified only as uncertain/benign.
+                                                                             
+                                                                               
+                                                          
         if search_mode == "pathogenic" and "pathogenic" not in significance.lower():
             continue
         if search_mode == "breast" and any(

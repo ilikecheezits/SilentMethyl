@@ -237,7 +237,7 @@ def plot_performance(path: Path, output: Path) -> dict:
         axis.grid(axis="y", alpha=0.18)
         axis.spines[["top", "right"]].set_visible(False)
         
-        # Add Panel Letter
+                          
         axis.text(-0.25, 1.05, letter, transform=axis.transAxes, fontsize=12, fontweight='bold', va='bottom')
 
     fig.tight_layout(pad=0.4, w_pad=0.8)
@@ -369,7 +369,7 @@ def _draw_gain_panel(
     axis.grid(axis="x", alpha=0.16)
     axis.spines[["top", "right"]].set_visible(False)
     
-    # Add Panel Letter
+                      
     if panel_letter:
         axis.text(-0.35, 1.05, panel_letter, transform=axis.transAxes, fontsize=12, fontweight='bold', va='bottom')
         
@@ -408,21 +408,21 @@ def plot_context(path: Path, region_output: Path, epigenomic_output: Path) -> di
             "CpG island relation",
             ["Island", "Shore", "Shelf", "Open sea"],
             "A",
-            ['#006d2c', '#31a354', '#74c476', '#bae4b3']  # Greens (dark to light)
+            ['#006d2c', '#31a354', '#74c476', '#bae4b3']                          
         ),
         (
             "ATAC_Stratum", 
             "ATAC signal", 
             ["Q1 low", "Q2", "Q3", "Q4 high"],
             "B",
-            ['#08519c', '#3182bd', '#6baed6', '#bdd7e7']  # Blues (dark to light)
+            ['#08519c', '#3182bd', '#6baed6', '#bdd7e7']                         
         ),
         (
             "H3K27ac_Stratum",
             "H3K27ac signal",
             ["Q1 low", "Q2", "Q3", "Q4 high"],
             "C",
-            ['#a63603', '#e6550d', '#fd8d3c', '#fdbe85']  # Oranges (dark to light)
+            ['#a63603', '#e6550d', '#fd8d3c', '#fdbe85']                           
         ),
     )
     fig, axes = plt.subplots(3, 1, figsize=(ONE_COLUMN_WIDTH, 6.25))
@@ -461,8 +461,8 @@ def plot_candidate_context(
 
     fig, axes = plt.subplots(2, 1, figsize=(ONE_COLUMN_WIDTH, 4.65))
     panels = (
-        (axes[0], region, "Stratum", "Variant genomic region", "A", ['#54278f', '#756bb1', '#9e9ac8']), # Purples
-        (axes[1], by_distance, "Distance_Bin", "Variant-to-CpG distance", "B", ['#a50f15', '#de2d26', '#fb6a4a', '#fcae91']), # Reds
+        (axes[0], region, "Stratum", "Variant genomic region", "A", ['#54278f', '#756bb1', '#9e9ac8']),          
+        (axes[1], by_distance, "Distance_Bin", "Variant-to-CpG distance", "B", ['#a50f15', '#de2d26', '#fb6a4a', '#fcae91']),       
     )
     
     for axis, frame, category, title, letter, colors in panels:
@@ -483,7 +483,7 @@ def plot_candidate_context(
         axis.grid(axis="x", alpha=0.16)
         axis.spines[["top", "right"]].set_visible(False)
         
-        # Add Panel Letter
+                          
         axis.text(-0.35, 1.05, letter, transform=axis.transAxes, fontsize=12, fontweight='bold', va='bottom')
         
     fig.tight_layout(pad=0.6, h_pad=1.2)
@@ -514,10 +514,10 @@ def plot_mqtl_combined(path: Path, output: Path) -> dict:
     agrees = agreement.to_numpy(bool)
     n_agrees = int(agrees.sum())
 
-    # Create a 2x1 grid for the combined figure
+                                               
     fig, axes = plt.subplots(2, 1, figsize=(ONE_COLUMN_WIDTH, 6.1))
 
-    # --- Panel A: Signed Rank ---
+                                  
     ax1 = axes[0]
     ax1.scatter(
         observed_rank[agrees],
@@ -579,7 +579,7 @@ def plot_mqtl_combined(path: Path, output: Path) -> dict:
     ax1.grid(alpha=0.14)
     ax1.text(-0.15, 1.05, 'A', transform=ax1.transAxes, fontsize=12, fontweight='bold', va='bottom')
 
-    # --- Panel B: Magnitude Rank ---
+                                     
     ax2 = axes[1]
     ax2.scatter(
         rank_percentile(observed.abs()),
@@ -752,7 +752,7 @@ def main() -> None:
         args.variant_distance_path,
         args.output_dir / "candidate_response_by_context.png",
     )
-    # Replaced two function calls with the single combined figure function
+                                                                          
     mqtl = plot_mqtl_combined(
         args.mqtl_path,
         args.output_dir / "mqtl_combined_rank.png",
