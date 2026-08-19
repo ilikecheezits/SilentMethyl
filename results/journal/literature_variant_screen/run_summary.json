@@ -1,0 +1,27 @@
+{
+  "analysis_status": "COMPLETE",
+  "eligible_before_publication_check": 324,
+  "eligible_published_candidates_for_scoring": 323,
+  "exact_external_breast_mQTL_rows_found": 0,
+  "excluded_as_existing_TCGA_variant": 0,
+  "excluded_as_existing_mQTL_variant": 0,
+  "input_sha256": {
+    "data/datafiles/testing_data.csv": "0313ed7742e3851e5cd0fb20d7e890dab71ba33b6e12167e184e7d53507f8f92",
+    "data/egtex_breast_mqtl_heldout_qc.csv": "c1db475c1064e4cbe1f14dc9929cf7fa73ca8e6938da918b215d9223bc1b24dd",
+    "scripts/literature_breast_variant_seeds.csv": "ac3b1b9e74df6df3e05d4fea978686c64e7550748a13b69e88d0f7593b179395"
+  },
+  "resolved_unique_GRCh38_SNVs": 1318,
+  "scored_variant_cpg_pairs": 322,
+  "script_version": "1.0.0",
+  "selection_policy": [
+    "Prefer held-out chr8/9 target CpGs with an exact independent breast-mQTL pair.",
+    "Otherwise use the largest held-out chr8/9 response and label it exploratory.",
+    "Validation and training split results are illustrations, not independent validation.",
+    "A selected maximum is discovery-biased and requires experimental follow-up."
+  ],
+  "selection_tier_counts": {
+    "2_heldout_test_exploratory": 47,
+    "3_validation_split_exploratory": 5,
+    "4_training_split_illustration_only": 270
+  }
+}
