@@ -241,11 +241,55 @@ python -u scripts/12_biological_context_analysis.py \
 python -u scripts/13_build_manuscript_figures.py
 ```
 
-The repo's active application example is the known-variant workflow implemented in `scripts/14_known_variant_application.py`. The legacy `literature_variant_screen` pipeline and its markdown/test artifacts are intentionally retired and absent from the supported command sequence above.
+## 7. Active application workflow: script 14
+
+The active application example is the known-variant workflow implemented in `scripts/14_known_variant_application.py`. This script scores a user-supplied candidate SNV (or the built-in MLH1 example) against every eligible model-visible HM450 CpG in the frozen model window, keeps the nearest model-visible target as the primary display locus, and writes the rank/annotation summary under `results/journal/known_variant_application/`.
+
+Run the default built-in example:
+
+```bash
+python -u scripts/14_known_variant_application.py \
+  --seeds 42 43 44 \
+  --output-dir results/journal/known_variant_application
+```
+
+Run a custom SNV list from a CSV containing at least `Variant_ID, Gene, chr, Position_1based, Ref, Alt`:
+
+```bash
+python -u scripts/14_known_variant_application.py \
+  --variant-csv path/to/your_variants.csv \
+  --seeds 42 43 44 \
+  --output-dir results/journal/known_variant_application
+```
+
+This script is the supported demonstration workflow for disease- or gene-linked application examples. It is not a benchmark validation step and it deliberately uses the existing model visibility rules rather than a literature-only ranking.
+
+## 8. Legacy literature screen: script 15
+
+The literature-based variant screen in `scripts/15_literature_variant_screen.py` is historical and optional. It was used to assemble a broad breast-cancer literature/ClinVar candidate pool, filter it against the project's existing benchmark and HM450 window rules, and then hand the eligible SNVs to script 14 for scoring. This script is not part of the default analysis workflow and should only be run when reproducing the retired screen or generating historical discovery panels.
+
+If you are restoring the legacy files from an archived branch or release tarball, copy them into place before running:
+
+```bash
+cp literature_variant_screen/15_literature_variant_screen.py scripts/
+cp literature_variant_screen/literature_breast_variant_seeds.csv scripts/
+```
+
+Then export your NCBI email and run the preparation step (which only assembles and audits candidates without scoring them):
+
+```bash
+export NCBI_EMAIL="your_email@example.edu"
+
+python -u scripts/15_literature_variant_screen.py \
+  --prepare-only \
+  2>&1 | tee logs/experiments/15_literature_variant_screen.log
+```
+
+To run the full historical screen after the preparation step, omit `--prepare-only` and allow the script to query ClinVar / PubMed and score the eligible candidates using the active known-variant application workflow. This mode is discovery-oriented and should be treated as a historical screening tool, not as a primary validation analysis.
 
 Do not use smoke-test row limits or automatic mixed precision for the reportable candidate or mQTL analyses.
 
-## 7. Confirm the primary outputs
+## 9. Confirm the primary outputs
 
 The repo expects these files to exist and be valid JSON when the analysis is complete:
 
