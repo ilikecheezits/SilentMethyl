@@ -248,9 +248,10 @@ def annotate_genomic_region(test: pd.DataFrame, gtf_path: Path) -> pd.DataFrame:
         promoter_hit = _contains(groups.get("promoter", ([], [])), position_1based)
         utr_hit = _contains(groups.get("utr", ([], [])), position_1based)
         transcript_hit = _contains(groups.get("transcript", ([], [])), position_1based)
+        gene_body_hit = transcript_hit and not utr_hit
         promoter_hits.append(promoter_hit)
         utr_hits.append(utr_hit)
-        transcript_hits.append(transcript_hit)
+        transcript_hits.append(gene_body_hit)
 
         # The categories are deliberately exclusive. A base can overlap the
         # promoter of one transcript and the UTR/body of another, so priority
@@ -259,7 +260,7 @@ def annotate_genomic_region(test: pd.DataFrame, gtf_path: Path) -> pd.DataFrame:
             label = "Promoter/TSS"
         elif utr_hit:
             label = "UTR"
-        elif transcript_hit:
+        elif gene_body_hit:
             label = "Gene body"
         else:
             label = "Intergenic"
@@ -271,6 +272,10 @@ def annotate_genomic_region(test: pd.DataFrame, gtf_path: Path) -> pd.DataFrame:
             names.append("UTR")
         if transcript_hit:
             names.append("Transcript span")
+        if promoter_hit or utr_hit or gene_body_hit:
+            # Preserve the raw overlap audit without allowing a UTR hit to be
+            # reclassified as the gene-body final label.
+            names = [name for name in names if name != "Transcript span" or gene_body_hit]
         overlap_sets.append("; ".join(names) if names else "None")
     annotated = test.copy()
     annotated["Genomic_Region"] = labels
