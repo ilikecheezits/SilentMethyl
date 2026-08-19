@@ -238,7 +238,7 @@ def plot_performance(path: Path, output: Path) -> dict:
         axis.spines[["top", "right"]].set_visible(False)
         
                           
-        axis.text(-0.25, 1.05, letter, transform=axis.transAxes, fontsize=12, fontweight='bold', va='bottom')
+        axis.text(-0.34, 1.05, letter, transform=axis.transAxes, fontsize=12, fontweight='bold', va='bottom')
 
     fig.tight_layout(pad=0.4, w_pad=0.8)
     save_figure(fig, output)
@@ -577,7 +577,7 @@ def plot_mqtl_combined(path: Path, output: Path) -> dict:
         borderaxespad=0.2,
     )
     ax1.grid(alpha=0.14)
-    ax1.text(-0.15, 1.05, 'A', transform=ax1.transAxes, fontsize=12, fontweight='bold', va='bottom')
+    ax1.text(-0.18, 1.05, 'A', transform=ax1.transAxes, fontsize=12, fontweight='bold', va='bottom')
 
                                      
     ax2 = axes[1]
@@ -624,7 +624,7 @@ def plot_mqtl_combined(path: Path, output: Path) -> dict:
         borderaxespad=0.2,
     )
     ax2.grid(alpha=0.14)
-    ax2.text(-0.15, 1.05, 'B', transform=ax2.transAxes, fontsize=12, fontweight='bold', va='bottom')
+    ax2.text(-0.18, 1.05, 'B', transform=ax2.transAxes, fontsize=12, fontweight='bold', va='bottom')
 
     fig.tight_layout(pad=0.8)
     save_figure(fig, output)
