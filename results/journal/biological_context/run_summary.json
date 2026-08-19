@@ -23,7 +23,8 @@
     "101--250",
     "251--500"
   ],
-  "genomic_region_definition": "Exclusive hierarchy: GENCODE v44 transcript TSS -1500/+200 bp; then GENCODE UTR; then GENCODE gene span; otherwise intergenic.",
+  "genomic_region_audit_file": "results/journal/biological_context/genomic_region_classification_audit.csv",
+  "genomic_region_definition": "Exclusive hierarchy: GENCODE v44 transcript TSS -1500/+200 bp; then explicit GENCODE UTR features; then the union of GENCODE transcript spans; otherwise intergenic. Input positions are 0-based and converted to the GTF's 1-based closed coordinates.",
   "genomic_region_strata": [
     "Promoter/TSS",
     "UTR",
