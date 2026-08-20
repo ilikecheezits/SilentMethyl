@@ -57,6 +57,7 @@
     "results/journal/candidates/candidate_seed_scores_long.csv": "ed1d1dd7b9390babb3e748ecddd65ebcec39a8cf5904fd4d126b9f1ad3dfb8b8",
     "results/journal/candidates/top_candidate_matched_comparators_long.csv": "a62467b787e9797af61b0548668b728fe44376c8dfe633cc6a8f8c245f2f4540",
     "results/journal/egtex_mqtl_positive_control/mqtl_predictions_seed_aggregate.csv": "2d3380bce6956572c02de0380c2cfc3326e301f66f3d892b9a8a8247a574545a",
+    "results/journal/literature_variant_screen/literature_variant_predictions_ranked.csv": "6f998d64dcc4f198f5249d3745f120bb4b1840530edf27a5dfa048d71bac7886",
     "results/journal/paired_model_bootstrap/model_metrics_recomputed.csv": "e624f7d5a2678be5b677934b7f76802a93d004318f42516758ee0c10bbac5a10"
   },
   "manuscript_figures": [
@@ -64,7 +65,8 @@
     "fusion_gain_by_epigenomic_context.png",
     "model_incremental_performance.png",
     "mqtl_combined_rank.png",
-    "top_candidate_matched_background.png"
+    "top_candidate_matched_background.png",
+    "stk11_variants_vs_nonsynonymous_screen.png"
   ],
   "mqtl": {
     "association_count": 81,
@@ -79,6 +81,21 @@
       43,
       44
     ]
+  },
+  "stk11_case_study": {
+    "delta_column": "Predicted_Delta_Beta_Mean",
+    "highlighted_targets": {
+      "rs148928808": {
+        "predicted_delta_beta": -0.0613468686739603,
+        "probeID": "cg08681293"
+      },
+      "rs2145420809": {
+        "predicted_delta_beta": 0.0774335463841756,
+        "probeID": "cg16601904"
+      }
+    },
+    "unique_variant_count": 322,
+    "variant_cpg_pair_count": 322
   },
   "top_candidate": {
     "Absolute_Delta_Beta_Rank": 1,

@@ -840,7 +840,7 @@ def plot_stk11_nonsynonymous_screen(
     variant_count = int(frame["Variant_ID"].astype(str).nunique())
     axis.set_xlabel(r"Predicted $\Delta\hat{\beta}$")
     axis.set_ylabel("Nonsynonymous variants")
-    axis.set_title(r"$\mathit{STK11}$ variants within nonsynonymous background mutations")
+    axis.set_title(r"$\mathit{STK11}$ variants within background mutations")
     axis.grid(axis="y", alpha=0.18)
     axis.spines[["top", "right"]].set_visible(False)
     fig.tight_layout(pad=0.6)
