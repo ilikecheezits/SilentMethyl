@@ -792,18 +792,24 @@ def plot_stk11_nonsynonymous_screen(
 
     values = frame[delta_column].to_numpy(float)
     fig, axis = plt.subplots(figsize=(ONE_COLUMN_WIDTH, 2.65))
+
+    signed_min = float(np.min(values))
+    signed_max = float(np.max(values))
+    margin = max(0.015, 0.12 * max(abs(signed_min), abs(signed_max), 0.05))
+    left = min(-margin, signed_min - 0.02)
+    right = max(margin, signed_max + 0.02)
+    bin_edges = np.linspace(left, right, 28)
+
     counts, _, _ = axis.hist(
         values,
-        bins="auto",
+        bins=bin_edges,
         color="#9ECAE1",
         edgecolor="white",
         linewidth=0.55,
     )
     peak = float(np.max(counts)) if len(counts) else 1.0
-    axis.set_ylim(0, peak * 1.30)
-    span = float(values.max() - values.min())
-    padding = max(0.006, span * 0.07)
-    axis.set_xlim(float(values.min()) - padding, float(values.max()) + padding)
+    axis.set_ylim(0, peak * 1.35)
+    axis.set_xlim(left, right)
     axis.axvline(0, color="0.45", linewidth=0.9, linestyle="--", zorder=2)
 
     for rsid, probe_id, color, delta in targets:
@@ -849,9 +855,9 @@ def plot_stk11_nonsynonymous_screen(
             "alpha": 0.90,
         },
     )
-    axis.set_xlabel(r"Predicted $\Delta\hat{\beta}$ (ALT $-$ REF)")
-    axis.set_ylabel("Variant--CpG pairs")
-    axis.set_title(r"$\mathit{STK11}$ variants within nonsynonymous screen")
+    axis.set_xlabel(r"Predicted $\Delta\hat{\beta}$")
+    axis.set_ylabel("Nonsynonymous variants")
+    axis.set_title(r"$\mathit{STK11}$ variants within nonsynonymous background mutations")
     axis.grid(axis="y", alpha=0.18)
     axis.spines[["top", "right"]].set_visible(False)
     fig.tight_layout(pad=0.6)
