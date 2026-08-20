@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the six one-column SilentMethyl manuscript figures."""
+"""Build the SilentMethyl one-column manuscript figures."""
 
 from __future__ import annotations
 
@@ -30,6 +30,7 @@ MANUSCRIPT_FIGURES = (
     "model_incremental_performance.png",
     "mqtl_combined_rank.png",
     "top_candidate_matched_background.png",
+    "stk11_variants_vs_nonsynonymous_screen.png",
 )
 
 plt.rcParams.update(
@@ -104,6 +105,26 @@ def arguments() -> argparse.Namespace:
         "--case-study-path",
         type=Path,
         default=Path("results/journal/candidates/top_candidate_case_study.csv"),
+    )
+    parser.add_argument(
+        "--literature-variant-path",
+        type=Path,
+        default=Path(
+            "results/journal/literature_variant_screen/"
+            "literature_variant_predictions_ranked.csv"
+        ),
+        help=(
+            "Prespecified model-target rows from the nonsynonymous literature "
+            "screen produced by script 15."
+        ),
+    )
+    parser.add_argument(
+        "--stk11-case-output",
+        type=Path,
+        default=Path(
+            "results/journal/literature_variant_screen/"
+            "stk11_case_study_figure_values.csv"
+        ),
     )
     parser.add_argument(
         "--genomic-region-output",
@@ -719,6 +740,156 @@ def plot_candidate(
     return summary
 
 
+def plot_stk11_nonsynonymous_screen(
+    literature_variant_path: Path,
+    output: Path,
+    case_output: Path,
+) -> dict:
+    """Place the two STK11 examples in the full protein-altering screen."""
+    frame = pd.read_csv(literature_variant_path)
+    require_columns(frame, ["Variant_ID", "probeID"], literature_variant_path)
+    delta_column = next(
+        (
+            name
+            for name in ("Predicted_Delta_Beta_Mean", "Predicted_Delta_Beta")
+            if name in frame.columns
+        ),
+        None,
+    )
+    if delta_column is None:
+        raise ValueError(
+            f"{literature_variant_path} lacks a predicted delta-beta column"
+        )
+
+    # The ranked file should contain prespecified application targets only.
+    # Deduplicate exact variant--CpG pairs defensively without collapsing
+    # genuinely distinct CpG targets for the same variant.
+    frame = frame.copy()
+    frame[delta_column] = pd.to_numeric(frame[delta_column], errors="raise")
+    frame = frame[np.isfinite(frame[delta_column])].copy()
+    frame.drop_duplicates(["Variant_ID", "probeID"], inplace=True)
+    if frame.empty:
+        raise ValueError(f"No finite predictions in {literature_variant_path}")
+
+    target_specs = (
+        ("rs2145420809:A>G", "cg16601904", "#2A9D8F"),
+        ("rs148928808:C>G", "cg08681293", "#D95F02"),
+    )
+    targets: list[tuple[str, str, str, float]] = []
+    for variant_id, probe_id, color in target_specs:
+        selected = frame[
+            frame["Variant_ID"].astype(str).eq(variant_id)
+            & frame["probeID"].astype(str).eq(probe_id)
+        ]
+        if len(selected) != 1:
+            raise ValueError(
+                f"Expected exactly one row for {variant_id}--{probe_id} in "
+                f"{literature_variant_path}, found {len(selected)}"
+            )
+        targets.append(
+            (variant_id.split(":", 1)[0], probe_id, color, float(selected.iloc[0][delta_column]))
+        )
+
+    values = frame[delta_column].to_numpy(float)
+    fig, axis = plt.subplots(figsize=(ONE_COLUMN_WIDTH, 2.65))
+    counts, _, _ = axis.hist(
+        values,
+        bins="auto",
+        color="#9ECAE1",
+        edgecolor="white",
+        linewidth=0.55,
+    )
+    peak = float(np.max(counts)) if len(counts) else 1.0
+    axis.set_ylim(0, peak * 1.30)
+    span = float(values.max() - values.min())
+    padding = max(0.006, span * 0.07)
+    axis.set_xlim(float(values.min()) - padding, float(values.max()) + padding)
+    axis.axvline(0, color="0.45", linewidth=0.9, linestyle="--", zorder=2)
+
+    for rsid, probe_id, color, delta in targets:
+        axis.axvline(delta, color=color, linewidth=2.0, zorder=4, clip_on=False)
+        is_positive = delta > 0
+        axis.annotate(
+            f"{rsid}\n{delta:+.4f}",
+            xy=(delta, peak * 1.05),
+            xytext=(-4 if is_positive else 4, 0),
+            textcoords="offset points",
+            ha="right" if is_positive else "left",
+            va="bottom",
+            fontsize=6.9,
+            color=color,
+            clip_on=False,
+            annotation_clip=False,
+            zorder=5,
+            bbox={
+                "boxstyle": "round,pad=0.25",
+                "facecolor": "white",
+                "edgecolor": color,
+                "linewidth": 0.9,
+                "alpha": 0.96,
+            },
+        )
+
+    pair_count = int(len(frame))
+    variant_count = int(frame["Variant_ID"].astype(str).nunique())
+    axis.text(
+        0.98,
+        0.05,
+        f"{pair_count} variant--CpG pairs\n{variant_count} unique variants",
+        transform=axis.transAxes,
+        ha="right",
+        va="bottom",
+        fontsize=6.2,
+        color="0.25",
+        bbox={
+            "boxstyle": "round,pad=0.22",
+            "facecolor": "white",
+            "edgecolor": "0.75",
+            "linewidth": 0.7,
+            "alpha": 0.90,
+        },
+    )
+    axis.set_xlabel(r"Predicted $\Delta\hat{\beta}$ (ALT $-$ REF)")
+    axis.set_ylabel("Variant--CpG pairs")
+    axis.set_title(r"$\mathit{STK11}$ variants within nonsynonymous screen")
+    axis.grid(axis="y", alpha=0.18)
+    axis.spines[["top", "right"]].set_visible(False)
+    fig.tight_layout(pad=0.6)
+    save_figure(fig, output)
+
+    summary_rows = [
+        {
+            "Record": "Screened pool",
+            "Variant_ID": "",
+            "probeID": "",
+            "Predicted_Delta_Beta": np.nan,
+            "N_Variant_CpG_Pairs": pair_count,
+            "N_Unique_Variants": variant_count,
+        }
+    ]
+    summary_rows.extend(
+        {
+            "Record": "Highlighted target",
+            "Variant_ID": rsid,
+            "probeID": probe_id,
+            "Predicted_Delta_Beta": delta,
+            "N_Variant_CpG_Pairs": np.nan,
+            "N_Unique_Variants": np.nan,
+        }
+        for rsid, probe_id, _, delta in targets
+    )
+    save_csv(pd.DataFrame(summary_rows), case_output)
+    return {
+        "variant_cpg_pair_count": pair_count,
+        "unique_variant_count": variant_count,
+        "delta_column": delta_column,
+        "highlighted_targets": {
+            rsid: {"probeID": probe_id, "predicted_delta_beta": delta}
+            for rsid, probe_id, _, delta in targets
+        },
+    }
+
+
 def main() -> None:
     args = arguments()
     inputs = (
@@ -730,6 +901,7 @@ def main() -> None:
         args.candidate_path,
         args.candidate_seed_path,
         args.comparator_path,
+        args.literature_variant_path,
     )
     for path in inputs:
         if not path.is_file():
@@ -764,6 +936,11 @@ def main() -> None:
         args.output_dir / "top_candidate_matched_background.png",
         args.case_study_path,
     )
+    stk11 = plot_stk11_nonsynonymous_screen(
+        args.literature_variant_path,
+        args.output_dir / "stk11_variants_vs_nonsynonymous_screen.png",
+        args.stk11_case_output,
+    )
     keep_manuscript_outputs(args.output_dir)
     save_json(
         {
@@ -776,13 +953,14 @@ def main() -> None:
             "candidate_context": candidate_context,
             "mqtl": mqtl,
             "top_candidate": candidate,
+            "stk11_case_study": stk11,
             "input_sha256": {str(path): sha256(path) for path in inputs},
         },
         args.output_dir / "run_summary.json",
     )
     print("SilentMethyl one-column manuscript figures")
     print(f"  output: {args.output_dir}")
-    print("  figures: 5")
+    print("  figures: 6")
 
 
 if __name__ == "__main__":
