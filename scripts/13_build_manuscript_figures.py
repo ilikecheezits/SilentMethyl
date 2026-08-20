@@ -838,23 +838,6 @@ def plot_stk11_nonsynonymous_screen(
 
     pair_count = int(len(frame))
     variant_count = int(frame["Variant_ID"].astype(str).nunique())
-    axis.text(
-        0.98,
-        0.05,
-        f"{pair_count} variant--CpG pairs\n{variant_count} unique variants",
-        transform=axis.transAxes,
-        ha="right",
-        va="bottom",
-        fontsize=6.2,
-        color="0.25",
-        bbox={
-            "boxstyle": "round,pad=0.22",
-            "facecolor": "white",
-            "edgecolor": "0.75",
-            "linewidth": 0.7,
-            "alpha": 0.90,
-        },
-    )
     axis.set_xlabel(r"Predicted $\Delta\hat{\beta}$")
     axis.set_ylabel("Nonsynonymous variants")
     axis.set_title(r"$\mathit{STK11}$ variants within nonsynonymous background mutations")
