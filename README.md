@@ -2,8 +2,6 @@
 
 This repository contains the active end-to-end SilentMethyl workflow used in the current checkout. The scripts and wrappers in this tree assume the project root is the repository root itself, and the canonical evaluation uses seeds 42, 43, and 44 with chromosome 8--9 held out for testing and chromosome 10--11 reserved for validation in the data build step.
 
-The currently supported application workflow is the frozen-model known-variant example in `scripts/14_known_variant_application.py`. The legacy literature screen pipeline (`scripts/15_literature_variant_screen.py` and the related `literature_variant_screen/` outputs) is retired from the active analysis path and should not be run as part of the main repository workflow.
-
 Use the commands below from the repository root.
 
 ## 1. Environment setup
