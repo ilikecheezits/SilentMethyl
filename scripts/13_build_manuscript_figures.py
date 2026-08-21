@@ -761,9 +761,6 @@ def plot_stk11_nonsynonymous_screen(
             f"{literature_variant_path} lacks a predicted delta-beta column"
         )
 
-    # The ranked file should contain prespecified application targets only.
-    # Deduplicate exact variant--CpG pairs defensively without collapsing
-    # genuinely distinct CpG targets for the same variant.
     frame = frame.copy()
     frame[delta_column] = pd.to_numeric(frame[delta_column], errors="raise")
     frame = frame[np.isfinite(frame[delta_column])].copy()
