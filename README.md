@@ -353,6 +353,4 @@ This is the current repository workflow reflected in the active scripts and shel
 ## 10. Repository status
 
 - The active benchmark workflow is the frozen-model held-out evaluation and the downstream analysis pipeline anchored by scripts 02, 03, 04, 07, 08, 09, 10, 12, and 13.
-- The active application example is script 14, which supports gene-linked known-variant scoring against model-visible CpGs.
-- The literature screen in script 15 remains historical and optional; it should be treated as a legacy discovery workflow, not as the default repository path.
 - The codebase is expected to run from the repository root, with the current Slurm wrappers and per-seed checkpoint conventions preserved.
