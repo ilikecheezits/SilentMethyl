@@ -19,7 +19,7 @@ Stage C (one training pass) → Stage D (re-score + write).
 | 1 | Multi-cohort testing | No — inference | B.2 | not-started | |
 | 2 | Repeated chromosome-blocked splits | **Yes — the only one** | C.1 | not-started | |
 | 3 | Stronger baselines and ablations | No / cheap re-heads | A.2, B.5, C.2–C.3 | not-started | |
-| 4 | Uncertainty calibration | No — post-hoc | B.3 | **in-progress** | `results/journal/rc_uncertainty/` |
+| 4 | Uncertainty calibration | No — post-hoc | B.3 | **done (analysis)** | `results/journal/rc_uncertainty{,_conditional}/` |
 | 5 | Ancestry analyses | No — analysis | B.1 | not-started | |
 | 6 | Independent variant evaluation | No — inference | B.1 | not-started | |
 | 7 | Regulatory enrichment | No — inference | B.4 | not-started | |
@@ -62,19 +62,62 @@ The zero-parameter control **−|β̂ − 0.5| beat everything in 8/9 runs, incl
 the 3-seed ensemble SD.** RC disagreement beat random 9/9 but lost to cross-seed
 SD 9/9 and to the heuristic 9/9.
 
-*Open question, script 17.* Two explanations must be separated before this is
-written up: (a) intermediate-methylation probes are genuinely harder, so distance
-from 0.5 is a legitimate difficulty signal; or (b) absolute β error is
-**mechanically bounded** near 0 and 1, so the heuristic is measuring headroom
-rather than uncertainty. Script 17 tests this with partial correlation given the
-heuristic, within-β̂-stratum correlation, stratified selective prediction, and a
-repeat on unbounded M-value error.
+*Resolved, script 17 (2026-08-24, `results/journal/rc_uncertainty_conditional/`).*
+**The heuristic's advantage was the bounded-range artifact.** Evidence:
 
-*Consequence either way.* If nothing beats the heuristic inside strata, that is a
-publishable negative — ensemble uncertainty adds little over a trivial baseline
-on this task — and the calibration section rests on conformal intervals, whose
-coverage guarantee holds regardless. Do not write the calibration section until
-script 17 has run.
+| | β error (bounded) | M error (unbounded) |
+|---|---|---|
+| boundary within-stratum ρ | +0.1569 | **+0.0461** |
+| cross_seed_sd within-stratum ρ | +0.1381 | +0.1179 |
+| rc_disagreement within-stratum ρ | +0.1069 | +0.0997 |
+| cross_seed_sd beats boundary (stratified AURC) | 5/9 | **9/9** |
+| rc_disagreement beats boundary | 0/9 | **9/9** |
+
+boundary_distance's within-stratum correlation collapses 3.4× when the target is
+moved to the unbounded logit (M) scale, while both real estimators hold. On M,
+both beat the heuristic 9/9 in stratified selection and add incremental value
+(cross_seed_sd 6/9, rc_disagreement 7/9). Absolute β error is mechanically
+compressed near 0 and 1 — the heuristic was measuring headroom, not difficulty.
+
+**Decisions that follow:**
+1. Report uncertainty on **M-value error**, not β. State why explicitly.
+2. Expected ordering holds on M: cross_seed_sd > rc_disagreement > boundary.
+   Uncertainty estimation works; it was the β metric that was confounded.
+3. **RC disagreement retains ~75% of the ensemble's incremental information**
+   (partial ρ +0.0936 vs +0.1238) from a SINGLE model at zero extra cost.
+   Report as a cheap single-model alternative, not as an ensemble replacement.
+4. Conformal intervals still carry the section — coverage holds regardless.
+
+**Spin-off contribution (free, worth a paragraph + supplementary figure):**
+*Uncertainty evaluation on bounded bimodal targets is confounded by range
+compression.* The field routinely reports β MAE; any model that is merely
+confident at extreme β̂ will look well-calibrated on β and be exposed on M. We
+recommend logit-scale evaluation. This generalises beyond SilentMethyl and costs
+nothing to state.
+
+*Robustness confirmed, script 17 strata sweep + script 18 figure
+(`results/journal/rc_uncertainty_conditional_s{20,50}/`, `rc_uncertainty_figure/`).*
+The 10-decile β ambiguity WAS under-stratification. Within-stratum ρ, pooled:
+
+| estimator | β s=10 | β s=20 | β s=50 | M s=10 | M s=20 | M s=50 |
+|---|---|---|---|---|---|---|
+| cross_seed_sd | +0.1381 | +0.1049 | +0.0915 | +0.1179 | +0.1020 | +0.0952 |
+| rc_disagreement | +0.1069 | +0.0789 | +0.0678 | +0.0997 | +0.0859 | +0.0793 |
+| boundary_distance | +0.1569 | +0.0852 | **+0.0369** | +0.0461 | +0.0217 | **+0.0099** |
+
+At 50 strata both real estimators beat the heuristic on **both** scales
+(β: cross_seed_sd 9/9, rc_disagreement 8/9; M: 9/9 and 9/9). Requirement 4 is
+closed — no outstanding checks.
+
+**The crisp diagnostic to state in the paper:** a genuine uncertainty signal ranks
+error about equally well on either scale. cross_seed_sd (+0.0915 β / +0.0952 M) and
+rc_disagreement (+0.0678 / +0.0793) are scale-stable; boundary_distance decays to
+near zero (+0.0369 / +0.0099). Scale-instability is the signature of a metric
+artifact. Figure: `rc_uncertainty_figure/uncertainty_scale_stability.{png,pdf}`.
+
+RC disagreement retains **~75–83%** of the ensemble's signal depending on measure
+(partial ρ +0.0936 vs +0.1238 = 76%; within-stratum at s=50, 0.0793/0.0952 = 83%)
+from a single model at zero extra cost.
 
 **5. Ancestry analyses.** Cross-ancestry replication from published summary
 statistics: GoDMC (European-dominant blood), GENOA (African American, EPIC), the
