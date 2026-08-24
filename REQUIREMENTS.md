@@ -19,7 +19,7 @@ Stage C (one training pass) → Stage D (re-score + write).
 | 1 | Multi-cohort testing | No — inference | B.2 | not-started | |
 | 2 | Repeated chromosome-blocked splits | **Yes — the only one** | C.1 | not-started | |
 | 3 | Stronger baselines and ablations | No / cheap re-heads | A.2, B.5, C.2–C.3 | not-started | |
-| 4 | Uncertainty calibration | No — post-hoc | B.3 | not-started | |
+| 4 | Uncertainty calibration | No — post-hoc | B.3 | **in-progress** | `results/journal/rc_uncertainty/` |
 | 5 | Ancestry analyses | No — analysis | B.1 | not-started | |
 | 6 | Independent variant evaluation | No — inference | B.1 | not-started | |
 | 7 | Regulatory enrichment | No — inference | B.4 | not-started | |
@@ -48,10 +48,33 @@ feature-group variants are free re-heads on frozen towers.
 
 **4. Uncertainty calibration.** Temperature scaling on validation; conformal
 prediction for distribution-free intervals on Δβ̂; ECE, Brier, PICP, CRPS.
-Plus the free signal: test whether per-locus FWD–RC disagreement
-(`beta_fwd_rc_mae` = 0.0481 at seed 42) predicts error and mQTL agreement.
 Deep ensembles and a heteroscedastic head were dropped — both need retraining and
 conformal gives a coverage guarantee without either.
+
+*Result, script 16 (2026-08-24, `results/journal/rc_uncertainty/`).*
+Spearman(FWD–RC disagreement, |error|) = **0.50** for sequence and fusion
+(0.35–0.39 for epi), consistent across all 3 seeds, block-bootstrap CIs tight.
+So the disagreement genuinely tracks local error.
+
+But on selective prediction the ranking was:
+`boundary_distance` < `combined` < `cross_seed_sd` < `rc_disagreement` << `random`.
+The zero-parameter control **−|β̂ − 0.5| beat everything in 8/9 runs, including
+the 3-seed ensemble SD.** RC disagreement beat random 9/9 but lost to cross-seed
+SD 9/9 and to the heuristic 9/9.
+
+*Open question, script 17.* Two explanations must be separated before this is
+written up: (a) intermediate-methylation probes are genuinely harder, so distance
+from 0.5 is a legitimate difficulty signal; or (b) absolute β error is
+**mechanically bounded** near 0 and 1, so the heuristic is measuring headroom
+rather than uncertainty. Script 17 tests this with partial correlation given the
+heuristic, within-β̂-stratum correlation, stratified selective prediction, and a
+repeat on unbounded M-value error.
+
+*Consequence either way.* If nothing beats the heuristic inside strata, that is a
+publishable negative — ensemble uncertainty adds little over a trivial baseline
+on this task — and the calibration section rests on conformal intervals, whose
+coverage guarantee holds regardless. Do not write the calibration section until
+script 17 has run.
 
 **5. Ancestry analyses.** Cross-ancestry replication from published summary
 statistics: GoDMC (European-dominant blood), GENOA (African American, EPIC), the
