@@ -106,6 +106,7 @@ def detect_genoa_columns(path: Path) -> dict:
         "header": header,
         "chr": pick("chr", "chrom", "chromosome"),
         "cpg": pick("cpg", "cpg_site", "probe", "probeid"),
+        "cpgstart": pick("cpgstart", "cpg_start", "cpg_beg"),
         "rs": pick("rs", "rsid", "snp"),
         "ps": pick("ps", "pos", "position", "bp"),
         "allele1": pick("allele1", "minor_allele", "a1"),
@@ -174,7 +175,8 @@ def lift_positions(lifter, chrom: str, positions_hg19_0based: np.ndarray) -> dic
 
 def harmonize_chromosome(chrom_num: int, cols: dict, genoa_dir: Path,
                          probes: pd.DataFrame, lifter, half_window: int,
-                         max_p: float | None, stats: Counter) -> pd.DataFrame:
+                         max_p: float | None, prefilter_margin: int,
+                         stats: Counter) -> pd.DataFrame:
     path = genoa_dir / f"meQTL_summarystat_chr{chrom_num}.txt.gz"
     if not path.exists():
         logging.warning("missing %s", path)
@@ -184,7 +186,7 @@ def harmonize_chromosome(chrom_num: int, cols: dict, genoa_dir: Path,
     probe_index = probes.set_index("probeID")
     probe_ids = set(probe_index.index)
 
-    usecols = [c for c in (cols["chr"], cols["cpg"], cols["rs"], cols["ps"],
+    usecols = [c for c in (cols["chr"], cols["cpg"], cols["cpgstart"], cols["rs"], cols["ps"],
                            cols["allele1"], cols["allele0"], cols["af"],
                            cols["beta"], cols["se"], cols["p"]) if c]
 
@@ -197,6 +199,7 @@ def harmonize_chromosome(chrom_num: int, cols: dict, genoa_dir: Path,
         stats[f"{chrom}_rows_in"] += len(chunk)
         chunk = chunk.rename(columns={
             cols["cpg"]: "probeID", cols["rs"]: "rsid", cols["ps"]: "snp_pos_hg19",
+            **({cols["cpgstart"]: "cpg_pos_hg19"} if cols["cpgstart"] else {}),
             cols["allele1"]: "allele_minor", cols["allele0"]: "allele_major",
             cols["af"]: "af_genoa", cols["beta"]: "beta_genoa",
             cols["se"]: "se_genoa", cols["p"]: "p_wald",
@@ -206,7 +209,23 @@ def harmonize_chromosome(chrom_num: int, cols: dict, genoa_dir: Path,
         stats[f"{chrom}_rows_probe_ok"] += len(chunk)
         if chunk.empty:
             continue
-        # Filter 2 -- optional significance cut, applied before liftover to save work.
+        # Filter 2 -- approximate distance cut in hg19 space. This is the big one:
+        # GENOA's cis window is far wider than the 1 kb model window, so without it
+        # we would liftover millions of positions and discard nearly all of them.
+        # The margin absorbs hg19/hg38 indel differences; the exact cut happens
+        # later in hg38.
+        if "cpg_pos_hg19" in chunk.columns:
+            snp0 = pd.to_numeric(chunk["snp_pos_hg19"], errors="coerce") - 1
+            cpg0 = pd.to_numeric(chunk["cpg_pos_hg19"], errors="coerce")
+            approx = (snp0 - cpg0).abs()
+            n_pre = len(chunk)
+            chunk = chunk[approx <= (half_window + prefilter_margin)]
+            stats[f"{chrom}_rows_dropped_hg19_prefilter"] += n_pre - len(chunk)
+            stats[f"{chrom}_rows_prefilter_ok"] += len(chunk)
+            if chunk.empty:
+                continue
+
+        # Filter 3 -- optional significance cut, applied before liftover to save work.
         if max_p is not None and "p_wald" in chunk.columns:
             chunk = chunk[pd.to_numeric(chunk["p_wald"], errors="coerce") <= max_p]
             stats[f"{chrom}_rows_p_ok"] += len(chunk)
@@ -244,7 +263,7 @@ def harmonize_chromosome(chrom_num: int, cols: dict, genoa_dir: Path,
     df["distance_bp"] = (df["snp_pos_hg38"] - df["cpg_pos_hg38"]).astype("int64")
     df["abs_distance_bp"] = df["distance_bp"].abs()
 
-    # ---- Filter 3 -- must sit inside the model window
+    # ---- Filter 4 -- exact hg38 window cut
     n_before = len(df)
     df = df[df["abs_distance_bp"] <= half_window]
     stats[f"{chrom}_rows_outside_window"] += n_before - len(df)
@@ -333,7 +352,8 @@ def cmd_run(args) -> int:
 
     for c in chroms:
         df = harmonize_chromosome(c, cols, args.genoa_dir, probes, lifter,
-                                  args.half_window, args.max_p, stats)
+                                  args.half_window, args.max_p,
+                                  args.prefilter_margin, stats)
         if not df.empty:
             frames.append(df)
 
@@ -362,6 +382,7 @@ def cmd_run(args) -> int:
         "output_build": "hg38",
         "chromosomes": chroms,
         "half_window_bp": args.half_window,
+        "hg19_prefilter_margin_bp": args.prefilter_margin,
         "max_p_filter": args.max_p,
         "masked_probes_dropped": not args.keep_masked,
         "probe_universe_size": int(len(probes)),
@@ -414,6 +435,9 @@ def main(argv=None) -> int:
     ap.add_argument("--output-dir", type=Path, default=DEFAULT_OUT)
     ap.add_argument("--half-window", type=int, default=500,
                     help="max |SNP - CpG| distance in bp (default 500 = the 1 kb model window)")
+    ap.add_argument("--prefilter-margin", type=int, default=2000,
+                    help="extra bp allowed in the hg19 pre-filter to absorb liftover "
+                         "indel differences (default 2000)")
     ap.add_argument("--max-p", type=float, default=None,
                     help="optional p_wald cutoff applied before liftover")
     ap.add_argument("--keep-masked", action="store_true",
