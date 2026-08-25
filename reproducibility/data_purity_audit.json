@@ -1,0 +1,673 @@
+{
+  "candidates_full": {
+    "central_target_cpg_changed_by_mutation": 0,
+    "chromosome_counts": {
+      "chr1": 1276,
+      "chr10": 362,
+      "chr11": 835,
+      "chr12": 576,
+      "chr13": 168,
+      "chr14": 334,
+      "chr15": 322,
+      "chr16": 498,
+      "chr17": 732,
+      "chr18": 87,
+      "chr19": 985,
+      "chr2": 708,
+      "chr20": 317,
+      "chr21": 111,
+      "chr22": 220,
+      "chr3": 542,
+      "chr4": 337,
+      "chr5": 582,
+      "chr6": 557,
+      "chr7": 577,
+      "chr8": 416,
+      "chr9": 355,
+      "chrX": 513
+    },
+    "feature_stats": {
+      "Ref_ATAC_Signal": {
+        "count": 11410,
+        "max": 6.418385629653931,
+        "mean": 0.12893984548374357,
+        "min": 0.0,
+        "negative_count": 0,
+        "zero_count": 47
+      },
+      "Ref_H3K27ac_Signal": {
+        "count": 11410,
+        "max": 99.94550987243652,
+        "mean": 1.601601246454329,
+        "min": 0.0,
+        "negative_count": 0,
+        "zero_count": 4145
+      },
+      "Ref_H3K27me3_Signal": {
+        "count": 11410,
+        "max": 19.785186710357667,
+        "mean": 0.5430056328821706,
+        "min": 0.0,
+        "negative_count": 0,
+        "zero_count": 4997
+      },
+      "Ref_H3K36me3_Signal": {
+        "count": 11410,
+        "max": 127.49590103149414,
+        "mean": 3.1062853616207757,
+        "min": 0.0,
+        "negative_count": 0,
+        "zero_count": 5281
+      },
+      "Ref_H3K4me1_Signal": {
+        "count": 11410,
+        "max": 15.082346620559692,
+        "mean": 0.8253827146478142,
+        "min": 0.0,
+        "negative_count": 0,
+        "zero_count": 1402
+      },
+      "Ref_H3K4me3_Signal": {
+        "count": 11410,
+        "max": 348.8092120361328,
+        "mean": 5.844728023196397,
+        "min": 0.0,
+        "negative_count": 0,
+        "zero_count": 7907
+      },
+      "Ref_H3K9me3_Signal": {
+        "count": 11410,
+        "max": 6.190302367210388,
+        "mean": 0.3628500709158716,
+        "min": 0.0,
+        "negative_count": 0,
+        "zero_count": 3381
+      },
+      "Target_Base_PhyloP_100way_1": {
+        "count": 11410,
+        "max": 7.90500020980835,
+        "mean": 0.3288507461945153,
+        "min": -14.631999969482422,
+        "negative_count": 6315,
+        "zero_count": 5
+      },
+      "Target_Base_PhyloP_100way_2": {
+        "count": 11410,
+        "max": 10.003000259399414,
+        "mean": 0.8528509233682049,
+        "min": -14.954999923706055,
+        "negative_count": 5720,
+        "zero_count": 6
+      }
+    },
+    "missing_counts": {
+      "Target_Base_PhyloP_100way_1": 3,
+      "Target_Base_PhyloP_100way_2": 3
+    },
+    "mutations_inside_100bp_sequence_shape_window": 2100,
+    "mutations_outside_100bp_sequence_shape_window": 9310,
+    "rows": 11410,
+    "rows_containing_N": 0,
+    "split_counts": {
+      "test": 771,
+      "train": 9442,
+      "val": 1197
+    },
+    "unique_candidate_ids": 11410
+  },
+  "candidates_test_only": {
+    "central_target_cpg_changed_by_mutation": 0,
+    "chromosome_counts": {
+      "chr8": 416,
+      "chr9": 355
+    },
+    "feature_stats": {
+      "Ref_ATAC_Signal": {
+        "count": 771,
+        "max": 4.762156295776367,
+        "mean": 0.13791954524688244,
+        "min": 0.0,
+        "negative_count": 0,
+        "zero_count": 2
+      },
+      "Ref_H3K27ac_Signal": {
+        "count": 771,
+        "max": 49.10897857666016,
+        "mean": 1.563231526589318,
+        "min": 0.0,
+        "negative_count": 0,
+        "zero_count": 260
+      },
+      "Ref_H3K27me3_Signal": {
+        "count": 771,
+        "max": 7.623333263397217,
+        "mean": 0.47733531426947595,
+        "min": 0.0,
+        "negative_count": 0,
+        "zero_count": 366
+      },
+      "Ref_H3K36me3_Signal": {
+        "count": 771,
+        "max": 45.505644989013675,
+        "mean": 3.355826446453418,
+        "min": 0.0,
+        "negative_count": 0,
+        "zero_count": 315
+      },
+      "Ref_H3K4me1_Signal": {
+        "count": 771,
+        "max": 7.556210956573486,
+        "mean": 0.8314948519629477,
+        "min": 0.0,
+        "negative_count": 0,
+        "zero_count": 97
+      },
+      "Ref_H3K4me3_Signal": {
+        "count": 771,
+        "max": 197.26996215820313,
+        "mean": 6.030824183104064,
+        "min": 0.0,
+        "negative_count": 0,
+        "zero_count": 520
+      },
+      "Ref_H3K9me3_Signal": {
+        "count": 771,
+        "max": 3.3147773814201353,
+        "mean": 0.34279372054844337,
+        "min": 0.0,
+        "negative_count": 0,
+        "zero_count": 235
+      },
+      "Target_Base_PhyloP_100way_1": {
+        "count": 771,
+        "max": 7.90500020980835,
+        "mean": 0.4564604379104429,
+        "min": -9.013999938964844,
+        "negative_count": 418,
+        "zero_count": 0
+      },
+      "Target_Base_PhyloP_100way_2": {
+        "count": 771,
+        "max": 10.003000259399414,
+        "mean": 0.8168326879817698,
+        "min": -9.477999687194824,
+        "negative_count": 423,
+        "zero_count": 1
+      }
+    },
+    "missing_counts": {
+      "Target_Base_PhyloP_100way_1": 1,
+      "Target_Base_PhyloP_100way_2": 1
+    },
+    "mutations_inside_100bp_sequence_shape_window": 132,
+    "mutations_outside_100bp_sequence_shape_window": 639,
+    "rows": 771,
+    "rows_containing_N": 0,
+    "split_counts": {
+      "test": 771
+    },
+    "unique_candidate_ids": 771
+  },
+  "errors": {},
+  "examples": {},
+  "hard_error_count": 0,
+  "imputation": {
+    "fit_split": "train",
+    "missing_indicator_suffix": "_Missing",
+    "schema_version": 1,
+    "strategy": "feature-wise median; pooled median shared by the two ordered central-base PhyloP features",
+    "values": {
+      "Ref_ATAC_Signal": 0.056780070066452026,
+      "Ref_H3K27ac_Signal": 0.7406623959541321,
+      "Ref_H3K27me3_Signal": 0.09006000310182571,
+      "Ref_H3K36me3_Signal": 0.0,
+      "Ref_H3K4me1_Signal": 0.5939419269561768,
+      "Ref_H3K4me3_Signal": 0.27681848406791687,
+      "Ref_H3K9me3_Signal": 0.09680359810590744,
+      "Target_Base_PhyloP_100way_1": -0.2709999978542328,
+      "Target_Base_PhyloP_100way_2": -0.2709999978542328
+    }
+  },
+  "split_manifest": {
+    "assigned_before_reverse_complement_augmentation": true,
+    "central_c_index_zero_based": 2499,
+    "central_g_index_zero_based": 2500,
+    "schema_version": 1,
+    "split_summary": {
+      "test": {
+        "chromosomes": [
+          "chr8",
+          "chr9"
+        ],
+        "mean_beta": 0.5305373072624207,
+        "positive_fraction": 0.5698908543470079,
+        "rows": 26570,
+        "unique_probes": 26570
+      },
+      "train": {
+        "chromosomes": [
+          "chr1",
+          "chr2",
+          "chr3",
+          "chr4",
+          "chr5",
+          "chr6",
+          "chr7",
+          "chr12",
+          "chr13",
+          "chr14",
+          "chr15",
+          "chr16",
+          "chr17",
+          "chr18",
+          "chr19",
+          "chr20",
+          "chr21",
+          "chr22",
+          "chrX",
+          "chrY"
+        ],
+        "mean_beta": 0.49482300877571106,
+        "positive_fraction": 0.5225432086611324,
+        "rows": 345359,
+        "unique_probes": 345359
+      },
+      "val": {
+        "chromosomes": [
+          "chr10",
+          "chr11"
+        ],
+        "mean_beta": 0.5084764361381531,
+        "positive_fraction": 0.5452456129046116,
+        "rows": 46557,
+        "unique_probes": 46557
+      }
+    },
+    "strategy": "chromosome-held-out",
+    "test_chromosomes": [
+      "chr8",
+      "chr9"
+    ],
+    "train_chromosomes": [
+      "chr1",
+      "chr2",
+      "chr3",
+      "chr4",
+      "chr5",
+      "chr6",
+      "chr7",
+      "chr12",
+      "chr13",
+      "chr14",
+      "chr15",
+      "chr16",
+      "chr17",
+      "chr18",
+      "chr19",
+      "chr20",
+      "chr21",
+      "chr22",
+      "chrX",
+      "chrY"
+    ],
+    "validation_chromosomes": [
+      "chr10",
+      "chr11"
+    ],
+    "window_size_bp": 5000
+  },
+  "status": "PASS",
+  "test_only_exactly_matches_full_test_subset": true,
+  "training": {
+    "test": {
+      "beta": {
+        "count": 26570,
+        "max": 0.992436,
+        "mean": 0.5305372823602342,
+        "min": 0.006582117,
+        "negative_count": 0,
+        "zero_count": 0
+      },
+      "binary_class_counts": {
+        "0": 11428,
+        "1": 15142
+      },
+      "chromosome_counts": {
+        "chr8": 18058,
+        "chr9": 8512
+      },
+      "feature_stats": {
+        "Ref_ATAC_Signal": {
+          "count": 26570,
+          "max": 9.774518,
+          "mean": 0.40567450257197263,
+          "min": 0.0,
+          "negative_count": 0,
+          "zero_count": 29
+        },
+        "Ref_H3K27ac_Signal": {
+          "count": 26570,
+          "max": 162.414,
+          "mean": 3.2454270884178515,
+          "min": 0.0,
+          "negative_count": 0,
+          "zero_count": 7694
+        },
+        "Ref_H3K27me3_Signal": {
+          "count": 26570,
+          "max": 20.73862,
+          "mean": 0.5576475207960284,
+          "min": 0.0,
+          "negative_count": 0,
+          "zero_count": 10174
+        },
+        "Ref_H3K36me3_Signal": {
+          "count": 26570,
+          "max": 64.976326,
+          "mean": 1.4072732014629314,
+          "min": 0.0,
+          "negative_count": 0,
+          "zero_count": 14832
+        },
+        "Ref_H3K4me1_Signal": {
+          "count": 26570,
+          "max": 13.818882,
+          "mean": 1.0696942040679127,
+          "min": 0.0,
+          "negative_count": 0,
+          "zero_count": 2616
+        },
+        "Ref_H3K4me3_Signal": {
+          "count": 26570,
+          "max": 364.00397,
+          "mean": 15.965226418253552,
+          "min": 0.0,
+          "negative_count": 0,
+          "zero_count": 12806
+        },
+        "Ref_H3K9me3_Signal": {
+          "count": 26570,
+          "max": 8.381985,
+          "mean": 0.32144020445456434,
+          "min": 0.0,
+          "negative_count": 0,
+          "zero_count": 8273
+        },
+        "Target_Base_PhyloP_100way_1": {
+          "count": 26570,
+          "max": 7.905,
+          "mean": -0.49971580730146875,
+          "min": -11.236,
+          "negative_count": 18642,
+          "zero_count": 26
+        },
+        "Target_Base_PhyloP_100way_2": {
+          "count": 26570,
+          "max": 10.003,
+          "mean": -0.1896112156567541,
+          "min": -11.151,
+          "negative_count": 16640,
+          "zero_count": 25
+        }
+      },
+      "m_value": {
+        "count": 26570,
+        "max": 7.035679312708527,
+        "mean": 0.05114840325352879,
+        "min": -7.237705197866124,
+        "negative_count": 11428,
+        "zero_count": 0
+      },
+      "max_m_value_reconstruction_error": 4.768053869064204e-06,
+      "missing_counts": {
+        "Target_Base_PhyloP_100way_1": 59,
+        "Target_Base_PhyloP_100way_2": 59
+      },
+      "rows": 26570,
+      "rows_containing_N_in_5kb": 0,
+      "unique_probe_ids": 26570
+    },
+    "train": {
+      "beta": {
+        "count": 345359,
+        "max": 0.99322605,
+        "mean": 0.4948230120383684,
+        "min": 0.0065283766,
+        "negative_count": 0,
+        "zero_count": 0
+      },
+      "binary_class_counts": {
+        "0": 164894,
+        "1": 180465
+      },
+      "chromosome_counts": {
+        "chr1": 40841,
+        "chr12": 21495,
+        "chr13": 10444,
+        "chr14": 13121,
+        "chr15": 13017,
+        "chr16": 18537,
+        "chr17": 24255,
+        "chr18": 5253,
+        "chr19": 21922,
+        "chr2": 30283,
+        "chr20": 9277,
+        "chr21": 3345,
+        "chr22": 7179,
+        "chr3": 22180,
+        "chr4": 17506,
+        "chr5": 21136,
+        "chr6": 31034,
+        "chr7": 24878,
+        "chrX": 9646,
+        "chrY": 10
+      },
+      "feature_stats": {
+        "Ref_ATAC_Signal": {
+          "count": 345359,
+          "max": 24.20602,
+          "mean": 0.48707127699495056,
+          "min": 0.0,
+          "negative_count": 0,
+          "zero_count": 155
+        },
+        "Ref_H3K27ac_Signal": {
+          "count": 345359,
+          "max": 178.61917,
+          "mean": 4.1679877056597405,
+          "min": 0.0,
+          "negative_count": 0,
+          "zero_count": 92817
+        },
+        "Ref_H3K27me3_Signal": {
+          "count": 345359,
+          "max": 34.181374,
+          "mean": 0.5670863981340895,
+          "min": 0.0,
+          "negative_count": 0,
+          "zero_count": 137699
+        },
+        "Ref_H3K36me3_Signal": {
+          "count": 345359,
+          "max": 211.82335,
+          "mean": 1.6608055126316867,
+          "min": 0.0,
+          "negative_count": 0,
+          "zero_count": 187305
+        },
+        "Ref_H3K4me1_Signal": {
+          "count": 345359,
+          "max": 20.670187,
+          "mean": 1.0625512332642588,
+          "min": 0.0,
+          "negative_count": 0,
+          "zero_count": 32166
+        },
+        "Ref_H3K4me3_Signal": {
+          "count": 345359,
+          "max": 453.05835,
+          "mean": 18.871194139227796,
+          "min": 0.0,
+          "negative_count": 0,
+          "zero_count": 155801
+        },
+        "Ref_H3K9me3_Signal": {
+          "count": 345359,
+          "max": 10.700565,
+          "mean": 0.2697769557430116,
+          "min": 0.0,
+          "negative_count": 0,
+          "zero_count": 114554
+        },
+        "Target_Base_PhyloP_100way_1": {
+          "count": 345359,
+          "max": 7.905,
+          "mean": -0.39673519149638514,
+          "min": -15.176,
+          "negative_count": 232530,
+          "zero_count": 311
+        },
+        "Target_Base_PhyloP_100way_2": {
+          "count": 345359,
+          "max": 10.003,
+          "mean": -0.06016917758043126,
+          "min": -15.477,
+          "negative_count": 205528,
+          "zero_count": 305
+        }
+      },
+      "m_value": {
+        "count": 345359,
+        "max": 7.195981237595308,
+        "mean": -0.29996456013829376,
+        "min": -7.2496106657590795,
+        "negative_count": 164893,
+        "zero_count": 1
+      },
+      "max_m_value_reconstruction_error": 5.3630424439177204e-06,
+      "missing_counts": {
+        "Ref_H3K27ac_Signal": 2,
+        "Ref_H3K36me3_Signal": 2,
+        "Target_Base_PhyloP_100way_1": 131,
+        "Target_Base_PhyloP_100way_2": 129
+      },
+      "rows": 345359,
+      "rows_containing_N_in_5kb": 20,
+      "unique_probe_ids": 345359
+    },
+    "val": {
+      "beta": {
+        "count": 46557,
+        "max": 0.99270195,
+        "mean": 0.5084764588673883,
+        "min": 0.007855669,
+        "negative_count": 0,
+        "zero_count": 0
+      },
+      "binary_class_counts": {
+        "0": 21172,
+        "1": 25385
+      },
+      "chromosome_counts": {
+        "chr10": 21052,
+        "chr11": 25505
+      },
+      "feature_stats": {
+        "Ref_ATAC_Signal": {
+          "count": 46557,
+          "max": 7.522592,
+          "mean": 0.4373421739176647,
+          "min": 0.0,
+          "negative_count": 0,
+          "zero_count": 15
+        },
+        "Ref_H3K27ac_Signal": {
+          "count": 46557,
+          "max": 127.880554,
+          "mean": 3.715038827118549,
+          "min": 0.0,
+          "negative_count": 0,
+          "zero_count": 14415
+        },
+        "Ref_H3K27me3_Signal": {
+          "count": 46557,
+          "max": 20.901012,
+          "mean": 0.6085911695527912,
+          "min": 0.0,
+          "negative_count": 0,
+          "zero_count": 17378
+        },
+        "Ref_H3K36me3_Signal": {
+          "count": 46557,
+          "max": 120.81874,
+          "mean": 1.4182815591414881,
+          "min": 0.0,
+          "negative_count": 0,
+          "zero_count": 27238
+        },
+        "Ref_H3K4me1_Signal": {
+          "count": 46557,
+          "max": 15.788423,
+          "mean": 1.017744222484898,
+          "min": 0.0,
+          "negative_count": 0,
+          "zero_count": 4756
+        },
+        "Ref_H3K4me3_Signal": {
+          "count": 46557,
+          "max": 359.241,
+          "mean": 16.5604999361362,
+          "min": 0.0,
+          "negative_count": 0,
+          "zero_count": 23001
+        },
+        "Ref_H3K9me3_Signal": {
+          "count": 46557,
+          "max": 7.0858593,
+          "mean": 0.2681920945050588,
+          "min": 0.0,
+          "negative_count": 0,
+          "zero_count": 16027
+        },
+        "Target_Base_PhyloP_100way_1": {
+          "count": 46557,
+          "max": 7.905,
+          "mean": -0.4227188177932418,
+          "min": -13.206,
+          "negative_count": 31594,
+          "zero_count": 47
+        },
+        "Target_Base_PhyloP_100way_2": {
+          "count": 46557,
+          "max": 10.003,
+          "mean": -0.08921973065274857,
+          "min": -10.71,
+          "negative_count": 28172,
+          "zero_count": 38
+        }
+      },
+      "m_value": {
+        "count": 46557,
+        "max": 7.087705320826264,
+        "mean": -0.1824720473508678,
+        "min": -6.980672119451102,
+        "negative_count": 21172,
+        "zero_count": 0
+      },
+      "max_m_value_reconstruction_error": 4.6100387045555635e-06,
+      "missing_counts": {
+        "Ref_H3K27ac_Signal": 1,
+        "Ref_H3K27me3_Signal": 1,
+        "Ref_H3K36me3_Signal": 1,
+        "Ref_H3K4me3_Signal": 1,
+        "Target_Base_PhyloP_100way_1": 25,
+        "Target_Base_PhyloP_100way_2": 26
+      },
+      "rows": 46557,
+      "rows_containing_N_in_5kb": 21,
+      "unique_probe_ids": 46557
+    }
+  },
+  "warning_count": 0,
+  "warnings": {}
+}

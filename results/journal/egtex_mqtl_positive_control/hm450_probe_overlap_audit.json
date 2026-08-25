@@ -1,0 +1,15 @@
+{
+  "coordinate_check_unique_CpG_end_minus_cpg_pos0": [
+    2
+  ],
+  "manifest_path": "/ocean/projects/med250012p/szhang37/SilentMethyl/data/HM450.hg38.manifest.tsv.gz",
+  "manifest_sha256": "668a11ea624b3e645aab963dca048bdd4628ae5d297732867c91525c831cf191",
+  "n_loci": 81,
+  "n_manifest_mask_extbase_true": 0,
+  "n_manifest_mask_general_true": 0,
+  "n_probe_or_extension_conservative_overlap": 28,
+  "n_probe_span_closed_overlap": 27,
+  "n_probe_span_half_open_overlap": 27,
+  "primary_sensitivity_exclusion": "variant position within the closed annotated probe span expanded by one bp on both sides",
+  "probe_span_definition": "min(probeBeg,probeEnd) through max(probeBeg,probeEnd)"
+}

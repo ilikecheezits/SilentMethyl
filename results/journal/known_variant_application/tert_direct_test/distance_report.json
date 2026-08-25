@@ -1,0 +1,13 @@
+{
+  "target_probe": "cg03935379",
+  "probe_chr": "chr5",
+  "probe_pos0": 1282587,
+  "model_split": "train",
+  "variant_chr": "chr5",
+  "variant_pos1based": 1279675,
+  "variant_pos0": 1279674,
+  "same_chromosome": true,
+  "offset_from_target_cpg_c": -2913,
+  "distance_bp": 2913,
+  "within_model_cis_window": false
+}

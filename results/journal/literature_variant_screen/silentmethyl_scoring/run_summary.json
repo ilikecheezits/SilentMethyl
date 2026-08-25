@@ -1,0 +1,21 @@
+{
+  "analysis_status": "COMPLETE",
+  "input_sha256": {
+    "checkpoints_journal/seed42/fusion/best_weights.pth": "0fb8d1b449725fdbc4d6e146505b71d5d580b10014c71ca139ee511d1ea63ae9",
+    "checkpoints_journal/seed43/fusion/best_weights.pth": "8e7eab9c69379cc15246ff935953b8933605c0fdb24aadad2e104ba790ac3a5f",
+    "checkpoints_journal/seed44/fusion/best_weights.pth": "4b274d558508c351165886234b6b8ec9c3f3eb10b880cc57b3b4c42d9eff5099",
+    "data/HM450.hg38.manifest.CpGIsland.tsv.gz": "b5117ddedbc8d40ba9603d6de1e51970c719919a97c62d5b7f29289dedd58cc5",
+    "data/HM450.hg38.manifest.tsv.gz": "668a11ea624b3e645aab963dca048bdd4628ae5d297732867c91525c831cf191",
+    "data/datafiles/test.csv": "336882b233034679987689509902799f3bf43096f0f2f19767c240653a8b0c34",
+    "data/datafiles/train.csv": "59b33ce2ad5f07080c2526979c72be977cdecc4dafcdae7b0a8bdf52524c6b2b",
+    "data/datafiles/val.csv": "4ed570ebf8421504cfd7185b65cf4ce7db3a3649c4293f86d6a100b8d41f2559",
+    "data/reference/gencode.v44.annotation.gtf.gz": "01f817afed65feee863361b4baf30a95e722ee5c5d508ff77b04106ef7ba20d3",
+    "scripts/05_matched_background.py": "5d0c13226b70a97c410481b0e4655275f2d5078db970f845ceda06035a7bfa40",
+    "scripts/12_biological_context_analysis.py": "24e62cf7a86ebc4f69727bd12824c0d436fdf9db1d499af05b79c4a9d268d025"
+  },
+  "interpretation": "Illustrative application of frozen checkpoints. Split membership is retained so training-locus examples are not presented as validation.",
+  "model_visible_cpg_pairs": 914,
+  "primary_case_rows": 322,
+  "selection_rule": "Nearest unmasked model-visible HM450 CpG, with probeID used only as a deterministic tie breaker; model scores were not used.",
+  "variant_count": 323
+}

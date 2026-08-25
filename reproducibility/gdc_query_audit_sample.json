@@ -1,0 +1,40 @@
+{
+  "data": {
+    "hits": []
+  },
+  "warnings": {},
+  "error": {
+    "error": {
+      "root_cause": [
+        {
+          "type": "query_shard_exception",
+          "reason": "failed to create query: [nested] nested object under path [occurrence.case.samples] is not of nested type",
+          "index_uuid": "mSwxkgNyT7WBbhyPawRX1Q",
+          "index": "dr45_viz_open_v9__ssm_centric"
+        }
+      ],
+      "type": "search_phase_execution_exception",
+      "reason": "all shards failed",
+      "phase": "query",
+      "grouped": true,
+      "failed_shards": [
+        {
+          "shard": 0,
+          "index": "dr45_viz_open_v9__ssm_centric",
+          "node": "q01uEDjDQgCd5WuI969yyw",
+          "reason": {
+            "type": "query_shard_exception",
+            "reason": "failed to create query: [nested] nested object under path [occurrence.case.samples] is not of nested type",
+            "index_uuid": "mSwxkgNyT7WBbhyPawRX1Q",
+            "index": "dr45_viz_open_v9__ssm_centric",
+            "caused_by": {
+              "type": "illegal_state_exception",
+              "reason": "[nested] nested object under path [occurrence.case.samples] is not of nested type"
+            }
+          }
+        }
+      ]
+    },
+    "status": 400
+  }
+}

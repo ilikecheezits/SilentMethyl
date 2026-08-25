@@ -1,0 +1,121 @@
+[*] Host: v020.ib.bridges2.psc.edu
+[*] Job ID: 43353234
+[*] Git commit: b993784afb26120199509c48156adb3b1fa7ba34
+[*] Experiment seeds: 42 43 44
+Tue Aug 11 10:15:38 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 560.35.03              Driver Version: 560.35.03      CUDA Version: 12.6     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  Tesla V100-SXM2-32GB           On  |   00000000:8A:00.0 Off |                    0 |
+| N/A   31C    P0             40W /  300W |       1MiB /  32768MiB |      0%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI        PID   Type   Process name                              GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+[*] Stage 3: target-quality audit
+HM450 manifest audit:
+{
+  "component_true_counts": {
+    "MASK_extBase": 102,
+    "MASK_mapping": 41712,
+    "MASK_rmsk15": 84332,
+    "MASK_snp5_GMAF1p": 22745,
+    "MASK_snp5_common": 74764,
+    "MASK_sub25_copy": 60654,
+    "MASK_sub30_copy": 17568,
+    "MASK_sub35_copy": 10545,
+    "MASK_sub40_copy": 6419,
+    "MASK_typeINextBaseSwitch": 365
+  },
+  "manifest_path": "data/HM450.hg38.manifest.tsv.gz",
+  "manifest_rows": 485577,
+  "manifest_sha256": "668a11ea624b3e645aab963dca048bdd4628ae5d297732867c91525c831cf191",
+  "mask_general_false": 421433,
+  "mask_general_source": "provider-supplied aggregate flag; not reconstructed",
+  "mask_general_true": 64144,
+  "split_audits": {
+    "test": {
+      "masked": 0,
+      "missing_manifest": 0,
+      "path": "data/datafiles/test.csv",
+      "rows": 26570
+    },
+    "train": {
+      "masked": 0,
+      "missing_manifest": 0,
+      "path": "data/datafiles/train.csv",
+      "rows": 345359
+    },
+    "val": {
+      "masked": 0,
+      "missing_manifest": 0,
+      "path": "data/datafiles/val.csv",
+      "rows": 46557
+    }
+  }
+}
+Saved: results/journal/target_qc/hm450_manifest_audit.json
+Normal columns: 97
+Held-out CpGs: 26570
+
+Threshold sensitivity:
+   model coverage_subset  minimum_observed  n_loci  beta_mae  beta_rmse    m_mae   m_rmse  roc_auc  fraction_of_test
+     epi             all                 1   26570  0.139646   0.220456 1.459452 1.969910 0.918800          1.000000
+     epi         >=49/97                49   26067  0.139129   0.220022 1.460441 1.971540 0.920207          0.981069
+     epi         >=78/97                78   25163  0.139794   0.220940 1.472401 1.984776 0.919729          0.947046
+     epi         >=88/97                88   24617  0.139956   0.221314 1.478198 1.991745 0.920103          0.926496
+     epi         >=93/97                93   24135  0.140114   0.221586 1.482832 1.997419 0.920412          0.908355
+     epi           97/97                97   22954  0.140358   0.221935 1.492889 2.008569 0.920970          0.863907
+sequence             all                 1   26570  0.108981   0.176124 1.185968 1.629764 0.957649          1.000000
+sequence         >=49/97                49   26067  0.108282   0.175411 1.184798 1.629773 0.958667          0.981069
+sequence         >=78/97                78   25163  0.108440   0.175457 1.193484 1.638250 0.958912          0.947046
+sequence         >=88/97                88   24617  0.108011   0.174813 1.194783 1.639014 0.959608          0.926496
+sequence         >=93/97                93   24135  0.107809   0.174541 1.196448 1.640328 0.959857          0.908355
+sequence           97/97                97   22954  0.107741   0.174332 1.203671 1.646645 0.960370          0.863907
+  fusion             all                 1   26570  0.097051   0.151696 1.080043 1.448708 0.969874          1.000000
+  fusion         >=49/97                49   26067  0.096426   0.151042 1.079700 1.449590 0.970632          0.981069
+  fusion         >=78/97                78   25163  0.096691   0.151245 1.088750 1.458726 0.970658          0.947046
+  fusion         >=88/97                88   24617  0.096377   0.150865 1.090675 1.461151 0.971164          0.926496
+  fusion         >=93/97                93   24135  0.096284   0.150813 1.093075 1.464144 0.971284          0.908355
+  fusion           97/97                97   22954  0.096089   0.150372 1.099171 1.469568 0.971756          0.863907
+
+Non-overlapping coverage bins:
+   model coverage_bin  n_loci  beta_mae  beta_rmse    m_mae   m_rmse  roc_auc
+     epi         1-48     503  0.166441   0.241887 1.408212 1.883511 0.827387
+     epi        49-77     904  0.120620   0.192729 1.127527 1.558649 0.928692
+     epi        78-92    1028  0.132296   0.205186 1.227504 1.660506 0.895095
+     epi        93-96    1181  0.135362   0.214694 1.287366 1.766791 0.900317
+     epi           97   22954  0.140358   0.221935 1.492889 2.008569 0.920970
+sequence         1-48     503  0.145203   0.209779 1.246608 1.629281 0.898484
+sequence        49-77     904  0.103897   0.174140 0.943032 1.372975 0.947857
+sequence        78-92    1028  0.123244   0.195738 1.123878 1.588695 0.930580
+sequence        93-96    1181  0.109132   0.178558 1.056075 1.512304 0.945172
+sequence           97   22954  0.107741   0.174332 1.203671 1.646645 0.960370
+  fusion         1-48     503  0.129476   0.182423 1.097814 1.402233 0.919686
+  fusion        49-77     904  0.089043   0.145282 0.827804 1.166928 0.967621
+  fusion        78-92    1028  0.106236   0.161047 0.987199 1.325171 0.950974
+  fusion        93-96    1181  0.100086   0.159142 0.974586 1.354431 0.958392
+  fusion           97   22954  0.096089   0.150372 1.099171 1.469568 0.971756
+
+Coverage versus absolute beta error:
+   model  n_loci  spearman_coverage_vs_absolute_beta_error  spearman_p
+     epi   26570                                 -0.001475    0.809964
+sequence   26570                                 -0.020480    0.000842
+  fusion   26570                                 -0.023215    0.000154
+
+Saved: results/journal/target_qc
+[*] Stage 4: frozen eGTEx breast mQTL positive control
+[*] Stage 5: somatic candidate scoring and matched background
+[*] Stage 6: forward/RC and cross-seed candidate stability
+Saved stability outputs to results/journal/candidates/stability (3 run(s))
+[✓] All experiments complete for seeds: 42 43 44

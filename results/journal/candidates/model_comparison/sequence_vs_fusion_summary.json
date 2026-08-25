@@ -1,0 +1,36 @@
+{
+  "absolute_effect_spearman": 0.9660426025866963,
+  "effect_sign_agreement": 0.9659090909090909,
+  "fusion_mean_orientation_sign_agreement": 0.6303030303030303,
+  "interpretation": "Compares model-derived candidate sensitivity across architectures; it does not constitute biological validation.",
+  "mean_absolute_effect_difference": 0.0014809709987744382,
+  "n_shared_candidates": 440,
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "sequence_checkpoints": [
+    {
+      "path": "checkpoints_journal/seed42/sequence/best_weights.pth",
+      "seed": 42,
+      "sha256": "3fd35bc0b373e1a0392aa878454e1c44ee93173f41419c5ba414db8abe541310"
+    },
+    {
+      "path": "checkpoints_journal/seed43/sequence/best_weights.pth",
+      "seed": 43,
+      "sha256": "c6b68af6f4431b28ca16bd4030b77721d42e9cd89e4e1b9d4f129c728d08bf05"
+    },
+    {
+      "path": "checkpoints_journal/seed44/sequence/best_weights.pth",
+      "seed": 44,
+      "sha256": "aa9bf553822f9a3ba8fee0bbde994332ae1afb724ff9088eb69a07ca405a60c1"
+    }
+  ],
+  "sequence_mean_orientation_sign_agreement": 0.6393939393939394,
+  "signed_effect_spearman": 0.9814581123399867,
+  "top10_jaccard": 0.6666666666666666,
+  "top10_overlap": 8,
+  "top20_jaccard": 0.6666666666666666,
+  "top20_overlap": 16
+}
