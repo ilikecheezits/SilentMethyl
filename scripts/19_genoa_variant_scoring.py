@@ -552,7 +552,16 @@ def main() -> int:
             f"pairs, not bad data. Resolve it before scoring.")
     LOGGER.info("construction counters: %s", counters)
 
+    # Per-run tag. Pair scores are already separated by model/seed directory, but
+    # the summary is not -- and this script is meant to be run as a Slurm array with
+    # one task per model-seed. Without the tag, six concurrent tasks would each
+    # overwrite the same run_summary.json and only the last one to finish would be
+    # recorded.
     suffix = f"_shard{args.shard}" if args.num_shards > 1 else ""
+    run_tag = "_".join(
+        ["-".join(args.models), "seed" + "-".join(str(s) for s in args.seeds)]
+        + ([f"shard{args.shard}of{args.num_shards}"] if args.num_shards > 1 else [])
+    )
     written = []
     for model_type in args.models:
         for seed in dict.fromkeys(int(s) for s in args.seeds):
@@ -611,7 +620,7 @@ def main() -> int:
                 "Report the heldout stratum as primary. Never pool the strata. Report "
                 "CpG-creating/destroying variants separately from the rest."),
         },
-        args.output_dir / args.stratum / f"run_summary{suffix}.json",
+        args.output_dir / args.stratum / f"run_summary_{run_tag}.json",
     )
 
     print()
