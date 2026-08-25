@@ -99,6 +99,35 @@ def find_columns(df: pd.DataFrame) -> dict:
             "participant_hit_rate": best_hits / min(200, len(df)) if len(df) else 0.0}
 
 
+MISSING_TOKENS = {"", "nan", "none", "na", "n/a", "<na>", "null", "unknown", "not reported"}
+
+
+def _clean_call(value) -> str | None:
+    """Normalise one ancestry call; return None if it is effectively missing."""
+    if value is None:
+        return None
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass
+    text = str(value).strip()
+    return None if text.lower() in MISSING_TOKENS else text
+
+
+def _consensus_call(df: pd.DataFrame, call_cols: list) -> pd.Series:
+    """First usable call across sources, in file order."""
+    if not call_cols:
+        return pd.Series([None] * len(df), index=df.index, dtype="object")
+    out = [None] * len(df)
+    for col in call_cols:
+        values = df[col].tolist()
+        for i, v in enumerate(values):
+            if out[i] is None:
+                out[i] = _clean_call(v)
+    return pd.Series(out, index=df.index, dtype="object")
+
+
 def load_sample_participants(path: Path) -> set:
     if not path.exists():
         return set()
@@ -175,23 +204,25 @@ def cmd_run(args) -> int:
     if merged is None or merged.empty:
         raise SystemExit("no usable ancestry labels parsed. Run --inspect.")
 
-    # Consensus call: first non-null across sources, in file order.
+    # Consensus call: first usable value across sources, in file order.
+    # Built explicitly rather than with bfill -- the source columns were read with
+    # astype(str), so real NaNs arrive as the literal string "nan" and would
+    # otherwise be treated as valid labels.
     call_cols = [c for c in merged.columns if c.startswith("call_")]
-    if call_cols:
-        merged["ancestry_call"] = merged[call_cols].bfill(axis=1).iloc[:, 0]
-    else:
-        merged["ancestry_call"] = pd.NA
+    merged["ancestry_call"] = _consensus_call(merged, call_cols)
 
     target = out / "tcga_ancestry_labels.csv"
     merged.to_csv(target, index=False)
 
     # ---- coverage against the cohorts we actually score
     normals = load_sample_participants(args.normal_ids)
-    labelled = set(merged.dropna(subset=["ancestry_call"])["participant"])
-    normal_counts = Counter(
-        merged.set_index("participant")["ancestry_call"].get(p, "UNLABELLED")
-        for p in normals
-    ) if normals else Counter()
+    # Build the lookup once. Every key is a string so the JSON summary can be
+    # written with sort_keys=True -- a NaN mixed in here breaks the sort.
+    lookup = {p: _clean_call(c)
+              for p, c in zip(merged["participant"], merged["ancestry_call"])}
+    labelled = {p for p, c in lookup.items() if c is not None}
+    normal_counts = Counter(lookup.get(p) or "UNLABELLED" for p in normals) \
+        if normals else Counter()
 
     summary = {
         "analysis": "TCGA ancestry labels joined to SilentMethyl cohorts",
