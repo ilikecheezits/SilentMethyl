@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE eLinkResult PUBLIC "-//NLM//DTD elink 20101123//EN" "https://eutils.ncbi.nlm.nih.gov/eutils/dtd/20101123/elink.dtd">
+<eLinkResult>
+
+  <LinkSet>
+    <DbFrom>clinvar</DbFrom>
+    <IdList>
+      <Id>1005876</Id>
+    </IdList>
+    <LinkSetDb>
+      <DbTo>pubmed</DbTo>
+      <LinkName>clinvar_pubmed</LinkName>
+      
+        <Link>
+				<Id>34796414</Id>
+			</Link>
+        <Link>
+				<Id>34185076</Id>
+			</Link>
+        <Link>
+				<Id>30224644</Id>
+			</Link>
+        <Link>
+				<Id>29979965</Id>
+			</Link>
+        <Link>
+				<Id>28492532</Id>
+			</Link>
+        <Link>
+				<Id>27993330</Id>
+			</Link>
+        <Link>
+				<Id>26389258</Id>
+			</Link>
+        <Link>
+				<Id>26389210</Id>
+			</Link>
+        <Link>
+				<Id>25394175</Id>
+			</Link>
+        <Link>
+				<Id>24705251</Id>
+			</Link>
+        <Link>
+				<Id>24493721</Id>
+			</Link>
+        <Link>
+				<Id>22661320</Id>
+			</Link>
+        <Link>
+				<Id>20301488</Id>
+			</Link>
+        <Link>
+				<Id>17392385</Id>
+			</Link>
+        <Link>
+				<Id>12826609</Id>
+			</Link>
+      
+    </LinkSetDb>
+  </LinkSet>
+</eLinkResult>
