@@ -1,0 +1,543 @@
+{
+  "entries": {
+    "data/external/bend/BEND_repo": {
+      "acquisition": "manual",
+      "citation": "Marin et al., ICLR 2024; github.com/frederikkemarin/BEND",
+      "genome_build": "hg38",
+      "needs_liftover_to_hg38": false,
+      "purpose": "multi-task validation; the NMI 'several genomic tasks' criterion",
+      "source": "bend",
+      "status": "MISSING",
+      "title": "BEND benchmark task data",
+      "url": null
+    },
+    "data/external/clinvar/clinvar_GRCh38.vcf.gz": {
+      "acquisition": "automatic",
+      "bytes": 193420805,
+      "citation": "NCBI ClinVar",
+      "genome_build": "hg38",
+      "head": [
+        "##fileformat=VCFv4.1",
+        "##fileDate=2026-08-22",
+        "##source=ClinVar"
+      ],
+      "needs_liftover_to_hg38": false,
+      "purpose": "clinical-relevance figure; BEND ClinVar task cross-check",
+      "sha256": "d66b75c1cc433dd63471444fbf980fbc6ee07d6060f3b62b8f1910d52650933d",
+      "source": "clinvar",
+      "status": "present",
+      "title": "ClinVar variant summary (weekly VCF, GRCh38)",
+      "url": "https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/clinvar.vcf.gz"
+    },
+    "data/external/clinvar/clinvar_GRCh38.vcf.gz.tbi": {
+      "acquisition": "automatic",
+      "bytes": 610582,
+      "citation": "NCBI ClinVar",
+      "genome_build": "hg38",
+      "head": [
+        "\u001f\ufffd\b\u0004\u0000\u0000\u0000\u0000\u0000\ufffd\u0006\u0000BC\u0002\u0000\u0002PM\ufffd\u0005\\U\u06fe\ufffd\ufffd\ufffd\ufffd\u000b\u0015\u000b\u0005\u0015\ufffd\ufffdF\ufffd\u0016\ufffd\u000e\ufffdVlL\fl\ufffd\ufffdn\ufffd\ufffd\ufffd\ufffd\ufffd\u0000\u0005\u0011\u001b;\ufffd\u007f\ufffd\u0018\ufffd\ufffd\ufffd{\ufffd}~\u07dek\ufffd\ufffdb\ufffd\ufffd\ufffdz\ufffdiR\ufffdv\ufffd\ufffd\u000e\u000e\u000e\ufffd\ufffd\ufffd_,\ufffd\ufffd'\u000f\ufffd\ufffd\ufffd\ufffd\ufffd8\ufffd:\u0014w(\ufffdP\ufffd\ufffd\u0361\ufffdCi\u0007w\u0007\ufffdb\u000e..\u000e.\ufffd\u000e.\ufffd\u001d\\J8\ufffd\ufffdtpqsp)\ufffd\ufffdR\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffdm\\\u001dZ8\ufffdt\ufffdh\ufffdP\ufffdI[\u0017\ufffd\ufffdK\ufffd;\ufffd\ufffd\ufffd\ufffd.\ufffd\ufffdc\ufffd\\\ufffdT\ufffdRn\ufffdK\ufffd\u0015/\ufffd\ufffd\u007fvs\ufffd\ufffd?\ufffd\ufffd\ufffd\ufffdm\ufffd\u0015sw+\ufffd\ufffdZ\ufffd^rO\ufffd\ufffd\ufffd '\ufffd\ufffd\ufffdH\ufffd]\ufffd\ufffd\ufffd\ufffd3\ufffd\ufffd\ufffd\ufffd#S\ufffd\u02b9\ufffd\ufffdY~09{o\ufffd\ufffd\u000b\ufffd\ufffd\ufffd}\u00070S%\ufffd\ufffd#\"\u0002\u000e\ufffd\ufffdi`fv\ufffd\ufffd\u0005`\u0016vy\ufffdu\ufffd#\ufffd\ufffd\ufffdV0/\ufffd\ufffd\ufffd\u00110\u001f\ufffd\ufffd\ufffd\t\u0415]>\ufffd\u001eX\ufffd]>\ufffd3\ufffd\ufffd./\ufffdl\ufffdZciv\ufffd\ufffd\ufffd`\u0019\ufffd7\ufffd\ufffd\ufffd.`Yvy\ufffd\u0012`yvy\ufffd\ufffd`%vy\ufffd\u0014;/\u001b+s\ufffd\ufffd\ufffd)7\ufffd\ufffd\ufffd\u1e34n\ufffd#\ufffd5\ufffd\ufffdN\u001b\ufffd\ufffdm\ufffd5\ufffd\ufffd/<\u001b\ufffd4\ufffdc\ufffd7\ufffd\u000fzp\ufffd\u069f\ufffd;X\ufffd]>\ufffd",
+        "\u0600]\u001e\ufffd\u001b\u0610]\ufffd\ufffd\u000f\ufffd\ufffd.\u03d6\ufffd\ufffdac#v\ufffd\ufffd\ufffd`cvy\u0012\u0017\ufffd\t\ufffd|\ufffd\ufffdq\u000f\ufffdcSv\ufffd\ufffd1\ufffd\u0006\u001b\ufffd\ufffd\ufffdg$\u001c=\ufffd\ufffd\\\ufffd'}\ufffd'\u0612]~\ufffd\u03cc\ufffdF/\ufffd\ufffd| \ufffd\ufffd.\ufffdw\ufffdM\ufffd\ufffd\u0015\ufffd|c\ufffd\u0002\ufffd\ufffd\ufffdc/\ufffd\u007f\ufffd\ufffd|\ufffd\ufffd\ufffd\ufffd\ufffd&\ufffd\ufffd>\u001aOo\ufffd\u0014\ufffd\ufffd.\u07f7\u0011\u001c\ufffd._\ufffd\u000b\u001c\ufffd.\ufffdz\u0004\u001c\ufffd.\u001fy\t\u001c\ufffd.\ufffd\ufffd\b\u001c\ufffd._\ufffd\f\u001c\ufffd\ufffd\t}\ufffd[p\u001c\ufffd|h\ufffd\u000e\ufffd\ufffd\ufffd\ufffd\ufffd\u0005\ufffd@?vy\ufffd$\ufffddv\ufffd\ufffd\ufffd\ufffd?\ufffd\ufffd]\u0016p\u001a\ufffd|\ufffd+8\ufffd]\u07b8\u000b8\ufffd]\ufffd`.8\ufffd]\ufffdk\u0007\u0018\ufffd.\ufffd|\ufffd\ufffda\ufffd\ufffdd\ufffd\ufffd\ufffd8\ufffd]\ufffd'?8\ufffd]\ufffd\ufffd0\ufffd\ufffd]\ufffd\ufffd\u0019\fd\ufffd\u000fp\u0001W\ufffd\u02f7\ufffd\u0006/\ufffd\ufffd\ufffd\ufffd\u0005\ufffd\ufffd\u000bU\u0006\ufffd\ufffd\ufffd\u001c\ufffd;\ufffd\ufffd\ufffd\ufffd\u0c36\u0474\u007f\ufffd?kv0\ufffd\ufffd5\ufffdQc0\ufffd]~\ufffd\u0007\u0018\ufffd.\ufffd\ufffd\b|\ufffd.\ufffdq\t\ufffdd\ufffd\ufffd~",
+        "\ufffda\ufffd\ufffd\u000f\u001c2\ufffd\ufffd\ufffd]\ufffd}\u000b\ufffd\ufffd]^\ufffd\f\ufffd\ufffd]\ufffd\ufffd\u0012\ufffd\ufffd]\ufffdp\u000b\ufffd\ufffd.\ufffd\ufffd\u0018\ufffd\ufffd.o\u001a\ufffd\ufffdr\ufffd\ufffd\u0017\ufffd\u03f2\ufffd\u0018\ufffd]\ufffd6\u0001\u0018\ufffd]\ufffd81\u0018\ufffd]\ufffd?5\u0018\ufffd]\ufffd%#\u0018\ufffd]\ufffd*;\u0018\ufffd]\ufffd3\u001f\ufffd\ufffd]\ufffd??\ufffdP\ufffd\ufffd\ufffd\ufffd\u0004\u0013\ufffd\ufffd'\ufffd\u0002\u0013\ufffd\ufffd\ufffd\ufffd\u0006\ufffdh<\ufffdT%0)\ufffd\ufffdEU0%\ufffd\ufffdcu0Uet=O\ufffdd\u0002Ss\ufffd\ufffd=\ufffd\u0003\ufffd\ufffdx\ufffd\ufffd\ufffd\u001fL\ufffd\ufffd\u001a\ufffd\ufffd.\ufffd\ufffd\ufffdzc\\\u06f6`z\ufffd\ufffd8\ufffd\ufffd`\u0006v\ufffd\ufffd&`Fvy\u06ae`&vy\ufffd\ufffd`fvyG\u001f0\ufffd\ufffd\ufffd\u001e\ufffd\u0017L\ufffdu.\ufffd\ufffd\ufffd\ufffd_\u0004f\ufffdx\ufffdk\ufffd\u000e\ufffd\ufffd.\ufffd\ufffd\u0002\ufffd\ufffd.\ufffd\u0011\ufffd\ufffd1'\ufffd\ufffdN+0\u0017\ufffd\u0725\ufffd/\ufffd\ufffd\ufffd\ufffd]\ufffdl\\\ufffd\ufffd\ufffd\ufffd*\ufffd\ufffd\ufffd/\u0005\u04f1\ufffd\ufffd\ufffd82\ufffd\ufffdxn\ufffd\u00003\ufffd\ufffd/u\ufffd<i\ufffdu]u\ufffd2\ufffdk\u0728~`N\ufffdV\ufffd\ufffdo#\ufffdB\\\ufffd\ufffd\u0778\u001bX\ufffd]~+y\ufffd\ufffdm\ufffd\ufffd\b\ufffd\ufffd`}\u0419]\ufffd2\ufffdT\u0001cQ\ufffd\u001fz\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd}\ufffd\ufffd\u064e]\ufffdl_\ufffdyFWvy\ufffd\ufffd\ufffd\ufffd\u0018\ufffd\ufffd\ufffd'\ufffd\ufffd\ufffd\ufffdX\ufffd]\ufffdi\ufffd\ufffd\ufffd\u0192\ufffd\ufffdA\ufffd?\ufffdj\ufffd\ufffdn\ufffd\ufffd\ufffdI\ufffd\u00172\ufffdb\ufffd\ufffd\ufffd\uda9d\udeb14\ufffd\ufffdx\ufffd9\ufffd\ufffd\ufffd\ufffdr\ufffd00;\u03ff\ufffd\u0003]\ufffd\ufffd\u001c\ufffdq\ufffd3\ufffd\u001ed,\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffdq\u015aD\u001c0\ufffdb\ufffd\ufffd\u001b\ufffd\ufffdlsc\u0001vy\ufffdl`1\ufffd\ufffd\ufffdg\ufffd5\ufffdW2^\u0663\ufffd9\u01ae\ufffdC\ufffdiav\ufffd\t\ufffd^\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd"
+      ],
+      "needs_liftover_to_hg38": false,
+      "purpose": "clinical-relevance figure; BEND ClinVar task cross-check",
+      "sha256": "4bc81ef519b77ea8c89b6345bb74537a408ad3466dc19f29a4025d61e771cbbb",
+      "source": "clinvar",
+      "status": "present",
+      "title": "ClinVar variant summary (weekly VCF, GRCh38)",
+      "url": "https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/clinvar.vcf.gz.tbi"
+    },
+    "data/external/egtex_mqtl/egtex_mqtl_by_tissue.tar": {
+      "acquisition": "manual",
+      "citation": "Oliva et al., Nat Genet 2023; GTEx Portal; GEO GSE213478",
+      "genome_build": "hg38",
+      "needs_liftover_to_hg38": false,
+      "purpose": "cross-tissue validation; independent variant evaluation",
+      "source": "egtex_mqtl",
+      "status": "MISSING",
+      "title": "eGTEx mQTL summary statistics, 9 tissues",
+      "url": null
+    },
+    "data/external/genoa_meqtl/GENOA_meQTL_README.txt": {
+      "acquisition": "automatic",
+      "bytes": 321,
+      "citation": "Shang et al., Nat Commun 2023; Zenodo 10.5281/zenodo.7697509",
+      "genome_build": "hg19",
+      "head": [
+        "column_head\tdescription",
+        "chr \tchromosome",
+        "CpG CpG site name"
+      ],
+      "needs_liftover_to_hg38": true,
+      "purpose": "independent variant evaluation; cross-ancestry replication",
+      "sha256": "98a7835729c308d487d58a7d059d4355c1efdf2e4148c4a41f257f46474bec8c",
+      "source": "genoa_meqtl",
+      "status": "present",
+      "title": "GENOA cis-meQTL summary statistics (African American, EPIC)",
+      "url": "https://zenodo.org/records/7697509/files/GENOA_meQTL_README.txt?download=1"
+    },
+    "data/external/genoa_meqtl/meQTL_summarystat_chr1.txt.gz": {
+      "acquisition": "automatic",
+      "bytes": 492638992,
+      "citation": "Shang et al., Nat Commun 2023; Zenodo 10.5281/zenodo.7697509",
+      "genome_build": "hg19",
+      "head": [
+        "chr\tCpG\tcpgstart\tcpgend\trs\tps\tallele1\tallele0\taf\tbeta\tse\tp_wald",
+        "1\tcg00000165\t91194674\t91194675\trs61772469\t91144920\tT\tG\t0.063\t0.2157189\t0.09561275\t0.02428436",
+        "1\tcg00000165\t91194674\t91194675\trs56174996\t91145181\tA\tG\t0.124\t0.09612073\t0.07134251\t0.1781975"
+      ],
+      "needs_liftover_to_hg38": true,
+      "purpose": "independent variant evaluation; cross-ancestry replication",
+      "sha256": "4484d87250e292f1ffd9bfc867304c30661284eaa0977dbe85a340f00ca4132f",
+      "source": "genoa_meqtl",
+      "status": "present",
+      "title": "GENOA cis-meQTL summary statistics (African American, EPIC)",
+      "url": "https://zenodo.org/records/7697509/files/meQTL_summarystat_chr1.txt.gz?download=1"
+    },
+    "data/external/genoa_meqtl/meQTL_summarystat_chr10.txt.gz": {
+      "acquisition": "automatic",
+      "bytes": 287808577,
+      "citation": "Shang et al., Nat Commun 2023; Zenodo 10.5281/zenodo.7697509",
+      "genome_build": "hg19",
+      "head": [
+        "chr\tCpG\tcpgstart\tcpgend\trs\tps\tallele1\tallele0\taf\tbeta\tse\tp_wald",
+        "10\tcg00001582\t80828702\t80828703\trs34430202\t80779153\tC\tT\t0.169\t0.04069268\t0.06151857\t0.50847",
+        "10\tcg00001582\t80828702\t80828703\trs79677418\t80779295\tT\tC\t0.138\t-0.01099586\t0.06679211\t0.8692714"
+      ],
+      "needs_liftover_to_hg38": true,
+      "purpose": "independent variant evaluation; cross-ancestry replication",
+      "sha256": "3c3d25b7681ca320abdd6f6c6fc083e457008f91c4abb4fdaee1ddefd0a5d6f4",
+      "source": "genoa_meqtl",
+      "status": "present",
+      "title": "GENOA cis-meQTL summary statistics (African American, EPIC)",
+      "url": "https://zenodo.org/records/7697509/files/meQTL_summarystat_chr10.txt.gz?download=1"
+    },
+    "data/external/genoa_meqtl/meQTL_summarystat_chr11.txt.gz": {
+      "acquisition": "automatic",
+      "bytes": 288426461,
+      "citation": "Shang et al., Nat Commun 2023; Zenodo 10.5281/zenodo.7697509",
+      "genome_build": "hg19",
+      "head": [
+        "chr\tCpG\tcpgstart\tcpgend\trs\tps\tallele1\tallele0\taf\tbeta\tse\tp_wald",
+        "11\tcg00000924\t2720463\t2720464\trs170762\t2672237\tA\tG\t0.098\t-0.05218774\t0.07864727\t0.5071269",
+        "11\tcg00000924\t2720463\t2720464\trs231349\t2672821\tT\tC\t0.1\t-0.05241506\t0.07759193\t0.499507"
+      ],
+      "needs_liftover_to_hg38": true,
+      "purpose": "independent variant evaluation; cross-ancestry replication",
+      "sha256": "2a85e3a2d5ad7efb444533dfec01938d98a7bc551cca15f1ab1e74566094e4fa",
+      "source": "genoa_meqtl",
+      "status": "present",
+      "title": "GENOA cis-meQTL summary statistics (African American, EPIC)",
+      "url": "https://zenodo.org/records/7697509/files/meQTL_summarystat_chr11.txt.gz?download=1"
+    },
+    "data/external/genoa_meqtl/meQTL_summarystat_chr12.txt.gz": {
+      "acquisition": "automatic",
+      "bytes": 276128394,
+      "citation": "Shang et al., Nat Commun 2023; Zenodo 10.5281/zenodo.7697509",
+      "genome_build": "hg19",
+      "head": [
+        "chr\tCpG\tcpgstart\tcpgend\trs\tps\tallele1\tallele0\taf\tbeta\tse\tp_wald",
+        "12\tcg00000769\t124086477\t124086478\trs7398935\t124036582\tA\tG\t0.103\t-0.00865567\t0.07761248\t0.911224",
+        "12\tcg00000769\t124086477\t124086478\trs140622492\t124036851\tA\tC\t0.028\t-0.1473284\t0.1400853\t0.2931997"
+      ],
+      "needs_liftover_to_hg38": true,
+      "purpose": "independent variant evaluation; cross-ancestry replication",
+      "sha256": "1b9ed6b7dc815f6e0a48b5981a9d7f6e8f1cbaf600a38e0db639be9bf3df8f64",
+      "source": "genoa_meqtl",
+      "status": "present",
+      "title": "GENOA cis-meQTL summary statistics (African American, EPIC)",
+      "url": "https://zenodo.org/records/7697509/files/meQTL_summarystat_chr12.txt.gz?download=1"
+    },
+    "data/external/genoa_meqtl/meQTL_summarystat_chr13.txt.gz": {
+      "acquisition": "automatic",
+      "bytes": 147290039,
+      "citation": "Shang et al., Nat Commun 2023; Zenodo 10.5281/zenodo.7697509",
+      "genome_build": "hg19",
+      "head": [
+        "chr\tCpG\tcpgstart\tcpgend\trs\tps\tallele1\tallele0\taf\tbeta\tse\tp_wald",
+        "13\tcg00005549\t58198537\t58198538\trs1596937\t58148645\tG\tA\t0.473\t-0.167194\t0.04946744\t0.0007544097",
+        "13\tcg00005549\t58198537\t58198538\trs75999584\t58149017\tT\tG\t0.03\t-0.3946353\t0.1403961\t0.005041405"
+      ],
+      "needs_liftover_to_hg38": true,
+      "purpose": "independent variant evaluation; cross-ancestry replication",
+      "sha256": "f0e56503a0f0059685569b11ab363a2998b2de9c312e608d769f25703926fe6a",
+      "source": "genoa_meqtl",
+      "status": "present",
+      "title": "GENOA cis-meQTL summary statistics (African American, EPIC)",
+      "url": "https://zenodo.org/records/7697509/files/meQTL_summarystat_chr13.txt.gz?download=1"
+    },
+    "data/external/genoa_meqtl/meQTL_summarystat_chr14.txt.gz": {
+      "acquisition": "automatic",
+      "bytes": 188894776,
+      "citation": "Shang et al., Nat Commun 2023; Zenodo 10.5281/zenodo.7697509",
+      "genome_build": "hg19",
+      "head": [
+        "chr\tCpG\tcpgstart\tcpgend\trs\tps\tallele1\tallele0\taf\tbeta\tse\tp_wald",
+        "14\tcg00000289\t69341139\t69341140\trs78073395\t69291541\tA\tG\t0.031\t-0.01948605\t0.134217\t0.8845968",
+        "14\tcg00000289\t69341139\t69341140\trs7149042\t69291666\tT\tC\t0.316\t-0.03876353\t0.04919281\t0.4308962"
+      ],
+      "needs_liftover_to_hg38": true,
+      "purpose": "independent variant evaluation; cross-ancestry replication",
+      "sha256": "0a6df7e5e2d529130e108264687406bf7c3f18e61f4d9f113d286259812c0f69",
+      "source": "genoa_meqtl",
+      "status": "present",
+      "title": "GENOA cis-meQTL summary statistics (African American, EPIC)",
+      "url": "https://zenodo.org/records/7697509/files/meQTL_summarystat_chr14.txt.gz?download=1"
+    },
+    "data/external/genoa_meqtl/meQTL_summarystat_chr15.txt.gz": {
+      "acquisition": "automatic",
+      "bytes": 187524981,
+      "citation": "Shang et al., Nat Commun 2023; Zenodo 10.5281/zenodo.7697509",
+      "genome_build": "hg19",
+      "head": [
+        "chr\tCpG\tcpgstart\tcpgend\trs\tps\tallele1\tallele0\taf\tbeta\tse\tp_wald",
+        "15\tcg00000622\t23034447\t23034448\trs8043191\t22984844\tA\tC\t0.305\t0.04028454\t0.05108477\t0.4305511",
+        "15\tcg00000622\t23034447\t23034448\trs74328285\t22984877\tC\tT\t0.046\t-0.06076521\t0.1114052\t0.5855755"
+      ],
+      "needs_liftover_to_hg38": true,
+      "purpose": "independent variant evaluation; cross-ancestry replication",
+      "sha256": "7567235968c3f31d4c5dc7969c1390368babeec5c2a4126cfadf99cec5078c0c",
+      "source": "genoa_meqtl",
+      "status": "present",
+      "title": "GENOA cis-meQTL summary statistics (African American, EPIC)",
+      "url": "https://zenodo.org/records/7697509/files/meQTL_summarystat_chr15.txt.gz?download=1"
+    },
+    "data/external/genoa_meqtl/meQTL_summarystat_chr16.txt.gz": {
+      "acquisition": "automatic",
+      "bytes": 216271875,
+      "citation": "Shang et al., Nat Commun 2023; Zenodo 10.5281/zenodo.7697509",
+      "genome_build": "hg19",
+      "head": [
+        "chr\tCpG\tcpgstart\tcpgend\trs\tps\tallele1\tallele0\taf\tbeta\tse\tp_wald",
+        "16\tcg00000029\t53468112\t53468113\trs147567966\t53418370\tC\tT\t0.023\t0.3929934\t0.1629209\t0.01604463",
+        "16\tcg00000029\t53468112\t53468113\trs13331807\t53418937\tT\tC\t0.083\t-0.1126049\t0.08342546\t0.1774093"
+      ],
+      "needs_liftover_to_hg38": true,
+      "purpose": "independent variant evaluation; cross-ancestry replication",
+      "sha256": "dcdcedfdcb7cda55fccfbc984ff5c4b757d7f9b3911d5b3a4f4edb4b54c2c81d",
+      "source": "genoa_meqtl",
+      "status": "present",
+      "title": "GENOA cis-meQTL summary statistics (African American, EPIC)",
+      "url": "https://zenodo.org/records/7697509/files/meQTL_summarystat_chr16.txt.gz?download=1"
+    },
+    "data/external/genoa_meqtl/meQTL_summarystat_chr17.txt.gz": {
+      "acquisition": "automatic",
+      "bytes": 184069314,
+      "citation": "Shang et al., Nat Commun 2023; Zenodo 10.5281/zenodo.7697509",
+      "genome_build": "hg19",
+      "head": [
+        "chr\tCpG\tcpgstart\tcpgend\trs\tps\tallele1\tallele0\taf\tbeta\tse\tp_wald",
+        "17\tcg00000221\t54534248\t54534249\trs56388937\t54484280\tC\tT\t0.159\t-0.1368376\t0.06268341\t0.02927802",
+        "17\tcg00000221\t54534248\t54534249\trs58755595\t54484366\tA\tG\t0.159\t-0.1368376\t0.06268341\t0.02927802"
+      ],
+      "needs_liftover_to_hg38": true,
+      "purpose": "independent variant evaluation; cross-ancestry replication",
+      "sha256": "48441bc20e6fa73b56ef91836a1cb57cab60dee198e8ea9690a9434aa956bfb5",
+      "source": "genoa_meqtl",
+      "status": "present",
+      "title": "GENOA cis-meQTL summary statistics (African American, EPIC)",
+      "url": "https://zenodo.org/records/7697509/files/meQTL_summarystat_chr17.txt.gz?download=1"
+    },
+    "data/external/genoa_meqtl/meQTL_summarystat_chr18.txt.gz": {
+      "acquisition": "automatic",
+      "bytes": 106943046,
+      "citation": "Shang et al., Nat Commun 2023; Zenodo 10.5281/zenodo.7697509",
+      "genome_build": "hg19",
+      "head": [
+        "chr\tCpG\tcpgstart\tcpgend\trs\tps\tallele1\tallele0\taf\tbeta\tse\tp_wald",
+        "18\tcg00001506\t61050587\t61050588\trs736223\t61000737\tT\tC\t0.068\t0.1901735\t0.09067851\t0.0362347",
+        "18\tcg00001506\t61050587\t61050588\trs898891\t61000785\tA\tG\t0.068\t0.1901735\t0.09067851\t0.0362347"
+      ],
+      "needs_liftover_to_hg38": true,
+      "purpose": "independent variant evaluation; cross-ancestry replication",
+      "sha256": "ca85a7d4ddf4b87d738714bfe6a528d684ad72a3e324a6622fc1f8e92e150cf5",
+      "source": "genoa_meqtl",
+      "status": "present",
+      "title": "GENOA cis-meQTL summary statistics (African American, EPIC)",
+      "url": "https://zenodo.org/records/7697509/files/meQTL_summarystat_chr18.txt.gz?download=1"
+    },
+    "data/external/genoa_meqtl/meQTL_summarystat_chr19.txt.gz": {
+      "acquisition": "automatic",
+      "bytes": 138024955,
+      "citation": "Shang et al., Nat Commun 2023; Zenodo 10.5281/zenodo.7697509",
+      "genome_build": "hg19",
+      "head": [
+        "chr\tCpG\tcpgstart\tcpgend\trs\tps\tallele1\tallele0\taf\tbeta\tse\tp_wald",
+        "19\tcg00000714\t54695678\t54695679\trs36663\t54651333\tG\tC\t0.349\t-0.04857418\t0.04969535\t0.3285983",
+        "19\tcg00000714\t54695678\t54695679\trs42319\t54651345\tA\tG\t0.353\t-0.0548037\t0.04961891\t0.2696567"
+      ],
+      "needs_liftover_to_hg38": true,
+      "purpose": "independent variant evaluation; cross-ancestry replication",
+      "sha256": "19adf830e28f382eb94be1add6aa7ddca1446d6805ddd4973518fd42318c2e0f",
+      "source": "genoa_meqtl",
+      "status": "present",
+      "title": "GENOA cis-meQTL summary statistics (African American, EPIC)",
+      "url": "https://zenodo.org/records/7697509/files/meQTL_summarystat_chr19.txt.gz?download=1"
+    },
+    "data/external/genoa_meqtl/meQTL_summarystat_chr2.txt.gz": {
+      "acquisition": "automatic",
+      "bytes": 412504315,
+      "citation": "Shang et al., Nat Commun 2023; Zenodo 10.5281/zenodo.7697509",
+      "genome_build": "hg19",
+      "head": [
+        "chr\tCpG\tcpgstart\tcpgend\trs\tps\tallele1\tallele0\taf\tbeta\tse\tp_wald",
+        "2\tcg00001594\t11484705\t11484706\trs6706126\t11434748\tG\tA\t0.413\t0.06185565\t0.04522876\t0.1717521",
+        "2\tcg00001594\t11484705\t11484706\trs6753875\t11434942\tC\tT\t0.491\t-0.06145444\t0.04497754\t0.1721538"
+      ],
+      "needs_liftover_to_hg38": true,
+      "purpose": "independent variant evaluation; cross-ancestry replication",
+      "sha256": "c991337c48405582383a24a999b081b8c5a515b12b07035a50fa91f7c5002287",
+      "source": "genoa_meqtl",
+      "status": "present",
+      "title": "GENOA cis-meQTL summary statistics (African American, EPIC)",
+      "url": "https://zenodo.org/records/7697509/files/meQTL_summarystat_chr2.txt.gz?download=1"
+    },
+    "data/external/genoa_meqtl/meQTL_summarystat_chr20.txt.gz": {
+      "acquisition": "automatic",
+      "bytes": 138188933,
+      "citation": "Shang et al., Nat Commun 2023; Zenodo 10.5281/zenodo.7697509",
+      "genome_build": "hg19",
+      "head": [
+        "chr\tCpG\tcpgstart\tcpgend\trs\tps\tallele1\tallele0\taf\tbeta\tse\tp_wald",
+        "20\tcg00000974\t6750606\t6750607\trs55792406\t6700945\tA\tG\t0.216\t0.0003044173\t0.05525933\t0.9956057",
+        "20\tcg00000974\t6750606\t6750607\trs4815935\t6701133\tT\tA\t0.416\t-0.05820613\t0.04660737\t0.2120207"
+      ],
+      "needs_liftover_to_hg38": true,
+      "purpose": "independent variant evaluation; cross-ancestry replication",
+      "sha256": "9a2817577b596dbf81f02f3e3a1be0577fda8900a83c04da5ed5150f2cd689c2",
+      "source": "genoa_meqtl",
+      "status": "present",
+      "title": "GENOA cis-meQTL summary statistics (African American, EPIC)",
+      "url": "https://zenodo.org/records/7697509/files/meQTL_summarystat_chr20.txt.gz?download=1"
+    },
+    "data/external/genoa_meqtl/meQTL_summarystat_chr21.txt.gz": {
+      "acquisition": "automatic",
+      "bytes": 65313106,
+      "citation": "Shang et al., Nat Commun 2023; Zenodo 10.5281/zenodo.7697509",
+      "genome_build": "hg19",
+      "head": [
+        "chr\tCpG\tcpgstart\tcpgend\trs\tps\tallele1\tallele0\taf\tbeta\tse\tp_wald",
+        "21\tcg00002080\t30390417\t30390418\trs141937219\t30340456\tG\tA\t0.011\t-0.4778814\t0.2386743\t0.04554092",
+        "21\tcg00002080\t30390417\t30390418\trs80226310\t30340535\tT\tG\t0.071\t-0.2528882\t0.09128838\t0.005710199"
+      ],
+      "needs_liftover_to_hg38": true,
+      "purpose": "independent variant evaluation; cross-ancestry replication",
+      "sha256": "6118c3feeaf379a0eceaebcee4578ffe31cf2d96d4f9d26d5362b61579b1f462",
+      "source": "genoa_meqtl",
+      "status": "present",
+      "title": "GENOA cis-meQTL summary statistics (African American, EPIC)",
+      "url": "https://zenodo.org/records/7697509/files/meQTL_summarystat_chr21.txt.gz?download=1"
+    },
+    "data/external/genoa_meqtl/meQTL_summarystat_chr22.txt.gz": {
+      "acquisition": "automatic",
+      "bytes": 113487522,
+      "citation": "Shang et al., Nat Commun 2023; Zenodo 10.5281/zenodo.7697509",
+      "genome_build": "hg19",
+      "head": [
+        "chr\tCpG\tcpgstart\tcpgend\trs\tps\tallele1\tallele0\taf\tbeta\tse\tp_wald",
+        "22\tcg00005888\t47531182\t47531183\trs116618599\t47481719\tC\tG\t0.012\t0.05512157\t0.2159577\t0.7985905",
+        "22\tcg00005888\t47531182\t47531183\trs142284557\t47481726\tA\tG\t0.012\t0.3255709\t0.2156694\t0.1314792"
+      ],
+      "needs_liftover_to_hg38": true,
+      "purpose": "independent variant evaluation; cross-ancestry replication",
+      "sha256": "8f6002afab72f802227da2ad190632c5ffd42de8b30262f9a1d8bf02ad111f43",
+      "source": "genoa_meqtl",
+      "status": "present",
+      "title": "GENOA cis-meQTL summary statistics (African American, EPIC)",
+      "url": "https://zenodo.org/records/7697509/files/meQTL_summarystat_chr22.txt.gz?download=1"
+    },
+    "data/external/genoa_meqtl/meQTL_summarystat_chr3.txt.gz": {
+      "acquisition": "automatic",
+      "bytes": 336145464,
+      "citation": "Shang et al., Nat Commun 2023; Zenodo 10.5281/zenodo.7697509",
+      "genome_build": "hg19",
+      "head": [
+        "chr\tCpG\tcpgstart\tcpgend\trs\tps\tallele1\tallele0\taf\tbeta\tse\tp_wald",
+        "3\tcg00000109\t171916037\t171916038\trs4371542\t171873229\tG\tA\t0.02\t0.1807352\t0.164216\t0.2713495",
+        "3\tcg00000109\t171916037\t171916038\trs4435670\t171880571\tT\tC\t0.125\t-0.1091927\t0.06826036\t0.1100057"
+      ],
+      "needs_liftover_to_hg38": true,
+      "purpose": "independent variant evaluation; cross-ancestry replication",
+      "sha256": "33ba3fe97284439397fefa623cb7c10cfe14d00e85dd7b87944ab4b070e12e11",
+      "source": "genoa_meqtl",
+      "status": "present",
+      "title": "GENOA cis-meQTL summary statistics (African American, EPIC)",
+      "url": "https://zenodo.org/records/7697509/files/meQTL_summarystat_chr3.txt.gz?download=1"
+    },
+    "data/external/genoa_meqtl/meQTL_summarystat_chr4.txt.gz": {
+      "acquisition": "automatic",
+      "bytes": 255297132,
+      "citation": "Shang et al., Nat Commun 2023; Zenodo 10.5281/zenodo.7697509",
+      "genome_build": "hg19",
+      "head": [
+        "chr\tCpG\tcpgstart\tcpgend\trs\tps\tallele1\tallele0\taf\tbeta\tse\tp_wald",
+        "4\tcg00000776\t156388205\t156388206\trs114864424\t156339277\tG\tA\t0.03\t0.1731247\t0.1442434\t0.230348",
+        "4\tcg00000776\t156388205\t156388206\trs4691626\t156340491\tT\tG\t0.1\t-0.0002500048\t0.08196337\t0.9975669"
+      ],
+      "needs_liftover_to_hg38": true,
+      "purpose": "independent variant evaluation; cross-ancestry replication",
+      "sha256": "b0f280f378ac98a809db8cce2cc3ce4eaf40b682cf29355555d9534d2e2f0592",
+      "source": "genoa_meqtl",
+      "status": "present",
+      "title": "GENOA cis-meQTL summary statistics (African American, EPIC)",
+      "url": "https://zenodo.org/records/7697509/files/meQTL_summarystat_chr4.txt.gz?download=1"
+    },
+    "data/external/genoa_meqtl/meQTL_summarystat_chr5.txt.gz": {
+      "acquisition": "automatic",
+      "bytes": 298187998,
+      "citation": "Shang et al., Nat Commun 2023; Zenodo 10.5281/zenodo.7697509",
+      "genome_build": "hg19",
+      "head": [
+        "chr\tCpG\tcpgstart\tcpgend\trs\tps\tallele1\tallele0\taf\tbeta\tse\tp_wald",
+        "5\tcg00002398\t156947638\t156947639\trs79757770\t156897857\tG\tT\t0.033\t0.2863593\t0.130115\t0.02798677",
+        "5\tcg00002398\t156947638\t156947639\trs114312788\t156897936\tT\tC\t0.025\t-0.06490206\t0.1464071\t0.6576498"
+      ],
+      "needs_liftover_to_hg38": true,
+      "purpose": "independent variant evaluation; cross-ancestry replication",
+      "sha256": "c93eb20b483cf94cb87bd47a1b72fccf5a1c64464e52a7940197ee79a44c34d8",
+      "source": "genoa_meqtl",
+      "status": "present",
+      "title": "GENOA cis-meQTL summary statistics (African American, EPIC)",
+      "url": "https://zenodo.org/records/7697509/files/meQTL_summarystat_chr5.txt.gz?download=1"
+    },
+    "data/external/genoa_meqtl/meQTL_summarystat_chr6.txt.gz": {
+      "acquisition": "automatic",
+      "bytes": 413223381,
+      "citation": "Shang et al., Nat Commun 2023; Zenodo 10.5281/zenodo.7697509",
+      "genome_build": "hg19",
+      "head": [
+        "chr\tCpG\tcpgstart\tcpgend\trs\tps\tallele1\tallele0\taf\tbeta\tse\tp_wald",
+        "6\tcg00000721\t25282779\t25282780\trs113587420\t25233134\tA\tG\t0.088\t-0.00473975\t0.08067758\t0.953164",
+        "6\tcg00000721\t25282779\t25282780\trs77914161\t25233485\tC\tT\t0.047\t0.004202851\t0.1116215\t0.9699724"
+      ],
+      "needs_liftover_to_hg38": true,
+      "purpose": "independent variant evaluation; cross-ancestry replication",
+      "sha256": "947b4395744b0098794d0cb0382f960caaff19f9b9362e53924640a1be5dc279",
+      "source": "genoa_meqtl",
+      "status": "present",
+      "title": "GENOA cis-meQTL summary statistics (African American, EPIC)",
+      "url": "https://zenodo.org/records/7697509/files/meQTL_summarystat_chr6.txt.gz?download=1"
+    },
+    "data/external/genoa_meqtl/meQTL_summarystat_chr7.txt.gz": {
+      "acquisition": "automatic",
+      "bytes": 292762107,
+      "citation": "Shang et al., Nat Commun 2023; Zenodo 10.5281/zenodo.7697509",
+      "genome_build": "hg19",
+      "head": [
+        "chr\tCpG\tcpgstart\tcpgend\trs\tps\tallele1\tallele0\taf\tbeta\tse\tp_wald",
+        "7\tcg00000155\t2590565\t2590566\trs286551\t2545487\tC\tG\t0.125\t0.04982161\t0.07171857\t0.4874228",
+        "7\tcg00000155\t2590565\t2590566\trs756018\t2562549\tG\tC\t0.011\t0.1360929\t0.2232852\t0.5423358"
+      ],
+      "needs_liftover_to_hg38": true,
+      "purpose": "independent variant evaluation; cross-ancestry replication",
+      "sha256": "388bf0f701ff2771d983fcb8e5ac594e21d69b883ba04632c60860f9f693274f",
+      "source": "genoa_meqtl",
+      "status": "present",
+      "title": "GENOA cis-meQTL summary statistics (African American, EPIC)",
+      "url": "https://zenodo.org/records/7697509/files/meQTL_summarystat_chr7.txt.gz?download=1"
+    },
+    "data/external/genoa_meqtl/meQTL_summarystat_chr8.txt.gz": {
+      "acquisition": "automatic",
+      "bytes": 284315060,
+      "citation": "Shang et al., Nat Commun 2023; Zenodo 10.5281/zenodo.7697509",
+      "genome_build": "hg19",
+      "head": [
+        "chr\tCpG\tcpgstart\tcpgend\trs\tps\tallele1\tallele0\taf\tbeta\tse\tp_wald",
+        "8\tcg00000236\t42263294\t42263295\trs3136758\t42214175\tA\tG\t0.034\t-0.2799873\t0.1335569\t0.03630922",
+        "8\tcg00000236\t42263294\t42263295\trs116620522\t42215605\tG\tC\t0.068\t-0.2255141\t0.09380839\t0.01640621"
+      ],
+      "needs_liftover_to_hg38": true,
+      "purpose": "independent variant evaluation; cross-ancestry replication",
+      "sha256": "cc2d8aefc35240f539497b66a55643c5482393f92dcb3fe56953e0ac9561c3fe",
+      "source": "genoa_meqtl",
+      "status": "present",
+      "title": "GENOA cis-meQTL summary statistics (African American, EPIC)",
+      "url": "https://zenodo.org/records/7697509/files/meQTL_summarystat_chr8.txt.gz?download=1"
+    },
+    "data/external/genoa_meqtl/meQTL_summarystat_chr9.txt.gz": {
+      "acquisition": "automatic",
+      "bytes": 171120841,
+      "citation": "Shang et al., Nat Commun 2023; Zenodo 10.5281/zenodo.7697509",
+      "genome_build": "hg19",
+      "head": [
+        "chr\tCpG\tcpgstart\tcpgend\trs\tps\tallele1\tallele0\taf\tbeta\tse\tp_wald",
+        "9\tcg00000158\t95010555\t95010556\trs143540307\t94961112\tA\tG\t0.01\t0.2053315\t0.2342042\t0.3808584",
+        "9\tcg00000158\t95010555\t95010556\trs11794966\t94961192\tG\tA\t0.042\t0.2177612\t0.1176647\t0.06452101"
+      ],
+      "needs_liftover_to_hg38": true,
+      "purpose": "independent variant evaluation; cross-ancestry replication",
+      "sha256": "731bcfae8df73be13322c384d198a5d2ad72980fe005e6ea291d9fed722c0e76",
+      "source": "genoa_meqtl",
+      "status": "present",
+      "title": "GENOA cis-meQTL summary statistics (African American, EPIC)",
+      "url": "https://zenodo.org/records/7697509/files/meQTL_summarystat_chr9.txt.gz?download=1"
+    },
+    "data/external/gnomad_af/gnomad_sites_af.tsv.gz": {
+      "acquisition": "manual",
+      "citation": "gnomAD",
+      "genome_build": "hg38",
+      "needs_liftover_to_hg38": false,
+      "purpose": "SNP-under-probe audit, stratified by population",
+      "source": "gnomad_af",
+      "status": "MISSING",
+      "title": "gnomAD population allele frequencies",
+      "url": null
+    },
+    "data/external/godmc_mqtl/godmc_mqtl_results.tsv.gz": {
+      "acquisition": "manual",
+      "citation": "Min et al., Nat Genet 2021; http://mqtldb.godmc.org.uk",
+      "genome_build": "hg19",
+      "needs_liftover_to_hg38": true,
+      "purpose": "independent variant evaluation; European-ancestry arm",
+      "source": "godmc_mqtl",
+      "status": "MISSING",
+      "title": "GoDMC mQTL meta-analysis (blood, n=32,851)",
+      "url": null
+    },
+    "data/external/hocomoco/hocomoco_core_pwm.tar.gz": {
+      "acquisition": "manual",
+      "citation": "HOCOMOCO",
+      "genome_build": "n/a",
+      "needs_liftover_to_hg38": false,
+      "purpose": "regulatory enrichment; second motif reference",
+      "source": "hocomoco",
+      "status": "MISSING",
+      "title": "HOCOMOCO core motif collection",
+      "url": null
+    },
+    "data/external/jaspar/JASPAR_CORE_vertebrates_non-redundant_pfms_jaspar.txt": {
+      "acquisition": "manual",
+      "citation": "JASPAR",
+      "genome_build": "n/a",
+      "needs_liftover_to_hg38": false,
+      "purpose": "regulatory enrichment; motif recovery",
+      "source": "jaspar",
+      "status": "MISSING",
+      "title": "JASPAR CORE vertebrates, non-redundant PFMs",
+      "url": null
+    }
+  },
+  "entry_count": 31,
+  "generated_utc": "2026-08-25T01:33:38+00:00",
+  "liftover": {
+    "backend_available": "pyliftover",
+    "chain_file": "data/reference/hg19ToHg38.over.chain.gz",
+    "chain_present": true,
+    "policy": "Raw downloads are stored byte-identical to the published release. Coordinate conversion happens in the harmonization step and writes new files; it never modifies a checksummed download in place.",
+    "sources_requiring_liftover": [
+      "genoa_meqtl",
+      "godmc_mqtl"
+    ]
+  },
+  "missing": [
+    "data/external/godmc_mqtl/godmc_mqtl_results.tsv.gz",
+    "data/external/egtex_mqtl/egtex_mqtl_by_tissue.tar",
+    "data/external/jaspar/JASPAR_CORE_vertebrates_non-redundant_pfms_jaspar.txt",
+    "data/external/hocomoco/hocomoco_core_pwm.tar.gz",
+    "data/external/gnomad_af/gnomad_sites_af.tsv.gz",
+    "data/external/bend/BEND_repo"
+  ],
+  "missing_count": 6,
+  "root": "data/external",
+  "stage": "A -- external data acquisition"
+}
