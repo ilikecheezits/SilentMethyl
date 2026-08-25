@@ -8,11 +8,11 @@ Harmonization gives you variant-CpG pairs with hg38 coordinates, but GENOA repor
 `allele1`/`allele0` (minor/major) -- NOT reference/alternate. SilentMethyl's
 paired WT/MUT scoring needs REF and ALT. This script resolves REF from hg38.fa at
 each position, assigns ALT as the other allele, and writes the
-`Variant_ID, Gene, chr, Position_1based, Ref, Alt` format
-scripts/14_known_variant_application.py expects.
+`Variant_ID, Gene, chr, Position_1based, Ref, Alt` lead columns that
+scripts/19_genoa_variant_scoring.py consumes.
 
-Three things it does that matter for the analysis
---------------------------------------------------
+Four things it does that matter for the analysis
+-------------------------------------------------
 1. **Splits by what the model has seen.** Pairs are labelled by the split their
    probe belongs to (read from your actual train/val/test CSVs, not assumed from
    chromosome numbers). Scoring a variant at a probe the model trained on is not
@@ -29,6 +29,14 @@ Three things it does that matter for the analysis
    matches the hg38 reference base, the pair is dropped and counted. A high
    mismatch rate means the liftover or the strand convention is wrong, and you
    want that surfaced, not silently absorbed.
+
+4. **Aligns the effect allele.** GENOA's `beta` is the effect of the MINOR allele
+   (GEMMA convention). The model's delta is the effect of ALT over hg38 REF. Those
+   agree only when ALT happens to be the minor allele. `beta_genoa_ref_to_alt`
+   re-signs the published effect into the REF->ALT direction; compare against that
+   column, never raw `beta_genoa`. Mixing the two conventions does not raise -- it
+   just quietly deflates signed correlation and direction agreement, which are the
+   two headline numbers for independent variant evaluation.
 
 Reads hg38.fa directly through its .fai index -- no pyfaidx dependency.
 
@@ -48,6 +56,7 @@ from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 DEFAULT_PAIRS = Path("data/external/genoa_meqtl/harmonized/genoa_model_visible_pairs.csv.gz")
@@ -56,6 +65,19 @@ DEFAULT_SPLIT_DIR = Path("data/datafiles")
 DEFAULT_OUT = Path("data/external/genoa_meqtl/scoring")
 
 COMPLEMENT = str.maketrans("ACGTNacgtn", "TGCANtgcan")
+
+# Geometry of the trained model window, mirrored from
+# scripts/matched_background_utils.py (CENTER_C_INDEX / CENTER_G_INDEX) and
+# scripts/14_known_variant_application.py (MODEL_TARGET_C_INDEX).
+# The 1,000-bp crop places the target CpG's C at index 499 and its G at 500, so a
+# variant is visible to the model only when its offset from the C lies in
+# [-499, +500]. Offsets 0 and +1 hit the target CpG itself and are unscoreable:
+# the architecture's whole premise is a CpG at 499:501, and annotate_variant()
+# rejects any mutant sequence that breaks it.
+MODEL_TARGET_C_INDEX = 499
+MODEL_WINDOW_SIZE = 1000
+MIN_SCOREABLE_OFFSET = -MODEL_TARGET_C_INDEX
+MAX_SCOREABLE_OFFSET = MODEL_WINDOW_SIZE - 1 - MODEL_TARGET_C_INDEX
 
 
 class FastaReader:
@@ -122,7 +144,7 @@ def count_cg(seq: str) -> int:
 def annotate(df: pd.DataFrame, fasta: FastaReader, stats: Counter) -> pd.DataFrame:
     """Resolve REF/ALT against hg38 and flag CpG alteration."""
     refs, alts, keep = [], [], []
-    alters, creates, destroys = [], [], []
+    alters, creates, destroys, alt_is_minor = [], [], [], []
 
     for row in df.itertuples(index=False):
         pos0 = int(row.snp_pos_hg38)
@@ -133,28 +155,35 @@ def annotate(df: pd.DataFrame, fasta: FastaReader, stats: Counter) -> pd.DataFra
             stats["dropped_no_reference_sequence"] += 1
             keep.append(False); refs.append(""); alts.append("")
             alters.append(False); creates.append(False); destroys.append(False)
+            alt_is_minor.append(False)
             continue
 
         ref_base = ctx[1]
         a1 = str(row.allele_minor).strip().upper()
         a0 = str(row.allele_major).strip().upper()
 
+        # ALT is whichever GENOA allele is NOT the hg38 reference base. That is the
+        # right definition for building a mutant sequence, but it does NOT always
+        # make ALT the minor allele -- and `beta_genoa` is keyed to the minor
+        # allele. Record which case we are in so the effect size can be re-signed.
         if ref_base == a0:
-            alt_base = a1
+            alt_base, alt_minor = a1, True     # ref = major, alt = minor
         elif ref_base == a1:
-            alt_base = a0
+            alt_base, alt_minor = a0, False    # ref = minor, alt = major
         else:
             # Neither allele matches hg38. Counted, not hidden -- a high rate here
             # means the liftover or strand convention is wrong.
             stats["dropped_allele_mismatch"] += 1
             keep.append(False); refs.append(ref_base); alts.append("")
             alters.append(False); creates.append(False); destroys.append(False)
+            alt_is_minor.append(False)
             continue
 
         if len(alt_base) != 1 or alt_base not in "ACGT":
             stats["dropped_non_snv"] += 1
             keep.append(False); refs.append(ref_base); alts.append(alt_base)
             alters.append(False); creates.append(False); destroys.append(False)
+            alt_is_minor.append(False)
             continue
 
         mut_ctx = ctx[0] + alt_base + ctx[2]
@@ -166,7 +195,10 @@ def annotate(df: pd.DataFrame, fasta: FastaReader, stats: Counter) -> pd.DataFra
         alters.append(bool(hits_target))
         creates.append(delta > 0)
         destroys.append(delta < 0)
+        alt_is_minor.append(alt_minor)
         stats["kept"] += 1
+        if not alt_minor:
+            stats["ref_is_minor_allele_effect_resigned"] += 1
 
     df = df.copy()
     df["Ref"] = refs
@@ -174,8 +206,29 @@ def annotate(df: pd.DataFrame, fasta: FastaReader, stats: Counter) -> pd.DataFra
     df["alters_target_cpg"] = alters
     df["creates_cpg"] = creates
     df["destroys_cpg"] = destroys
+    df["alt_is_minor_allele"] = alt_is_minor
     df["_keep"] = keep
-    return df[df["_keep"]].drop(columns="_keep").reset_index(drop=True)
+    df = df[df["_keep"]].drop(columns="_keep").reset_index(drop=True)
+
+    # ---- Effect-allele alignment. This is the column downstream analysis must use.
+    #
+    # GENOA is GEMMA output (`allele1`, `allele0`, `af`, `beta`, `se`, `p_wald`), and
+    # GEMMA reports `beta` as the effect per copy of allele1 -- the minor allele.
+    # SilentMethyl's prediction is MUT minus WT, i.e. the effect of substituting ALT
+    # for the hg38 REF. Those two directions agree only when ALT is the minor allele.
+    # When the reference base happens to BE the minor allele, ALT is the major allele
+    # and the model delta runs opposite to beta_genoa.
+    #
+    # Correlating raw beta_genoa against the model delta would therefore mix two sign
+    # conventions and silently depress both signed correlation and direction
+    # agreement -- the two headline numbers for independent variant evaluation. It
+    # would not raise, and it would not look obviously wrong.
+    if "beta_genoa" in df.columns:
+        sign = np.where(df["alt_is_minor_allele"].to_numpy(dtype=bool), 1.0, -1.0)
+        df["beta_genoa_ref_to_alt"] = (
+            pd.to_numeric(df["beta_genoa"], errors="coerce") * sign
+        )
+    return df
 
 
 def cmd_inspect(args) -> int:
@@ -236,6 +289,30 @@ def cmd_run(args) -> int:
     fasta.close()
     logging.info("%d pairs with resolved alleles", len(df))
 
+    # ---- Keep only pairs the model can actually score.
+    #
+    # Two classes are removed here rather than downstream, so the counts are stated
+    # once in the summary instead of surfacing later as an unexplained shortfall:
+    #
+    #   outside the window  the harmonizer's +/-500 bp cut is one base wider on the
+    #                       left than the model crop, so an offset of exactly -500
+    #                       lands at index -1. Such a variant is invisible to the
+    #                       model, which would return a delta of exactly 0.0 and
+    #                       quietly drag every aggregate metric toward the null.
+    #
+    #   alters target CpG   offsets 0 and +1 hit the target C or G. The model is
+    #                       built around a CpG at indices 499:501; a variant that
+    #                       destroys it has no defined prediction, and the array
+    #                       probe reading is itself a known SNP-under-probe artifact.
+    offset = pd.to_numeric(df["distance_bp"], errors="coerce")
+    in_window = offset.between(MIN_SCOREABLE_OFFSET, MAX_SCOREABLE_OFFSET)
+    hits_cpg = df["alters_target_cpg"].astype(bool)
+    stats["dropped_outside_model_window"] = int((~in_window).sum())
+    stats["dropped_alters_target_cpg"] = int((in_window & hits_cpg).sum())
+    df = df[in_window & ~hits_cpg].reset_index(drop=True)
+    logging.info("%d pairs scoreable inside the %d-bp model window",
+                 len(df), MODEL_WINDOW_SIZE)
+
     df["Variant_ID"] = df["rsid"].astype(str)
     df["Gene"] = "NA"
     df["chr"] = df["snp_chr"]
@@ -245,14 +322,17 @@ def cmd_run(args) -> int:
     extra = [c for c in ("probeID", "probe_split", "cpg_chr", "cpg_pos_hg38",
                          "distance_bp", "abs_distance_bp", "alters_target_cpg",
                          "creates_cpg", "destroys_cpg", "allele_minor",
-                         "allele_major", "af_genoa", "beta_genoa", "se_genoa",
+                         "allele_major", "alt_is_minor_allele", "af_genoa",
+                         "beta_genoa", "beta_genoa_ref_to_alt", "se_genoa",
                          "p_wald") if c in df.columns]
     df = df[lead_cols + extra]
 
+    # Only the two strata are written. A concatenated "all" file was removed: it is
+    # byte-for-byte the two below, and any script that globs this directory would
+    # score every pair twice and pool two populations that must never be pooled.
     written = {}
     for name, subset in (("heldout", df[df["probe_split"] == "test"]),
-                         ("model_visible", df[df["probe_split"].isin(["train", "val"])]),
-                         ("all", df)):
+                         ("model_visible", df[df["probe_split"].isin(["train", "val"])])):
         if subset.empty:
             logging.warning("%s stratum is empty", name)
             continue
@@ -279,6 +359,26 @@ def cmd_run(args) -> int:
         "strata": written,
         "split_labelling": ("probe_split read from data/datafiles/{train,val,test}.csv, "
                             "not inferred from chromosome number"),
+        "effect_allele_convention": (
+            "GENOA is GEMMA output: beta_genoa is the effect per copy of allele1 = "
+            "allele_minor. Ref/Alt here come from hg38, so Alt is the minor allele "
+            "only when the reference base is the major allele. Use "
+            "beta_genoa_ref_to_alt -- beta_genoa re-signed to the REF->ALT direction "
+            "-- for every comparison against the model's MUT-minus-WT delta. Raw "
+            "beta_genoa mixes two sign conventions."
+        ),
+        "excluded_from_scoring": {
+            "outside_model_window": (
+                "offset from the target C outside "
+                f"[{MIN_SCOREABLE_OFFSET}, {MAX_SCOREABLE_OFFSET}]; invisible to the "
+                "1000-bp crop, so the model would return a delta of exactly zero"
+            ),
+            "alters_target_cpg": (
+                "offset 0 or +1 hits the target C or G; the model is defined around a "
+                "CpG at indices 499:501 and the array reading is a SNP-under-probe "
+                "artifact"
+            ),
+        },
         "reporting_guidance": (
             "Only the heldout stratum supports an independent-validation claim -- the "
             "model trained on probes in the model_visible stratum. Report heldout as "
@@ -307,6 +407,14 @@ def cmd_run(args) -> int:
               f"{info['unique_variants']:>8,} variants  "
               f"{info['unique_probes']:>7,} probes  "
               f"({info['cpg_altering_any']:,} CpG-altering)")
+    resigned = stats.get("ref_is_minor_allele_effect_resigned", 0)
+    kept = stats.get("kept", 0)
+    print("\neffect-allele alignment")
+    print(f"  pairs where hg38 REF is the MINOR allele  {resigned:>10,}"
+          f"  ({(resigned / kept if kept else 0):.1%})")
+    print("  -> for those, ALT is the MAJOR allele and the model's MUT-minus-WT")
+    print("     delta runs OPPOSITE to beta_genoa. Compare against")
+    print("     `beta_genoa_ref_to_alt`, never raw `beta_genoa`.")
     print("\nOnly `heldout` supports the independent-validation claim.")
     print("=" * 68)
     return 0
