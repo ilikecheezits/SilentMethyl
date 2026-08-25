@@ -84,14 +84,32 @@ def find_columns(df: pd.DataFrame) -> dict:
         if hits > best_hits:
             best_hits, pid_col = hits, c
 
-    call_col = None
+    # Score candidate call columns. Self-reported ETHNICITY ("not hispanic or
+    # latino") is not genetic ancestry -- those columns are actively rejected,
+    # not merely deprioritised, because mixing them in produces nonsense strata.
+    call_col, best_score = None, 0
     for c in df.columns:
+        if c == pid_col:
+            continue
         lc = str(c).lower()
-        if any(k in lc for k in ("ancestry", "ethnicity", "population",
-                                 "consensus", "call", "assign")):
-            if c != pid_col:
-                call_col = c
-                break
+        if any(bad in lc for bad in ("ethnic", "race", "hispanic", "latino",
+                                     "self_report", "selfreport", "reported_")):
+            continue
+        score = 0
+        if "ancestry" in lc:
+            score += 3
+        if "consensus" in lc:
+            score += 2
+        if any(k in lc for k in ("population", "call", "assign", "pop")):
+            score += 1
+        if score == 0:
+            continue
+        # Value-level guard: reject anything whose values read as ethnicity terms.
+        vals = df[c].astype(str).str.lower().head(500)
+        if vals.str.contains("hispanic|latino", regex=True, na=False).mean() > 0.05:
+            continue
+        if score > best_score:
+            call_col, best_score = c, score
 
     admix = [c for c in df.columns
              if any(k in str(c).lower() for k in ("afr", "eur", "eas", "sas", "amr", "admix"))]
@@ -99,7 +117,12 @@ def find_columns(df: pd.DataFrame) -> dict:
             "participant_hit_rate": best_hits / min(200, len(df)) if len(df) else 0.0}
 
 
-MISSING_TOKENS = {"", "nan", "none", "na", "n/a", "<na>", "null", "unknown", "not reported"}
+MISSING_TOKENS = {"", "nan", "none", "na", "n/a", "<na>", "null", "unknown",
+                  "not reported", "not evaluated", "unavailable"}
+
+# Self-reported ethnicity values that must never become an ancestry stratum.
+ETHNICITY_TOKENS = {"hispanic or latino", "not hispanic or latino",
+                    "hispanic", "latino", "non-hispanic"}
 
 
 def _clean_call(value) -> str | None:
@@ -112,7 +135,10 @@ def _clean_call(value) -> str | None:
     except (TypeError, ValueError):
         pass
     text = str(value).strip()
-    return None if text.lower() in MISSING_TOKENS else text
+    low = text.lower()
+    if low in MISSING_TOKENS or low in ETHNICITY_TOKENS:
+        return None
+    return text
 
 
 def _consensus_call(df: pd.DataFrame, call_cols: list) -> pd.Series:
