@@ -1,0 +1,25 @@
+[*] Host: r374.ib.bridges2.psc.edu
+[*] Job:  44406262, task 5
+[*] Harmonizing GENOA chr5
+[*] Started: Tue Aug 25 06:56:34 EDT 2026
+
+==============================================================
+model-visible pairs : 51,305
+unique probes       : 15,342
+unique variants     : 28,736
+output              : data/external/genoa_meqtl/harmonized/genoa_model_visible_pairs_chr5.csv.gz  (1.9 MB)
+median |distance|   : 250 bp
+
+abs distance histogram (sanity check on coordinate bases):
+        0-1 bp           0  
+        1-2 bp           0  
+        2-5 bp         162  
+       5-10 bp         409  
+      10-25 bp       1,660  ###
+      25-50 bp       2,684  #####
+     50-100 bp       5,149  ##########
+    100-250 bp      15,505  ##############################
+    250-500 bp      25,629  ##################################################
+   500-1000 bp         107  
+==============================================================
+[✓] chr5 complete: Tue Aug 25 06:57:03 EDT 2026

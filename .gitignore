@@ -124,6 +124,7 @@ error_log*
 training_log*
 *.txt
 !requirements.txt
+cache
 
 # Small reproducibility and final-result artifacts intentionally tracked
 !reproducibility/environment_snapshot.txt
