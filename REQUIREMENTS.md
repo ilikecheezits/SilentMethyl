@@ -20,8 +20,8 @@ Stage C (one training pass) → Stage D (re-score + write).
 | 2 | Repeated chromosome-blocked splits | **Yes — the only one** | C.1 | not-started | |
 | 3 | Stronger baselines and ablations | No / cheap re-heads | A.2, B.5, C.2–C.3 | not-started | |
 | 4 | Uncertainty calibration | No — post-hoc | B.3 | **done (analysis)** | `results/journal/rc_uncertainty{,_conditional}/` |
-| 5 | Ancestry analyses | No — analysis | B.1 | not-started | |
-| 6 | Independent variant evaluation | No — inference | B.1 | not-started | |
+| 5 | Ancestry analyses | No — analysis | B.1 | in-progress | `results/journal/genoa_variant_evaluation/` (AFR arm) |
+| 6 | Independent variant evaluation | No — inference | B.1 | **done** | `results/journal/genoa_variant_{scoring,evaluation}/` |
 | 7 | Regulatory enrichment | No — inference | B.4 | not-started | |
 
 ### Detail
@@ -120,14 +120,98 @@ RC disagreement retains **~75–83%** of the ensemble's signal depending on meas
 from a single model at zero extra cost.
 
 **5. Ancestry analyses.** Cross-ancestry replication from published summary
-statistics: GoDMC (European-dominant blood), GENOA (African American, EPIC), the
-2024 East Asian/European study. Plus TCGA ancestry-stratified prediction error
-using the GDC's open per-sample ancestry calls, and a gnomAD population-frequency
-audit of SNPs under probes.
+statistics. GoDMC, the 2024 East Asian/European study and the gnomAD audit were all
+dropped — GoDMC and gnomAD bought less than they cost in GB, and the mQTL summary
+statistics already carry ancestry-matched allele frequencies (`af_genoa`) while the
+HM450 manifest carries `MASK_snp5_common` / `MASK_snp5_GMAF1p`.
+
+**The AFR arm is done** (see §6): GENOA is African American, and the requirement-6
+result above *is* the African American replication — 4,037 genome-wide significant
+pairs, ρ = +0.152, distance-matched AUROC 0.570. The comparison arm is eGTEx
+(European-dominant), already in `results/journal/egtex_mqtl_positive_control/`.
+
+**TCGA is not powered and must not carry this requirement.** GDC open ancestry calls
+joined to the 97 training normals give EUR 84, AFR 4, SAS 1, unlabelled 8
+(`data/external/tcga_ancestry/ancestry_summary.json`). Any per-group error estimate
+on n=4 is noise. Report the group sizes, state plainly which strata are powered, and
+rest the claim on GENOA vs eGTEx.
+
+*Remaining:* the formal GENOA-vs-eGTEx contrast on a common metric, with the caveat
+that the two differ in tissue as well as ancestry, so the comparison is not a clean
+ancestry contrast and should not be presented as one.
 
 **6. Independent variant evaluation.** From n=81 to millions. Report signed ρ,
 direction agreement, AUROC, magnitude correlation — stratified by CpG-alteration
 status, distance bin, effect decile, cohort ancestry.
+
+*Cohort built, scripts 19 + `data/build_genoa_scoring_input.py` (2026-08-25).*
+GENOA (Shang et al., *Nat Commun* 2023; Zenodo 10.5281/zenodo.7697509), African
+American blood cohort, harmonised to hg38. 5.3 GB raw → 941,455 pairs → **66,495
+held-out pairs, 39,657 unique variants, 19,081 of 26,570 test probes**. Allele
+mismatch 0.1% (731/942,186), which certifies the liftover. CpGs were never lifted:
+probe IDs are platform-stable and join the hg38 manifest directly.
+
+**Effect-allele hazard, fixed.** GENOA is GEMMA output, so `beta` is keyed to the
+minor allele; the model's Δ is keyed to hg38 REF→ALT. **11.3% of pairs (106,628)
+have REF as the minor allele**, and for those the two run opposite. Always compare
+against `beta_genoa_ref_to_alt`. Raw `beta_genoa` mixes conventions, does not
+raise, and silently deflates both headline metrics.
+
+*Result, script 20 (2026-08-25, `results/journal/genoa_variant_evaluation/`).*
+Seed ensemble, non-CpG-altering, 500 block-bootstrap resamples over 1 Mb blocks.
+
+| metric | fusion | sequence |
+|---|---|---|
+| signed ρ, p<5e-8 | **+0.1523** [+0.117, +0.188] | +0.1497 [+0.109, +0.184] |
+| direction agreement | **0.5534** [0.536, 0.570] | 0.5541 [0.538, 0.573] |
+| AUROC, distance-matched | **0.5700** [0.554, 0.585] | 0.5623 [0.546, 0.578] |
+| AUROC, marginal | 0.6002 [0.586, 0.614] | 0.6026 [0.589, 0.617] |
+| AUROC, distance alone | 0.5953 [0.583, 0.609] | — |
+
+**Report the distance-matched AUROC, not the marginal one.** Significant meQTLs sit
+closer to their CpG (median 191 vs 258 bp), |Δ| is larger for nearer variants
+(ρ = −0.29), and distance *alone* classifies at 0.5953 — statistically
+indistinguishable from the model's marginal 0.6002. State that explicitly and then
+show the matched result: the signal is orthogonal to distance, not absent.
+Volunteering the baseline is far stronger than having it extracted in review.
+
+**Dilution gradient — the evidence the signal is real.** GENOA ships every cis pair
+tested, not the meQTLs discovered; 71% of held-out non-CpG-altering pairs have
+p > 0.05, which is why the pooled ρ is only 0.056.
+
+| stratum | n | signed ρ | direction |
+|---|---|---|---|
+| p < 5e-8 | 4,037 | +0.1523 [+0.117, +0.184] | 0.5534 |
+| 0.05 – 0.5 | 15,891 | +0.0232 [+0.006, +0.040] | 0.5084 |
+| **p > 0.5** | 13,330 | **−0.0037 [−0.020, +0.014]** | **0.4966** |
+
+The null stratum is indistinguishable from zero on both metrics — a negative
+control inside the same data. Middle strata (0.085 / 0.099 / 0.097) are not
+strictly monotone and their CIs overlap; the meaningful contrast is significant
+versus null. Figure: `plots/significance_gradient.{png,pdf}`.
+
+**Honest framing.** ρ ≈ 0.15 and 55% direction agreement is a *weak* predictor.
+What makes it publishable is scale, independence and rigour — 4,037 genome-wide
+significant pairs from a different tissue, ancestry and platform generation, on
+probes the model never saw, against the previous n=81 and AUROC 0.512.
+
+**Second spin-off contribution (see §4 for the first).** *Gated multimodal fusion
+improves absolute methylation prediction but contributes nothing to variant-effect
+prediction, because the context features are allele-invariant.* Paired equivalence
+intervals, fusion − sequence: signed ρ +0.0026 [−0.0020, +0.0070]; direction
+−0.0007 [−0.0064, +0.0051]; AUROC within distance bin −0.0021 [−0.0053, +0.0011].
+Tight intervals, so this is equivalence, not failure to detect. Mechanism: the
+context vector is identical for REF and ALT, so in
+Δ = [dna_mut·g_mut − dna_wt·g_wt] + epi·[g_mut − g_wt] it survives only through a
+gate shift driven by the sequence change. `gate_modulation.csv` closes that route
+too — flat across all four gate-share quartiles, eight of eight intervals covering
+zero, largest |effect| 0.007 (a non-significant trend in the predicted direction,
+worth one sentence and no more). Applies to every sequence-plus-context model doing
+variant scoring.
+
+**Consequence: do not acquire blood ENCODE tracks.** The blood/breast mismatch is
+not what limits variant-effect prediction here; allele-invariance is. Tissue-matched
+context would not change these numbers.
 
 **7. Regulatory enrichment.** Attribution + saturation mutagenesis matched against
 JASPAR and HOCOMOCO, testing recovery of methylation-sensitive factors (CTCF,
@@ -202,14 +286,22 @@ The frozen manifest is written to `data/external/external_manifest.json`.
 
 | Source | Build | Liftover needed | Acquisition | Status |
 |---|---|---|---|---|
-| GENOA meQTL (5.3 GB, 22 files) | hg19 | **yes** | automatic (Zenodo) | not-started |
-| GoDMC mQTL | hg19 (verify) | **yes** | manual | not-started |
-| eGTEx mQTL, 9 tissues | hg38 | no | manual | not-started |
-| ClinVar GRCh38 VCF | hg38 | no | automatic | not-started |
-| JASPAR CORE vertebrates | n/a | no | manual | not-started |
-| HOCOMOCO core | n/a | no | manual | not-started |
-| gnomAD population AF (probe-window subset) | hg38 | no | manual | not-started |
-| BEND task data | hg38 | no | manual (git clone) | not-started |
+| GENOA meQTL | hg19 | **yes** | automatic (Zenodo) | **done** — raw deleted, 30 MB harmonized retained |
+| TCGA-BRCA tumours (from the matrix on disk) | hg38 | no | none | **done** — 699 unpaired of 791 |
+| TCGA ancestry calls (GDC open) | n/a | no | manual | **done** — not powered, see §5 |
+| ClinVar GRCh38 VCF | hg38 | no | automatic | **done** |
+| JASPAR CORE vertebrates | n/a | no | manual | **done** |
+| HOCOMOCO core | n/a | no | manual | **done** |
+| CpGenie, DeepCpG | n/a | no | git clone | **done** — environments not yet stood up |
+| GoDMC mQTL | hg19 | yes | manual | **dropped** — redundant with GENOA + eGTEx |
+| gnomAD population AF | hg38 | no | manual | **dropped** — `af_genoa` + HM450 SNP masks cover it |
+| BEND task data | hg38 | no | git clone | **dropped** — see NMI note in §B |
+| ENCODE blood chromatin tracks | hg38 | no | manual | **not needed** — see §6, allele-invariance |
+
+Stage A is closed. 31 GB → 26 GB, 728 → 629 files after cleanup. Raw GENOA is gone;
+provenance survives via SHA-256 in `external_manifest.json` plus the Zenodo DOI.
+`data/reference/*.bw` (14 GB) is deliberately retained: the C.2 window ablation may
+need to re-extract context features at 400 and 2,000 bp.
 
 **Build hazard.** GENOA and GoDMC are hg19; this project is hg38. The chain file
 `data/reference/hg19ToHg38.over.chain.gz` is already in the repo. Liftover happens
