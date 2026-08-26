@@ -124,6 +124,7 @@ error_log*
 training_log*
 *.txt
 !requirements.txt
+cache
 
 # Small reproducibility and final-result artifacts intentionally tracked
 !reproducibility/environment_snapshot.txt
@@ -140,3 +141,4 @@ training_log*
 !data/egtex_breast_mqtl_heldout.csv
 !data/egtex_breast_mqtl_heldout_qc.csv
 !data/egtex_breast_mqtl_model_visible.csv
+!data/run_harmonize_genoa.sh

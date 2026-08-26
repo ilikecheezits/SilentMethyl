@@ -1,0 +1,25 @@
+[*] Host: r269.ib.bridges2.psc.edu
+[*] Job:  44406262, task 18
+[*] Harmonizing GENOA chr18
+[*] Started: Tue Aug 25 06:56:34 EDT 2026
+
+==============================================================
+model-visible pairs : 13,392
+unique probes       : 3,949
+unique variants     : 6,431
+output              : data/external/genoa_meqtl/harmonized/genoa_model_visible_pairs_chr18.csv.gz  (0.5 MB)
+median |distance|   : 248 bp
+
+abs distance histogram (sanity check on coordinate bases):
+        0-1 bp           0  
+        1-2 bp           0  
+        2-5 bp          41  
+       5-10 bp         122  
+      10-25 bp         438  ###
+      25-50 bp         680  #####
+     50-100 bp       1,414  ##########
+    100-250 bp       4,042  ##############################
+    250-500 bp       6,638  ##################################################
+   500-1000 bp          17  
+==============================================================
+[✓] chr18 complete: Tue Aug 25 06:56:49 EDT 2026

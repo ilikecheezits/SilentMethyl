@@ -1,0 +1,25 @@
+[*] Host: r253.ib.bridges2.psc.edu
+[*] Job:  44406262, task 3
+[*] Harmonizing GENOA chr3
+[*] Started: Tue Aug 25 06:56:32 EDT 2026
+
+==============================================================
+model-visible pairs : 55,487
+unique probes       : 17,039
+unique variants     : 31,507
+output              : data/external/genoa_meqtl/harmonized/genoa_model_visible_pairs_chr3.csv.gz  (2.1 MB)
+median |distance|   : 248 bp
+
+abs distance histogram (sanity check on coordinate bases):
+        0-1 bp           0  
+        1-2 bp           0  
+        2-5 bp         173  
+       5-10 bp         501  
+      10-25 bp       1,683  ###
+      25-50 bp       2,900  #####
+     50-100 bp       5,722  ##########
+    100-250 bp      16,903  ##############################
+    250-500 bp      27,488  ##################################################
+   500-1000 bp         117  
+==============================================================
+[✓] chr3 complete: Tue Aug 25 06:57:08 EDT 2026
