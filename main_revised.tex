@@ -32,6 +32,8 @@
   {results/journal/manuscript_figures/}%
   {results/journal/genoa_variant_evaluation/plots/}%
   {results/journal/rc_uncertainty_figure/}%
+  {results/journal/motif_disruption/plots/}%
+  {results/journal/tcga_tumor_domain_shift/plots/}%
   {figures/}%
 }
 
@@ -120,7 +122,15 @@ pairs survived matching on variant--CpG distance (AUROC 0.570, 0.554--0.585),
 though the unmatched estimate did not exceed a distance-only baseline---a
 comparison we report explicitly.
 
-Two findings generalise beyond this model. First, uncertainty evaluation on
+\textbf{Scanning 831 JASPAR motifs across the held-out pairs recovers a specific
+regulatory relationship the model was never shown.} Disruption of ETS-family
+motifs couples to predicted hypermethylation ($\rho$ up to $-0.28$) against a null
+distribution of per-factor couplings centred at $-0.004$, and survives control for
+local GC content, variant--CpG distance, and substitution class. Disruption
+magnitude alone predicts nothing, so what the model learned is signed and
+family-specific rather than a general sensitivity to motif damage.
+
+Two further findings generalise beyond this model. First, uncertainty evaluation on
 bounded bimodal targets is confounded by range compression: a zero-parameter
 heuristic outperforms genuine uncertainty estimators on the $\beta$ scale and
 collapses on the unbounded logit scale, so calibration should be assessed in
@@ -145,23 +155,33 @@ Section~\ref{sec:genoa-methods} and Section~\ref{sec:genoa-results} (independent
 variant evaluation on GENOA); Section~\ref{sec:stats} (block bootstrap and
 distance-matched negatives); Section~\ref{sec:uncertainty-methods} and
 Section~\ref{sec:uncertainty-results} (uncertainty quantification);
-Section~\ref{sec:equivalence} (fusion/sequence equivalence). Abstract, title,
+Section~\ref{sec:equivalence} (fusion/sequence equivalence);
+Section~\ref{sec:tumor-methods} and Section~\ref{sec:tumor-results} (TCGA-BRCA
+tumours as a shifted target domain); Section~\ref{sec:motif-methods} and
+Section~\ref{sec:motif-results} (ETS motif disruption). Abstract, title,
 introduction, discussion and limitations revised throughout.
 
 \smallskip
+\noindent\textbf{Open question inside a written section.} The context-only model
+shows no degradation at all against the tumour target and its $M$ MAE improves
+(Section~\ref{sec:tumor-results}). Genuine robustness of coarse chromatin signal
+and bounded-range compression from a less bimodal tumour $\beta$ distribution both
+predict this. Resolve before the text asserts either; if it is compression, that
+is a third appearance of our own Section~\ref{sec:uncertainty-results} finding in
+our own results and belongs in the discussion.
+
+\smallskip
 \noindent\textbf{Not yet written, in priority order.}
-(i)~regulatory enrichment against JASPAR/HOCOMOCO---the only remaining source of
-a novel biological finding, and the item that decides venue;
-(ii)~multi-cohort evaluation on the 699 unpaired TCGA-BRCA tumours (data built,
-scoring not run); (iii)~head-to-head against CpGenie and DeepCpG (repositories
-cloned, environments not yet stood up); (iv)~repeated chromosome-blocked splits,
-four additional folds at seed 42---the only remaining model training;
-(v)~conformal prediction intervals; (vi)~a ClinVar figure for clinical relevance.
+(i)~head-to-head against CpGenie and DeepCpG (repositories cloned, environments
+not yet stood up); (ii)~repeated chromosome-blocked splits, four additional folds
+at seed 42---the only remaining model training; (iii)~conformal prediction
+intervals; (iv)~a ClinVar figure for clinical relevance; (v)~HOCOMOCO as a second
+motif library, to confirm the ETS result is not specific to JASPAR's matrices.
 
 \smallskip
 \noindent\textbf{Bibliography.} New citation keys required in
 \texttt{references.bib}: \texttt{shang2023genoa}, \texttt{avsec2025alphagenome},
-\texttt{ying2024methylgpt}, \texttt{gemma2012}. If \texttt{references.bib} is
+\texttt{ying2024methylgpt}, \texttt{gemma2012}, \texttt{castrocolin2013jaspar}. If \texttt{references.bib} is
 absent at build time, this document falls back to a key-only reference list so
 that it still compiles.
 \normalsize
@@ -451,6 +471,62 @@ repeated on the unbounded $M$ scale, and additionally within strata of predicted
 $\beta$ at 10, 20, and 50 levels, so that an estimator's apparent skill could be
 separated from headroom in the target.
 
+\subsection{Tumour cohort as a shifted target domain\NEW}
+\label{sec:tumor-methods}
+
+The TCGA-BRCA matrix already used for training contains 791 primary-tumour
+columns that were never used. Of these, 699 come from participants absent from the
+97 solid-tissue-normal samples used to build the training targets; those 699 form
+the primary cohort, and the full 791 are reported as a supplement because the
+remaining 91 participants make that comparison paired rather than independent.
+
+One property of this design must be stated plainly. Model inputs are the reference
+sequence and MCF-10A context features, neither of which depends on disease state,
+so \emph{predictions are identical for normal and tumour}. This evaluation holds
+predictions fixed and swaps the target. It therefore measures the component of the
+tumour methylome determined by sequence and reference chromatin context, and where
+the model degrades is where methylation has been reprogrammed by something the
+model cannot observe. It is not, and is not presented as, generalisation to a new
+input domain.
+
+\subsection{Motif disruption analysis\NEW}
+\label{sec:motif-methods}
+
+JASPAR CORE vertebrates \cite{castrocolin2013jaspar} (877 matrices, of which 831
+met a 200-variant coverage threshold) was scanned across the 42{,}866 non-CpG-altering held-out GENOA pairs.
+Counts were converted to log-odds matrices against a uniform background with a
+Laplace pseudocount, and scores were expressed relative to each matrix's own range
+so that a threshold means the same thing across motifs of different length and
+information content; 0.80 is the conventional cutoff.
+
+Both strands were scanned, since motifs are strand-specific. For each pair, the
+best-scoring wild-type occurrence covering the variant was located, and the mutant
+was scored \emph{at that same offset and strand}: choosing the optimum separately
+per allele would allow apparent disruption to be the motif relocating to a
+different site. Per-factor coupling is the Spearman correlation between the change
+in relative motif score and the predicted change in $M$, across pairs covered by
+that motif, with Benjamini--Hochberg correction across factors.
+
+Three controls were applied, each targeting a distinct way the result could be an
+artifact. A \emph{null distribution} across all tested motifs distinguishes a
+factor-specific effect from a global offset in which disrupting any motif shifts
+predictions one way. \emph{Partial correlations} residualise local GC content and
+variant--CpG distance, since motifs concentrate in GC-rich sequence and GC-rich
+sequence sits nearer CpG islands. A further partial adds \emph{canonical
+substitution class} (six categories, pyrimidine reference), because
+compositionally biased motifs imply biased base changes: weakening a purine-rich
+motif usually means a G/A$\rightarrow$C/T substitution, and pyrimidine-rich
+sequence is more methylated on average.
+
+Because motif families share a core, top-ranked factors are not independent
+observations. Pairwise Jaccard overlap of the covered-variant sets is reported so
+that redundancy is measured rather than assumed.
+
+A binary inside-versus-outside-a-motif contrast is not usable here: with the full
+library scanned, every variant falls inside some occurrence at the 0.80 cutoff,
+leaving no background. Contrasts therefore use top-versus-bottom quartiles of
+disruption magnitude, matched on exact variant--CpG distance and GC quintile.
+
 \subsection{External eGTEx mQTL analysis}
 Significant eGTEx Breast Mammary Tissue lead mQTLs ($q<0.05$) were overlapped with
 test-set CpGs \cite{oliva2023mqtl}. After excluding variants outside the sequence
@@ -715,6 +791,107 @@ estimators are scale-stable; the boundary heuristic is not.}
 \label{fig:uncertainty}
 \end{figure}
 
+\subsection{Tumour methylation is predicted from sequence where it has not been reprogrammed\NEW}
+\label{sec:tumor-results}
+
+Holding predictions fixed and scoring them against the 699-tumour target, fusion
+$\beta$ MAE moved from 0.0975 to 0.1180 and ROC-AUC from 0.9696 to 0.9448; the
+sequence model behaved similarly (0.1079 to 0.1296; 0.9590 to 0.9308). Sixty-five
+per cent of held-out probes differ by less than 0.05 between the normal and tumour
+targets, and Spearman correlation between the two targets is 0.956.
+
+Degradation is concentrated exactly where the methylome moved: fusion $\beta$ MAE
+against the tumour target rises monotonically across strata of
+$|\beta_{\text{tumour}}-\beta_{\text{normal}}|$, from 0.0769 in the smallest
+stratum to 0.4082 in the largest. Most of the tumour methylome at these probes is
+therefore recoverable from sequence and reference chromatin context alone, and the
+model's error is an estimate of the state-specific remainder.
+
+The context-only model is a partial exception: its $\beta$ MAE is unchanged
+(0.1395 versus 0.1396) and its $M$ MAE improves. Whether this reflects genuine
+robustness of coarse chromatin signal or the bounded-range compression described
+in Section~\ref{sec:uncertainty-results} reappearing because tumour $\beta$ is less
+bimodal is not yet resolved\ifdraftmode\ (see draft status)\fi.
+
+\subsection{Disrupting ETS-family motifs predicts hypermethylation\NEW}
+\label{sec:motif-results}
+
+Across 831 tested motifs, the strongest couplings between motif score change and
+predicted methylation change form a coherent group of ETS-family factors, all with
+the same sign (Table~\ref{tab:motifs}). Negative coupling means motif weakening
+accompanied by predicted \emph{hyper}methylation, the direction expected for
+factors whose binding protects CpGs from methylation.
+
+\begin{table}[!tbp]
+\centering
+\caption{\textbf{Strongest per-factor coupling between motif disruption and
+predicted methylation change.} Spearman $\rho$ between the change in relative
+motif score and $\Delta\widehat M$, among held-out non-CpG-altering pairs covered
+by each motif. Successive columns add controls. All $q_{\text{BH}}<10^{-12}$.}
+\label{tab:motifs}
+\small
+\resizebox{\columnwidth}{!}{
+\begin{tabular}{lrrrrr}
+\toprule
+Factor & $n$ & $\rho$ & +GC/dist & +subst. & motif GC \\
+\midrule
+ELF4  & 1,005 & $-0.266$ & $-0.268$ & $\mathbf{-0.281}$ & 0.55 \\
+FEV   & 2,068 & $-0.257$ & $-0.259$ & $-0.257$ & 0.56 \\
+EHF   & 1,711 & $-0.251$ & $-0.253$ & $-0.252$ & 0.51 \\
+ELF1  & 1,352 & $-0.242$ & $-0.246$ & $-0.233$ & 0.54 \\
+ETV1  & 1,606 & $-0.237$ & $-0.242$ & $-0.240$ & 0.49 \\
+GABPA &   968 & $-0.233$ & $-0.235$ & $-0.230$ & 0.50 \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+The result survives three controls, each addressing a distinct alternative
+explanation.
+
+\textbf{It is not a global offset.} Median coupling across all 831 motifs is
+$-0.0037$ (IQR $-0.045$ to $+0.038$), 51.4\% of motifs are negative, and 185 are
+significantly negative against 155 significantly positive at $q<0.05$. The null is
+centred and symmetric, placing the ETS group roughly five interquartile ranges
+outside it.
+
+\textbf{It is not GC or distance.} Partial correlations are unchanged or slightly
+stronger. A library-wide gradient exists ($\rho=-0.20$ between motif GC and
+coupling), but the ETS motifs are mid-GC (0.44--0.65); were composition driving
+the result, GC-rich motifs at 0.85--0.90 would rank highest, and they do not.
+
+\textbf{It is not substitution bias.} ETS cores are purine-rich, so weakening one
+typically implies a G/A$\rightarrow$C/T change, and pyrimidine-rich sequence is
+more methylated on average. Residualising on canonical substitution class leaves
+every coupling essentially unchanged.
+
+Two null results accompany the positive one and are reported with it. The
+\emph{magnitude} of disruption predicts nothing (continuous $\rho=-0.011$,
+$-0.023$ to $+0.002$; strong versus weak median $|\Delta\widehat M|$ 0.0177 versus
+0.0184), and meQTL discrimination is not concentrated among strong disruptors
+(AUROC 0.592, 0.570--0.614, versus 0.596, 0.574--0.620). The model did not learn
+that disrupting motifs matters in general; it learned a signed, family-specific
+relationship.
+
+\begin{figure}[!tbp]
+\centering
+\IfFileExists{motif_disruption.png}{%
+  \includegraphics[width=\columnwidth]{motif_disruption.png}%
+}{\missingfigure{motif_disruption.png}{2.2in}}
+\caption{\textbf{Motif disruption and predicted variant effects.} Left: per-factor
+coupling between change in relative motif score and $\Delta\widehat M$, with 95\%
+block-bootstrap intervals; asterisks mark factors with previously reported
+methylation-sensitive binding. Right: meQTL discrimination among strongly versus
+weakly disrupting variants, which does not differ.}
+\label{fig:motifs}
+\end{figure}
+
+Two constraints on interpretation. First, the top-ranked factors are not
+independent: mean pairwise Jaccard overlap of their covered-variant sets is 0.278
+and the maximum is 0.792, so this is the ETS core motif represented by several
+matrices rather than several independent findings. Second, the 18 factors with
+previously reported methylation-sensitive binding have median rank 136 of 831 --
+enriched relative to a chance expectation of 416, but decisively outranked by ETS.
+
 \subsection{Variant prioritization and case studies}
 
 Applied as a prioritization engine to 440 synonymous variant--CpG pairs, the
@@ -818,6 +995,26 @@ themselves allele-dependent might. Notably, this also means that the mismatch
 between the breast context features used here and the blood tissue of the
 validation cohort is not what limits variant-effect performance.
 
+\REV{}The motif analysis supplies the mechanistic layer the earlier draft lacked.
+A model given no motif information, trained only to predict methylation, recovered
+a signed and family-specific relationship: weakening an ETS-family binding site
+accompanies predicted hypermethylation. ETS and GABPA occupancy is an established
+hallmark of unmethylated CpG-island promoters, so the biology itself is not new.
+What is new is the route --- unsupervised recovery from sequence alone, detectable
+on held-out probes in a different tissue, ancestry and platform generation --- and
+the quantitative ordering, in which previously characterised methylation-sensitive
+factors are enriched relative to chance yet decisively outranked. We state the
+distinction explicitly because the alternative reading, that this constitutes a
+new regulatory discovery, would not survive scrutiny and is not what the data
+support.
+
+The accompanying null results constrain the claim usefully. Disruption magnitude
+does not predict effect size, and meQTL discrimination is no higher among strong
+disruptors. A model that had learned a general sensitivity to motif damage would
+show both. That neither appears, while a signed family-level coupling does, is
+more informative than the positive result alone, and is the reason we report the
+three together.
+
 \subsection*{Limitations}
 
 Methylation targets derive from cohort medians of 97 TCGA solid-tissue-normal
@@ -831,6 +1028,15 @@ are breast; results on GENOA are therefore cross-tissue transfer rather than
 tissue-matched validation. GENOA effect sizes are reported on a
 normalized-phenotype scale, so rank and sign comparisons are meaningful while
 magnitude calibration against them is not available.
+
+Motif occurrences are predicted from position weight matrices, not measured
+binding; without matched ChIP-seq in the relevant tissue these remain candidate
+sites. The top-ranked factors share a core motif and are not independent
+observations (mean pairwise Jaccard overlap 0.278 of their covered-variant sets),
+so the finding concerns one motif family rather than a set of factors. The tumour
+evaluation holds model inputs fixed and varies only the target, and measures the
+sequence-determined component of the tumour methylome rather than generalisation
+to a new input domain.
 
 Ancestry-stratified error on the training cohort is not adequately powered:
 open genetic ancestry calls for the 97 training normals yield 84 European, 4
@@ -913,6 +1119,7 @@ while its context features remain allele-invariant.
   \bibitem{frankish2021gencode} \texttt{frankish2021gencode}
   \bibitem{shang2023genoa} \texttt{shang2023genoa} $\dagger$
   \bibitem{gemma2012} \texttt{gemma2012} $\dagger$
+  \bibitem{castrocolin2013jaspar} \texttt{castrocolin2013jaspar} $\dagger$
   \bibitem{oliva2023mqtl} \texttt{oliva2023mqtl}
   \bibitem{cai2019ncoa2} \texttt{cai2019ncoa2}
   \bibitem{lipsa2019stk11} \texttt{lipsa2019stk11}

@@ -16,13 +16,13 @@ Stage C (one training pass) → Stage D (re-score + write).
 
 | # | Requirement | Needs retraining? | Stage | Status | Evidence |
 |---|---|---|---|---|---|
-| 1 | Multi-cohort testing | No — inference | B.2 | not-started | |
+| 1 | Multi-cohort testing | No — inference | B.2 | **done** | `results/journal/tcga_tumor_domain_shift/` |
 | 2 | Repeated chromosome-blocked splits | **Yes — the only one** | C.1 | not-started | |
 | 3 | Stronger baselines and ablations | No / cheap re-heads | A.2, B.5, C.2–C.3 | not-started | |
 | 4 | Uncertainty calibration | No — post-hoc | B.3 | **done (analysis)** | `results/journal/rc_uncertainty{,_conditional}/` |
 | 5 | Ancestry analyses | No — analysis | B.1 | in-progress | `results/journal/genoa_variant_evaluation/` (AFR arm) |
 | 6 | Independent variant evaluation | No — inference | B.1 | **done** | `results/journal/genoa_variant_{scoring,evaluation}/` |
-| 7 | Regulatory enrichment | No — inference | B.4 | not-started | |
+| 7 | Regulatory enrichment | No — inference | B.4 | **done** | `results/journal/motif_disruption/` |
 
 ### Detail
 
@@ -30,6 +30,33 @@ Stage C (one training pass) → Stage D (re-score + write).
 TCGA-BRCA tumours as a shifted domain; ENCODE/Roadmap WGBS. Zero-shot scoring of
 existing checkpoints. Include the head-to-head against DeepMethylation's published
 numbers (avg AUROC 0.909, EPIC R² 0.58, genome-wide AUROC 0.618, WGBS R² 0.17–0.20).
+
+*Result, script 21 (2026-08-26, `results/journal/tcga_tumor_domain_shift/`).*
+699 unpaired TCGA-BRCA tumours, zero GPU.
+
+**Critical framing.** Model inputs are reference sequence and MCF-10A context;
+neither depends on disease state, so **predictions are identical for normal and
+tumour**. This holds predictions fixed and swaps the target. It measures the
+sequence-and-context-determined component of the tumour methylome. Do **not**
+describe it as the model generalising to tumours — a reviewer who notices the
+inputs are unchanged will read that as overclaiming.
+
+| model | β MAE normal → tumour | ROC-AUC normal → tumour |
+|---|---|---|
+| fusion | 0.0975 → 0.1180 | 0.9696 → 0.9448 |
+| sequence | 0.1079 → 0.1296 | 0.9590 → 0.9308 |
+| epi | 0.1395 → **0.1396** | 0.9188 → 0.9105 |
+
+65% of held-out probes move less than 0.05 between normal and tumour; error rises
+monotonically with how far the target moved (0.0769 → 0.4082 across shift bins).
+
+**Open check — the epi model does not degrade at all**, and its M MAE improves
+(1.4565 → 1.3992). Two explanations: genuine robustness of coarse chromatin
+signal, or the bounded-range compression of §4 reappearing because tumour β is
+less bimodal. Resolve before claiming either; if it is compression, that is a
+third instance of our own methodological finding inside our own results and
+belongs in the discussion. Also compare tumour-vs-normal error *within* shift bins
+(`metrics_by_target_shift.csv`) — low-shift probes may simply be easier probes.
 
 **2. Repeated chromosome-blocked splits.** Design: 4 additional folds at seed 42
 only, combined with the existing 3-seed chr8–9 fold. Report seed SD from fold 1
@@ -213,10 +240,68 @@ variant scoring.
 not what limits variant-effect prediction here; allele-invariance is. Tissue-matched
 context would not change these numbers.
 
-**7. Regulatory enrichment.** Attribution + saturation mutagenesis matched against
-JASPAR and HOCOMOCO, testing recovery of methylation-sensitive factors (CTCF,
-NRF1, CEBPB, ZBTB33, BANP). Enrichment of high-|Δβ̂| variants against TFBS,
-enhancers, CTCF sites, chromHMM states, with matched backgrounds.
+**7. Regulatory enrichment.** JASPAR CORE vertebrates (877 matrices, 831 tested)
+scanned on both strands across the 42,866 non-CpG-altering held-out GENOA pairs.
+For each pair the best wild-type hit covering the variant is found, and the mutant
+is scored *at that same site* so "disruption" cannot be the motif relocating.
+
+*Result, script 22 (2026-08-26, `results/journal/motif_disruption/`).*
+
+**The positive finding: ETS-family motif disruption predicts hypermethylation.**
+Per-factor coupling = Spearman(Δ relative motif score, Δ M̂) among covered pairs:
+
+| factor | n | ρ | +GC/dist | +substitution | motif GC |
+|---|---|---|---|---|---|
+| ELF4 | 1,005 | −0.2659 | −0.2683 | **−0.2814** | 0.55 |
+| FEV | 2,068 | −0.2567 | −0.2592 | −0.2568 | 0.56 |
+| EHF | 1,711 | −0.2512 | −0.2533 | −0.2515 | 0.51 |
+| ELF1 | 1,352 | −0.2416 | −0.2457 | −0.2326 | 0.54 |
+| ETV1 | 1,606 | −0.2372 | −0.2416 | −0.2401 | 0.49 |
+| GABPA | 968 | −0.2330 | −0.2352 | −0.2296 | 0.50 |
+
+Negative coupling = motif weakening accompanied by predicted **hyper**methylation,
+the direction expected for factors whose binding protects CpGs from methylation.
+
+**It survives all three artifact controls, which is why it is reportable:**
+
+1. *Not a global offset.* Median coupling across all 831 motifs is **−0.0037**,
+   IQR [−0.0453, +0.0376]; 51.4% negative; 185 significantly negative vs 155
+   significantly positive at q<0.05. The null is centred and symmetric, so the ETS
+   group sits ~5 IQRs outside it.
+2. *Not GC or distance.* Partials are unchanged or stronger. There is a library-wide
+   GC gradient (ρ = −0.20), but ETS motifs are mid-GC (0.44–0.65); if GC drove it,
+   SP1-like motifs at GC 0.85–0.90 would top the table. They do not.
+3. *Not substitution composition.* ETS cores are purine-rich, so weakening one
+   usually means a G/A→C/T change, and pyrimidine-rich sequence is generally more
+   methylated. Residualising on canonical substitution class (6 categories) changes
+   nothing.
+
+**Three framing rules — violating any of them invites correction:**
+
+- **One family, not fifteen factors.** Top-15 mean pairwise Jaccard of covered sets
+  is **0.278**, max **0.792**. Write "the ETS core motif, represented by N JASPAR
+  matrices with mean pairwise overlap 0.28."
+- **Recovery of known biology by an unsupervised route, not new biology.** ETS and
+  GABPA sites are an established hallmark of unmethylated CpG-island promoters. The
+  claim is that a model never shown a motif recovered this de novo, and that it
+  holds on held-out probes in a different tissue, ancestry and platform generation.
+- **The canonical panel is enriched, not missed.** The 18 known
+  methylation-sensitive factors have median rank 136 of 831 — chance is 416. Say
+  "recovered above chance but decisively outranked by ETS."
+
+**The two null results belong in the same figure.** Disruption *magnitude* predicts
+nothing (continuous ρ = −0.0109 [−0.0228, +0.0017]; strong vs weak median |ΔM̂|
+0.0177 vs 0.0184), and meQTL discrimination is not concentrated in strong
+disruptors (AUROC 0.5918 vs 0.5962, difference −0.0043, intervals overlapping).
+The model did not learn "breaking motifs matters" as a general rule; it learned
+something signed and family-specific. Reporting only the positive would look like
+fishing.
+
+*Method note.* A binary inside/outside-a-motif split does not work: with the full
+library scanned, **100%** of variants fall inside some occurrence at the
+conventional 0.80 cutoff, leaving no background. Q1 and Q3 use a top-versus-bottom
+quartile contrast on disruption magnitude, matched on exact distance and GC
+quintile.
 
 ---
 
@@ -226,7 +311,7 @@ enhancers, CTCF sites, chromHMM states, with matched backgrounds.
 |---|---|---|---|---|
 | Nature Machine Intelligence | 29.8 | Broadly generalizable AI framework validated across several genomic tasks | B.5 (BEND, 7 tasks) | at-risk — see note |
 | Nature Genetics | 25.5 | Major genetic or disease discovery from large independent public cohorts | — | not pursued (deliberate) |
-| Nature Communications | 18.1 | Cross-tissue + cross-cohort + cross-ancestry validation, plus substantial new biological findings derived computationally | B.1, B.2, B.4 | triad on track; biology clause is the weak leg |
+| Nature Communications | 18.1 | Cross-tissue + cross-cohort + cross-ancestry validation, plus substantial new biological findings derived computationally | B.1, B.2, B.4 | **triad met; biology clause now has a candidate (ETS, §7)** — arguable, not safe |
 | Genome Medicine | 10.8 | Clearer clinical relevance, multiple external cohorts, comparisons with leading methylation and variant-effect predictors | D.2, B.2, L1–L3 | best-served target |
 
 ### Notes on risk
@@ -239,13 +324,31 @@ satisfied in letter, not in spirit. Treat NMI as a low-probability first
 submission, not a plan target. Recovering it would require multi-task *training*,
 which was cut on cost grounds.
 
-**Nature Communications — the biology clause was always the weak leg.** The
-validation triad (cross-tissue, cross-cohort, cross-ancestry) is now met cheaply
-and completely. "Substantial new biological findings derived computationally"
-rests entirely on requirement 7. Motif recovery is confirmatory by nature; to make
-the clause land, requirement 7 needs at least one finding that is novel rather
-than confirmatory — a tissue-differential pattern, or a characterized class of
-variants nobody has described. Track that as its own line item.
+**Nature Communications — now arguable, still not safe.** The validation triad is
+met. The biology clause has a candidate: the ETS-family result in §7, which
+survives three artifact controls and sits five IQRs outside a centred null.
+
+Honest ledger, both sides:
+
+*For.* A model given no motif information recovered a specific, signed,
+family-level regulatory relationship, on held-out probes in a different tissue,
+ancestry and platform. Three independent controls fail to explain it. Two
+additional methodological contributions (§4 range compression, §6 allele-invariance)
+generalise past this model.
+
+*Against.* Predictive performance is modest (ρ ≈ 0.15, distance-matched AUROC
+0.570), and the marginal AUROC does not beat a distance-only baseline. The ETS–CpG
+island relationship is **established biology**, so this is unsupervised recovery
+rather than discovery. And it is one motif family, not a broad regulatory map.
+
+*Realistic read.* Perhaps a 1-in-4 shot at Nature Communications; Genome Medicine
+remains the high-probability outcome. Submitting to Nature Communications first
+costs roughly 6–8 weeks on rejection and nothing else, so the sequencing is:
+Nature Communications → Genome Medicine or Nucleic Acids Research.
+
+*What would move the odds materially:* a second, independent biological finding
+that is not recovery of known biology — a tissue-differential pattern from the
+cross-tissue design, or a characterised variant class nobody has described.
 
 **Genome Medicine — now the strongest fit.** Two of three criteria are met
 emphatically ("multiple external cohorts" and "comparisons with leading
