@@ -507,9 +507,34 @@ def main() -> int:
     pairs["abs_delta_m"] = pairs["Predicted_Delta_M"].abs()
     quintiles = pairs["gc_quintile"].to_numpy()
 
+    # Canonical substitution class (pyrimidine reference, 6 classes), one-hot.
+    #
+    # This is the confound that would otherwise sink the per-factor result. Many
+    # motif families are compositionally biased -- ETS cores are purine-rich, for
+    # instance -- so weakening such a motif usually means a specific kind of base
+    # change. If the model's predicted shift responds to the base change itself
+    # (C/T-rich sequence is generally more methylated), a factor-specific coupling
+    # appears with no transcription-factor biology behind it. Controlling for
+    # substitution class separates the two.
+    complement = {"A": "T", "C": "G", "G": "C", "T": "A"}
+    reference = pairs["Ref"].astype(str).str.upper()
+    alternate = pairs["Alt"].astype(str).str.upper()
+    flip = reference.isin(["A", "G"])
+    canonical_ref = np.where(flip, reference.map(complement), reference)
+    canonical_alt = np.where(flip, alternate.map(complement), alternate)
+    substitution = pd.Series([f"{r}>{a}" for r, a in zip(canonical_ref, canonical_alt)],
+                             index=pairs.index)
+    substitution_dummies = pd.get_dummies(substitution, prefix="sub",
+                                          drop_first=True).astype(float)
+    pairs = pd.concat([pairs, substitution_dummies], axis=1)
+    substitution_columns = list(substitution_dummies.columns)
+    LOGGER.info("substitution classes: %s",
+                dict(substitution.value_counts().head(6)))
+
     # ---- scan every motif
     LOGGER.info("scanning %d motifs over %d pairs", len(motifs), len(pairs))
     hit_any = np.zeros(len(pairs), dtype=bool)
+    covered_sets: dict[str, np.ndarray] = {}
     best_disruption = np.zeros(len(pairs), dtype=np.float32)
     top_factor = np.array([""] * len(pairs), dtype=object)
     per_motif_rows = []
@@ -531,13 +556,17 @@ def main() -> int:
         if n_covered < args.min_covered:
             continue
 
-        subset = pairs.loc[covered, ["Predicted_Delta_M", "_block", "gc_content",
-                                     "abs_distance_bp"]].copy()
+        control_columns = ["gc_content", "abs_distance_bp"] + substitution_columns
+        subset = pairs.loc[covered, ["Predicted_Delta_M", "_block"]
+                           + control_columns].copy()
         subset["_ds"] = delta_score[covered]
         result = spearmanr(subset["_ds"], subset["Predicted_Delta_M"])
         coupling = float(result.statistic)
         partial = partial_spearman(subset["_ds"], subset["Predicted_Delta_M"],
                                    subset[["gc_content", "abs_distance_bp"]])
+        partial_substitution = partial_spearman(
+            subset["_ds"], subset["Predicted_Delta_M"], subset[control_columns])
+        covered_sets[motif["name"]] = covered.copy()
         low, high = block_bootstrap(
             subset,
             lambda f: float(spearmanr(f["_ds"], f["Predicted_Delta_M"]).statistic),
@@ -556,6 +585,7 @@ def main() -> int:
             "motif_consensus_cpg_count": motif["consensus_cpg_count"],
             "coupling_spearman": coupling,
             "coupling_partial_gc_distance": partial,
+            "coupling_partial_gc_distance_substitution": partial_substitution,
             "coupling_ci_low": low,
             "coupling_ci_high": high,
             "coupling_p_raw": float(result.pvalue),
@@ -612,6 +642,29 @@ def main() -> int:
                     .to_series().median()) + 1
                 if per_motif["known_methylation_sensitive"].any() else None),
         }
+        # How independent are the top hits really? Motif families share a core
+        # (ETS factors all read GGAA/GGAT), so a dozen "factors" at the top of the
+        # table can be one motif counted twelve times. Jaccard overlap of the
+        # covered-variant sets measures that directly, without needing a curated
+        # family annotation.
+        top_names = per_motif.head(15)["factor"].tolist()
+        overlaps, rows_overlap = [], []
+        for i, first in enumerate(top_names):
+            for second in top_names[i + 1:]:
+                a, b = covered_sets.get(first), covered_sets.get(second)
+                if a is None or b is None:
+                    continue
+                union = int((a | b).sum())
+                jaccard = float((a & b).sum() / union) if union else np.nan
+                overlaps.append(jaccard)
+                rows_overlap.append({"factor_a": first, "factor_b": second,
+                                     "jaccard": jaccard})
+        if rows_overlap:
+            atomic_csv(pd.DataFrame(rows_overlap), out / "top_motif_overlap.csv")
+        null_summary["top15_mean_pairwise_jaccard"] = (
+            float(np.nanmean(overlaps)) if overlaps else np.nan)
+        null_summary["top15_max_pairwise_jaccard"] = (
+            float(np.nanmax(overlaps)) if overlaps else np.nan)
         atomic_json(null_summary, out / "coupling_null_summary.json")
 
     pairs["in_motif"] = hit_any
@@ -860,17 +913,20 @@ def print_report(per_motif: pd.DataFrame, global_frame: pd.DataFrame,
     if per_motif.empty:
         print("  no factor met the coverage threshold")
     else:
-        print(f"  {'factor':<14}{'n':>8}{'rho':>10}{'partial':>10}{'GC':>7}"
-              f"{'CpG':>5}{'q(BH)':>10}")
+        print(f"  {'factor':<14}{'n':>8}{'rho':>10}{'+GC/dist':>10}{'+subst':>10}"
+              f"{'GC':>7}{'q(BH)':>10}")
         for _, row in per_motif.head(15).iterrows():
             star = "*" if row["known_methylation_sensitive"] else " "
-            partial = row["coupling_partial_gc_distance"]
-            partial_text = f"{partial:>+10.4f}" if np.isfinite(partial) else f"{'n/a':>10}"
+            def fmt(value):
+                return f"{value:>+10.4f}" if np.isfinite(value) else f"{'n/a':>10}"
             print(f"  {row['factor'][:12]:<12}{star} {row['n_covered']:>7,}"
-                  f"{row['coupling_spearman']:>+10.4f}{partial_text}"
+                  f"{row['coupling_spearman']:>+10.4f}"
+                  f"{fmt(row['coupling_partial_gc_distance'])}"
+                  f"{fmt(row['coupling_partial_gc_distance_substitution'])}"
                   f"{row['motif_gc_content']:>7.2f}"
-                  f"{row['motif_consensus_cpg_count']:>5d}"
                   f"{row['coupling_q_bh']:>10.2e}")
+        print("  +GC/dist controls local GC and variant-CpG distance; "
+              "+subst adds substitution class")
         known = per_motif[per_motif["known_methylation_sensitive"]]
         if not known.empty:
             print(f"\n  known methylation-sensitive factors tested: {len(known)}; "
@@ -891,6 +947,9 @@ def print_report(per_motif: pd.DataFrame, global_frame: pd.DataFrame,
                   f"negative, {null_summary['significant_positive_q05']} positive")
             print(f"    spearman(motif GC, coupling)                 "
                   f"{null_summary['spearman_motif_gc_vs_coupling']:+.4f}")
+            print(f"    top-15 mean pairwise Jaccard overlap         "
+                  f"{null_summary.get('top15_mean_pairwise_jaccard', float('nan')):.3f}"
+                  f"   (high = one motif family, not N factors)")
             print("    -> a median far from zero means a GLOBAL offset, not a")
             print("       factor-specific effect. A strong GC correlation means the")
             print("       result is about sequence composition, not the factor.")
