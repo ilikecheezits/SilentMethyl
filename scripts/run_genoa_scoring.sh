@@ -28,8 +28,12 @@
 #     results/journal/genoa_variant_scoring/heldout/<model>/seed<seed>/pair_scores.csv
 # and its own run_summary_<model>_seed<seed>.json, so there is no write collision.
 #
-# Submit from the repository root:
-#     sbatch scripts/run_genoa_scoring.sh
+# Submit from the repository root. The mkdir is NOT optional and NOT redundant
+# with the one below: Slurm opens the --output/--error files before the script
+# body runs, so if logs/genoa_scoring/ does not already exist every task dies
+# before its first line with the batch step CANCELLED and no log to explain it.
+#
+#     mkdir -p logs/genoa_scoring && sbatch scripts/run_genoa_scoring.sh
 #
 # Smoke-test first -- one minute on CPU, and it exercises every code path:
 #     python -u scripts/19_genoa_variant_scoring.py --limit 200 --seeds 42
