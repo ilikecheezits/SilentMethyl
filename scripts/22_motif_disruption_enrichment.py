@@ -8,11 +8,18 @@ recovering CTCF and NRF1 as methylation-sensitive is confirmatory, not novel.
 
 The three questions, in increasing order of interest
 -----------------------------------------------------
-Q1 (confirmatory). Do variants that fall inside a strong TF motif occurrence
-    produce larger predicted methylation shifts than variants that do not, once
-    matched on variant-CpG distance and local GC content? Distance and GC both
-    drive |delta| on their own, so an unmatched comparison would answer yes for
-    the wrong reason.
+Q1 (confirmatory). Does the SIZE of the motif disruption a variant causes predict
+    the size of its predicted methylation shift? Asked two ways: a continuous rank
+    correlation over all pairs, and a top-quartile-versus-bottom-quartile contrast
+    matched on variant-CpG distance and local GC content. Distance and GC each
+    drive |delta| on their own, so an unmatched comparison answers yes for the
+    wrong reason.
+
+    NOTE: a binary inside-a-motif / outside-a-motif split does not work here. With
+    the full JASPAR library scanned, ~100% of variants fall inside SOME occurrence
+    at the conventional 0.80 relative-score cutoff, so there is no background left
+    to compare against. Ranking by disruption magnitude keeps both groups populated
+    by construction.
 
 Q2 (mechanistic). Per transcription factor, does the change in motif match score
     caused by the variant predict the direction and size of the methylation
@@ -23,10 +30,10 @@ Q2 (mechanistic). Per transcription factor, does the change in motif match score
     association.
 
 Q3 (novel, if it holds). Is the model's ability to identify *real* meQTLs
-    concentrated at motif-disrupting variants? Requirement 6 showed the model
-    separates genuine GENOA meQTLs from tested-but-null pairs at
+    concentrated at strongly motif-disrupting variants? Requirement 6 showed the
+    model separates genuine GENOA meQTLs from tested-but-null pairs at
     distance-matched AUROC 0.570. If that discrimination is markedly higher
-    inside motif occurrences than outside, then what the model has learned is
+    among strong disruptors than weak ones, then what the model has learned is
     specifically transcription-factor-binding disruption, and the claim becomes
     a computationally derived mechanism rather than a black-box performance
     number. If it is flat, say so -- a flat result here is informative and
@@ -45,7 +52,8 @@ Method notes that matter
   so a threshold means the same thing for motifs of different lengths and
   information content. 0.80 is the conventional JASPAR cutoff.
 * Backgrounds are matched on exact variant-CpG distance and on local GC quintile,
-  sampled without replacement.
+  sampled without replacement. Motifs cluster in GC-rich sequence and GC-rich
+  sequence sits nearer CpG islands, so both variables must be held fixed.
 * All intervals are 1 Mb block bootstraps, as in scripts 16-17, 20 and 21.
 * Per-factor tests are corrected with Benjamini-Hochberg across factors.
 
@@ -115,19 +123,24 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--split-template", default="data/datafiles/{split}.csv")
     p.add_argument("--relative-threshold", type=float, default=0.80,
                    help="Relative PWM score defining a motif occurrence.")
-    p.add_argument("--min-disruption", type=float, default=0.05,
-                   help="Minimum |change in relative motif score| for a variant to "
-                        "count as motif-DISRUPTING. With the full JASPAR set most "
-                        "variants sit inside some motif occurrence by chance, so "
-                        "mere coverage is a weak contrast; disruption is the "
-                        "meaningful one and is what Q1 and Q3 use.")
+    p.add_argument("--contrast-quantile", type=float, default=0.25,
+                   help="Q1 and Q3 contrast the top q against the bottom q of "
+                        "max motif disruption. A quantile contrast is used instead "
+                        "of a fixed threshold because with the full JASPAR library "
+                        "essentially every variant falls inside SOME motif "
+                        "occurrence, which leaves a binary in/out split with no "
+                        "background to compare against.")
     p.add_argument("--significance", type=float, default=5e-8)
     p.add_argument("--min-covered", type=int, default=200,
                    help="Minimum variants inside a factor's motif to test it.")
     p.add_argument("--n-boot", type=int, default=500)
     p.add_argument("--match-tolerance", type=int, default=10)
     p.add_argument("--random-seed", type=int, default=42)
-    p.add_argument("--limit", type=int, default=0, help="Smoke test: first N pairs.")
+    p.add_argument("--limit", type=int, default=0,
+                   help="Smoke test: random sample of N pairs (not the head -- the "
+                        "pair file is position-sorted, so a head slice falls inside "
+                        "a handful of 1 Mb blocks and every interval comes back "
+                        "empty).")
     p.add_argument("--max-motifs", type=int, default=0,
                    help="0 = all motifs. Positive values are smoke-test only.")
     p.add_argument("--output-dir", type=Path,
@@ -205,10 +218,19 @@ def parse_jaspar(path: Path) -> list[dict]:
         # Laplace pseudocount, then log-odds against a uniform background.
         frequencies = (matrix + 0.25) / (totals + 1.0)
         pwm = np.log2(frequencies / 0.25).astype(np.float32)
+        consensus = "".join(BASES[i] for i in frequencies.argmax(axis=1))
         prepared.append({
             "matrix_id": motif["matrix_id"],
             "name": motif["name"].upper(),
             "length": int(length),
+            "consensus": consensus,
+            # Expected GC of the motif, and whether its consensus contains a CpG.
+            # ETS-family and other GC-rich motifs concentrate in CpG islands, so
+            # composition has to be carried through to the results table or a
+            # factor-specific claim cannot be separated from a neighbourhood one.
+            "gc_content": float(frequencies[:, [1, 2]].sum(axis=1).mean()),
+            "consensus_cpg_count": int(sum(
+                consensus[i:i + 2] == "CG" for i in range(len(consensus) - 1))),
             "pwm": pwm,
             "pwm_rc": pwm[::-1, ::-1].copy(),      # reverse columns and complement
             "min_score": float(pwm.min(axis=1).sum()),
@@ -372,6 +394,29 @@ def block_bootstrap(frame: pd.DataFrame, metric, n_boot: int,
     return tuple(float(v) for v in np.percentile(values, [2.5, 97.5]))
 
 
+def partial_spearman(x, y, controls: pd.DataFrame) -> float:
+    """Spearman correlation of x and y after removing linear effects of controls.
+
+    Everything is rank-transformed first, then x and y are residualised on the
+    ranked controls by least squares. Without this, a factor whose motif simply
+    happens to sit in GC-rich, CpG-island-like sequence would appear to have a
+    factor-specific coupling that is really a property of the neighbourhood.
+    """
+    if len(x) < 30:
+        return np.nan
+    rank = lambda v: pd.Series(v).rank().to_numpy(dtype=float)  # noqa: E731
+    design = np.column_stack([np.ones(len(x))] + [rank(controls[c]) for c in controls])
+    try:
+        residual = lambda v: rank(v) - design @ np.linalg.lstsq(  # noqa: E731
+            design, rank(v), rcond=None)[0]
+        rx, ry = residual(x), residual(y)
+    except np.linalg.LinAlgError:
+        return np.nan
+    if np.std(rx) < 1e-12 or np.std(ry) < 1e-12:
+        return np.nan
+    return float(np.corrcoef(rx, ry)[0, 1])
+
+
 def benjamini_hochberg(p_values: np.ndarray) -> np.ndarray:
     p_values = np.asarray(p_values, dtype=float)
     finite = np.isfinite(p_values)
@@ -443,8 +488,13 @@ def main() -> int:
 
     pairs = load_pair_scores(args)
     if args.limit > 0:
-        pairs = pairs.head(args.limit).copy()
-        LOGGER.warning("SMOKE TEST: limited to %d pairs", len(pairs))
+        # Sample rather than take the head. The merged pair file is sorted by
+        # genomic position, so a head slice lands inside a handful of 1 Mb blocks
+        # and every block bootstrap in the run returns an empty interval.
+        pairs = (pairs.sample(n=min(args.limit, len(pairs)),
+                              random_state=args.random_seed)
+                 .sort_index().reset_index(drop=True))
+        LOGGER.warning("SMOKE TEST: random sample of %d pairs", len(pairs))
     wt, alt_codes, gc, pairs = extract_windows(pairs, args.split_template)
     if len(pairs) == 0:
         raise SystemExit("no pair produced a clean scan window")
@@ -481,10 +531,13 @@ def main() -> int:
         if n_covered < args.min_covered:
             continue
 
-        subset = pairs.loc[covered, ["Predicted_Delta_M", "_block"]].copy()
+        subset = pairs.loc[covered, ["Predicted_Delta_M", "_block", "gc_content",
+                                     "abs_distance_bp"]].copy()
         subset["_ds"] = delta_score[covered]
         result = spearmanr(subset["_ds"], subset["Predicted_Delta_M"])
         coupling = float(result.statistic)
+        partial = partial_spearman(subset["_ds"], subset["Predicted_Delta_M"],
+                                   subset[["gc_content", "abs_distance_bp"]])
         low, high = block_bootstrap(
             subset,
             lambda f: float(spearmanr(f["_ds"], f["Predicted_Delta_M"]).statistic),
@@ -498,7 +551,11 @@ def main() -> int:
             "n_blocks": int(subset["_block"].nunique()),
             "median_abs_delta_m_covered": float(
                 pairs.loc[covered, "abs_delta_m"].median()),
+            "motif_gc_content": motif["gc_content"],
+            "motif_consensus": motif["consensus"],
+            "motif_consensus_cpg_count": motif["consensus_cpg_count"],
             "coupling_spearman": coupling,
+            "coupling_partial_gc_distance": partial,
             "coupling_ci_low": low,
             "coupling_ci_high": high,
             "coupling_p_raw": float(result.pvalue),
@@ -515,29 +572,121 @@ def main() -> int:
     atomic_csv(per_motif, out / "per_motif_coupling.csv")
     LOGGER.info("%d motifs met the coverage threshold", len(per_motif))
 
+    # ---- Is any individual factor actually special?
+    #
+    # Two ways a striking per-factor result can be an artifact, both tested here:
+    #
+    #   a global offset  if disrupting ANY motif tends to shift predicted
+    #                    methylation one way, every factor shows the same sign and
+    #                    the "top" factors are just noise on a displaced null. The
+    #                    median coupling across all tested motifs is the anchor.
+    #
+    #   composition      GC-rich motifs concentrate in CpG islands, which have their
+    #                    own methylation behaviour. If coupling tracks motif GC
+    #                    across the whole library, the finding is about sequence
+    #                    neighbourhood, not about the factor.
+    null_summary = {}
+    if not per_motif.empty:
+        values = per_motif["coupling_spearman"].to_numpy(dtype=float)
+        partials = per_motif["coupling_partial_gc_distance"].to_numpy(dtype=float)
+        gc_values = per_motif["motif_gc_content"].to_numpy(dtype=float)
+        finite = np.isfinite(values) & np.isfinite(gc_values)
+        null_summary = {
+            "motifs_tested": int(len(per_motif)),
+            "coupling_median": float(np.nanmedian(values)),
+            "coupling_iqr": [float(np.nanpercentile(values, 25)),
+                             float(np.nanpercentile(values, 75))],
+            "coupling_median_partial": float(np.nanmedian(partials)),
+            "fraction_negative": float(np.nanmean(values < 0)),
+            "significant_negative_q05": int(((per_motif["coupling_q_bh"] < 0.05)
+                                             & (values < 0)).sum()),
+            "significant_positive_q05": int(((per_motif["coupling_q_bh"] < 0.05)
+                                             & (values > 0)).sum()),
+            "spearman_motif_gc_vs_coupling": (
+                float(spearmanr(gc_values[finite], values[finite]).statistic)
+                if finite.sum() > 10 else np.nan),
+            "known_methylation_sensitive_tested": int(
+                per_motif["known_methylation_sensitive"].sum()),
+            "known_methylation_sensitive_median_rank": (
+                int(per_motif.index[per_motif["known_methylation_sensitive"]]
+                    .to_series().median()) + 1
+                if per_motif["known_methylation_sensitive"].any() else None),
+        }
+        atomic_json(null_summary, out / "coupling_null_summary.json")
+
     pairs["in_motif"] = hit_any
     pairs["max_motif_disruption"] = best_disruption
     pairs["top_disrupted_factor"] = top_factor
-    disrupting = hit_any & (best_disruption >= args.min_disruption)
-    pairs["motif_disrupting"] = disrupting
-    LOGGER.info("%d/%d pairs inside any motif; %d disrupt one by >= %.2f relative score",
-                int(hit_any.sum()), len(pairs), int(disrupting.sum()),
-                args.min_disruption)
+    LOGGER.info("%d/%d pairs (%.1f%%) fall inside at least one motif occurrence at "
+                "relative score >= %.2f", int(hit_any.sum()), len(pairs),
+                100 * hit_any.mean(), args.relative_threshold)
 
-    # ---- Q1: motif-disrupting vs distance- and GC-matched background
-    background = matched_background(pairs, disrupting, quintiles,
-                                    args.match_tolerance, rng)
-    if len(background) < 0.8 * int(disrupting.sum()):
-        LOGGER.warning(
-            "only %d of %d positives could be matched -- the non-disrupting pool is "
-            "small relative to the positive set. Consider raising --min-disruption "
-            "or --relative-threshold so the contrast has a background to draw on.",
-            len(background), int(disrupting.sum()))
-    covered_frame = pairs.loc[disrupting]
-    background_frame = pairs.loc[background]
-    global_rows = []
-    for label, frame in (("motif_disrupting", covered_frame),
-                         ("matched_background", background_frame)):
+    # ---- Q1: strongly-disrupting vs weakly-disrupting, matched on distance and GC
+    #
+    # A quantile contrast, not a binary in/out split. With the full JASPAR library
+    # scanned, near enough every variant sits inside SOME motif occurrence, so
+    # "inside a motif" has no background left to compare against. Ranking variants
+    # by how much they actually change the best motif score, then contrasting the
+    # tails, keeps the two groups balanced by construction and asks a sharper
+    # question: does the SIZE of the disruption matter?
+    # Quantiles are taken over pairs that sit inside at least one occurrence.
+    # Including the uncovered pairs would put a large mass at exactly zero, which
+    # collapses both cut points onto 0.0 and makes "strong" match every row.
+    # On the full JASPAR library nearly every pair is covered, so this restriction
+    # changes nothing there -- it is what keeps a reduced motif set honest.
+    covered_values = best_disruption[hit_any]
+    if covered_values.size < 200:
+        raise SystemExit(
+            f"only {covered_values.size} pairs fall inside any motif occurrence. "
+            f"Lower --relative-threshold or check the JASPAR file; the contrast "
+            f"cannot be formed.")
+    low_cut = float(np.quantile(covered_values, args.contrast_quantile))
+    high_cut = float(np.quantile(covered_values, 1 - args.contrast_quantile))
+    if high_cut <= low_cut:
+        raise SystemExit(
+            f"disruption cut points collapsed (low={low_cut:.4f}, high={high_cut:.4f}): "
+            f"the score change is too concentrated to form a contrast. Raise "
+            f"--relative-threshold so only confident occurrences are scored.")
+    strong = hit_any & (best_disruption >= high_cut)
+    weak = hit_any & (best_disruption <= low_cut)
+    pairs["disruption_group"] = np.where(strong, "strong",
+                                         np.where(weak, "weak", "middle"))
+    LOGGER.info("disruption contrast over %d covered pairs: strong >= %.4f (n=%d), "
+                "weak <= %.4f (n=%d)", int(hit_any.sum()), high_cut,
+                int(strong.sum()), low_cut, int(weak.sum()))
+
+    # Continuous version, which needs no grouping at all and is the primary Q1 test.
+    # Restricted to covered pairs for the same reason as the quantile cuts.
+    continuous = pairs.loc[hit_any, ["max_motif_disruption", "abs_delta_m", "_block"]]
+    coupling_point = float(spearmanr(continuous["max_motif_disruption"],
+                                     continuous["abs_delta_m"]).statistic)
+    coupling_low, coupling_high = block_bootstrap(
+        continuous,
+        lambda f: float(spearmanr(f["max_motif_disruption"], f["abs_delta_m"]).statistic),
+        args.n_boot, rng)
+
+    weak_pool = pairs.loc[weak]
+    background = matched_background(
+        pd.concat([pairs.loc[strong], weak_pool]).reset_index(drop=True),
+        np.concatenate([np.ones(int(strong.sum()), bool),
+                        np.zeros(len(weak_pool), bool)]),
+        np.concatenate([quintiles[strong], quintiles[weak]]),
+        args.match_tolerance, rng)
+    combined = pd.concat([pairs.loc[strong], weak_pool]).reset_index(drop=True)
+    if len(background) < 0.8 * int(strong.sum()):
+        LOGGER.warning("only %d of %d strong-disruption variants could be matched to "
+                       "a weak-disruption counterpart on distance and GC",
+                       len(background), int(strong.sum()))
+    covered_frame = pairs.loc[strong]
+    background_frame = combined.loc[background]
+    global_rows = [{
+        "group": "continuous_coupling", "n": int(hit_any.sum()),
+        "median_abs_delta_m": coupling_point,
+        "ci_low": coupling_low, "ci_high": coupling_high,
+        "median_abs_distance_bp": np.nan, "mean_gc": np.nan,
+    }]
+    for label, frame in (("strong_disruption", covered_frame),
+                         ("matched_weak_disruption", background_frame)):
         median = lambda f: float(f["abs_delta_m"].median())  # noqa: E731
         low, high = block_bootstrap(frame, median, args.n_boot, rng)
         global_rows.append({
@@ -559,8 +708,8 @@ def main() -> int:
             return np.nan
         return float(roc_auc_score(labels, frame["abs_delta_m"]))
 
-    for label, frame in (("motif_disrupting", covered_frame),
-                         ("not_disrupting", pairs.loc[~disrupting])):
+    for label, frame in (("strong_disruption", covered_frame),
+                         ("weak_disruption", background_frame)):
         low, high = block_bootstrap(frame, discrimination, args.n_boot, rng)
         discrimination_rows.append({
             "group": label, "n": int(len(frame)),
@@ -587,8 +736,14 @@ def main() -> int:
             "relative_score_threshold": args.relative_threshold,
             "pairs_scanned": int(len(pairs)),
             "pairs_in_any_motif": int(hit_any.sum()),
-            "pairs_disrupting_a_motif": int(disrupting.sum()),
-            "min_disruption": args.min_disruption,
+            "contrast_quantile": args.contrast_quantile,
+            "disruption_cut_strong": high_cut,
+            "disruption_cut_weak": low_cut,
+            "n_strong": int(strong.sum()),
+            "n_weak": int(weak.sum()),
+            "coupling_null_summary": null_summary,
+            "continuous_coupling_spearman": coupling_point,
+            "continuous_coupling_ci": [coupling_low, coupling_high],
             "n_boot": args.n_boot,
             "block_size_bp": BLOCK_BP,
             "matching": {"variables": ["exact bp distance", "GC quintile"],
@@ -599,10 +754,13 @@ def main() -> int:
                            "would masquerade as a motif effect"),
             "strand": "both; best WT hit chosen, mutant scored at the same site",
             "interpretation_guide": {
-                "Q1": ("larger |delta M| for motif-DISRUPTING variants than for a "
-                       "distance- and GC-matched background is confirmatory, not "
-                       "novel. Mere motif coverage is too weak a contrast once the "
-                       "full JASPAR set is scanned."),
+                "Q1": ("does the SIZE of motif disruption predict the size of the "
+                       "predicted methylation shift? Reported two ways: a continuous "
+                       "rank correlation over all pairs, and a top-vs-bottom quantile "
+                       "contrast matched on distance and GC. A binary inside/outside "
+                       "split is NOT used: with the full JASPAR library essentially "
+                       "every variant falls inside some occurrence, leaving no "
+                       "background. Confirmatory either way, not novel."),
                 "Q2": ("per-factor coupling between motif score change and predicted "
                        "methylation change; the SIGN is the mechanistic claim"),
                 "Q3": ("higher meQTL discrimination inside motifs than outside would "
@@ -617,7 +775,7 @@ def main() -> int:
     )
 
     print_report(per_motif, pd.DataFrame(global_rows),
-                 pd.DataFrame(discrimination_rows), pairs, out)
+                 pd.DataFrame(discrimination_rows), pairs, out, null_summary)
     return 0
 
 
@@ -662,7 +820,7 @@ def make_figure(per_motif: pd.DataFrame, global_frame: pd.DataFrame,
         axis.set_xticks(x, [g.replace("_", " ") for g in groups], fontsize=9)
         axis.set_ylim(0.45, max(0.70, float(np.nanmax(values)) + 0.05))
         axis.set_ylabel("AUROC, real meQTL vs null", fontsize=9)
-        axis.set_title("Is the variant signal concentrated\nin motif occurrences?",
+        axis.set_title("Is the variant signal concentrated\nin strong motif disruptions?",
                        fontsize=10)
         axis.grid(axis="y", alpha=0.15)
         axis.spines[["top", "right"]].set_visible(False)
@@ -675,7 +833,8 @@ def make_figure(per_motif: pd.DataFrame, global_frame: pd.DataFrame,
 
 
 def print_report(per_motif: pd.DataFrame, global_frame: pd.DataFrame,
-                 discrimination: pd.DataFrame, pairs: pd.DataFrame, out: Path) -> None:
+                 discrimination: pd.DataFrame, pairs: pd.DataFrame, out: Path,
+                 null_summary: dict) -> None:
     print()
     print("=" * 78)
     print("TF motif disruption and predicted variant effects")
@@ -683,12 +842,14 @@ def print_report(per_motif: pd.DataFrame, global_frame: pd.DataFrame,
     print(f"\npairs scanned            : {len(pairs):,}")
     print(f"pairs inside any motif   : {int(pairs['in_motif'].sum()):,} "
           f"({pairs['in_motif'].mean():.1%})")
-    print(f"pairs DISRUPTING a motif : {int(pairs['motif_disrupting'].sum()):,} "
-          f"({pairs['motif_disrupting'].mean():.1%})")
-
-    print("\nQ1  |delta M| for motif-disrupting variants vs a distance- and GC-matched background")
+    print("\nQ1  does the SIZE of motif disruption predict the size of the shift?")
     for _, row in global_frame.iterrows():
-        print(f"  {row['group']:<20} n={row['n']:>7,}  median |dM| "
+        if row["group"] == "continuous_coupling":
+            print(f"  continuous  spearman(max disruption, |dM|) over all "
+                  f"{row['n']:,} pairs: {row['median_abs_delta_m']:+.4f} "
+                  f"[{row['ci_low']:+.4f}, {row['ci_high']:+.4f}]")
+            continue
+        print(f"  {row['group']:<24} n={row['n']:>7,}  median |dM| "
               f"{row['median_abs_delta_m']:.4f} "
               f"[{row['ci_low']:.4f}, {row['ci_high']:.4f}]  "
               f"median dist {row['median_abs_distance_bp']:.0f} bp  "
@@ -699,20 +860,42 @@ def print_report(per_motif: pd.DataFrame, global_frame: pd.DataFrame,
     if per_motif.empty:
         print("  no factor met the coverage threshold")
     else:
-        print(f"  {'factor':<14}{'n':>8}{'rho':>10}  {'95% CI':<22}{'q(BH)':>9}")
-        for _, row in per_motif.head(12).iterrows():
+        print(f"  {'factor':<14}{'n':>8}{'rho':>10}{'partial':>10}{'GC':>7}"
+              f"{'CpG':>5}{'q(BH)':>10}")
+        for _, row in per_motif.head(15).iterrows():
             star = "*" if row["known_methylation_sensitive"] else " "
+            partial = row["coupling_partial_gc_distance"]
+            partial_text = f"{partial:>+10.4f}" if np.isfinite(partial) else f"{'n/a':>10}"
             print(f"  {row['factor'][:12]:<12}{star} {row['n_covered']:>7,}"
-                  f"{row['coupling_spearman']:>+10.4f}  "
-                  f"[{row['coupling_ci_low']:+.4f}, {row['coupling_ci_high']:+.4f}]"
-                  f"{row['coupling_q_bh']:>9.2e}")
+                  f"{row['coupling_spearman']:>+10.4f}{partial_text}"
+                  f"{row['motif_gc_content']:>7.2f}"
+                  f"{row['motif_consensus_cpg_count']:>5d}"
+                  f"{row['coupling_q_bh']:>10.2e}")
         known = per_motif[per_motif["known_methylation_sensitive"]]
         if not known.empty:
             print(f"\n  known methylation-sensitive factors tested: {len(known)}; "
                   f"median rank {int(known.index.to_series().median()) + 1} "
                   f"of {len(per_motif)}")
+        if null_summary:
+            print("\n  IS ANY FACTOR ACTUALLY SPECIAL? (read this before believing "
+                  "the table above)")
+            print(f"    median coupling across all {null_summary['motifs_tested']} "
+                  f"motifs   {null_summary['coupling_median']:+.4f}  "
+                  f"IQR [{null_summary['coupling_iqr'][0]:+.4f}, "
+                  f"{null_summary['coupling_iqr'][1]:+.4f}]")
+            print(f"    median after controlling GC and distance     "
+                  f"{null_summary['coupling_median_partial']:+.4f}")
+            print(f"    motifs with negative coupling                "
+                  f"{null_summary['fraction_negative']:.1%}")
+            print(f"    significant at q<0.05: {null_summary['significant_negative_q05']} "
+                  f"negative, {null_summary['significant_positive_q05']} positive")
+            print(f"    spearman(motif GC, coupling)                 "
+                  f"{null_summary['spearman_motif_gc_vs_coupling']:+.4f}")
+            print("    -> a median far from zero means a GLOBAL offset, not a")
+            print("       factor-specific effect. A strong GC correlation means the")
+            print("       result is about sequence composition, not the factor.")
 
-    print("\nQ3  meQTL discrimination inside vs outside motif occurrences")
+    print("\nQ3  meQTL discrimination, strongly vs weakly motif-disrupting variants")
     for _, row in discrimination.iterrows():
         print(f"  {row['group']:<16} n={row['n']:>7,}  n_sig={row['n_significant']:>6,}"
               f"  AUROC {row['auroc']:.4f} [{row['ci_low']:.4f}, {row['ci_high']:.4f}]")
