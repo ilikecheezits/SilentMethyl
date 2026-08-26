@@ -1,0 +1,38 @@
+{
+  "analysis": "GENOA meQTL variant scoring on frozen SilentMethyl checkpoints",
+  "construction_counters": {
+    "alters_target_cpg": 0,
+    "bad_stored_sequence_length": 0,
+    "outside_model_window": 0,
+    "probe_not_in_splits": 0,
+    "reference_base_mismatch": 0,
+    "scoreable": 66495,
+    "stored_sequence_not_cpg_centred": 0,
+    "unexpected_window_difference": 0,
+    "window_not_cpg_centred": 0
+  },
+  "effect_allele_convention": "Compare Predicted_Delta_M / Predicted_Delta_Beta against beta_genoa_ref_to_alt. Raw beta_genoa is keyed to the minor allele; the model delta is keyed to hg38 REF->ALT.",
+  "effect_scale_caveat": "GENOA effect sizes are on a normalized-phenotype scale, not the beta or M scale the model predicts. Spearman rho, direction agreement and AUROC are meaningful; magnitude calibration against GENOA is not.",
+  "generated_utc": "2026-08-26T00:21:54+00:00",
+  "input_csv": "data/external/genoa_meqtl/scoring/genoa_scoring_input_heldout.csv",
+  "input_sha256": "df19807e106c01b7e9a7004a45e7a7c40cee7faf4e1c668f98411357b45239d7",
+  "masked_probe_pairs_dropped": 0,
+  "num_shards": 1,
+  "outputs": [
+    {
+      "file": "results/journal/genoa_variant_scoring/heldout/fusion/seed43/pair_scores.csv",
+      "model": "fusion",
+      "rows": 66495,
+      "seed": 43,
+      "weights_sha256": "8e7eab9c69379cc15246ff935953b8933605c0fdb24aadad2e104ba790ac3a5f"
+    }
+  ],
+  "pairs_after_probe_qc": 66495,
+  "precision": "fp32",
+  "purpose": "mentor requirement 6: independent variant evaluation",
+  "reporting_guidance": "Report the heldout stratum as primary. Never pool the strata. Report CpG-creating/destroying variants separately from the rest.",
+  "shard": 0,
+  "smoke_test_limit": 0,
+  "stratum": "heldout",
+  "tissue_caveat": "GENOA measured blood; the fusion model's context features are MCF-10A breast tracks. Fusion results here are cross-tissue transfer, not tissue-matched validation. The sequence-only model is tissue-agnostic and is the comparator that makes the fusion result interpretable."
+}

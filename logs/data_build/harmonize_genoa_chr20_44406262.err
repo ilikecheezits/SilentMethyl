@@ -1,6 +1,0 @@
-2026-08-25 06:56:36,049 - probe universe: 411465 probes (473878 before MASK_general filter)
-2026-08-25 06:56:36,269 - loading chain data/reference/hg19ToHg38.over.chain.gz
-2026-08-25 06:56:38,746 - [chr20] streaming meQTL_summarystat_chr20.txt.gz
-2026-08-25 06:56:48,756 - [chr20] lifting 25045 unique SNP positions (98459 rows)
-2026-08-25 06:56:49,033 - [chr20] kept 18842 model-visible pairs
-2026-08-25 06:56:49,462 - wrote data/external/genoa_meqtl/harmonized
