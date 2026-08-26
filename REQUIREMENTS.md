@@ -305,6 +305,89 @@ quintile.
 
 ---
 
+## A2. Retraining plan — improved training data
+
+Retraining is back on the table (2026-08-26). This section exists so the feature
+decision is made **before** the requirement-2 folds are run, not after.
+
+### The scheduling point that dominates everything else
+
+Requirement 2 needs four additional chromosome-blocked folds — a training campaign
+that has to happen regardless. Any change to the training data should ride along
+with it. Deciding features afterwards means training twice.
+
+**And the expensive part is reusable.** The sequence tower sees only DNA; changing
+*context* features leaves it untouched. Per seed that is ~10 h context + ~20 h
+fusion instead of the ~60 h a full retrain implies — the 30 h DNABERT-2 fine-tune
+is not repeated. Re-scoring Stage B against new checkpoints is one command per
+script, because 19–22 were written against a frozen manifest.
+
+### Tier 1 — do these. Cheap, and each is justified by one of our own results.
+
+**1. Select checkpoints on M-value MAE, not β MAE.** `run_config.json` currently
+records `checkpoint_metric: regression_head_beta_mae_after_RC_averaging`. We
+demonstrated in §4 that absolute β error is compressed near 0 and 1 — so the
+checkpoint is currently chosen on the metric we published a paper section arguing
+is confounded. One-line change; costs nothing; and leaving it as-is is the kind of
+inconsistency a reviewer enjoys finding.
+
+**2. Multi-scale context features.** The seven tracks are averaged over a 100-bp
+window while the sequence model sees 1,000 bp. Extracting each track at 100 bp /
+1 kb / 10 kb gives 21 features instead of 7, and window-mean phyloP at the same
+scales replaces two single-base values. No new downloads — this is what
+`data/reference/*.bw` was retained for. Deterministic CPU work, array-able by
+chromosome.
+
+**3. Sequence-derived context features — the direct fix for §6.** Add CpG count,
+GC fraction, and CpG observed/expected computed from the **input** window rather
+than from a reference track. These change between wild-type and mutant, which
+makes the context tower allele-dependent for the first time and is the only
+principled route past the equivalence result. It also predicts its own test: if
+the fusion-minus-sequence equivalence interval moves off zero after this change,
+the mechanism we proposed is confirmed; if it does not, our explanation was
+incomplete and that is worth knowing.
+
+*Note:* script 19 currently builds one fixed context vector per probe. Making
+context allele-dependent requires recomputing these features from the mutant
+sequence at scoring time. Small change, but it must land with the retrain.
+
+### Tier 2 — consider, decide on evidence
+
+- `MASK_snp5_common` / `MASK_snp5_GMAF1p` as a **feature flag**, not a filter.
+  A common SNP under the probe body makes β unreliable; flagging keeps the probe
+  universe intact, and changing the universe would break comparability with every
+  result already in hand.
+- `n_samples_observed` as a feature, or coverage-weighted loss. Script 03 found
+  predictions stable at lower coverage, so expected value is low — but it is free.
+
+### Tier 3 — do NOT do
+
+- **Multi-task training on mQTL effects.** Circularity risk against our own
+  evaluation, and drastic by any measure.
+- **Changing the probe universe.** Every existing result would need re-deriving.
+- **Adding tissues.** Scoped out deliberately; DeepMethylation already holds that
+  ground.
+
+### Order of operations
+
+1. Confirm the feature list (Tier 1, plus any Tier 2 that survives).
+2. Re-extract context features → new `train/val/test.csv`. CPU, array by chromosome.
+3. **One** training campaign: 3 seeds × (context + fusion) on the new features,
+   *plus* the four requirement-2 folds, submitted together.
+4. Re-run scripts 19–22 and 16–18 against the new checkpoints.
+5. Keep the current checkpoints and results. The old model becomes the ablation
+   that shows what the new features bought.
+
+### One thing to verify first
+
+The manuscript states none of the 418,486 probes are flagged by `MASK_general`.
+485,577 − 418,486 = 67,091, which matches the number SeSAMe masks on HM450, so
+this almost certainly means masking was applied upstream and the survivors are
+clean. Worth a one-line confirmation against the manifest before building new
+training data on that assumption.
+
+---
+
 ## B. Journal criteria
 
 | Journal | IF | Stated criterion | Met by | Status |
