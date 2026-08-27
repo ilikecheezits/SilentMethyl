@@ -64,6 +64,7 @@ from __future__ import annotations
 import argparse
 import gzip
 import hashlib
+import io
 import json
 import logging
 import os
@@ -190,21 +191,43 @@ def download(url: str, target: Path) -> Path:
     return target
 
 
-def read_metadata(path: Path) -> tuple[dict, int]:
-    """Header lines of a GEO series matrix, plus the line index where data starts."""
+def _scan_header(handle) -> tuple[dict, int]:
     metadata: dict[str, list[str]] = {}
     data_line = None
+    for index, raw in enumerate(handle):
+        line = raw.rstrip("\n")
+        if line.startswith("!series_matrix_table_begin"):
+            data_line = index
+            break
+        if line.startswith("!"):
+            parts = line.split("\t")
+            key = parts[0].lstrip("!")
+            values = [v.strip().strip('"') for v in parts[1:]]
+            metadata.setdefault(key, []).extend(values)
+    return metadata, data_line
+
+
+def read_metadata_streaming(url: str) -> dict:
+    """Read only the header of a remote series matrix, without downloading it.
+
+    The metadata block sits at the very start of the file, so decompressing the
+    response as it arrives and stopping at the table marker costs a few MB rather
+    than the full archive. GSE69914 is 1.6 GB; --inspect has no business pulling
+    that just to look at sample titles.
+    """
+    LOGGER.info("streaming header from %s", url)
+    with urllib.request.urlopen(url) as response:
+        with gzip.GzipFile(fileobj=response, mode="rb") as raw:
+            text = io.TextIOWrapper(raw, encoding="utf-8", errors="replace")
+            metadata, _ = _scan_header(text)
+    LOGGER.info("header read; %d metadata fields", len(metadata))
+    return metadata
+
+
+def read_metadata(path: Path) -> tuple[dict, int]:
+    """Header lines of a local series matrix, plus the line index where data starts."""
     with gzip.open(path, "rt", errors="replace") as handle:
-        for index, raw in enumerate(handle):
-            line = raw.rstrip("\n")
-            if line.startswith("!series_matrix_table_begin"):
-                data_line = index
-                break
-            if line.startswith("!"):
-                parts = line.split("\t")
-                key = parts[0].lstrip("!")
-                values = [v.strip().strip('"') for v in parts[1:]]
-                metadata.setdefault(key, []).extend(values)
+        metadata, data_line = _scan_header(handle)
     if data_line is None:
         raise SystemExit(f"{path} has no !series_matrix_table_begin marker")
     return metadata, data_line
@@ -308,12 +331,13 @@ def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 
     raw = args.raw_dir / f"{ACCESSION}_series_matrix.txt.gz"
-    download(args.url, raw)
-    metadata, data_line = read_metadata(raw)
-    samples = classify(metadata)
-    counts = Counter(samples["group"])
 
     if args.inspect:
+        # Header only. No download.
+        metadata = (read_metadata(raw)[0] if raw.exists()
+                    else read_metadata_streaming(args.url))
+        samples = classify(metadata)
+        counts = Counter(samples["group"])
         print(f"\n{ACCESSION}: {len(samples)} samples\n")
         print("group assignment")
         for group, n in counts.most_common():
@@ -338,8 +362,19 @@ def main() -> int:
                 print(f"    {text[:300]}")
         age_keys = [k for k in metadata if "characteristics" in k.lower()]
         print(f"\ncharacteristics fields present: {age_keys if age_keys else 'none'}")
-        print("\nWrites nothing. Re-run without --inspect once the groups look right.")
+        print("\nDistinct title stems (trailing digits stripped) -- if the group is")
+        print("encoded anywhere, it is usually here:")
+        stems = Counter(re.sub(r"[\s_-]*\d+$", "", t).strip()
+                        for t in metadata.get("Sample_title", []))
+        for stem, n in stems.most_common(20):
+            print(f"  {stem!r:<44} {n:>4}")
+        print("\nWrites nothing, and downloads nothing beyond the header.")
         return 0
+
+    download(args.url, raw)
+    metadata, data_line = read_metadata(raw)
+    samples = classify(metadata)
+    counts = Counter(samples["group"])
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     atomic_csv(samples, args.output_dir / "sample_classification_audit.csv")
