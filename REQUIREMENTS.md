@@ -18,7 +18,7 @@ Stage C (one training pass) → Stage D (re-score + write).
 |---|---|---|---|---|---|
 | 1 | Multi-cohort testing | No — inference | B.2 | **done** | `results/journal/tcga_tumor_domain_shift/` |
 | 2 | Repeated chromosome-blocked splits | **Yes — the only one** | C.1 | not-started | |
-| 3 | Stronger baselines and ablations | No / cheap re-heads | A.2, B.5, C.2–C.3 | not-started | |
+| 3 | Stronger baselines and ablations | No — CPU only | A.2, B.5, C.2–C.3 | **scripted, not yet run** | `scripts/23_sequence_baselines.py` |
 | 4 | Uncertainty calibration | No — post-hoc | B.3 | **done (analysis)** | `results/journal/rc_uncertainty{,_conditional}/` |
 | 5 | Ancestry analyses | No — analysis | B.1 | in-progress | `results/journal/genoa_variant_evaluation/` (AFR arm) |
 | 6 | Independent variant evaluation | No — inference | B.1 | **done (GENOA)**; tissue-matched eGTEx arm in progress | `results/journal/genoa_variant_{scoring,evaluation}/` |
@@ -324,6 +324,64 @@ primary requirement-6 result; GENOA moves to a transfer subsection; the 81 lead
 variants are superseded and their table row is dropped. Do not restructure the
 manuscript before the numbers exist.
 
+**3. Stronger baselines and ablations.** *Reprioritised to first place, 2026-08-27.*
+
+*Why this moved to the front.* We report signed rho = 0.152 and 55.3% direction
+agreement on held-out meQTLs and we do not know whether that is good, because no
+competing predictor has been scored on the same pairs. Without a referent the
+number is uninterpretable, and no additional cohort changes that — eGTEx makes
+the comparison tissue-matched, it does not tell us what the ceiling is. Genome
+Medicine asks for this explicitly ("comparisons with leading methylation and
+variant-effect predictors"). It is the one outstanding requirement that changes
+what we are allowed to claim rather than how confidently we claim it.
+
+*What is scripted.* `scripts/23_sequence_baselines.py`, CPU-only, no GPU, no new
+data:
+
+| baseline | features | controls for |
+|---|---|---|
+| `composition` | GC fraction, CpG count, CpG obs/exp | is any of this better than base composition? |
+| `kmer_ridge` | RC-collapsed k-mer counts, k = 1..6 (2,772 columns) | does DNABERT-2 pretraining beat classical sequence features? |
+
+Both are exact ridge fits from streamed sufficient statistics (X'X, X'y), so the
+345,359-row training split never materialises as a feature matrix; alpha is
+selected on `val` by exact validation MSE computed from the same statistics.
+
+*What makes it a fair comparison, not a strawman.* Same split CSVs, same
+`M_Value_Target` column, same `centered_crop(seq, 1000)` window, same
+target-CpG exclusions, and — the important one — the variant task writes
+`pair_scores.csv` in scripts/19's schema, so **scripts/20 evaluates baselines and
+neural models through one code path**: identical distance matching, identical
+1 Mb block bootstrap, identical significance strata. No published cross-tissue
+weights are involved, so no tissue handicap flatters either side.
+
+*Two hazards, both handled.* (i) The baseline must not import the model's
+dependency tree — `from training_common import centered_crop` drags in torch,
+transformers and huggingface_hub for nine lines of arithmetic and makes the
+comparator unrunnable on a CPU node. The two helpers are therefore duplicated
+**and asserted identical to `training_common` at startup** whenever it imports.
+(ii) RC-collapsed k-mer counts are exactly strand-invariant, so the RC-averaging
+the neural models require is provably a no-op here; that is checked at startup
+rather than stated.
+
+*Interpretation, decided in advance.* If `kmer_ridge` matches the neural models
+on variant effects, the finding is that sequence-only allelic methylation
+prediction is far harder than the literature implies, and DNABERT-2 pretraining
+is not what closes the gap — a real, honest, publishable benchmark result. If the
+neural models win clearly, the architecture is earning its keep and we can say so
+with evidence. **Both outcomes get reported. Deciding after seeing the numbers
+which one to emphasise is the failure mode to avoid.**
+
+*Tests.* `scripts/_test_sequence_baselines.py` plants a known k-mer signal in
+synthetic splits, confirms the ridge path recovers it, confirms every pair-level
+exclusion fires at the expected count, independently recomputes variant deltas,
+and checks the emitted file carries every column scripts/20 requires.
+
+*Still not covered by this script:* a retrained CpGenie-style CNN on our splits
+(the architecture-vs-architecture comparison, ~1 GPU-hour) and the published
+CpGenie/DeepCpG weights (cross-tissue, confounded, and a 2017 environment to
+resurrect). Phase those after the CPU baselines return a number.
+
 **7. Regulatory enrichment.** JASPAR CORE vertebrates (877 matrices, 831 tested)
 scanned on both strands across the 42,866 non-CpG-altering held-out GENOA pairs.
 For each pair the best wild-type hit covering the variant is found, and the mutant
@@ -380,6 +438,30 @@ disruptors (AUROC 0.5918 vs 0.5962, difference −0.0043, intervals overlapping)
 The model did not learn "breaking motifs matters" as a general rule; it learned
 something signed and family-specific. Reporting only the positive would look like
 fishing.
+
+**The open question these two results jointly raise, and the cheap test for it
+(2026-08-27).** Signed family-specific coupling *with* a null magnitude coupling
+*and* no motif-concentrated discrimination has a simpler explanation than
+"the model learned binding-site disruption": the model may have learned that
+ETS-like sequence *composition* marks unmethylated regions, so perturbing toward
+or away from that composition moves the prediction in the right direction without
+anything resembling a binding-site mechanism. Both readings predict the signed
+coupling; only the grammar reading predicts a magnitude relationship, and we do
+not observe one.
+
+This is directly testable and costs nothing new: **run scripts/22 on the
+`kmer_ridge` baseline's pair scores** (scripts/23 emits the same schema, so point
+`--scores-dir` at `results/journal/sequence_baselines/variant_scoring` and pass
+`--seeds=-1` with the `=` so argparse does not read `-1` as a flag). A linear
+6-mer model has no notion of a binding site whatsoever. If it reproduces the ETS
+direction, the effect is compositional and must be described that way. If it does
+not, the grammar reading survives a real attempt to kill it, and the claim gets
+much stronger.
+
+Do this before the manuscript describes the ETS result as motif-disruption
+learning. As written, §7's framing rules are already correct and conservative —
+the risk is not the record, it is restating it more loudly in the paper than the
+evidence supports.
 
 *Method note.* A binary inside/outside-a-motif split does not work: with the full
 library scanned, **100%** of variants fall inside some occurrence at the

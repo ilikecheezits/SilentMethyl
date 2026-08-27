@@ -82,6 +82,21 @@ COLOURS = {"fusion": "#B03A2E", "sequence": "#1F6FB2", "baseline": "#B4761A"}
 MARKERS = {"fusion": "o", "sequence": "s", "baseline": "^"}
 DASHES = {"fusion": "-", "sequence": "--", "baseline": ":"}
 
+# Baseline models (scripts/23) come through this evaluator under their own names,
+# so styling must not assume the two original models. Unknown names cycle through
+# a spare palette instead of raising a KeyError halfway through figure drawing.
+_SPARE_COLOURS = ["#2E7D4F", "#6A4C93", "#8D6E63", "#00838F", "#AD1457"]
+_SPARE_MARKERS = ["D", "v", "P", "X", "*"]
+_SPARE_DASHES = ["-.", (0, (3, 1, 1, 1)), (0, (5, 2)), (0, (1, 1)), (0, (4, 1, 1, 1, 1, 1))]
+
+
+def style_for(model: str, index: int) -> dict:
+    return {
+        "color": COLOURS.get(model, _SPARE_COLOURS[index % len(_SPARE_COLOURS)]),
+        "marker": MARKERS.get(model, _SPARE_MARKERS[index % len(_SPARE_MARKERS)]),
+        "linestyle": DASHES.get(model, _SPARE_DASHES[index % len(_SPARE_DASHES)]),
+    }
+
 GENOME_WIDE = 5e-8
 SIGNIFICANCE_STRATA = [
     (0.0, 5e-8, "p < 5e-8"),
@@ -604,9 +619,8 @@ def make_figures(gradient: pd.DataFrame, primary: pd.DataFrame,
                 x, subset["value"],
                 yerr=[subset["value"] - subset["ci_low"],
                       subset["ci_high"] - subset["value"]],
-                marker=MARKERS[model], linestyle=DASHES[model],
-                color=COLOURS[model], capsize=3, markersize=5,
-                linewidth=1.6, label=model)
+                **style_for(model, args.models.index(model)),
+                capsize=3, markersize=5, linewidth=1.6, label=model)
         axis.axhline(null, color="0.45", linewidth=0.9, linestyle=(0, (1, 2)))
         axis.set_xticks(np.arange(len(labels)))
         axis.set_xticklabels(labels, rotation=40, ha="right", fontsize=8)
@@ -632,6 +646,8 @@ def make_figures(gradient: pd.DataFrame, primary: pd.DataFrame,
         ("auroc_marginal", "Marginal", "baseline"),
         ("auroc_within_distance_bin", "Within distance bin", "fusion"),
     ]
+    # 'style' here names a palette entry, not a model, and both entries are
+    # always present in COLOURS -- it is independent of --models.
     width = 0.32
     positions = np.arange(len(args.models))
     for index, (metric, label, style) in enumerate(families):
