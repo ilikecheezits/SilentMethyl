@@ -90,6 +90,8 @@ if str(SCRIPT_DIR) not in sys.path:
 
 from training_common import (  # noqa: E402
     MISSING_FEATURES,
+    PHYLOP_1,
+    PHYLOP_2,
     TABULAR_FEATURES,
     FusionModel,
     SequenceOnlyModel,
@@ -340,16 +342,35 @@ def build_chunk(pairs: pd.DataFrame, records: dict, counters: dict):
     )
 
 
-def make_rc_context(tab: torch.Tensor, missing: torch.Tensor):
-    """Swap the two phyloP columns for the reverse-complement pass.
+def _phylop_column_indices() -> tuple[int, int]:
+    """Positions of the two target-base phyloP features, resolved by NAME.
 
-    Identical to scripts/05_matched_background.py. TABULAR_FEATURES ends with
-    Target_Base_PhyloP_100way_1 and _2, which are the C and G of the target CpG;
-    reverse-complementing the window exchanges them.
+    These two are the C and the G of the target CpG and exchange under reverse
+    complementation; every other context feature is strand-symmetric and must stay
+    put. Resolving by name rather than by position (`[:, -2], [:, -1]`) is what
+    makes TABULAR_FEATURES safe to extend -- a positional swap would silently
+    exchange the wrong columns the moment a feature is appended, with no error and
+    no way to notice afterwards. Mirrors scripts/05_matched_background.py.
     """
+    try:
+        return TABULAR_FEATURES.index(PHYLOP_1), TABULAR_FEATURES.index(PHYLOP_2)
+    except ValueError as exc:
+        raise RuntimeError(
+            f"{PHYLOP_1} and {PHYLOP_2} must both appear in TABULAR_FEATURES; the "
+            f"reverse-complement context transform is defined in terms of them."
+        ) from exc
+
+
+PHYLOP_COLUMN_INDICES = _phylop_column_indices()
+
+
+def make_rc_context(tab: torch.Tensor, missing: torch.Tensor):
+    """Exchange the two target-base phyloP features for the RC pass."""
+    first, second = PHYLOP_COLUMN_INDICES
     rc_tab, rc_missing = tab.clone(), missing.clone()
-    rc_tab[:, -2], rc_tab[:, -1] = tab[:, -1].clone(), tab[:, -2].clone()
-    rc_missing[:, -2], rc_missing[:, -1] = missing[:, -1].clone(), missing[:, -2].clone()
+    rc_tab[:, first], rc_tab[:, second] = tab[:, second].clone(), tab[:, first].clone()
+    rc_missing[:, first], rc_missing[:, second] = (
+        missing[:, second].clone(), missing[:, first].clone())
     return rc_tab, rc_missing
 
 

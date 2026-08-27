@@ -57,6 +57,8 @@ if PROJECT_SCRIPTS_DIR.is_dir() and str(PROJECT_SCRIPTS_DIR) not in sys.path:
 from training_common import (
     FusionModel,
     MISSING_FEATURES,
+    PHYLOP_1,
+    PHYLOP_2,
     TABULAR_FEATURES,
     autocast_context,
     centered_crop,
@@ -310,14 +312,44 @@ def build_model_visible_cohort(
     )
 
 
+def _phylop_column_indices() -> tuple[int, int]:
+    """Positions of the two target-base phyloP features within TABULAR_FEATURES.
+
+    Resolved by NAME, deliberately. These two features are the C and the G of the
+    target CpG, so they exchange under reverse complementation while every other
+    context feature -- window averages, signal means -- is strand-symmetric and
+    must not move.
+
+    This used to be a positional swap of the last two columns, which was correct
+    only because the phyloP pair happened to sit at the end of the list. Appending
+    any new feature would have silently swapped the wrong two columns on every
+    reverse-complement pass: no exception, no warning, and every RC-averaged
+    prediction in the project quietly wrong. Resolving by name makes the feature
+    list safe to extend.
+    """
+    try:
+        return TABULAR_FEATURES.index(PHYLOP_1), TABULAR_FEATURES.index(PHYLOP_2)
+    except ValueError as exc:
+        raise RuntimeError(
+            f"{PHYLOP_1} and {PHYLOP_2} must both appear in TABULAR_FEATURES; the "
+            f"reverse-complement context transform is defined in terms of them."
+        ) from exc
+
+
+PHYLOP_COLUMN_INDICES = _phylop_column_indices()
+
+
 def make_rc_context(
     tab: torch.Tensor,
     missing: torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor]:
+    """Exchange the two target-base phyloP features for the RC pass."""
+    first, second = PHYLOP_COLUMN_INDICES
     rc_tab = tab.clone()
     rc_missing = missing.clone()
-    rc_tab[:, -2], rc_tab[:, -1] = tab[:, -1].clone(), tab[:, -2].clone()
-    rc_missing[:, -2], rc_missing[:, -1] = missing[:, -1].clone(), missing[:, -2].clone()
+    rc_tab[:, first], rc_tab[:, second] = tab[:, second].clone(), tab[:, first].clone()
+    rc_missing[:, first], rc_missing[:, second] = (
+        missing[:, second].clone(), missing[:, first].clone())
     return rc_tab, rc_missing
 
 
