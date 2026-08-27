@@ -368,15 +368,113 @@ sequence at scoring time. Small change, but it must land with the retrain.
 - **Adding tissues.** Scoped out deliberately; DeepMethylation already holds that
   ground.
 
+### On adding a truly-healthy baseline cohort
+
+Raised 2026-08-26. The motivation is real and it is already a stated limitation in
+the manuscript: targets are medians of 97 **tumour-adjacent** normals, which may
+carry field effects and cell-composition heterogeneity.
+
+**hg19 is not an obstacle.** Array data joins on probe ID, which is
+platform-stable — the same fact that let the GENOA harmonizer lift SNP positions
+without ever lifting a CpG. A GEO series gives probe ID → β; join to the hg38
+manifest and the coordinates come along. No liftover, no chain file. This concern
+can be dropped. It only returns if the cohort is WGBS or RRBS, which is a
+different measurement with coverage-dependent noise and should be treated as a
+separate question.
+
+**Small n is disqualifying for training and irrelevant for validation.** A
+20–40-sample median is noisier than the existing 97-sample median. Swapping it in
+trades a known bias for added variance, which is very likely a net downgrade. But
+a validation cohort does not need many samples — it needs to be independent.
+
+**So use it as a validation cohort, and the limitation becomes a result.** Score
+the frozen checkpoints against a truly-healthy cohort:
+
+- comparable performance → field effects are not materially contaminating the
+  targets, stated with evidence instead of listed as a caveat;
+- better → interesting, and worth explaining;
+- worse → the contamination is real and now quantified.
+
+All three outcomes are publishable, and it serves requirement 1 at the same time.
+`GSE213478` (eGTEx methylation) is already on the candidate list in §D and is the
+obvious first look, since eGTEx donors are not breast-cancer patients.
+
+**If it is to touch training at all, the non-drastic use is target weighting, not
+target replacement.** Probes where the healthy cohort and TCGA normals disagree
+strongly are the field-effect-suspect probes. Down-weighting them, or supplying
+the disagreement as a feature, uses a small cohort for what small cohorts are good
+at — identifying unreliable targets — without asking it to define targets.
+
+**Two confounds to name before interpreting any disagreement:**
+
+- *Cell composition.* Reduction-mammoplasty and post-mortem tissue differ from
+  tumour-adjacent tissue in epithelial/stromal/adipose fractions. A β difference
+  is not automatically evidence of field effects.
+- *Age.* TCGA normals come from cancer patients and skew older; methylation is
+  strongly age-dependent. Check whether the cohort ships age metadata, and if it
+  does, condition on it.
+
+### HAZARD: the reverse-complement swap is positional, and it will break silently
+
+Read this before touching `TABULAR_FEATURES`.
+
+`make_rc_context()` — in `scripts/05_matched_background.py` and mirrored in
+`scripts/19_genoa_variant_scoring.py` — builds the reverse-complement context
+vector like this:
+
+```python
+rc_tab[:, -2], rc_tab[:, -1] = tab[:, -1].clone(), tab[:, -2].clone()
+```
+
+It swaps the **last two columns by position**, relying on
+`TABULAR_FEATURES` ending with `Target_Base_PhyloP_100way_1` and `_2` — the C and
+G of the target CpG, which genuinely do exchange under reverse complementation.
+
+Append any new feature to the end of that list and the swap silently exchanges the
+wrong two features on every RC pass. Nothing raises. Every RC-averaged prediction
+in the project becomes subtly wrong, and it would be almost undetectable after the
+fact.
+
+**Fix before adding features, not after:** derive the swap indices from the feature
+names rather than from position, e.g. resolve `PHYLOP_1` / `PHYLOP_2` through
+`TABULAR_FEATURES.index(...)` once and swap those. Both copies of
+`make_rc_context` must change together. Ten lines, and it makes the feature list
+safe to extend.
+
+*Related, but loud rather than silent:* `EpigeneticEncoder` and
+`EpigeneticOnlyModel` default to `tabular_dim=9`, and existing checkpoints were
+trained at 9 features. Loading a 9-feature checkpoint into a 21-feature model
+fails on `strict=True`, which is the behaviour we want — it cannot pass unnoticed.
+
+Note also that most proposed new features are strand-symmetric (window averages,
+GC fraction, CpG counts do not change under reverse complementation), so only the
+two positional phyloP features need swapping at all. Keeping the RC transformation
+explicit and name-based makes that assumption visible instead of implicit.
+
 ### Order of operations
 
-1. Confirm the feature list (Tier 1, plus any Tier 2 that survives).
-2. Re-extract context features → new `train/val/test.csv`. CPU, array by chromosome.
-3. **One** training campaign: 3 seeds × (context + fusion) on the new features,
-   *plus* the four requirement-2 folds, submitted together.
-4. Re-run scripts 19–22 and 16–18 against the new checkpoints.
-5. Keep the current checkpoints and results. The old model becomes the ablation
-   that shows what the new features bought.
+0. **Decide the healthy-cohort question first** (previous subsection). It is a
+   search task: which HM450/EPIC healthy-breast series has usable sample counts
+   *and* age metadata. The answer changes whether step 2 also produces a
+   target-quality weight column.
+1. Fix the positional RC swap (hazard above). Do this before anything else touches
+   the feature list.
+2. Confirm the feature list — Tier 1, plus any Tier 2 that survives.
+3. Re-extract context features → new `train/val/test.csv`. CPU, array by
+   chromosome. Entry point is `data/build_training_data.py`; the feature list
+   itself lives in `scripts/training_common.py`.
+4. Change the checkpoint metric to M-value MAE in the three
+   `scripts/01_train_*_journal.py` files.
+5. **One** training campaign: 3 seeds × (context + fusion) on the new features,
+   *plus* the four requirement-2 folds, submitted together. The sequence tower is
+   not retrained unless its input changes.
+6. Update `make_rc_context` consumers and script 19's per-probe context vector,
+   which currently assumes context is fixed per probe rather than per allele.
+7. Re-run scripts 16–18 and 19–22 against the new checkpoints.
+8. Keep the current checkpoints and results. The old model becomes the ablation
+   showing what the new features bought — a better paper than quietly replacing it.
+9. Rebuild `supplementary_package/` and the `reproducibility/` audits, which are
+   stale as of 2026-08-26 and predate scripts 19–22.
 
 ### One thing to verify first
 
