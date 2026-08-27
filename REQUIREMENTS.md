@@ -405,6 +405,29 @@ strongly are the field-effect-suspect probes. Down-weighting them, or supplying
 the disagreement as a feature, uses a small cohort for what small cohorts are good
 at — identifying unreliable targets — without asking it to define targets.
 
+**BLOCKED as of 2026-08-27 — do not retry the automated path.** GSE69914's GEO
+metadata carries **no group labels**. All 407 samples are titled `BCFD1` through
+`BCFD407`, source name is "genomic DNA from breast sample BCFD<n>", and the only
+characteristics field is "molecule subtype: bi-sulphite converted genomic DNA".
+Confirmed from the series page itself, not inferred. The 50/84/263/7/4 composition
+appears only in the series *summary prose*; nothing maps an identifier to a group.
+
+`data/acquire_healthy_breast_cohort.py` is written and its composition guard
+correctly refused to write anything. To finish it, someone must obtain the
+per-sample annotation from the paper's supplementary material (Teschendorff et al.
+Nat Commun 2016) and drop it in as a two-column CSV — identifier, group. That is a
+one-time manual step, not a scripting problem. PMC blocks automated fetching, so
+it needs a human with a browser.
+
+*Cost so far:* a 1.6 GB download, since the first version of `--inspect` fetched
+before reading the header. That is fixed — `--inspect` now streams the header and
+stops at the table marker. Delete the archive; the URL and expected SHA-256 are in
+the script.
+
+*Recommendation:* park this. It addresses a stated limitation, not an open mentor
+requirement, and requirement 3 has nothing done. Resume when the annotation table
+is in hand.
+
 **Two confounds to name before interpreting any disagreement:**
 
 - *Cell composition.* Reduction-mammoplasty and post-mortem tissue differ from
