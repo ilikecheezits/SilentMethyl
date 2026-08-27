@@ -93,6 +93,32 @@ SIGNIFICANCE_STRATA = [
     (5e-1, 1.01, "p > 0.5"),
 ]
 DISTANCE_BINS = [0, 50, 100, 200, 300, 400, 501]
+
+# Cohort-specific wording, so the same evaluator can run on the tissue-matched
+# eGTEx arm and the cross-tissue GENOA arm without either one inheriting the
+# other's caveats. The tissue caveat in particular is the whole reason the two
+# arms answer different questions.
+COHORTS = {
+    "GENOA": {
+        "label": "GENOA",
+        "tissue_caveat": ("GENOA is peripheral blood; SilentMethyl is trained on "
+                          "breast and its context features are MCF-10A breast. "
+                          "This is cross-tissue, cross-ancestry transfer, not "
+                          "tissue-matched validation."),
+        "effect_scale": ("GENOA betas are on a normalized-phenotype scale. Rank "
+                         "and sign comparisons only; no magnitude calibration "
+                         "claim is available."),
+    },
+    "eGTEx": {
+        "label": "eGTEx Breast Mammary Tissue",
+        "tissue_caveat": ("eGTEx Breast Mammary Tissue matches the training "
+                          "tissue, so a weak result here is attributable to the "
+                          "model rather than to a tissue change. Donors are "
+                          "predominantly European-ancestry."),
+        "effect_scale": ("tensorQTL slopes are on the inverse-normalised "
+                         "methylation scale. Rank and sign comparisons only."),
+    },
+}
 BLOCK_BP = 1_000_000
 
 
@@ -107,13 +133,15 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--models", nargs="+", default=["fusion", "sequence"])
     p.add_argument("--seeds", nargs="+", type=int, default=[42, 43, 44])
     p.add_argument("--significance", type=float, default=GENOME_WIDE,
-                   help="Primary significance threshold on p_wald.")
+                   help="Primary significance threshold on the cohort p-value.")
     p.add_argument("--n-boot", type=int, default=500,
                    help="Block-bootstrap resamples. Use 2000 for the final figures.")
     p.add_argument("--match-tolerance", type=int, default=10,
                    help="bp window for distance matching of negatives.")
     p.add_argument("--match-ratio", type=int, default=1,
                    help="Negatives matched per significant pair.")
+    p.add_argument("--cohort", default="GENOA", choices=sorted(COHORTS),
+                   help="Selects cohort wording and caveats. It does not change any computation.")
     p.add_argument("--random-seed", type=int, default=42)
     p.add_argument("--output-dir", type=Path,
                    default=Path("results/journal/genoa_variant_evaluation"))
@@ -150,7 +178,15 @@ def load_scores(args: argparse.Namespace) -> pd.DataFrame:
             LOGGER.info("%s seed %d: %d pairs", model, seed, len(frame))
     long = pd.concat(frames, ignore_index=True)
 
-    required = {"Pair_UID", "Predicted_Delta_M", "beta_genoa_ref_to_alt", "p_wald",
+    # Score files written before the eGTEx arm existed name the cohort effect
+    # `beta_genoa_ref_to_alt` and the p-value `p_wald`. Alias them so this script
+    # reads GENOA and eGTEx outputs identically without regenerating the former.
+    for canonical, legacy in (("beta_ref_to_alt", "beta_genoa_ref_to_alt"),
+                              ("pvalue", "p_wald")):
+        if canonical not in long.columns and legacy in long.columns:
+            long[canonical] = long[legacy]
+
+    required = {"Pair_UID", "Predicted_Delta_M", "beta_ref_to_alt", "pvalue",
                 "abs_distance_bp", "cpg_chr", "cpg_pos_hg38", "creates_cpg",
                 "destroys_cpg"}
     absent = sorted(required - set(long.columns))
@@ -167,7 +203,7 @@ def load_scores(args: argparse.Namespace) -> pd.DataFrame:
                             | long["destroys_cpg"].astype(bool))
     long["_block"] = (long["cpg_chr"].astype(str) + ":"
                       + (long["cpg_pos_hg38"] // BLOCK_BP).astype(int).astype(str))
-    long["significant"] = (long["p_wald"] < args.significance).astype(int)
+    long["significant"] = (long["pvalue"] < args.significance).astype(int)
     return long
 
 
@@ -192,13 +228,13 @@ def add_seed_ensemble(long: pd.DataFrame) -> pd.DataFrame:
 def signed_rho(frame: pd.DataFrame) -> float:
     if len(frame) < 20:
         return np.nan
-    result = spearmanr(frame["Predicted_Delta_M"], frame["beta_genoa_ref_to_alt"])
+    result = spearmanr(frame["Predicted_Delta_M"], frame["beta_ref_to_alt"])
     return float(result.statistic)
 
 
 def direction_agreement(frame: pd.DataFrame) -> float:
     predicted = np.sign(frame["Predicted_Delta_M"].to_numpy(dtype=float))
-    observed = np.sign(frame["beta_genoa_ref_to_alt"].to_numpy(dtype=float))
+    observed = np.sign(frame["beta_ref_to_alt"].to_numpy(dtype=float))
     usable = (predicted != 0) & (observed != 0)
     if usable.sum() < 20:
         return np.nan
@@ -332,7 +368,7 @@ def block_bootstrap(frame: pd.DataFrame, metric, n_boot: int,
 # measurement dominates the runtime otherwise -- a bootstrap resample copies every
 # column it carries, and the score files have ~40 of them.
 METRIC_COLUMNS = [
-    "Predicted_Delta_M", "Predicted_Delta_M_sequence", "beta_genoa_ref_to_alt",
+    "Predicted_Delta_M", "Predicted_Delta_M_sequence", "beta_ref_to_alt",
     "significant", "abs_distance_bp", "_block",
 ]
 
@@ -408,7 +444,7 @@ def main() -> int:
     for model in args.models:
         subset = clean[(clean["Model"] == model) & (clean["Seed"] == -1)]
         for low, high, label in SIGNIFICANCE_STRATA:
-            stratum = subset[(subset["p_wald"] >= low) & (subset["p_wald"] < high)]
+            stratum = subset[(subset["pvalue"] >= low) & (subset["pvalue"] < high)]
             context = {"model": model, "stratum": label,
                        "p_low": low, "p_high": high}
             gradient.append(measure(stratum, signed_rho, "signed_rho",
@@ -499,7 +535,9 @@ def main() -> int:
 
     atomic_json(
         {
-            "analysis": "GENOA variant evaluation on frozen SilentMethyl checkpoints",
+            "analysis": (f"{COHORTS[args.cohort]['label']} variant evaluation "
+                         f"on frozen SilentMethyl checkpoints"),
+            "cohort": args.cohort,
             "purpose": "mentor requirement 6: independent variant evaluation",
             "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "stratum": args.stratum,
@@ -518,7 +556,7 @@ def main() -> int:
                                    "baseline. The marginal AUROC is NOT reportable "
                                    "alone: distance by itself reaches ~0.595."),
                 "direction": ("signed Spearman rho and direction agreement against "
-                              "beta_genoa_ref_to_alt at p < 5e-8, non-CpG-altering. "
+                              "the cohort effect at p < 5e-8, non-CpG-altering. "
                               "Direction has no mechanical relationship to distance, "
                               "so it is the confound-resistant claim."),
                 "dilution": ("signal rises monotonically with association strength "
@@ -531,12 +569,8 @@ def main() -> int:
                                 "through the gate."),
             },
             "caveats": {
-                "effect_scale": ("GENOA betas are on a normalized-phenotype scale. "
-                                 "Rank and sign comparisons only; no magnitude "
-                                 "calibration claim is available."),
-                "tissue": ("GENOA is blood; fusion context features are MCF-10A "
-                           "breast. Cross-tissue transfer, not tissue-matched "
-                           "validation."),
+                "effect_scale": COHORTS[args.cohort]["effect_scale"],
+                "tissue": COHORTS[args.cohort]["tissue_caveat"],
                 "dependence": ("Pairs are in LD. All intervals are 1 Mb block "
                                "bootstraps; naive intervals would be far too narrow."),
             },
@@ -577,13 +611,15 @@ def make_figures(gradient: pd.DataFrame, primary: pd.DataFrame,
         axis.set_xticks(np.arange(len(labels)))
         axis.set_xticklabels(labels, rotation=40, ha="right", fontsize=8)
         axis.set_title(title, fontsize=10)
-        axis.set_xlabel("GENOA association strength", fontsize=9)
+        axis.set_xlabel(f"{COHORTS[args.cohort]['label']} association strength",
+                        fontsize=9)
         axis.grid(axis="y", alpha=0.15)
         axis.spines[["top", "right"]].set_visible(False)
     axes[0].set_ylabel("value (95% block-bootstrap CI)", fontsize=9)
     axes[0].legend(frameon=False, fontsize=8)
-    fig.suptitle("Agreement with GENOA rises with association strength and reaches "
-                 "chance where associations are null", fontsize=10.5)
+    fig.suptitle(f"Agreement with {COHORTS[args.cohort]['label']} rises with "
+                 f"association strength and reaches chance where associations "
+                 f"are null", fontsize=10.5)
     fig.tight_layout()
     fig.savefig(plots / "significance_gradient.png", dpi=400, bbox_inches="tight",
                 facecolor="white")
@@ -657,8 +693,8 @@ def show(frame: pd.DataFrame, metric: str, **filters) -> str:
 def print_report(primary, matched, gradient, paired, args, out) -> None:
     print()
     print("=" * 78)
-    print(f"GENOA variant evaluation -- {args.stratum} stratum, "
-          f"non-CpG-altering, seed ensemble")
+    print(f"{COHORTS[args.cohort]['label']} variant evaluation -- "
+          f"{args.stratum} stratum, non-CpG-altering, seed ensemble")
     print(f"significance p < {args.significance:.0e} | "
           f"{args.n_boot} block-bootstrap resamples over {BLOCK_BP//1000} kb blocks")
     print("=" * 78)

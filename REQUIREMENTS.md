@@ -21,7 +21,7 @@ Stage C (one training pass) → Stage D (re-score + write).
 | 3 | Stronger baselines and ablations | No / cheap re-heads | A.2, B.5, C.2–C.3 | not-started | |
 | 4 | Uncertainty calibration | No — post-hoc | B.3 | **done (analysis)** | `results/journal/rc_uncertainty{,_conditional}/` |
 | 5 | Ancestry analyses | No — analysis | B.1 | in-progress | `results/journal/genoa_variant_evaluation/` (AFR arm) |
-| 6 | Independent variant evaluation | No — inference | B.1 | **done** | `results/journal/genoa_variant_{scoring,evaluation}/` |
+| 6 | Independent variant evaluation | No — inference | B.1 | **done (GENOA)**; tissue-matched eGTEx arm in progress | `results/journal/genoa_variant_{scoring,evaluation}/` |
 | 7 | Regulatory enrichment | No — inference | B.4 | **done** | `results/journal/motif_disruption/` |
 
 ### Detail
@@ -167,6 +167,14 @@ rest the claim on GENOA vs eGTEx.
 that the two differ in tissue as well as ancestry, so the comparison is not a clean
 ancestry contrast and should not be presented as one.
 
+*Update (2026-08-27).* Once the full eGTEx Breast Mammary association file runs
+through the same scorer (see §6), the contrast is between two arms measured by one
+pipeline rather than between an arm and a legacy 81-variant result. It is still not
+a clean ancestry contrast — tissue moves with ancestry — and the honest framing is
+that the tissue-matched arm bounds model performance while the GENOA arm bounds
+transfer. Presenting the difference between them as an ancestry effect would be
+wrong and a reviewer will say so.
+
 **6. Independent variant evaluation.** From n=81 to millions. Report signed ρ,
 direction agreement, AUROC, magnitude correlation — stratified by CpG-alteration
 status, distance bin, effect decile, cohort ancestry.
@@ -239,6 +247,82 @@ variant scoring.
 **Consequence: do not acquire blood ENCODE tracks.** The blood/breast mismatch is
 not what limits variant-effect prediction here; allele-invariance is. Tissue-matched
 context would not change these numbers.
+
+---
+
+**The tissue-matched arm — eGTEx Breast Mammary Tissue (in progress, 2026-08-27).**
+
+*Why, stated plainly.* GENOA is blood. A weak GENOA correlation is confounded with a
+tissue change, so it cannot falsify the model — and a reader is entitled to ask why
+the primary external validation of a breast-tissue model was run in blood. It reads
+as an availability decision, because it was one. The fix is to make the
+tissue-matched arm primary and demote GENOA to what it actually is: a cross-tissue,
+cross-ancestry **transfer** arm, which is a real and separately interesting result.
+
+*Source.* eGTEx methylation mQTLs, EPIC arrays, `BreastMammaryTissue.mQTLs.regular.txt.gz`
+(`https://storage.googleapis.com/egtex/methylation/epic-arrays/mQTLs/`), 45,279,365,738
+bytes compressed. This is the **same study** as the 81 lead variants already in
+`data/egtex_breast_mqtl_heldout.csv` — the complete association set rather than the
+lead subset, so it supersedes those 81 rather than adding a new cohort. Nine columns,
+no header: `probeID variant_id dist ma_samples ma_count maf pval_nominal slope slope_se`.
+
+*Three things that make this cleaner than GENOA.* Already hg38 (`b38` suffix in the
+variant ID) — no liftover, no chain file. REF and ALT are encoded in the variant ID —
+no minor/major ambiguity, so the effect-allele bug that silently flipped 11.3% of
+GENOA pairs cannot recur in the same form. Distance is precomputed.
+
+*One thing that is worse.* eGTEx assays **EPIC**; the model is trained on **HM450**.
+Probe IDs are platform-stable, so no liftover is needed, but EPIC-only probes have no
+training-data counterpart and are dropped and counted.
+
+*Pipeline.* `data/harmonize_egtex_mqtl.py` (new). Two stages, because 45 GB:
+stage 1 streams the gzip through `awk` keeping rows within ±600 bp of a probe
+(~0.06% of the file — awk rather than Python because this is a multi-billion-line
+scan); stage 2 does the real work in pandas. Then `scripts/19` and `scripts/20`
+unchanged apart from the column generalisation below.
+
+*What the harmonizer refuses to trust, and why each is a GENOA lesson:*
+
+1. **Their distance column.** Distance is recomputed from HM450 `CpG_beg` and the
+   `reported − recomputed` distribution is reported. A constant ±1 offset gets
+   detected instead of inherited. The window bounds are **imported** from
+   `data/build_genoa_scoring_input.py` (`MIN_SCOREABLE_OFFSET`/`MAX_SCOREABLE_OFFSET`),
+   not restated, so the two cohorts cannot drift apart.
+2. **The sign convention.** GTEx/tensorQTL documents `slope` as keyed to ALT, which
+   matches the model's REF→ALT Δ. That is exactly the kind of assumption that cost us
+   106,628 flipped GENOA pairs, so it is verified against an internal positive
+   control: **variants that destroy the target CpG must lower methylation**. If the
+   mean slope over those comes back positive at z > 3, the script prints the evidence
+   and exits without writing. The check is free and non-circular — those variants are
+   excluded from scoring anyway.
+3. **The reference base.** Every REF is checked against `hg38.fa`; the mismatch rate
+   is logged loudly, as with GENOA's 0.1%.
+
+*Column generalisation (scripts 19 and 20, 2026-08-27).* The cohort effect column is
+no longer hard-coded. Script 19 gained `--effect-column` / `--pvalue-column`
+(default `auto`), resolving `beta_ref_to_alt` (eGTEx) or `beta_genoa_ref_to_alt`
+(GENOA) and copying it to a canonical name. Script 20 reads the canonical names and
+**back-fills from the legacy ones**, so the existing GENOA score files still run
+untouched — no rescoring. Script 20 also gained `--cohort {GENOA,eGTEx}`, which
+swaps only the wording and the tissue caveat so the eGTEx arm never inherits
+"GENOA is blood". It changes no computation.
+
+*Tests.* `data/_test_egtex_harmonizer.py` builds a synthetic genome, manifest, split
+CSVs and all-pairs file, then asserts: window boundaries at exactly −499/+500,
+masked-probe drop, EPIC-only drop, indel drop, REF-mismatch drop, split assignment,
+and a **deliberately sign-flipped run that must fail** — it does. Script 20 was
+separately re-run on synthetic legacy-named score files to confirm the rename is
+backwards-compatible.
+
+*Expected scale.* ~2–3M rows survive stage 1; roughly half sit on HM450 probes;
+after the exact window and target-CpG exclusion the held-out (chr8–9) stratum should
+land in the same order of magnitude as GENOA's 66,495. **Not yet run — do not quote
+a number until `egtex_scoring_summary.json` exists.**
+
+*Manuscript consequence, once the numbers land.* eGTEx Breast Mammary becomes the
+primary requirement-6 result; GENOA moves to a transfer subsection; the 81 lead
+variants are superseded and their table row is dropped. Do not restructure the
+manuscript before the numbers exist.
 
 **7. Regulatory enrichment.** JASPAR CORE vertebrates (877 matrices, 831 tested)
 scanned on both strands across the 42,866 non-CpG-altering held-out GENOA pairs.
@@ -594,6 +678,7 @@ The frozen manifest is written to `data/external/external_manifest.json`.
 | Source | Build | Liftover needed | Acquisition | Status |
 |---|---|---|---|---|
 | GENOA meQTL | hg19 | **yes** | automatic (Zenodo) | **done** — raw deleted, 30 MB harmonized retained |
+| eGTEx Breast Mammary mQTL (all pairs) | **hg38** | no | automatic (GCS) | **in progress** — 45 GB raw, delete after prefilter |
 | TCGA-BRCA tumours (from the matrix on disk) | hg38 | no | none | **done** — 699 unpaired of 791 |
 | TCGA ancestry calls (GDC open) | n/a | no | manual | **done** — not powered, see §5 |
 | ClinVar GRCh38 VCF | hg38 | no | automatic | **done** |
