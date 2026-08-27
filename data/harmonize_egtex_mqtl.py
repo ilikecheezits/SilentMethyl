@@ -121,6 +121,11 @@ EXPECTED_BUILD = "b38"
 # stage 1: stream the 45 GB file down to the cis-proximal rows
 # --------------------------------------------------------------------------
 
+# Test order matters here: this program sees ~4 billion lines, and the regex is
+# by far the most expensive clause. The numeric bounds are checked FIRST, so the
+# regex only runs on the ~0.06% of lines that are already candidates. A
+# non-numeric field coerces to 0 and slips past the bounds test, which is exactly
+# why the regex is still there -- it is a correctness guard, not a prefilter.
 AWK_PROGRAM = r"""
 BEGIN { OFS = "\t" }
 {
@@ -128,13 +133,21 @@ BEGIN { OFS = "\t" }
     if (n % 200000000 == 0) {
         printf("  scanned %.2fB lines, kept %d\n", n / 1000000000, k) > "/dev/stderr"
     }
-    if (NF >= 9 && $3 ~ /^-?[0-9]+$/ && $3 >= -W && $3 <= W) {
+    if ($3 <= W && $3 >= LO && NF >= 9 && $3 ~ /^-?[0-9]+$/) {
         k++
         print $1, $2, $3, $4, $5, $6, $7, $8, $9
     }
 }
 END { printf("scanned %d lines, kept %d rows within +/-%d bp\n", n, k, W) > "/dev/stderr" }
 """
+
+
+def awk_binary() -> str:
+    """mawk is 3-5x faster than gawk on a scan this size. Any awk is correct."""
+    for candidate in ("mawk", "gawk", "awk"):
+        if shutil.which(candidate):
+            return candidate
+    raise SystemExit("no awk found on PATH")
 
 
 def decompressor(path: Path) -> str:
@@ -159,14 +172,15 @@ def run_prefilter(raw: Path, out: Path, half_window: int, force: bool) -> None:
     tmp = out.with_suffix(out.suffix + ".partial")
     if "'" in AWK_PROGRAM:
         raise RuntimeError("the awk program cannot contain a single quote")
+    awk = awk_binary()
     pipeline = (
         f"set -o pipefail\n"
         f"{decompressor(raw)} | "
-        f"awk -v W={half_window} '{AWK_PROGRAM}' | "
+        f"{awk} -v W={half_window} -v LO={-half_window} '{AWK_PROGRAM}' | "
         f"gzip -1 -c > {tmp}\n"
     )
-    logging.info("streaming %s (%.1f GB) through awk -- this is the slow step",
-                 raw, raw.stat().st_size / 1e9)
+    logging.info("streaming %s (%.1f GB) through %s -- this is the slow step",
+                 raw, raw.stat().st_size / 1e9, awk)
     logging.info("progress prints every 200M lines")
     result = subprocess.run(["bash", "-c", pipeline])
     if result.returncode != 0:
