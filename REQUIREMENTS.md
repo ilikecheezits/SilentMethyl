@@ -473,6 +473,60 @@ quintile.
 
 ## A2. Retraining plan — improved training data
 
+### Audit first: `data/audit_training_data.py` (new, 2026-08-27, CPU only)
+
+Run this BEFORE deciding anything about retraining. It reads only the existing
+split CSVs and the HM450 manifest, and answers three questions in descending
+order of how much damage a bad answer does.
+
+**1. Cross-split sequence leakage — never checked, and it can invalidate every
+held-out number.** Chromosome-blocked splits stop *positional* leakage. They do
+nothing about *sequence-similarity* leakage: segmental duplications, paralogues
+and recent repeat families put near-identical 1,000-bp windows on different
+chromosomes, and CpG-island promoters are exactly where duplications cluster. If
+a meaningful share of chr8–9 test probes share most of their 31-mers with a
+training probe, held-out performance is partly memorisation. Measured by MinHash
+over canonical 31-mers; a median near zero is the healthy result and the tail is
+what matters. `--exact` recomputes true Jaccard for flagged pairs.
+
+*If the tail is large*, the fix is not to re-split — it is to report a
+similarity-filtered test subset alongside the full one. A reviewer who asks this
+question and gets a prepared answer is reassured; one who asks and gets silence
+is not.
+
+**2. Probe QC is currently inconsistent, and by accident.**
+`data/build_training_data.py` applies **none** of the HM450 manifest masks.
+`scripts/05_matched_background.py` and `scripts/19` **do** exclude
+`MASK_general` when scoring. So the model is trained on a probe population it is
+never evaluated on. That is not automatically wrong — more training signal can
+be worth some target noise, and masked probes are not uniformly useless — but it
+is presently inherited rather than chosen, and the size of the discrepancy has
+never been reported. The audit reports it per split for `MASK_general`,
+`MASK_snp5_common`, `MASK_snp5_GMAF1p`, `MASK_mapping`,
+`MASK_typeINextBaseSwitch` and `MASK_rmsk15`.
+
+*Decide it deliberately.* `MASK_snp5_common` is the one with a direct bearing on
+the variant work: a common SNP under the probe body corrupts the measured beta
+in exactly the donors whose genotype the meQTL analysis is about. Training on
+those probes teaches the model to fit a measurement artifact.
+
+**3. Split comparability.** Chromosome-blocked splits are not random samples. If
+chr8–9 differ from the training chromosomes in methylation distribution, part of
+the train/test gap is composition rather than generalisation. Reported so it can
+be stated in the paper rather than discovered in review.
+
+*Tested* against synthetic splits with ten verbatim-copied windows planted in
+`test`: all ten flagged at estimated Jaccard 1.000, matched to the correct
+training probe, confirmed at exact Jaccard 1.000, with zero false positives among
+the 290 clean probes.
+
+### Do not retrain until these three are answered
+
+Retraining before the audit means rebuilding on the same unexamined foundation.
+Each answer changes what "improved training data" should mean, and all three come
+from one CPU job on data already on disk.
+
+
 Retraining is back on the table (2026-08-26). This section exists so the feature
 decision is made **before** the requirement-2 folds are run, not after.
 
