@@ -643,8 +643,21 @@ Run this BEFORE deciding anything about retraining. It reads only the existing
 split CSVs and the HM450 manifest, and answers three questions in descending
 order of how much damage a bad answer does.
 
-**1. Cross-split sequence leakage — never checked, and it can invalidate every
-held-out number.** Chromosome-blocked splits stop *positional* leakage. They do
+**1. Cross-split sequence leakage — CHECKED 2026-08-28, and the splits are clean.**
+MinHash over canonical 31-mers, sketch 128:
+
+| split | n | median | p99 | Jaccard > 0.5 | > 0.8 |
+|---|---|---|---|---|---|
+| val | 46,557 | 0.000 | 0.094 | 30 (0.06%) | 11 |
+| **test** | **26,570** | **0.000** | **0.094** | **4 (0.02%)** | **2** |
+
+**Four of 26,570 held-out probes share more than half their 31-mers with a
+training probe.** Ninety-nine percent sit below 0.094. Held-out performance is
+not memorisation, and the chromosome-blocked design does what it was meant to.
+Worth one Methods sentence: the check is rarely run, and a reviewer who wonders
+about paralogues or segmental duplications gets a number instead of silence.
+
+*Original rationale, retained:* Chromosome-blocked splits stop *positional* leakage. They do
 nothing about *sequence-similarity* leakage: segmental duplications, paralogues
 and recent repeat families put near-identical 1,000-bp windows on different
 chromosomes, and CpG-island promoters are exactly where duplications cluster. If
@@ -658,23 +671,61 @@ similarity-filtered test subset alongside the full one. A reviewer who asks this
 question and gets a prepared answer is reassured; one who asks and gets silence
 is not.
 
-**2. Probe QC is currently inconsistent, and by accident.**
-`data/build_training_data.py` applies **none** of the HM450 manifest masks.
-`scripts/05_matched_background.py` and `scripts/19` **do** exclude
-`MASK_general` when scoring. So the model is trained on a probe population it is
-never evaluated on. That is not automatically wrong — more training signal can
-be worth some target noise, and masked probes are not uniformly useless — but it
-is presently inherited rather than chosen, and the size of the discrepancy has
-never been reported. The audit reports it per split for `MASK_general`,
-`MASK_snp5_common`, `MASK_snp5_GMAF1p`, `MASK_mapping`,
-`MASK_typeINextBaseSwitch` and `MASK_rmsk15`.
+**2. Probe QC — RESOLVED 2026-08-28. My earlier claim here was wrong.**
 
-*Decide it deliberately.* `MASK_snp5_common` is the one with a direct bearing on
-the variant work: a common SNP under the probe body corrupts the measured beta
-in exactly the donors whose genotype the meQTL analysis is about. Training on
-those probes teaches the model to fit a measurement artifact.
+I wrote that `data/build_training_data.py` applies none of the HM450 masks,
+inferring it from a grep that found no `MASK` string in that file. The audit
+settles it empirically, and the inference was wrong:
 
-**3. Split comparability.** Chromosome-blocked splits are not random samples. If
+| split | n | MASK_general | MASK_snp5_common | MASK_rmsk15 | mapping / GMAF1p / nextBase |
+|---|---|---|---|---|---|
+| train | 345,359 | **0.0%** | 10.96% | 14.42% | 0.0% |
+| val | 46,557 | **0.0%** | 11.66% | 14.13% | 0.0% |
+| test | 26,570 | **0.0%** | 11.69% | 15.71% | 0.0% |
+
+`MASK_general` is **zero in all three splits**, so masked probes never enter the
+training data; the exclusion happens upstream of `build_training_data.py`. That
+matches `scripts/19`, which dropped 0 of 76,893 eGTEx pairs at its own probe-QC
+step. Training and scoring QC are consistent and there is nothing to fix.
+`MASK_general` subsumes mapping, GMAF1p and next-base-switch, which is why those
+are zero as well.
+
+**What is real: ~11% of probes in every split carry a common SNP within 5 bp
+(`MASK_snp5_common`) and ~15% overlap repeats (`MASK_rmsk15`).** Neither is
+covered by `MASK_general`, and both are present in train and test alike. The
+balance across splits (10.96 / 11.66 / 11.69) means they do not bias the
+train/test comparison — but `MASK_snp5_common` bears directly on the variant
+work, because a common SNP under the probe corrupts the measured beta in exactly
+the donors whose genotype the meQTL analysis is about.
+
+*Action, cheap and worth doing:* re-run the variant evaluation excluding
+`MASK_snp5_common` probes as a sensitivity analysis. If signed rho holds, the
+result is strengthened against an obvious reviewer question. No retraining —
+it is a filter at evaluation time.
+
+**3. Split comparability — chr8–9 are modestly more methylated, and the model
+handles it.**
+
+| split | n | median beta | SD(M) | beta < 0.3 | beta > 0.7 |
+|---|---|---|---|---|---|
+| train | 345,359 | 0.550 | 3.55 | 39.9% | 42.3% |
+| val | 46,557 | 0.596 | 3.54 | 38.5% | 44.1% |
+| test | 26,570 | **0.642** | 3.46 | 36.1% | **46.5%** |
+
+Held-out chromosomes carry a median beta 0.09 above the training chromosomes and
+4 points more hypermethylated probes. Spread is comparable (SD of M 3.46 vs
+3.55), so this is a shift in location, not scale.
+
+**Report this as a point in the model's favour.** A model that had learned the
+training mean would be biased low on a more-methylated test set. Observed mean
+signed error is **-0.002 to -0.004** across seeds — essentially zero. The model
+tracks the shift rather than regressing toward the training distribution.
+
+It is also the strongest argument for requirement 2: if chr8–9 differ this much
+in composition, performance may depend on which chromosomes are held out, and
+repeated splits are how that gets measured rather than assumed.
+
+*Original rationale, retained:* Chromosome-blocked splits are not random samples. If
 chr8–9 differ from the training chromosomes in methylation distribution, part of
 the train/test gap is composition rather than generalisation. Reported so it can
 be stated in the paper rather than discovered in review.

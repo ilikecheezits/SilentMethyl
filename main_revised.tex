@@ -576,6 +576,35 @@ Improvement was consistent across seeds and across genomic regions. Fusion
 improved sequence-only MAE by 0.01043 (95\% CI 0.00951--0.01132) and ROC-AUC by
 0.01053 (0.00909--0.01207) under a 257-block resampling design.
 
+\paragraph{The gain is not a restatement of sequence composition.\NEW} Two
+classical baselines were fitted on the identical splits: a three-feature
+composition model (GC fraction, CpG count, CpG observed/expected) and a ridge
+regression over 2{,}772 reverse-complement-collapsed $k$-mer counts,
+$k=1\ldots6$. The $k$-mer model is a strong comparator --- it reaches ROC-AUC
+0.9190, statistically indistinguishable from the nine-feature chromatin model at
+0.9187, so 2{,}772 sequence features carry about as much information about
+methylation level as measured chromatin state does. The sequence tower alone
+nevertheless reduces its beta MAE by 29.8\% (0.1565 to 0.1099) and fusion by
+36.6\% (to 0.0993). Pretrained representation is therefore doing work that
+$k$-mer composition cannot, and the claim is measured on identical data rather
+than asserted.
+
+\paragraph{Held-out probes are not near-duplicates of training probes.\NEW}
+Chromosome-blocked splits prevent positional leakage but not sequence-similarity
+leakage: segmental duplications and paralogous promoters can place
+near-identical windows on different chromosomes. Estimating Jaccard similarity
+over canonical 31-mers (MinHash, sketch 128) between every held-out probe window
+and its nearest training window, the median is 0.000 and the 99th percentile
+0.094; four of 26{,}570 test probes (0.02\%) exceed 0.5. Held-out performance is
+not memorisation of near-duplicate sequence.
+
+The held-out chromosomes are also modestly more methylated than the training
+chromosomes (median beta 0.642 versus 0.550; 46.5\% versus 42.3\% of probes above
+0.7), with comparable spread. A model that had learned the training distribution
+would be biased low under that shift; mean signed beta error is $-0.002$ to
+$-0.004$ across seeds, so predictions track the shift rather than regressing
+toward the training mean.
+
 \begin{figure}[!tbp]
 \centering
 \IfFileExists{model_incremental_performance.png}{%
@@ -589,18 +618,22 @@ training seed. \textbf{(A)} M-value MAE. \textbf{(B)} beta MAE.
 
 \begin{table}[t]
 \centering
-\caption{\textbf{Held-out chr8--9 performance.} Mean $\pm$ SD across three seeds
-on 26{,}570 CpGs.}
+\caption{\textbf{Held-out chr8--9 performance against classical sequence
+baselines.} Mean $\pm$ SD across three seeds on 26{,}570 CpGs. Both baselines are
+ridge regressions fitted on the identical training split with the regularisation
+strength selected on the identical validation split, so no tissue or data
+advantage separates them from the neural models.}
 \label{tab:performance}
 \small
 \resizebox{\columnwidth}{!}{
-\begin{tabular}{lccc}
+\begin{tabular}{lccccc}
 \toprule
-Metric & Context & Sequence & Fusion \\
+Metric & Composition & $k$-mer ridge & Context & Sequence & Fusion \\
+ & (3 feat.) & (2{,}772 feat.) & (9 feat.) & DNABERT-2 & full \\
 \midrule
-M-value MAE & $1.4574\pm0.0023$ & $1.1941\pm0.0070$ & $\mathbf{1.0971\pm0.0192}$ \\
-Beta MAE & $0.1395\pm0.0001$ & $0.1099\pm0.0008$ & $\mathbf{0.0993\pm0.0025}$ \\
-ROC-AUC & $0.9187\pm0.0001$ & $0.9569\pm0.0007$ & $\mathbf{0.9680\pm0.0021}$ \\
+M-value MAE & $1.9600$ & $1.6866$ & $1.4574\pm0.0023$ & $1.1941\pm0.0070$ & $\mathbf{1.0971\pm0.0192}$ \\
+Beta MAE & $0.1954$ & $0.1565$ & $0.1395\pm0.0001$ & $0.1099\pm0.0008$ & $\mathbf{0.0993\pm0.0025}$ \\
+ROC-AUC & $0.8748$ & $0.9190$ & $0.9187\pm0.0001$ & $0.9569\pm0.0007$ & $\mathbf{0.9680\pm0.0021}$ \\
 \bottomrule
 \end{tabular}}
 \end{table}
@@ -910,14 +943,53 @@ difficulty. Most of the tumour methylome at these probes is thus recoverable
 without observing the tumour. The context-only model showed no degradation, which
 we report without explanation.
 
-\subsection{Disrupting ETS-family motifs predicts hypermethylation\NEW}
+\subsection{The model's motif response is compositional, and a $k$-mer control shows why that matters\REV}
 \label{sec:motif-results}
 
 Across 831 tested motifs, the strongest couplings between motif score change and
-predicted methylation change form a coherent group of ETS-family factors, all with
-the same sign (Table~\ref{tab:motifs}). Negative coupling means motif weakening
-accompanied by predicted \emph{hyper}methylation, the direction expected for
-factors whose binding protects CpGs from methylation.
+predicted methylation change form a coherent group, all with the same sign
+(Table~\ref{tab:motifs}). Negative coupling means motif weakening accompanied by
+predicted \emph{hyper}methylation, the direction expected for factors whose
+binding protects CpGs from methylation.
+
+The group is narrower than a family. Every one of the top eleven matrices
+contains the ETS core \texttt{GGAA} or its reverse complement \texttt{TTCC},
+including the two zinc-finger factors ZBTB2 (\texttt{ACCGGAAGTG}) and ZBTB11
+(\texttt{CACTTCCGG}), whose presence reflects that core rather than independent
+corroboration from a different structural class. Top-15 mean pairwise Jaccard
+overlap of covered variant sets is 0.278. The effective number of independent
+findings is one: a single 4-bp word.
+
+\paragraph{A composition-only control identifies what this measures.\NEW}
+Repeating the analysis on the $k$-mer ridge baseline --- a linear model with no
+attention, no pretraining and no representation of a binding site --- reproduces
+the same signed couplings \emph{more strongly} than the neural models
+(ELF4 $-0.467$ versus $-0.266$; FEV $-0.466$ versus $-0.257$; GABPA $-0.377$
+versus $-0.233$). Standardised against each model's own null distribution the two
+are equivalent. The coupling therefore measures sensitivity to \texttt{GGAA}
+sequence content, not learned binding-site grammar, and we describe it as such.
+
+Two further results support that reading. Disruption \emph{magnitude} predicts
+nothing (continuous $\rho=-0.011$, $-0.023$ to $+0.002$), where a graded
+binding-site mechanism predicts that breaking a site more should shift the
+prediction more. And meQTL discrimination is not concentrated in strongly
+disrupted sites (AUROC 0.592 versus 0.596).
+
+\paragraph{The same control separates what the neural model uniquely
+contributes.\NEW} On meQTL discrimination the $k$-mer baseline falls to 0.516
+(0.496--0.535) and 0.509 (0.486--0.533), close to chance, against 0.592 and 0.596
+for fusion. The two capabilities dissociate: the baseline is \emph{better} at
+motif coupling and far worse at separating real meQTLs from null pairs. A
+bag-of-$k$-mers representation is position-blind --- substituting a base changes
+the same counts wherever it falls in the window --- and so cannot express the
+distance dependence reported in Table~\ref{tab:distance}, which is the dominant
+structure in the data. What the pretrained model contributes to variant-effect
+prediction is positional resolution rather than sequence composition.
+
+This has a methodological consequence beyond this model. A PWM
+disruption-coupling analysis cannot by itself demonstrate that a sequence model
+has learned regulatory grammar, because a linear composition model reproduces the
+result. Such analyses need a composition-only control.
 
 \begin{table}[!tbp]
 \centering
