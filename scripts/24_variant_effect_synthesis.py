@@ -113,9 +113,17 @@ def load_cohort(name: str, scores_dir: Path, stratum: str, models: list[str],
                       + (long["cpg_pos_hg38"] // BLOCK_BP).astype(int).astype(str))
     long["cpg_altering_nearby"] = (long["creates_cpg"].astype(bool)
                                    | long["destroys_cpg"].astype(bool))
-    LOGGER.info("%s: %d rows, %d significant at p < %.3g (per model-seed: %d)",
-                name, len(long), int(long["significant"].sum()), threshold,
-                int(long["significant"].sum() / max(len(frames), 1)))
+    # Report both counts. The pre-filter number is what this function loaded;
+    # the primary stratum drops nearby-CpG-altering pairs to match scripts/20,
+    # so the analysis table below will show the smaller one. Printing only the
+    # larger figure here is how "4,037 vs 6,604" got into the project in the
+    # first place.
+    n_seeds = max(len(frames), 1)
+    sig_all = int(long["significant"].sum())
+    sig_clean = int((long["significant"] & ~long["cpg_altering_nearby"]).sum())
+    LOGGER.info("%s: %d rows | significant at p < %.3g: %d per model-seed "
+                "(%d excluding nearby CpG-altering -- this is the primary stratum)",
+                name, len(long), threshold, sig_all // n_seeds, sig_clean // n_seeds)
     return long
 
 

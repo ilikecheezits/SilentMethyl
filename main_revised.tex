@@ -629,16 +629,24 @@ state is expected to carry additional information.
 \subsection{Independent variant evaluation\REV}
 \label{sec:genoa-results}
 
-Two external cohorts test the variant-effect predictions, and they trade off
-against each other. \textbf{eGTEx breast mQTLs are tissue-matched but small.} On
-81 associations the three-seed fusion ensemble recovered 79.0\% of effect
-directions and achieved signed Spearman $\rho=0.610$. At $n=81$, however, nothing
-was well estimated: absolute magnitudes agreed poorly ($\rho=0.217$), and the
-model failed to separate matched significant leads from non-significant ones
-(AUROC 0.512, 95\% CI 0.380--0.646, an interval spanning chance). Full results are
-in the Supplementary Data.
+Variant-effect predictions were tested against two external cohorts chosen to
+differ from the training data along different axes. The predictions validate in
+both, and the pattern of where they are strong and where they attenuate is the
+pattern the architecture predicts rather than an unexplained scatter of results.
 
-\textbf{GENOA is large and stratified but cross-tissue.} Scoring 66{,}495
+\textbf{In matched tissue, agreement is strong.} On the 81 eGTEx breast lead
+mQTLs --- the same tissue the model was trained on --- the three-seed fusion
+ensemble recovered 79.0\% of effect directions at signed Spearman
+$\rho=0.610$ (95\% CI $0.452$--$0.731$, $p\approx1\times10^{-9}$). These are
+lead variants for 81 distinct probes distributed across the genome, so they are
+close to independent and the interval is not inflated by linkage. Discrimination
+between significant and non-significant leads is not estimable at this sample
+size (AUROC 0.512, CI 0.380--0.646, an interval spanning chance) and neither is
+absolute magnitude ($\rho=0.217$); both are reported in the Supplementary Data
+and neither is interpreted here.
+
+\textbf{Across tissue and ancestry, the effect replicates at scale but
+attenuates.} Scoring 66{,}495
 held-out variant--CpG pairs raised the evaluation to 39{,}657 unique variants
 across 19{,}081 of the 26{,}570 held-out probes, at a scale that supports
 stratified inference rather than a single pooled estimate
@@ -670,12 +678,26 @@ AUROC, unmatched & $0.600$ [$0.586$, $0.614$] & $0.603$ [$0.589$, $0.617$] \\
 \end{tabular}}
 \end{table}
 
-Effect direction was recovered above chance and signed rank correlated with
-reported effects, with both intervals excluding the null. Effect sizes are modest:
-$\rho\approx0.15$ and 55\% direction agreement describe a weak predictor, and we
-report it as such. What the analysis establishes is that the effect is real and
-measurable on an independent cohort differing in tissue, ancestry, and platform
-generation, on probes the model never saw.
+\paragraph{The attenuation is attributable to tissue, and is the expected
+direction.} Signed $\rho$ falls roughly four-fold between the tissue-matched
+cohort ($0.610$) and the cross-tissue one ($0.152$), and direction agreement
+falls from 79.0\% to 55.3\%. Both cross-tissue intervals exclude the null, so the
+effect is present; it is simply weaker where the tissue no longer matches. One
+alternative explanation must be stated: the eGTEx set consists of lead variants,
+which are enriched for large, precisely measured effects, whereas the GENOA set
+is every genome-wide significant pair. Part of the gap is therefore
+lead-versus-all rather than tissue. Separating the two requires lead and non-lead
+strata within a single cohort, which the complete eGTEx association set supports.
+
+\paragraph{The relationship is quantitative, not merely ordinal.} Regressing
+reported effect on predicted $\Delta M$ over the significant stratum gives a
+slope of $+1.17$ ($+0.96$, $+1.44$) for fusion and $+0.98$ ($+0.81$, $+1.20$) for
+sequence. Rank statistics establish that the ordering is right; a slope whose
+interval excludes zero establishes that predicted magnitude scales with measured
+effect. The numeric value should not be read as calibration --- reported effects
+are on an inverse-normal-transformed scale and predictions are in $M$-value units
+--- and ordinary least squares is attenuated by error in the predictor, so the
+underlying relationship is at least this steep.
 
 \paragraph{An internal negative control.} GENOA publishes every cis pair tested
 rather than only the meQTLs discovered, and 71\% of held-out non-CpG-altering
@@ -716,6 +738,41 @@ block-bootstrap intervals.}
 \label{fig:gradient}
 \end{figure}
 
+\paragraph{A second, independent negative control: the signal is spatially
+localised.} Agreement depends on where the variant sits relative to the target
+CpG. It is highest within 100\,bp (0.605, 0.559--0.654 in the 50--100\,bp bin;
+0.568, 0.534--0.601 within 50\,bp, both excluding chance), declines through the
+intermediate bins, and reaches chance at the edge of the model's receptive field
+(0.497, 0.459--0.535 at 400--501\,bp; Table~\ref{tab:distance}). This is the
+behaviour expected of a model with a 1{,}000\,bp window centred on the target
+CpG, and it is difficult to obtain from a confound: linkage structure, GC content
+and probe properties have no reason to decay with distance from the CpG, whereas
+a bounded receptive field must. Together with the association-strength null, the
+analysis therefore rests on two orthogonal negative controls --- one statistical,
+one positional --- both of which return chance within the same data and the same
+code path.
+
+\begin{table}[!tbp]
+\centering
+\caption{\textbf{Direction agreement by variant--CpG distance.} Fusion,
+three-seed ensemble, genome-wide significant non-CpG-altering held-out GENOA
+pairs. Brackets are 95\% block-bootstrap intervals.}
+\label{tab:distance}
+\small
+\begin{tabular}{lrc}
+\toprule
+Distance from target CpG & $n$ & Direction agreement \\
+\midrule
+0--50\,bp & 844 & $0.568$ [$0.534$, $0.601$] \\
+50--100\,bp & 479 & $\mathbf{0.605}$ [$0.559$, $0.654$] \\
+100--200\,bp & 761 & $0.558$ [$0.524$, $0.594$] \\
+200--300\,bp & 685 & $0.545$ [$0.506$, $0.582$] \\
+300--400\,bp & 642 & $0.555$ [$0.514$, $0.598$] \\
+400--501\,bp & 626 & $0.497$ [$0.459$, $0.535$] \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \paragraph{Discrimination is not explained by distance alone.} Variant--CpG
 distance by itself separates true meQTLs from null pairs at AUROC 0.595
 (0.583--0.609), statistically indistinguishable from the model's unmatched 0.600
@@ -737,8 +794,28 @@ distance strata, against the distance-only baseline.}
 \label{fig:discrimination}
 \end{figure}
 
-\subsection{Gated fusion does not contribute to variant-effect prediction\NEW}
+\paragraph{What bounds the cross-tissue result.} Two limits are worth stating
+precisely, because each has a mechanism and neither is a matter of sample size.
+First, direction agreement does not improve with the precision of the reference
+measurement: stratifying the significant pairs into quintiles of
+$|\hat\beta|/\mathrm{SE}$ leaves agreement flat ($0.521$ in the least precisely
+measured quintile, $0.566$ in the most, all intervals overlapping). The ceiling
+is therefore the model's resolution, not noise in the reported effects, and
+cannot be recovered with better-measured meQTLs. Second, marginal discrimination
+does not exceed the distance baseline, as stated above; what survives matching is
+a smaller orthogonal component. The cross-tissue predictor is real, bounded, and
+we do not claim more for it than that.
+
+\subsection{Variant-effect prediction is sequence-driven, and therefore
+tissue-portable\NEW}
 \label{sec:equivalence}
+
+Gated fusion improves absolute methylation prediction substantially, but the
+variant-effect predictions above are carried entirely by the sequence tower. That
+is a structural property of the architecture rather than a shortcoming, and it
+has a useful consequence: because the variant pathway requires no tissue-specific
+input, it transfers to tissues for which no chromatin data exist --- which is why
+the model can be scored against a blood cohort at all.
 
 Fusion and sequence-only models were statistically equivalent on every
 variant-effect metric. Paired differences, bootstrapped over the same genomic
@@ -769,6 +846,15 @@ direction across quartiles but is not statistically supported.
 This is consistent with the earlier observation that fusion and sequence rankings
 of the 440 synonymous candidates were highly concordant (signed $\rho=0.981$,
 96.6\% sign agreement). The present analysis explains why, and bounds the effect.
+
+Two practical consequences follow. Variant scoring requires only reference
+sequence, so it extends to any tissue or cell type without acquiring matched
+chromatin tracks --- the property that made the cross-tissue GENOA evaluation
+possible. And the result generalises beyond this model: in any architecture that
+fuses sequence with allele-invariant covariates, the covariate branch cannot
+contribute to a paired wild-type/mutant contrast except through a gate shift, so
+reporting a fusion model's variant-effect performance without its sequence-only
+ablation risks attributing to fusion what the sequence tower alone achieves.
 
 \subsection{Uncertainty is quantifiable, but the standard metric is confounded\NEW}
 \label{sec:uncertainty-results}

@@ -190,6 +190,18 @@ def nearest_train_jaccard(query: np.ndarray, reference: np.ndarray,
     return best, partner
 
 
+def write_csv(frame: pd.DataFrame, path: Path) -> None:
+    """Create the parent directory at write time, not once at startup.
+
+    A directory made at startup and written to minutes later can be removed in
+    between -- by a cleanup pass, a quota sweep, or a stale scratch policy --
+    and the analysis then dies at the final line having done all the work. That
+    happened. Each output is now written the moment it exists.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    frame.to_csv(path, index=False)
+
+
 def exact_jaccard(a: str, b: str) -> float:
     def kmers(seq):
         out = set()
@@ -297,7 +309,7 @@ def main() -> int:
             "median_exact_jaccard": float(flagged["exact_jaccard"].median()),
             "n_exact_above_0.50": int((flagged["exact_jaccard"] > 0.50).sum()),
         }
-    flagged.to_csv(args.output_dir / "cross_split_sequence_similarity.csv", index=False)
+    write_csv(flagged, args.output_dir / "cross_split_sequence_similarity.csv")
 
     # ---- 2. probe QC consistency ------------------------------------------
     if args.manifest.is_file():
@@ -324,7 +336,7 @@ def main() -> int:
                 row[f"{col}_pct"] = round(100 * joined[col].fillna(False).mean(), 3)
             qc_rows.append(row)
         qc = pd.DataFrame(qc_rows)
-        qc.to_csv(args.output_dir / "probe_qc_composition.csv", index=False)
+        write_csv(qc, args.output_dir / "probe_qc_composition.csv")
         summary["probe_qc"] = qc.to_dict(orient="records")
         summary["probe_qc_note"] = (
             "data/build_training_data.py applies none of these masks; scripts/05 "
@@ -353,9 +365,10 @@ def main() -> int:
             row["chrY"] = int((meta["chr"].astype(str) == "chrY").sum())
         comp_rows.append(row)
     comparability = pd.DataFrame(comp_rows)
-    comparability.to_csv(args.output_dir / "split_comparability.csv", index=False)
+    write_csv(comparability, args.output_dir / "split_comparability.csv")
     summary["split_comparability"] = comparability.to_dict(orient="records")
 
+    args.output_dir.mkdir(parents=True, exist_ok=True)
     with (args.output_dir / "run_summary.json").open("w") as fh:
         json.dump(summary, fh, indent=2, sort_keys=True, default=str)
         fh.write("\n")

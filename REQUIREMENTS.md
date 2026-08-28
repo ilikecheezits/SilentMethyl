@@ -421,6 +421,57 @@ and checks the emitted file carries every column scripts/20 requires.
 CpGenie/DeepCpG weights (cross-tissue, confounded, and a 2017 environment to
 resurrect). Phase those after the CPU baselines return a number.
 
+**Variant-effect synthesis (scripts/24, GENOA only, 2026-08-28).** eGTEx was
+still scoring; re-run the identical command when the array lands and the
+meta-analysis appears automatically.
+
+| metric | fusion | sequence |
+|---|---|---|
+| signed rho | +0.152 [+0.118, +0.186] | +0.150 [+0.116, +0.182] |
+| direction agreement | 0.553 [0.536, 0.571] | 0.554 [0.536, 0.571] |
+| **calibration slope** | **+1.171 [+0.955, +1.435]** | +0.985 [+0.812, +1.200] |
+| null control rho (p>0.5, n=13,330) | -0.0037 [-0.0205, +0.0131] | -0.0015 |
+
+*New: the relationship is quantitative.* The calibration slope is the regression
+of reported effect on predicted delta-M. Rank statistics say the ordering is
+right; a slope excluding zero says predicted magnitude scales with measured
+effect. **Do not read the value as calibration** -- reported effects are on an
+inverse-normal scale and predictions are in M-value units, so a slope near 1 is a
+coincidence of scales. OLS is attenuated by predictor error, so the true
+relationship is at least this steep.
+
+*Spatial localisation -- the second negative control.* Direction agreement by
+distance (fusion, significant, non-CpG-altering):
+
+| distance | n | direction |
+|---|---|---|
+| 0-50 bp | 844 | 0.568 [0.534, 0.601] |
+| **50-100 bp** | 479 | **0.605 [0.559, 0.654]** |
+| 100-200 bp | 761 | 0.558 [0.524, 0.594] |
+| 200-300 bp | 685 | 0.545 [0.506, 0.582] |
+| 300-400 bp | 642 | 0.555 [0.514, 0.598] |
+| **400-501 bp** | 626 | **0.497 [0.459, 0.535]** |
+
+Both sub-100 bp bins exclude chance; the window edge lands on it. Confounds (LD,
+GC, probe properties) have no reason to decay with distance from the CpG; a
+bounded receptive field must. This is an orthogonal negative control to the
+association-strength null.
+
+*Precision quintiles are FLAT -- the honest negative.* Binning the significant
+pairs by |effect|/SE gives 0.521, 0.564, 0.541, 0.576, 0.566 across q1-q5, all
+intervals overlapping. Only q1 covers chance. **So ~0.55-0.58 is the model's
+resolution limit, not noise in the reported betas.** We cannot attribute the
+modest direction agreement to a noisy reference, and should not try.
+
+*Tissue matching is the largest single effect.* eGTEx breast leads (n=81):
+rho = 0.610 [0.452, 0.731], p ~ 1e-9, 79.0% direction. GENOA blood (n=4,037):
+rho = 0.152, 55.3%. **Four-fold.** Confound to resolve: the 81 are lead variants
+(enriched for large, precisely measured effects) while GENOA's are all
+genome-wide significant pairs, so part of the gap is lead-versus-all. The
+complete eGTEx set supports lead and non-lead strata within one cohort, which
+separates the two. `egtex_probe_significance.csv` carries the lead variant IDs;
+80 leads fall inside the held-out window.
+
 **7. Regulatory enrichment.** JASPAR CORE vertebrates (877 matrices, 831 tested)
 scanned on both strands across the 42,866 non-CpG-altering held-out GENOA pairs.
 For each pair the best wild-type hit covering the variant is found, and the mutant

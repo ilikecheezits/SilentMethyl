@@ -29,12 +29,14 @@
 set -euo pipefail
 
 APPLY=0
-if [[ "${1:-}" == "--apply" ]]; then
-    APPLY=1
-elif [[ -n "${1:-}" ]]; then
-    echo "usage: $0 [--apply]" >&2
-    exit 2
-fi
+PRUNE_EMPTY=0
+for arg in "$@"; do
+    case "$arg" in
+        --apply)       APPLY=1 ;;
+        --prune-empty) PRUNE_EMPTY=1 ;;
+        *) echo "usage: $0 [--apply] [--prune-empty]" >&2; exit 2 ;;
+    esac
+done
 
 # --- refuse to run anywhere but the project root ---------------------------
 for marker in scripts/01_train_fusion_journal.py data/datafiles/train.csv REQUIREMENTS.md; do
@@ -208,19 +210,34 @@ move "data/BreastMammaryTissue.regular.perm.fdr.txt" \
      "eGTEx permutation FDR file belongs with the cohort"
 
 # ---------------------------------------------------------------------------
-banner "6. Empty directories left behind"
+banner "6. Empty directories left behind (opt-in: --prune-empty)"
 # ---------------------------------------------------------------------------
 
-# Restricted to the four generated trees. Never touches the repo root, so a
-# deliberately empty directory elsewhere survives.
-EMPTY=$(find data/external logs results checkpoints_journal -type d -empty \
-        -not -path "*/$ARCHIVE/*" 2>/dev/null | sort || true)
-if [[ -n "$EMPTY" ]]; then
+# OFF BY DEFAULT. Removing empty directories is purely cosmetic, and doing it
+# while jobs are queued or running destroys them: a job creates its output
+# directory at startup and writes to it minutes later, and Slurm opens its log
+# files before the script body runs. This prune killed a six-task GPU array and
+# a three-minute analysis in one evening. Enable with --prune-empty only when
+# `squeue -u $USER` is empty.
+#
+# Restricted to the generated trees, and logs/ is DELIBERATELY EXCLUDED.
+# Slurm opens --output/--error before the job script body runs, so an empty
+# logs/<jobname>/ directory is load-bearing for any queued job: deleting it makes
+# every array task die at ~5 s with the batch step CANCELLED and no log to
+# explain why. Pruning empty log directories cost us a six-task array once.
+EMPTY=""
+if [[ $PRUNE_EMPTY -eq 1 ]]; then
+    EMPTY=$(find data/external results checkpoints_journal -type d -empty \
+            -not -path "*/$ARCHIVE/*" 2>/dev/null | sort || true)
+fi
+if [[ $PRUNE_EMPTY -eq 0 ]]; then
+    printf '  skipped (pass --prune-empty, and only when squeue is empty)\n'
+elif [[ -n "$EMPTY" ]]; then
     while IFS= read -r d; do printf '  rmdir    %s\n' "$d"; done <<< "$EMPTY"
     if [[ $APPLY -eq 1 ]]; then
         # repeat until stable: removing a leaf can empty its parent
         for _ in 1 2 3 4 5; do
-            find data/external logs results checkpoints_journal -type d -empty \
+            find data/external results checkpoints_journal -type d -empty \
                  -not -path "*/$ARCHIVE/*" -delete 2>/dev/null || true
         done
     fi
