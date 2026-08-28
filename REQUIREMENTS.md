@@ -319,6 +319,45 @@ after the exact window and target-CpG exclusion the held-out (chr8–9) stratum 
 land in the same order of magnitude as GENOA's 66,495. **Not yet run — do not quote
 a number until `egtex_scoring_summary.json` exists.**
 
+**PRE-REGISTERED SIGNIFICANCE THRESHOLD (declared 2026-08-28, BEFORE any eGTEx
+model score existed — the GPU array was still queued).**
+
+`data/egtex_significance_threshold.py` on the study's own permutation output:
+
+| FDR | mCpG probes | % of 754,054 tested | calibrated nominal cutoff |
+|---|---|---|---|
+| 0.01 | 7,527 | 1.00% | 2.312e-06 |
+| **0.05** | **13,256** | **1.76%** | **1.483e-05** |
+| 0.10 | 18,923 | 2.51% | 4.348e-05 |
+
+The cohort's own calibration is **297x less strict than the 5e-8 we had been
+using**. Held-out counts:
+
+| definition | pairs |
+|---|---|
+| p < 5e-8 (the GWAS constant, wrong test) | 295 |
+| calibrated nominal p <= 1.483e-05 | 772 |
+| **two-stage: mCpG probe AND calibrated nominal** | **596** |
+| probe's own lead variant, in window | 80 |
+
+**Declared primary definition: the two-stage set, n = 596.** Nominal-only (772)
+is the sensitivity analysis. Both are reported; the threshold-free significance
+gradient remains the primary evidence the signal is real.
+
+*Power, computed before the fact.* At n = 596 a direction agreement of 0.553
+carries a naive 95% interval of [0.513, 0.593] — excluding chance, where n = 295
+gave [0.496, 0.610] and did not. Signed rho of 0.15 gives [0.070, 0.229]. Block
+bootstrapping will widen both. So the tissue-matched arm moves from *cannot
+support a claim* to *marginal but viable*. That is an honest description and the
+one to use — it is not a rescue.
+
+*Why only 1.76% of probes are mCpGs.* eGTEx Breast has roughly 50-100 donors.
+This is a power ceiling in the cohort, not a defect in our pipeline: the
+held-out and model-visible mCpG fractions agree at 1.8% and 1.7%.
+
+*model_visible gives 8,508 two-stage pairs* — 14x the held-out set and
+well-powered, which is what makes the memorisation contrast worth running.
+
 *Manuscript consequence, once the numbers land.* eGTEx Breast Mammary becomes the
 primary requirement-6 result; GENOA moves to a transfer subsection; the 81 lead
 variants are superseded and their table row is dropped. Do not restructure the
@@ -478,6 +517,59 @@ This is directly testable and costs nothing new: **run scripts/22 on the
 direction, the effect is compositional and must be described that way. If it does
 not, the grammar reading survives a real attempt to kill it, and the claim gets
 much stronger.
+
+**ANSWERED, 2026-08-28. It is composition.** `scripts/22` run on the `kmer_ridge`
+baseline (`results/journal/motif_disruption_kmer_baseline/`) reproduces the ETS
+coupling **more strongly than the neural models**:
+
+| factor | fusion rho | kmer_ridge rho |
+|---|---|---|
+| ELF4 | −0.266 | **−0.467** |
+| FEV | −0.257 | **−0.466** |
+| ERG | −0.237 | **−0.400** |
+| GABPA | −0.233 | **−0.377** |
+| ETV1 | −0.237 | **−0.376** |
+
+A linear ridge over RC-collapsed k-mer counts has no attention, no pretraining
+and no concept of a binding site. Standardised against each model's own null the
+two are equivalent (~6 IQR-halves out in both). The ETS coupling is a response to
+GGAA/TTCC *sequence content*, not learned regulatory grammar, and the manuscript
+must say so.
+
+**This generalises beyond us, and is worth one paragraph as a methodological
+caution.** A PWM-disruption-coupling analysis cannot demonstrate that a sequence
+model learned regulatory grammar, because a bag-of-k-mers model reproduces the
+result. Any paper claiming grammar from this style of analysis needs a
+composition-only control. We have one; almost nobody runs it.
+
+**But the same run produced a dissociation that favours the neural model, and it
+is the more interesting half.** Q3 meQTL discrimination:
+
+| model | strong disruption | weak disruption |
+|---|---|---|
+| fusion | 0.5918 [0.570, 0.614] | 0.5962 [0.574, 0.620] |
+| kmer_ridge | **0.5162** [0.496, 0.535] | **0.5090** [0.486, 0.533] |
+
+The k-mer model is *better* at ETS coupling and *much worse* at telling real
+meQTLs from null ones — 0.51 versus 0.59, near chance. The two capabilities come
+apart, which means the motif coupling is not what drives meQTL discrimination and
+the neural models hold something the k-mer model does not.
+
+*Leading hypothesis, to be tested not assumed:* **bag-of-k-mers is
+position-blind.** Changing one base changes the same k-mer counts wherever it
+sits in the 1,000-bp window, so `kmer_ridge` cannot express "variants nearer the
+CpG matter more" — the single largest real effect in the data (distance alone
+gives AUROC 0.595 on GENOA). If that is the explanation, the neural advantage is
+positional encoding rather than sequence grammar. **scripts/20's
+distance-matched AUROC on the baseline scores tests this directly** and is the
+first thing to run when `SM_baselines` lands. Do not claim the neural advantage
+until that separates positional information from everything else.
+
+Also: known methylation-sensitive factors rank 136/831 for fusion versus 232/831
+for `kmer_ridge` (chance 416). Modest, but it points the same way.
+
+The earlier framing rules stand and are now better supported: one 4-bp core, one
+finding, recovery of known biology rather than new biology.
 
 Do this before the manuscript describes the ETS result as motif-disruption
 learning. As written, §7's framing rules are already correct and conservative —
