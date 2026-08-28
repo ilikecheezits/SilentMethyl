@@ -420,9 +420,21 @@ the direction expected for factors whose binding protects CpGs from methylation.
 
 **Three framing rules — violating any of them invites correction:**
 
-- **One family, not fifteen factors.** Top-15 mean pairwise Jaccard of covered sets
-  is **0.278**, max **0.792**. Write "the ETS core motif, represented by N JASPAR
-  matrices with mean pairwise overlap 0.28."
+- **One 4-bp core, not fifteen factors and not even "a family."** *(sharpened
+  2026-08-28 from `per_motif_coupling.csv`.)* Every one of the top eleven
+  matrices contains `GGAA` or its reverse complement `TTCC`:
+  ELF4 `AACCCGGAAGTG`, FEV `ACCGGAAGT`, EHF `CACTTCCTG`, ZBTB2 `ACCGGAAGTG`,
+  ELF1 `CAGGAAGTG`, ELF3 `CACTTCCTG`, ZBTB11 `CACTTCCGG`, ETV1 `ACAGGAAGT`,
+  ERG `ACAGGAAGTG`, GABPA `CACTTCCTGT`, FOXO1::ELK1 `ATCAACAGGAAGT`.
+  Top-15 mean pairwise Jaccard of covered sets is 0.278, max 0.792.
+
+  **ZBTB2 and ZBTB11 are the trap.** They are zinc-finger factors and read as
+  independent corroboration from a different structural class. They are in the
+  list because their JASPAR consensus carries the ETS core, not because
+  zinc-fingers replicate the result. Writing "ETS factors plus ZBTB2/ZBTB11"
+  invites a reviewer to grep the consensus column and find it in one minute.
+  Write: "a single 4-bp ETS core (GGAA/TTCC), recovered through N redundant
+  JASPAR matrices." The effective number of independent findings is one.
 - **Recovery of known biology by an unsupervised route, not new biology.** ETS and
   GABPA sites are an established hallmark of unmethylated CpG-island promoters. The
   claim is that a model never shown a motif recovered this de novo, and that it
@@ -433,8 +445,9 @@ the direction expected for factors whose binding protects CpGs from methylation.
 
 **The two null results belong in the same figure.** Disruption *magnitude* predicts
 nothing (continuous ρ = −0.0109 [−0.0228, +0.0017]; strong vs weak median |ΔM̂|
-0.0177 vs 0.0184), and meQTL discrimination is not concentrated in strong
-disruptors (AUROC 0.5918 vs 0.5962, difference −0.0043, intervals overlapping).
+0.0177 [0.0166, 0.0189] vs 0.0184 [0.0171, 0.0198] — overlapping, and if anything
+*inverted*), and meQTL discrimination is not concentrated in strong disruptors
+(AUROC 0.5918 [0.570, 0.614] vs 0.5962 [0.574, 0.620], n = 11,525 vs 9,881).
 The model did not learn "breaking motifs matters" as a general rule; it learned
 something signed and family-specific. Reporting only the positive would look like
 fishing.
@@ -448,6 +461,14 @@ or away from that composition moves the prediction in the right direction withou
 anything resembling a binding-site mechanism. Both readings predict the signed
 coupling; only the grammar reading predicts a magnitude relationship, and we do
 not observe one.
+
+The consensus-sequence reading above makes the compositional explanation more
+likely, not less. A model with genuine binding-site grammar should be graded --
+the worse you break the site, the larger the predicted shift. That is exactly
+what Q1 tests, and Q1 is null. What survives is sensitivity to the *presence* of
+a 4-bp word, which is what a k-mer model does by construction. Note also that
+`motif_consensus_cpg_count` is 0 for most of the top hits, so this is not a
+CpG-content artifact -- the association is to GGAA/TTCC itself.
 
 This is directly testable and costs nothing new: **run scripts/22 on the
 `kmer_ridge` baseline's pair scores** (scripts/23 emits the same schema, so point
