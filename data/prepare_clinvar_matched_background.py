@@ -111,10 +111,16 @@ def cmd_prepare(args) -> int:
         "held_out_truncating_excluded": int((held & truncating).sum()),
         "primary_n": int(len(primary)),
         "secondary_n": int(clean.sum()),
+        # str() the keys: value_counts(dropna=False) yields a NaN key alongside
+        # string keys, and json.dump(sort_keys=True) cannot order float against
+        # str. The real cohort has one unclassified variant; a synthetic test
+        # without NaN will not catch this.
         "primary_clinical_significance":
-            primary["Clinical_Significance"].value_counts(dropna=False).to_dict(),
+            {str(k): int(v) for k, v in
+             primary["Clinical_Significance"].value_counts(dropna=False).items()},
         "primary_cpg_effect":
-            primary["CpG_Effect"].value_counts(dropna=False).to_dict(),
+            {str(k): int(v) for k, v in
+             primary["CpG_Effect"].value_counts(dropna=False).items()},
     }
     LOGGER.info("primary n=%d, secondary n=%d", counts["primary_n"],
                 counts["secondary_n"])
