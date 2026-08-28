@@ -131,17 +131,43 @@ def cmd_prepare(args) -> int:
     args.output_dir.mkdir(parents=True, exist_ok=True)
     primary["ClinVar_Clean_Call"] = clean.to_numpy()
 
-    # scripts/05 re-derives probe QC by merging the HM450 manifest, which brings
-    # MASK_general in as HM450_MASK_general. The literature cohort already
-    # carries a column of that name, so the merge collides into _x/_y and the
-    # plain name vanishes -- KeyError inside apply_probe_qc. The somatic
-    # candidate cohort scripts/05 was built against does not have it, which is
-    # why this only bites here. Drop ours and let scripts/05 derive it, so the
-    # QC applied is the manifest's rather than a stale copy.
-    collides = [c for c in ("HM450_MASK_general",) if c in primary.columns]
+    # scripts/05 generates its own columns and merges them back onto the cohort
+    # on Variant_UID. Any name already present on our side collides into _x/_y
+    # and the plain name vanishes -- which is what produced
+    # KeyError: 'HM450_MASK_general' inside apply_probe_qc, and then
+    # KeyError: 'Predicted_Delta_Beta' inside aggregate_seeds.
+    #
+    # The literature cohort carries model scores from scripts/15; the somatic
+    # candidate cohort scripts/05 was built against does not, which is why this
+    # only bites here. Fixing the names one crash at a time is whack-a-mole, so
+    # drop the whole set scripts/05 regenerates and let it be the single source
+    # of truth for the scores it produces. A stale score column silently
+    # shadowing a fresh one would be a far worse failure than the crash: the
+    # matched-background percentile would be computed against scores from a
+    # different run.
+    SCRIPT05_GENERATED = (
+        # probe QC, re-derived from the HM450 manifest
+        "HM450_MASK_general",
+        # per-variant aggregate emitted by aggregate_seeds()
+        "Seed_Count", "Seeds",
+        "Predicted_Delta_Beta", "Predicted_Delta_Beta_Mean",
+        "Predicted_Delta_Beta_SD", "Predicted_Delta_Beta_Median",
+        "Predicted_Delta_Beta_Min", "Predicted_Delta_Beta_Max",
+        "Delta_Beta_Sign_Consistency", "Mean_Absolute_Delta_Beta",
+        "Mean_Within_Seed_Rank", "SD_Within_Seed_Rank",
+        "Best_Within_Seed_Rank", "Worst_Within_Seed_Rank",
+        "Top10_Seed_Frequency", "Top20_Seed_Frequency",
+        "Mean_Delta_RC_Absolute_Difference", "Delta_RC_Sign_Agreement_Fraction",
+        "WT_Gate_DNA_Mean", "WT_Gate_EPI_Mean", "WT_Gate_DNA_Share_Mean",
+        "MUT_Gate_DNA_Mean", "MUT_Gate_EPI_Mean", "MUT_Gate_DNA_Share_Mean",
+        # derived after that merge; assignment would overwrite silently
+        "Absolute_Delta_Beta", "Absolute_Delta_Beta_Rank",
+    )
+    collides = [c for c in SCRIPT05_GENERATED if c in primary.columns]
     if collides:
-        LOGGER.info("dropping %s so scripts/05 can re-derive it from the "
-                    "manifest without a merge collision", collides)
+        LOGGER.info("dropping %d column(s) that scripts/05 regenerates, so the "
+                    "merge cannot collide into _x/_y: %s", len(collides),
+                    collides)
         primary = primary.drop(columns=collides)
 
     target = args.output_dir / "clinvar_heldout_nontruncating_cohort.csv"
