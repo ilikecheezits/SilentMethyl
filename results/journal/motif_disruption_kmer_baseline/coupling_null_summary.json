@@ -1,0 +1,17 @@
+{
+  "coupling_iqr": [
+    -0.0743208435159704,
+    0.08909475702504996
+  ],
+  "coupling_median": 0.019800368203331257,
+  "coupling_median_partial": 0.019813201467321292,
+  "fraction_negative": 0.4296028880866426,
+  "known_methylation_sensitive_median_rank": 232,
+  "known_methylation_sensitive_tested": 18,
+  "motifs_tested": 831,
+  "significant_negative_q05": 241,
+  "significant_positive_q05": 294,
+  "spearman_motif_gc_vs_coupling": 0.08612881127397677,
+  "top15_max_pairwise_jaccard": 0.6683238636363636,
+  "top15_mean_pairwise_jaccard": 0.19180358322358512
+}

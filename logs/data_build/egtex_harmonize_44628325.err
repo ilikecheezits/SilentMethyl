@@ -1,0 +1,31 @@
+2026-08-27 18:30:27,921 - prefiltered file absent; running stage 1 first
+2026-08-27 18:30:27,923 - streaming data/external/egtex_breast/BreastMammaryTissue.mQTLs.regular.txt.gz (45.3 GB) through gawk -- this is the slow step
+2026-08-27 18:30:27,923 - progress prints every 200M lines
+  scanned 0.20B lines, kept 234819
+  scanned 0.40B lines, kept 465795
+  scanned 0.60B lines, kept 692276
+  scanned 0.80B lines, kept 919345
+  scanned 1.00B lines, kept 1113261
+  scanned 1.20B lines, kept 1346168
+  scanned 1.40B lines, kept 1580375
+  scanned 1.60B lines, kept 1814952
+  scanned 1.80B lines, kept 2040873
+  scanned 2.00B lines, kept 2270362
+  scanned 2.20B lines, kept 2503502
+  scanned 2.40B lines, kept 2741637
+  scanned 2.60B lines, kept 2968513
+scanned 2752752965 lines, kept 3148897 rows within +/-600 bp
+2026-08-27 18:53:28,387 - wrote data/external/egtex_breast/egtex_breast_within600.tsv.gz (76.4 MB)
+2026-08-27 18:53:28,387 - reading data/external/egtex_breast/egtex_breast_within600.tsv.gz
+2026-08-27 18:53:32,680 - 3148897 rows within +/-600 bp (reported distance)
+2026-08-27 18:53:44,378 - 2914247 SNVs (234650 indels/MNVs dropped)
+2026-08-27 18:53:51,898 - 1400543 pairs on unmasked HM450 probes (337243 probes)
+2026-08-27 18:53:52,362 - reported-minus-recomputed distance, top values: {'-1': 1399672, '0': 846, '-20': 8, '-7': 7, '-5': 7}
+2026-08-27 18:53:52,362 - eGTEx probe coordinates are offset from the HM450 manifest by -1 bp (modal). Using OUR recomputed distance.
+2026-08-27 18:53:52,905 - resolving 668409 unique variant positions against data/hg38.fa
+2026-08-27 18:54:19,872 - 1400543 pairs with REF confirmed against hg38 (0.0000% mismatched)
+2026-08-27 18:54:22,522 - sign check verdict: confirmed_alt_keyed
+2026-08-27 18:54:23,476 - 1167406 pairs after the [-499, +500] window and removing 1044 target-CpG-altering variants
+2026-08-27 18:55:09,704 - train split: 345359 probes
+2026-08-27 18:55:14,834 - val   split: 46557 probes
+2026-08-27 18:55:19,421 - test  split: 26570 probes

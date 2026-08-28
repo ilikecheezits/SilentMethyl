@@ -1,0 +1,31 @@
+
+========================================================================
+filtering
+  prefiltered_rows                        3,148,897
+  dropped_unparsable_position                     0
+  dropped_non_snv                           234,650
+  probes_in_egtex_window                    699,034
+  probes_epic_only_dropped                  339,337
+  dropped_probe_not_on_hm450              1,397,072
+  dropped_probe_masked                      116,632
+  dropped_chromosome_mismatch                     0
+  dropped_no_reference_sequence                   0
+  reference_base_mismatch                         0
+  dropped_outside_model_window              232,093
+  cpg_altering_target_excluded                1,044
+  dropped_probe_not_in_model_data                48
+  reference_base_mismatch_rate             0.0000%
+
+distance (reported - recomputed), top values: {'-1': 1399672, '0': 846, '-20': 8, '-7': 7, '-5': 7}
+sign convention verdict: confirmed_alt_keyed
+  CpG-destroying variants: n=1,004  mean slope=-0.8452  70.8% negative
+
+strata
+  heldout           76,893 pairs    44,544 variants   20,634 probes  (295 at p<5e-8)
+  model_visible  1,090,465 pairs   539,693 variants  306,338 probes  (3,675 at p<5e-8)
+
+Only `heldout` supports the independent-validation claim.
+
+The 45 GB raw file is no longer needed once
+data/external/egtex_breast/egtex_breast_within600.tsv.gz exists.
+========================================================================
