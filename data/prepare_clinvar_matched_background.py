@@ -130,6 +130,20 @@ def cmd_prepare(args) -> int:
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     primary["ClinVar_Clean_Call"] = clean.to_numpy()
+
+    # scripts/05 re-derives probe QC by merging the HM450 manifest, which brings
+    # MASK_general in as HM450_MASK_general. The literature cohort already
+    # carries a column of that name, so the merge collides into _x/_y and the
+    # plain name vanishes -- KeyError inside apply_probe_qc. The somatic
+    # candidate cohort scripts/05 was built against does not have it, which is
+    # why this only bites here. Drop ours and let scripts/05 derive it, so the
+    # QC applied is the manifest's rather than a stale copy.
+    collides = [c for c in ("HM450_MASK_general",) if c in primary.columns]
+    if collides:
+        LOGGER.info("dropping %s so scripts/05 can re-derive it from the "
+                    "manifest without a merge collision", collides)
+        primary = primary.drop(columns=collides)
+
     target = args.output_dir / "clinvar_heldout_nontruncating_cohort.csv"
     primary.to_csv(target, index=False)
 
@@ -158,6 +172,7 @@ def cmd_prepare(args) -> int:
             "detectable; 58 is not. A null result does NOT distinguish no "
             "enrichment from underpowered and must be reported as inconclusive."),
         "prepared_cohort": str(target),
+        "columns_dropped_for_scripts05": collides,
     }
     with (args.output_dir / "preregistration.json").open("w") as fh:
         json.dump(payload, fh, indent=2, sort_keys=True, default=str)
