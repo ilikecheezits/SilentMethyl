@@ -228,6 +228,16 @@ def add_seed_ensemble(long: pd.DataFrame) -> pd.DataFrame:
     Reported alongside the per-seed values rather than instead of them: the spread
     across seeds is the honest measure of how stable any of this is.
     """
+    # A single-seed input is ALREADY the ensemble. Without this guard, running
+    # with --seeds=-1 (deterministic baselines from scripts/23, which have no
+    # seeds to average) computes the mean of one value, labels it -1, and
+    # concatenates it onto rows that are already labelled -1 -- duplicating every
+    # Pair_UID. Point estimates survive that, but n doubles and the block
+    # bootstrap resamples duplicated rows, so the intervals come out too narrow.
+    # Relabel and return instead of appending.
+    if long["Seed"].nunique() <= 1:
+        return long.assign(Seed=-1)
+
     keys = ["Model", "Pair_UID"]
     means = (long.groupby(keys, sort=False)["Predicted_Delta_M"]
              .mean().rename("Predicted_Delta_M").reset_index())
@@ -235,7 +245,12 @@ def add_seed_ensemble(long: pd.DataFrame) -> pd.DataFrame:
                 .drop(columns=["Predicted_Delta_M", "Seed"]))
     ensemble = metadata.merge(means, on=keys, how="inner", validate="one_to_one")
     ensemble["Seed"] = -1
-    return pd.concat([long, ensemble], ignore_index=True)
+    out = pd.concat([long, ensemble], ignore_index=True)
+    counts = out.groupby(["Model", "Seed"])["Pair_UID"].agg(["size", "nunique"])
+    bad = counts[counts["size"] != counts["nunique"]]
+    if not bad.empty:
+        raise SystemExit(f"seed ensemble duplicated Pair_UIDs:\n{bad}")
+    return out
 
 
 # ---------------------------------------------------------------------- metrics
