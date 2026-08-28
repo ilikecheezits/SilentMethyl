@@ -621,6 +621,14 @@ def main() -> int:
     # overwrite the same run_summary.json and only the last one to finish would be
     # recorded.
     suffix = f"_shard{args.shard}" if args.num_shards > 1 else ""
+    # A --limit run is a smoke test and must never occupy the filename a real run
+    # writes to. Without this, `--limit 200` leaves a 200-row pair_scores.csv at
+    # the exact path the array job uses; if the array task then fails, the stale
+    # file survives and scripts/20 reads it as a complete result. It prints the
+    # row count, so the mistake is visible -- but nothing raises, and a silently
+    # 380x-undersized cohort is precisely the kind of error that reaches a figure.
+    if args.limit > 0:
+        suffix += f"_smoke{args.limit}"
     run_tag = "_".join(
         ["-".join(args.models), "seed" + "-".join(str(s) for s in args.seeds)]
         + ([f"shard{args.shard}of{args.num_shards}"] if args.num_shards > 1 else [])
