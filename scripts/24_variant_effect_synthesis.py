@@ -299,6 +299,13 @@ def main() -> int:
     ap.add_argument("--seeds", nargs="+", type=int, default=[42, 43, 44])
     ap.add_argument("--n-boot", type=int, default=500)
     ap.add_argument("--precision-bins", type=int, default=5)
+    ap.add_argument("--primary-includes-cpg-altering", action="store_true",
+                    help="Pool CpG-altering-nearby pairs into the primary "
+                         "stratum. OFF by default so the headline matches "
+                         "scripts/20. Both arms are reported either way.")
+    ap.add_argument("--allow-missing-cohorts", action="store_true", default=True,
+                    help="Analyse whichever cohorts have score files instead of "
+                         "failing. The summary records requested vs analysed.")
     ap.add_argument("--random-seed", type=int, default=42)
     ap.add_argument("--output-dir", type=Path,
                     default=Path("results/journal/variant_effect_synthesis"))
@@ -307,20 +314,43 @@ def main() -> int:
     rng = np.random.default_rng(args.random_seed)
 
     cohorts, thresholds = {}, {}
+    requested, missing = [], []
     for spec in args.cohort:
         parts = spec.split(":")
         if len(parts) != 3:
             raise SystemExit(f"--cohort must be NAME:DIR:THRESHOLD, got {spec!r}")
         name, path, thresh = parts[0], Path(parts[1]), float(parts[2])
+        requested.append(name)
+        try:
+            loaded = load_cohort(name, path, args.stratum, args.models,
+                                 args.seeds, thresh)
+        except SystemExit as exc:
+            if not args.allow_missing_cohorts:
+                raise
+            LOGGER.warning("=" * 70)
+            LOGGER.warning("COHORT %s SKIPPED -- %s", name, exc)
+            LOGGER.warning("Results below cover only: %s",
+                           ", ".join(sorted(cohorts)) or "(none yet)")
+            LOGGER.warning("=" * 70)
+            missing.append(name)
+            continue
         thresholds[name] = thresh
-        cohorts[name] = seed_ensemble(
-            load_cohort(name, path, args.stratum, args.models, args.seeds, thresh))
+        cohorts[name] = seed_ensemble(loaded)
+    if not cohorts:
+        raise SystemExit("no cohort had score files; nothing to analyse")
 
     rows = []
     for name, data in cohorts.items():
         for model, group in data.groupby("Model"):
-            sig = group[group["significant"] == 1]
-            null = group[group["pvalue"] > 0.5]
+            # The primary stratum EXCLUDES pairs with a nearby CpG-altering
+            # variant, matching scripts/20. Without this the two scripts report
+            # different counts for "significant GENOA pairs" -- 4,037 there and
+            # 6,604 here -- and a reviewer who notices has found an inconsistency
+            # in the paper rather than a stratum definition.
+            eligible = group if args.primary_includes_cpg_altering \
+                else group[~group["cpg_altering_nearby"]]
+            sig = eligible[eligible["significant"] == 1]
+            null = eligible[eligible["pvalue"] > 0.5]
             common = {"cohort": name, "model": model,
                       "threshold": thresholds[name]}
 
@@ -360,12 +390,22 @@ def main() -> int:
     table = pd.DataFrame(rows)
     atomic(table, args.output_dir / "all_strata.csv")
 
-    meta = meta_analyse(table)
+    meta = meta_analyse(table) if len(cohorts) >= 2 else []
+    if len(cohorts) < 2:
+        LOGGER.warning("meta-analysis needs >= 2 cohorts; have %d (%s). "
+                       "Per-cohort results below are complete and valid.",
+                       len(cohorts), ", ".join(sorted(cohorts)))
     atomic(pd.DataFrame(meta), args.output_dir / "cross_cohort_meta_analysis.csv")
 
     atomic({
         "analysis": "cross-cohort variant-effect synthesis",
         "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "cohorts_requested": requested,
+        "cohorts_analysed": sorted(cohorts),
+        "cohorts_missing_scores": missing,
+        "primary_stratum": ("significant AND no nearby CpG-altering variant"
+                            if not args.primary_includes_cpg_altering
+                            else "significant, CpG-altering pooled in"),
         "cohorts": {k: {"threshold": v, "rows": int(len(cohorts[k]))}
                     for k, v in thresholds.items()},
         "models": args.models, "seeds": args.seeds, "n_boot": args.n_boot,
