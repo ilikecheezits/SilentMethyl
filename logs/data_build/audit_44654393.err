@@ -1,0 +1,243 @@
+2026-08-28 00:09:21,229 - MinHash sketch=128 -> Jaccard standard error ~0.088
+2026-08-28 00:09:21,230 - reading data/datafiles/train.csv
+2026-08-28 00:09:22,096 -   train.csv: 2000 probes
+2026-08-28 00:09:22,764 -   train.csv: 4000 probes
+2026-08-28 00:09:23,372 -   train.csv: 6000 probes
+2026-08-28 00:09:23,965 -   train.csv: 8000 probes
+2026-08-28 00:09:24,640 -   train.csv: 10000 probes
+2026-08-28 00:09:25,229 -   train.csv: 12000 probes
+2026-08-28 00:09:25,835 -   train.csv: 14000 probes
+2026-08-28 00:09:26,398 -   train.csv: 16000 probes
+2026-08-28 00:09:27,099 -   train.csv: 18000 probes
+2026-08-28 00:09:27,873 -   train.csv: 20000 probes
+2026-08-28 00:09:28,422 -   train.csv: 22000 probes
+2026-08-28 00:09:29,006 -   train.csv: 24000 probes
+2026-08-28 00:09:29,595 -   train.csv: 26000 probes
+2026-08-28 00:09:30,175 -   train.csv: 28000 probes
+2026-08-28 00:09:30,764 -   train.csv: 30000 probes
+2026-08-28 00:09:31,362 -   train.csv: 32000 probes
+2026-08-28 00:09:31,892 -   train.csv: 34000 probes
+2026-08-28 00:09:32,468 -   train.csv: 36000 probes
+2026-08-28 00:09:32,990 -   train.csv: 38000 probes
+2026-08-28 00:09:33,549 -   train.csv: 40000 probes
+2026-08-28 00:09:34,052 -   train.csv: 42000 probes
+2026-08-28 00:09:34,604 -   train.csv: 44000 probes
+2026-08-28 00:09:35,218 -   train.csv: 46000 probes
+2026-08-28 00:09:35,887 -   train.csv: 48000 probes
+2026-08-28 00:09:36,466 -   train.csv: 50000 probes
+2026-08-28 00:09:37,001 -   train.csv: 52000 probes
+2026-08-28 00:09:37,599 -   train.csv: 54000 probes
+2026-08-28 00:09:38,141 -   train.csv: 56000 probes
+2026-08-28 00:09:38,714 -   train.csv: 58000 probes
+2026-08-28 00:09:39,292 -   train.csv: 60000 probes
+2026-08-28 00:09:39,829 -   train.csv: 62000 probes
+2026-08-28 00:09:40,412 -   train.csv: 64000 probes
+2026-08-28 00:09:41,013 -   train.csv: 66000 probes
+2026-08-28 00:09:41,578 -   train.csv: 68000 probes
+2026-08-28 00:09:42,234 -   train.csv: 70000 probes
+2026-08-28 00:09:42,802 -   train.csv: 72000 probes
+2026-08-28 00:09:43,357 -   train.csv: 74000 probes
+2026-08-28 00:09:43,892 -   train.csv: 76000 probes
+2026-08-28 00:09:44,443 -   train.csv: 78000 probes
+2026-08-28 00:09:44,975 -   train.csv: 80000 probes
+2026-08-28 00:09:45,543 -   train.csv: 82000 probes
+2026-08-28 00:09:46,089 -   train.csv: 84000 probes
+2026-08-28 00:09:46,668 -   train.csv: 86000 probes
+2026-08-28 00:09:47,179 -   train.csv: 88000 probes
+2026-08-28 00:09:47,891 -   train.csv: 90000 probes
+2026-08-28 00:09:48,457 -   train.csv: 92000 probes
+2026-08-28 00:09:49,073 -   train.csv: 94000 probes
+2026-08-28 00:09:49,660 -   train.csv: 96000 probes
+2026-08-28 00:09:50,241 -   train.csv: 98000 probes
+2026-08-28 00:09:50,845 -   train.csv: 100000 probes
+2026-08-28 00:09:51,804 -   train.csv: 102000 probes
+2026-08-28 00:09:52,359 -   train.csv: 104000 probes
+2026-08-28 00:09:53,010 -   train.csv: 106000 probes
+2026-08-28 00:09:53,570 -   train.csv: 108000 probes
+2026-08-28 00:09:54,114 -   train.csv: 110000 probes
+2026-08-28 00:09:54,638 -   train.csv: 112000 probes
+2026-08-28 00:09:55,270 -   train.csv: 114000 probes
+2026-08-28 00:09:56,010 -   train.csv: 116000 probes
+2026-08-28 00:09:56,683 -   train.csv: 118000 probes
+2026-08-28 00:09:57,341 -   train.csv: 120000 probes
+2026-08-28 00:09:57,996 -   train.csv: 122000 probes
+2026-08-28 00:09:58,751 -   train.csv: 124000 probes
+2026-08-28 00:10:00,012 -   train.csv: 126000 probes
+2026-08-28 00:10:00,698 -   train.csv: 128000 probes
+2026-08-28 00:10:01,447 -   train.csv: 130000 probes
+2026-08-28 00:10:02,251 -   train.csv: 132000 probes
+2026-08-28 00:10:03,003 -   train.csv: 134000 probes
+2026-08-28 00:10:04,063 -   train.csv: 136000 probes
+2026-08-28 00:10:04,826 -   train.csv: 138000 probes
+2026-08-28 00:10:05,553 -   train.csv: 140000 probes
+2026-08-28 00:10:06,211 -   train.csv: 142000 probes
+2026-08-28 00:10:06,992 -   train.csv: 144000 probes
+2026-08-28 00:10:07,950 -   train.csv: 146000 probes
+2026-08-28 00:10:08,648 -   train.csv: 148000 probes
+2026-08-28 00:10:09,361 -   train.csv: 150000 probes
+2026-08-28 00:10:09,984 -   train.csv: 152000 probes
+2026-08-28 00:10:10,609 -   train.csv: 154000 probes
+2026-08-28 00:10:11,376 -   train.csv: 156000 probes
+2026-08-28 00:10:12,141 -   train.csv: 158000 probes
+2026-08-28 00:10:12,862 -   train.csv: 160000 probes
+2026-08-28 00:10:13,618 -   train.csv: 162000 probes
+2026-08-28 00:10:14,292 -   train.csv: 164000 probes
+2026-08-28 00:10:15,019 -   train.csv: 166000 probes
+2026-08-28 00:10:16,067 -   train.csv: 168000 probes
+2026-08-28 00:10:16,777 -   train.csv: 170000 probes
+2026-08-28 00:10:17,444 -   train.csv: 172000 probes
+2026-08-28 00:10:18,062 -   train.csv: 174000 probes
+2026-08-28 00:10:18,828 -   train.csv: 176000 probes
+2026-08-28 00:10:19,510 -   train.csv: 178000 probes
+2026-08-28 00:10:20,322 -   train.csv: 180000 probes
+2026-08-28 00:10:20,978 -   train.csv: 182000 probes
+2026-08-28 00:10:21,622 -   train.csv: 184000 probes
+2026-08-28 00:10:22,385 -   train.csv: 186000 probes
+2026-08-28 00:10:23,039 -   train.csv: 188000 probes
+2026-08-28 00:10:24,042 -   train.csv: 190000 probes
+2026-08-28 00:10:25,332 -   train.csv: 192000 probes
+2026-08-28 00:10:26,148 -   train.csv: 194000 probes
+2026-08-28 00:10:26,840 -   train.csv: 196000 probes
+2026-08-28 00:10:27,849 -   train.csv: 198000 probes
+2026-08-28 00:10:28,588 -   train.csv: 200000 probes
+2026-08-28 00:10:29,230 -   train.csv: 202000 probes
+2026-08-28 00:10:29,957 -   train.csv: 204000 probes
+2026-08-28 00:10:30,642 -   train.csv: 206000 probes
+2026-08-28 00:10:31,485 -   train.csv: 208000 probes
+2026-08-28 00:10:32,210 -   train.csv: 210000 probes
+2026-08-28 00:10:32,833 -   train.csv: 212000 probes
+2026-08-28 00:10:33,505 -   train.csv: 214000 probes
+2026-08-28 00:10:34,172 -   train.csv: 216000 probes
+2026-08-28 00:10:34,854 -   train.csv: 218000 probes
+2026-08-28 00:10:35,910 -   train.csv: 220000 probes
+2026-08-28 00:10:36,660 -   train.csv: 222000 probes
+2026-08-28 00:10:37,278 -   train.csv: 224000 probes
+2026-08-28 00:10:38,074 -   train.csv: 226000 probes
+2026-08-28 00:10:38,699 -   train.csv: 228000 probes
+2026-08-28 00:10:39,321 -   train.csv: 230000 probes
+2026-08-28 00:10:40,227 -   train.csv: 232000 probes
+2026-08-28 00:10:40,989 -   train.csv: 234000 probes
+2026-08-28 00:10:41,652 -   train.csv: 236000 probes
+2026-08-28 00:10:42,394 -   train.csv: 238000 probes
+2026-08-28 00:10:43,046 -   train.csv: 240000 probes
+2026-08-28 00:10:43,972 -   train.csv: 242000 probes
+2026-08-28 00:10:44,745 -   train.csv: 244000 probes
+2026-08-28 00:10:45,397 -   train.csv: 246000 probes
+2026-08-28 00:10:46,082 -   train.csv: 248000 probes
+2026-08-28 00:10:46,796 -   train.csv: 250000 probes
+2026-08-28 00:10:47,444 -   train.csv: 252000 probes
+2026-08-28 00:10:48,129 -   train.csv: 254000 probes
+2026-08-28 00:10:48,878 -   train.csv: 256000 probes
+2026-08-28 00:10:49,544 -   train.csv: 258000 probes
+2026-08-28 00:10:50,149 -   train.csv: 260000 probes
+2026-08-28 00:10:50,839 -   train.csv: 262000 probes
+2026-08-28 00:10:51,469 -   train.csv: 264000 probes
+2026-08-28 00:10:52,269 -   train.csv: 266000 probes
+2026-08-28 00:10:52,884 -   train.csv: 268000 probes
+2026-08-28 00:10:53,552 -   train.csv: 270000 probes
+2026-08-28 00:10:54,297 -   train.csv: 272000 probes
+2026-08-28 00:10:54,965 -   train.csv: 274000 probes
+2026-08-28 00:10:56,072 -   train.csv: 276000 probes
+2026-08-28 00:10:56,777 -   train.csv: 278000 probes
+2026-08-28 00:10:57,558 -   train.csv: 280000 probes
+2026-08-28 00:10:58,215 -   train.csv: 282000 probes
+2026-08-28 00:10:58,917 -   train.csv: 284000 probes
+2026-08-28 00:11:00,018 -   train.csv: 286000 probes
+2026-08-28 00:11:00,617 -   train.csv: 288000 probes
+2026-08-28 00:11:01,324 -   train.csv: 290000 probes
+2026-08-28 00:11:01,981 -   train.csv: 292000 probes
+2026-08-28 00:11:02,710 -   train.csv: 294000 probes
+2026-08-28 00:11:03,397 -   train.csv: 296000 probes
+2026-08-28 00:11:04,047 -   train.csv: 298000 probes
+2026-08-28 00:11:04,786 -   train.csv: 300000 probes
+2026-08-28 00:11:05,463 -   train.csv: 302000 probes
+2026-08-28 00:11:06,094 -   train.csv: 304000 probes
+2026-08-28 00:11:06,771 -   train.csv: 306000 probes
+2026-08-28 00:11:07,461 -   train.csv: 308000 probes
+2026-08-28 00:11:08,080 -   train.csv: 310000 probes
+2026-08-28 00:11:08,698 -   train.csv: 312000 probes
+2026-08-28 00:11:09,465 -   train.csv: 314000 probes
+2026-08-28 00:11:10,140 -   train.csv: 316000 probes
+2026-08-28 00:11:10,916 -   train.csv: 318000 probes
+2026-08-28 00:11:11,826 -   train.csv: 320000 probes
+2026-08-28 00:11:12,480 -   train.csv: 322000 probes
+2026-08-28 00:11:13,127 -   train.csv: 324000 probes
+2026-08-28 00:11:13,716 -   train.csv: 326000 probes
+2026-08-28 00:11:14,379 -   train.csv: 328000 probes
+2026-08-28 00:11:15,028 -   train.csv: 330000 probes
+2026-08-28 00:11:15,961 -   train.csv: 332000 probes
+2026-08-28 00:11:16,661 -   train.csv: 334000 probes
+2026-08-28 00:11:17,428 -   train.csv: 336000 probes
+2026-08-28 00:11:18,106 -   train.csv: 338000 probes
+2026-08-28 00:11:18,586 -   train.csv: 340000 probes
+2026-08-28 00:11:19,064 -   train.csv: 342000 probes
+2026-08-28 00:11:19,541 -   train.csv: 344000 probes
+2026-08-28 00:11:19,846 -   train.csv: 345359 probes
+2026-08-28 00:11:19,997 - reading data/datafiles/val.csv
+2026-08-28 00:11:20,741 -   val.csv: 2000 probes
+2026-08-28 00:11:21,719 -   val.csv: 4000 probes
+2026-08-28 00:11:22,418 -   val.csv: 6000 probes
+2026-08-28 00:11:23,106 -   val.csv: 8000 probes
+2026-08-28 00:11:23,722 -   val.csv: 10000 probes
+2026-08-28 00:11:24,390 -   val.csv: 12000 probes
+2026-08-28 00:11:24,993 -   val.csv: 14000 probes
+2026-08-28 00:11:25,942 -   val.csv: 16000 probes
+2026-08-28 00:11:26,606 -   val.csv: 18000 probes
+2026-08-28 00:11:27,338 -   val.csv: 20000 probes
+2026-08-28 00:11:28,066 -   val.csv: 22000 probes
+2026-08-28 00:11:28,755 -   val.csv: 24000 probes
+2026-08-28 00:11:29,395 -   val.csv: 26000 probes
+2026-08-28 00:11:30,064 -   val.csv: 28000 probes
+2026-08-28 00:11:30,741 -   val.csv: 30000 probes
+2026-08-28 00:11:31,617 -   val.csv: 32000 probes
+2026-08-28 00:11:32,193 -   val.csv: 34000 probes
+2026-08-28 00:11:32,880 -   val.csv: 36000 probes
+2026-08-28 00:11:33,658 -   val.csv: 38000 probes
+2026-08-28 00:11:34,266 -   val.csv: 40000 probes
+2026-08-28 00:11:34,741 -   val.csv: 42000 probes
+2026-08-28 00:11:35,214 -   val.csv: 44000 probes
+2026-08-28 00:11:35,693 -   val.csv: 46000 probes
+2026-08-28 00:11:35,804 -   val.csv: 46557 probes
+2026-08-28 00:11:35,819 - reading data/datafiles/test.csv
+2026-08-28 00:11:37,085 -   test.csv: 2000 probes
+2026-08-28 00:11:37,957 -   test.csv: 4000 probes
+2026-08-28 00:11:38,744 -   test.csv: 6000 probes
+2026-08-28 00:11:39,549 -   test.csv: 8000 probes
+2026-08-28 00:11:40,341 -   test.csv: 10000 probes
+2026-08-28 00:11:41,172 -   test.csv: 12000 probes
+2026-08-28 00:11:41,920 -   test.csv: 14000 probes
+2026-08-28 00:11:42,759 -   test.csv: 16000 probes
+2026-08-28 00:11:43,587 -   test.csv: 18000 probes
+2026-08-28 00:11:44,187 -   test.csv: 20000 probes
+2026-08-28 00:11:44,672 -   test.csv: 22000 probes
+2026-08-28 00:11:45,177 -   test.csv: 24000 probes
+2026-08-28 00:11:45,652 -   test.csv: 26000 probes
+2026-08-28 00:11:45,762 -   test.csv: 26570 probes
+2026-08-28 00:11:45,770 - building inverted index over 345359 train probes
+2026-08-28 00:11:45,771 - scoring val against train
+2026-08-28 00:11:53,944 -   dropped 28257 postings on 10 repeat-like hashes
+2026-08-28 00:12:02,152 - scoring test against train
+2026-08-28 00:12:10,337 -   dropped 28257 postings on 10 repeat-like hashes
+2026-08-28 00:12:15,477 - recomputing exact Jaccard for 70 flagged pairs
+Traceback (most recent call last):
+  File "/ocean/projects/med250012p/szhang37/SilentMethyl/data/audit_training_data.py", line 395, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/ocean/projects/med250012p/szhang37/SilentMethyl/data/audit_training_data.py", line 300, in main
+    flagged.to_csv(args.output_dir / "cross_split_sequence_similarity.csv", index=False)
+  File "/opt/packages/anaconda3-2024.10-1/lib/python3.12/site-packages/pandas/util/_decorators.py", line 333, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/packages/anaconda3-2024.10-1/lib/python3.12/site-packages/pandas/core/generic.py", line 3967, in to_csv
+    return DataFrameRenderer(formatter).to_csv(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/packages/anaconda3-2024.10-1/lib/python3.12/site-packages/pandas/io/formats/format.py", line 1014, in to_csv
+    csv_formatter.save()
+  File "/opt/packages/anaconda3-2024.10-1/lib/python3.12/site-packages/pandas/io/formats/csvs.py", line 251, in save
+    with get_handle(
+         ^^^^^^^^^^^
+  File "/opt/packages/anaconda3-2024.10-1/lib/python3.12/site-packages/pandas/io/common.py", line 749, in get_handle
+    check_parent_directory(str(handle))
+  File "/opt/packages/anaconda3-2024.10-1/lib/python3.12/site-packages/pandas/io/common.py", line 616, in check_parent_directory
+    raise OSError(rf"Cannot save file into a non-existent directory: '{parent}'")
+OSError: Cannot save file into a non-existent directory: 'results/journal/training_data_audit'

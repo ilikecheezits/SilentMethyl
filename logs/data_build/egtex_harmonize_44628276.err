@@ -1,0 +1,4 @@
+2026-08-27 18:27:40,943 - prefiltered file absent; running stage 1 first
+2026-08-27 18:27:40,944 - streaming data/external/egtex_breast/BreastMammaryTissue.mQTLs.regular.txt.gz (45.3 GB) through awk -- this is the slow step
+2026-08-27 18:27:40,944 - progress prints every 200M lines
+slurmstepd: error: *** JOB 44628276 ON r023 CANCELLED AT 2026-08-27T18:29:35 ***

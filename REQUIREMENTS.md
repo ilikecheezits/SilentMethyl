@@ -18,10 +18,10 @@ Stage C (one training pass) → Stage D (re-score + write).
 |---|---|---|---|---|---|
 | 1 | Multi-cohort testing | No — inference | B.2 | **done** | `results/journal/tcga_tumor_domain_shift/` |
 | 2 | Repeated chromosome-blocked splits | **Yes — the only one** | C.1 | not-started | |
-| 3 | Stronger baselines and ablations | No / cheap re-heads | A.2, B.5, C.2–C.3 | not-started | |
+| 3 | Stronger baselines and ablations | No — CPU only | A.2, B.5, C.2–C.3 | **scripted, not yet run** | `scripts/23_sequence_baselines.py` |
 | 4 | Uncertainty calibration | No — post-hoc | B.3 | **done (analysis)** | `results/journal/rc_uncertainty{,_conditional}/` |
 | 5 | Ancestry analyses | No — analysis | B.1 | in-progress | `results/journal/genoa_variant_evaluation/` (AFR arm) |
-| 6 | Independent variant evaluation | No — inference | B.1 | **done** | `results/journal/genoa_variant_{scoring,evaluation}/` |
+| 6 | Independent variant evaluation | No — inference | B.1 | **done (GENOA)**; tissue-matched eGTEx arm in progress | `results/journal/genoa_variant_{scoring,evaluation}/` |
 | 7 | Regulatory enrichment | No — inference | B.4 | **done** | `results/journal/motif_disruption/` |
 
 ### Detail
@@ -167,6 +167,14 @@ rest the claim on GENOA vs eGTEx.
 that the two differ in tissue as well as ancestry, so the comparison is not a clean
 ancestry contrast and should not be presented as one.
 
+*Update (2026-08-27).* Once the full eGTEx Breast Mammary association file runs
+through the same scorer (see §6), the contrast is between two arms measured by one
+pipeline rather than between an arm and a legacy 81-variant result. It is still not
+a clean ancestry contrast — tissue moves with ancestry — and the honest framing is
+that the tissue-matched arm bounds model performance while the GENOA arm bounds
+transfer. Presenting the difference between them as an ancestry effect would be
+wrong and a reviewer will say so.
+
 **6. Independent variant evaluation.** From n=81 to millions. Report signed ρ,
 direction agreement, AUROC, magnitude correlation — stratified by CpG-alteration
 status, distance bin, effect decile, cohort ancestry.
@@ -240,6 +248,140 @@ variant scoring.
 not what limits variant-effect prediction here; allele-invariance is. Tissue-matched
 context would not change these numbers.
 
+---
+
+**The tissue-matched arm — eGTEx Breast Mammary Tissue (in progress, 2026-08-27).**
+
+*Why, stated plainly.* GENOA is blood. A weak GENOA correlation is confounded with a
+tissue change, so it cannot falsify the model — and a reader is entitled to ask why
+the primary external validation of a breast-tissue model was run in blood. It reads
+as an availability decision, because it was one. The fix is to make the
+tissue-matched arm primary and demote GENOA to what it actually is: a cross-tissue,
+cross-ancestry **transfer** arm, which is a real and separately interesting result.
+
+*Source.* eGTEx methylation mQTLs, EPIC arrays, `BreastMammaryTissue.mQTLs.regular.txt.gz`
+(`https://storage.googleapis.com/egtex/methylation/epic-arrays/mQTLs/`), 45,279,365,738
+bytes compressed. This is the **same study** as the 81 lead variants already in
+`data/egtex_breast_mqtl_heldout.csv` — the complete association set rather than the
+lead subset, so it supersedes those 81 rather than adding a new cohort. Nine columns,
+no header: `probeID variant_id dist ma_samples ma_count maf pval_nominal slope slope_se`.
+
+*Three things that make this cleaner than GENOA.* Already hg38 (`b38` suffix in the
+variant ID) — no liftover, no chain file. REF and ALT are encoded in the variant ID —
+no minor/major ambiguity, so the effect-allele bug that silently flipped 11.3% of
+GENOA pairs cannot recur in the same form. Distance is precomputed.
+
+*One thing that is worse.* eGTEx assays **EPIC**; the model is trained on **HM450**.
+Probe IDs are platform-stable, so no liftover is needed, but EPIC-only probes have no
+training-data counterpart and are dropped and counted.
+
+*Pipeline.* `data/harmonize_egtex_mqtl.py` (new). Two stages, because 45 GB:
+stage 1 streams the gzip through `awk` keeping rows within ±600 bp of a probe
+(~0.06% of the file — awk rather than Python because this is a multi-billion-line
+scan); stage 2 does the real work in pandas. Then `scripts/19` and `scripts/20`
+unchanged apart from the column generalisation below.
+
+*What the harmonizer refuses to trust, and why each is a GENOA lesson:*
+
+1. **Their distance column.** Distance is recomputed from HM450 `CpG_beg` and the
+   `reported − recomputed` distribution is reported. A constant ±1 offset gets
+   detected instead of inherited. The window bounds are **imported** from
+   `data/build_genoa_scoring_input.py` (`MIN_SCOREABLE_OFFSET`/`MAX_SCOREABLE_OFFSET`),
+   not restated, so the two cohorts cannot drift apart.
+2. **The sign convention.** GTEx/tensorQTL documents `slope` as keyed to ALT, which
+   matches the model's REF→ALT Δ. That is exactly the kind of assumption that cost us
+   106,628 flipped GENOA pairs, so it is verified against an internal positive
+   control: **variants that destroy the target CpG must lower methylation**. If the
+   mean slope over those comes back positive at z > 3, the script prints the evidence
+   and exits without writing. The check is free and non-circular — those variants are
+   excluded from scoring anyway.
+3. **The reference base.** Every REF is checked against `hg38.fa`; the mismatch rate
+   is logged loudly, as with GENOA's 0.1%.
+
+*Column generalisation (scripts 19 and 20, 2026-08-27).* The cohort effect column is
+no longer hard-coded. Script 19 gained `--effect-column` / `--pvalue-column`
+(default `auto`), resolving `beta_ref_to_alt` (eGTEx) or `beta_genoa_ref_to_alt`
+(GENOA) and copying it to a canonical name. Script 20 reads the canonical names and
+**back-fills from the legacy ones**, so the existing GENOA score files still run
+untouched — no rescoring. Script 20 also gained `--cohort {GENOA,eGTEx}`, which
+swaps only the wording and the tissue caveat so the eGTEx arm never inherits
+"GENOA is blood". It changes no computation.
+
+*Tests.* `data/_test_egtex_harmonizer.py` builds a synthetic genome, manifest, split
+CSVs and all-pairs file, then asserts: window boundaries at exactly −499/+500,
+masked-probe drop, EPIC-only drop, indel drop, REF-mismatch drop, split assignment,
+and a **deliberately sign-flipped run that must fail** — it does. Script 20 was
+separately re-run on synthetic legacy-named score files to confirm the rename is
+backwards-compatible.
+
+*Expected scale.* ~2–3M rows survive stage 1; roughly half sit on HM450 probes;
+after the exact window and target-CpG exclusion the held-out (chr8–9) stratum should
+land in the same order of magnitude as GENOA's 66,495. **Not yet run — do not quote
+a number until `egtex_scoring_summary.json` exists.**
+
+*Manuscript consequence, once the numbers land.* eGTEx Breast Mammary becomes the
+primary requirement-6 result; GENOA moves to a transfer subsection; the 81 lead
+variants are superseded and their table row is dropped. Do not restructure the
+manuscript before the numbers exist.
+
+**3. Stronger baselines and ablations.** *Reprioritised to first place, 2026-08-27.*
+
+*Why this moved to the front.* We report signed rho = 0.152 and 55.3% direction
+agreement on held-out meQTLs and we do not know whether that is good, because no
+competing predictor has been scored on the same pairs. Without a referent the
+number is uninterpretable, and no additional cohort changes that — eGTEx makes
+the comparison tissue-matched, it does not tell us what the ceiling is. Genome
+Medicine asks for this explicitly ("comparisons with leading methylation and
+variant-effect predictors"). It is the one outstanding requirement that changes
+what we are allowed to claim rather than how confidently we claim it.
+
+*What is scripted.* `scripts/23_sequence_baselines.py`, CPU-only, no GPU, no new
+data:
+
+| baseline | features | controls for |
+|---|---|---|
+| `composition` | GC fraction, CpG count, CpG obs/exp | is any of this better than base composition? |
+| `kmer_ridge` | RC-collapsed k-mer counts, k = 1..6 (2,772 columns) | does DNABERT-2 pretraining beat classical sequence features? |
+
+Both are exact ridge fits from streamed sufficient statistics (X'X, X'y), so the
+345,359-row training split never materialises as a feature matrix; alpha is
+selected on `val` by exact validation MSE computed from the same statistics.
+
+*What makes it a fair comparison, not a strawman.* Same split CSVs, same
+`M_Value_Target` column, same `centered_crop(seq, 1000)` window, same
+target-CpG exclusions, and — the important one — the variant task writes
+`pair_scores.csv` in scripts/19's schema, so **scripts/20 evaluates baselines and
+neural models through one code path**: identical distance matching, identical
+1 Mb block bootstrap, identical significance strata. No published cross-tissue
+weights are involved, so no tissue handicap flatters either side.
+
+*Two hazards, both handled.* (i) The baseline must not import the model's
+dependency tree — `from training_common import centered_crop` drags in torch,
+transformers and huggingface_hub for nine lines of arithmetic and makes the
+comparator unrunnable on a CPU node. The two helpers are therefore duplicated
+**and asserted identical to `training_common` at startup** whenever it imports.
+(ii) RC-collapsed k-mer counts are exactly strand-invariant, so the RC-averaging
+the neural models require is provably a no-op here; that is checked at startup
+rather than stated.
+
+*Interpretation, decided in advance.* If `kmer_ridge` matches the neural models
+on variant effects, the finding is that sequence-only allelic methylation
+prediction is far harder than the literature implies, and DNABERT-2 pretraining
+is not what closes the gap — a real, honest, publishable benchmark result. If the
+neural models win clearly, the architecture is earning its keep and we can say so
+with evidence. **Both outcomes get reported. Deciding after seeing the numbers
+which one to emphasise is the failure mode to avoid.**
+
+*Tests.* `scripts/_test_sequence_baselines.py` plants a known k-mer signal in
+synthetic splits, confirms the ridge path recovers it, confirms every pair-level
+exclusion fires at the expected count, independently recomputes variant deltas,
+and checks the emitted file carries every column scripts/20 requires.
+
+*Still not covered by this script:* a retrained CpGenie-style CNN on our splits
+(the architecture-vs-architecture comparison, ~1 GPU-hour) and the published
+CpGenie/DeepCpG weights (cross-tissue, confounded, and a 2017 environment to
+resurrect). Phase those after the CPU baselines return a number.
+
 **7. Regulatory enrichment.** JASPAR CORE vertebrates (877 matrices, 831 tested)
 scanned on both strands across the 42,866 non-CpG-altering held-out GENOA pairs.
 For each pair the best wild-type hit covering the variant is found, and the mutant
@@ -278,9 +420,21 @@ the direction expected for factors whose binding protects CpGs from methylation.
 
 **Three framing rules — violating any of them invites correction:**
 
-- **One family, not fifteen factors.** Top-15 mean pairwise Jaccard of covered sets
-  is **0.278**, max **0.792**. Write "the ETS core motif, represented by N JASPAR
-  matrices with mean pairwise overlap 0.28."
+- **One 4-bp core, not fifteen factors and not even "a family."** *(sharpened
+  2026-08-28 from `per_motif_coupling.csv`.)* Every one of the top eleven
+  matrices contains `GGAA` or its reverse complement `TTCC`:
+  ELF4 `AACCCGGAAGTG`, FEV `ACCGGAAGT`, EHF `CACTTCCTG`, ZBTB2 `ACCGGAAGTG`,
+  ELF1 `CAGGAAGTG`, ELF3 `CACTTCCTG`, ZBTB11 `CACTTCCGG`, ETV1 `ACAGGAAGT`,
+  ERG `ACAGGAAGTG`, GABPA `CACTTCCTGT`, FOXO1::ELK1 `ATCAACAGGAAGT`.
+  Top-15 mean pairwise Jaccard of covered sets is 0.278, max 0.792.
+
+  **ZBTB2 and ZBTB11 are the trap.** They are zinc-finger factors and read as
+  independent corroboration from a different structural class. They are in the
+  list because their JASPAR consensus carries the ETS core, not because
+  zinc-fingers replicate the result. Writing "ETS factors plus ZBTB2/ZBTB11"
+  invites a reviewer to grep the consensus column and find it in one minute.
+  Write: "a single 4-bp ETS core (GGAA/TTCC), recovered through N redundant
+  JASPAR matrices." The effective number of independent findings is one.
 - **Recovery of known biology by an unsupervised route, not new biology.** ETS and
   GABPA sites are an established hallmark of unmethylated CpG-island promoters. The
   claim is that a model never shown a motif recovered this de novo, and that it
@@ -291,11 +445,44 @@ the direction expected for factors whose binding protects CpGs from methylation.
 
 **The two null results belong in the same figure.** Disruption *magnitude* predicts
 nothing (continuous ρ = −0.0109 [−0.0228, +0.0017]; strong vs weak median |ΔM̂|
-0.0177 vs 0.0184), and meQTL discrimination is not concentrated in strong
-disruptors (AUROC 0.5918 vs 0.5962, difference −0.0043, intervals overlapping).
+0.0177 [0.0166, 0.0189] vs 0.0184 [0.0171, 0.0198] — overlapping, and if anything
+*inverted*), and meQTL discrimination is not concentrated in strong disruptors
+(AUROC 0.5918 [0.570, 0.614] vs 0.5962 [0.574, 0.620], n = 11,525 vs 9,881).
 The model did not learn "breaking motifs matters" as a general rule; it learned
 something signed and family-specific. Reporting only the positive would look like
 fishing.
+
+**The open question these two results jointly raise, and the cheap test for it
+(2026-08-27).** Signed family-specific coupling *with* a null magnitude coupling
+*and* no motif-concentrated discrimination has a simpler explanation than
+"the model learned binding-site disruption": the model may have learned that
+ETS-like sequence *composition* marks unmethylated regions, so perturbing toward
+or away from that composition moves the prediction in the right direction without
+anything resembling a binding-site mechanism. Both readings predict the signed
+coupling; only the grammar reading predicts a magnitude relationship, and we do
+not observe one.
+
+The consensus-sequence reading above makes the compositional explanation more
+likely, not less. A model with genuine binding-site grammar should be graded --
+the worse you break the site, the larger the predicted shift. That is exactly
+what Q1 tests, and Q1 is null. What survives is sensitivity to the *presence* of
+a 4-bp word, which is what a k-mer model does by construction. Note also that
+`motif_consensus_cpg_count` is 0 for most of the top hits, so this is not a
+CpG-content artifact -- the association is to GGAA/TTCC itself.
+
+This is directly testable and costs nothing new: **run scripts/22 on the
+`kmer_ridge` baseline's pair scores** (scripts/23 emits the same schema, so point
+`--scores-dir` at `results/journal/sequence_baselines/variant_scoring` and pass
+`--seeds=-1` with the `=` so argparse does not read `-1` as a flag). A linear
+6-mer model has no notion of a binding site whatsoever. If it reproduces the ETS
+direction, the effect is compositional and must be described that way. If it does
+not, the grammar reading survives a real attempt to kill it, and the claim gets
+much stronger.
+
+Do this before the manuscript describes the ETS result as motif-disruption
+learning. As written, §7's framing rules are already correct and conservative —
+the risk is not the record, it is restating it more loudly in the paper than the
+evidence supports.
 
 *Method note.* A binary inside/outside-a-motif split does not work: with the full
 library scanned, **100%** of variants fall inside some occurrence at the
@@ -306,6 +493,60 @@ quintile.
 ---
 
 ## A2. Retraining plan — improved training data
+
+### Audit first: `data/audit_training_data.py` (new, 2026-08-27, CPU only)
+
+Run this BEFORE deciding anything about retraining. It reads only the existing
+split CSVs and the HM450 manifest, and answers three questions in descending
+order of how much damage a bad answer does.
+
+**1. Cross-split sequence leakage — never checked, and it can invalidate every
+held-out number.** Chromosome-blocked splits stop *positional* leakage. They do
+nothing about *sequence-similarity* leakage: segmental duplications, paralogues
+and recent repeat families put near-identical 1,000-bp windows on different
+chromosomes, and CpG-island promoters are exactly where duplications cluster. If
+a meaningful share of chr8–9 test probes share most of their 31-mers with a
+training probe, held-out performance is partly memorisation. Measured by MinHash
+over canonical 31-mers; a median near zero is the healthy result and the tail is
+what matters. `--exact` recomputes true Jaccard for flagged pairs.
+
+*If the tail is large*, the fix is not to re-split — it is to report a
+similarity-filtered test subset alongside the full one. A reviewer who asks this
+question and gets a prepared answer is reassured; one who asks and gets silence
+is not.
+
+**2. Probe QC is currently inconsistent, and by accident.**
+`data/build_training_data.py` applies **none** of the HM450 manifest masks.
+`scripts/05_matched_background.py` and `scripts/19` **do** exclude
+`MASK_general` when scoring. So the model is trained on a probe population it is
+never evaluated on. That is not automatically wrong — more training signal can
+be worth some target noise, and masked probes are not uniformly useless — but it
+is presently inherited rather than chosen, and the size of the discrepancy has
+never been reported. The audit reports it per split for `MASK_general`,
+`MASK_snp5_common`, `MASK_snp5_GMAF1p`, `MASK_mapping`,
+`MASK_typeINextBaseSwitch` and `MASK_rmsk15`.
+
+*Decide it deliberately.* `MASK_snp5_common` is the one with a direct bearing on
+the variant work: a common SNP under the probe body corrupts the measured beta
+in exactly the donors whose genotype the meQTL analysis is about. Training on
+those probes teaches the model to fit a measurement artifact.
+
+**3. Split comparability.** Chromosome-blocked splits are not random samples. If
+chr8–9 differ from the training chromosomes in methylation distribution, part of
+the train/test gap is composition rather than generalisation. Reported so it can
+be stated in the paper rather than discovered in review.
+
+*Tested* against synthetic splits with ten verbatim-copied windows planted in
+`test`: all ten flagged at estimated Jaccard 1.000, matched to the correct
+training probe, confirmed at exact Jaccard 1.000, with zero false positives among
+the 290 clean probes.
+
+### Do not retrain until these three are answered
+
+Retraining before the audit means rebuilding on the same unexamined foundation.
+Each answer changes what "improved training data" should mean, and all three come
+from one CPU job on data already on disk.
+
 
 Retraining is back on the table (2026-08-26). This section exists so the feature
 decision is made **before** the requirement-2 folds are run, not after.
@@ -368,15 +609,136 @@ sequence at scoring time. Small change, but it must land with the retrain.
 - **Adding tissues.** Scoped out deliberately; DeepMethylation already holds that
   ground.
 
+### On adding a truly-healthy baseline cohort
+
+Raised 2026-08-26. The motivation is real and it is already a stated limitation in
+the manuscript: targets are medians of 97 **tumour-adjacent** normals, which may
+carry field effects and cell-composition heterogeneity.
+
+**hg19 is not an obstacle.** Array data joins on probe ID, which is
+platform-stable — the same fact that let the GENOA harmonizer lift SNP positions
+without ever lifting a CpG. A GEO series gives probe ID → β; join to the hg38
+manifest and the coordinates come along. No liftover, no chain file. This concern
+can be dropped. It only returns if the cohort is WGBS or RRBS, which is a
+different measurement with coverage-dependent noise and should be treated as a
+separate question.
+
+**Small n is disqualifying for training and irrelevant for validation.** A
+20–40-sample median is noisier than the existing 97-sample median. Swapping it in
+trades a known bias for added variance, which is very likely a net downgrade. But
+a validation cohort does not need many samples — it needs to be independent.
+
+**So use it as a validation cohort, and the limitation becomes a result.** Score
+the frozen checkpoints against a truly-healthy cohort:
+
+- comparable performance → field effects are not materially contaminating the
+  targets, stated with evidence instead of listed as a caveat;
+- better → interesting, and worth explaining;
+- worse → the contamination is real and now quantified.
+
+All three outcomes are publishable, and it serves requirement 1 at the same time.
+`GSE213478` (eGTEx methylation) is already on the candidate list in §D and is the
+obvious first look, since eGTEx donors are not breast-cancer patients.
+
+**If it is to touch training at all, the non-drastic use is target weighting, not
+target replacement.** Probes where the healthy cohort and TCGA normals disagree
+strongly are the field-effect-suspect probes. Down-weighting them, or supplying
+the disagreement as a feature, uses a small cohort for what small cohorts are good
+at — identifying unreliable targets — without asking it to define targets.
+
+**BLOCKED as of 2026-08-27 — do not retry the automated path.** GSE69914's GEO
+metadata carries **no group labels**. All 407 samples are titled `BCFD1` through
+`BCFD407`, source name is "genomic DNA from breast sample BCFD<n>", and the only
+characteristics field is "molecule subtype: bi-sulphite converted genomic DNA".
+Confirmed from the series page itself, not inferred. The 50/84/263/7/4 composition
+appears only in the series *summary prose*; nothing maps an identifier to a group.
+
+`data/acquire_healthy_breast_cohort.py` is written and its composition guard
+correctly refused to write anything. To finish it, someone must obtain the
+per-sample annotation from the paper's supplementary material (Teschendorff et al.
+Nat Commun 2016) and drop it in as a two-column CSV — identifier, group. That is a
+one-time manual step, not a scripting problem. PMC blocks automated fetching, so
+it needs a human with a browser.
+
+*Cost so far:* a 1.6 GB download, since the first version of `--inspect` fetched
+before reading the header. That is fixed — `--inspect` now streams the header and
+stops at the table marker. Delete the archive; the URL and expected SHA-256 are in
+the script.
+
+*Recommendation:* park this. It addresses a stated limitation, not an open mentor
+requirement, and requirement 3 has nothing done. Resume when the annotation table
+is in hand.
+
+**Two confounds to name before interpreting any disagreement:**
+
+- *Cell composition.* Reduction-mammoplasty and post-mortem tissue differ from
+  tumour-adjacent tissue in epithelial/stromal/adipose fractions. A β difference
+  is not automatically evidence of field effects.
+- *Age.* TCGA normals come from cancer patients and skew older; methylation is
+  strongly age-dependent. Check whether the cohort ships age metadata, and if it
+  does, condition on it.
+
+### HAZARD: the reverse-complement swap is positional, and it will break silently
+
+Read this before touching `TABULAR_FEATURES`.
+
+`make_rc_context()` — in `scripts/05_matched_background.py` and mirrored in
+`scripts/19_genoa_variant_scoring.py` — builds the reverse-complement context
+vector like this:
+
+```python
+rc_tab[:, -2], rc_tab[:, -1] = tab[:, -1].clone(), tab[:, -2].clone()
+```
+
+It swaps the **last two columns by position**, relying on
+`TABULAR_FEATURES` ending with `Target_Base_PhyloP_100way_1` and `_2` — the C and
+G of the target CpG, which genuinely do exchange under reverse complementation.
+
+Append any new feature to the end of that list and the swap silently exchanges the
+wrong two features on every RC pass. Nothing raises. Every RC-averaged prediction
+in the project becomes subtly wrong, and it would be almost undetectable after the
+fact.
+
+**Fix before adding features, not after:** derive the swap indices from the feature
+names rather than from position, e.g. resolve `PHYLOP_1` / `PHYLOP_2` through
+`TABULAR_FEATURES.index(...)` once and swap those. Both copies of
+`make_rc_context` must change together. Ten lines, and it makes the feature list
+safe to extend.
+
+*Related, but loud rather than silent:* `EpigeneticEncoder` and
+`EpigeneticOnlyModel` default to `tabular_dim=9`, and existing checkpoints were
+trained at 9 features. Loading a 9-feature checkpoint into a 21-feature model
+fails on `strict=True`, which is the behaviour we want — it cannot pass unnoticed.
+
+Note also that most proposed new features are strand-symmetric (window averages,
+GC fraction, CpG counts do not change under reverse complementation), so only the
+two positional phyloP features need swapping at all. Keeping the RC transformation
+explicit and name-based makes that assumption visible instead of implicit.
+
 ### Order of operations
 
-1. Confirm the feature list (Tier 1, plus any Tier 2 that survives).
-2. Re-extract context features → new `train/val/test.csv`. CPU, array by chromosome.
-3. **One** training campaign: 3 seeds × (context + fusion) on the new features,
-   *plus* the four requirement-2 folds, submitted together.
-4. Re-run scripts 19–22 and 16–18 against the new checkpoints.
-5. Keep the current checkpoints and results. The old model becomes the ablation
-   that shows what the new features bought.
+0. **Decide the healthy-cohort question first** (previous subsection). It is a
+   search task: which HM450/EPIC healthy-breast series has usable sample counts
+   *and* age metadata. The answer changes whether step 2 also produces a
+   target-quality weight column.
+1. Fix the positional RC swap (hazard above). Do this before anything else touches
+   the feature list.
+2. Confirm the feature list — Tier 1, plus any Tier 2 that survives.
+3. Re-extract context features → new `train/val/test.csv`. CPU, array by
+   chromosome. Entry point is `data/build_training_data.py`; the feature list
+   itself lives in `scripts/training_common.py`.
+4. Change the checkpoint metric to M-value MAE in the three
+   `scripts/01_train_*_journal.py` files.
+5. **One** training campaign: 3 seeds × (context + fusion) on the new features,
+   *plus* the four requirement-2 folds, submitted together. The sequence tower is
+   not retrained unless its input changes.
+6. Update `make_rc_context` consumers and script 19's per-probe context vector,
+   which currently assumes context is fixed per probe rather than per allele.
+7. Re-run scripts 16–18 and 19–22 against the new checkpoints.
+8. Keep the current checkpoints and results. The old model becomes the ablation
+   showing what the new features bought — a better paper than quietly replacing it.
+9. Rebuild `supplementary_package/` and the `reproducibility/` audits, which are
+   stale as of 2026-08-26 and predate scripts 19–22.
 
 ### One thing to verify first
 
@@ -473,6 +835,7 @@ The frozen manifest is written to `data/external/external_manifest.json`.
 | Source | Build | Liftover needed | Acquisition | Status |
 |---|---|---|---|---|
 | GENOA meQTL | hg19 | **yes** | automatic (Zenodo) | **done** — raw deleted, 30 MB harmonized retained |
+| eGTEx Breast Mammary mQTL (all pairs) | **hg38** | no | automatic (GCS) | **in progress** — 45 GB raw, delete after prefilter |
 | TCGA-BRCA tumours (from the matrix on disk) | hg38 | no | none | **done** — 699 unpaired of 791 |
 | TCGA ancestry calls (GDC open) | n/a | no | manual | **done** — not powered, see §5 |
 | ClinVar GRCh38 VCF | hg38 | no | automatic | **done** |

@@ -1,0 +1,93 @@
+{
+  "absolute": [
+    {
+      "alpha": 0.01,
+      "auc": 0.8747625702675966,
+      "beta_mae": 0.19540397712914465,
+      "beta_rmse": 0.2659090849040907,
+      "m_mae": 1.959989233125694,
+      "m_pearson": 0.7025425049746417,
+      "m_rmse": 2.4792118718658727,
+      "m_spearman": 0.6309338090848695,
+      "model": "composition",
+      "n_features": 3,
+      "n_test_loci": 26570
+    },
+    {
+      "alpha": 100000.0,
+      "auc": 0.9189978898627932,
+      "beta_mae": 0.1564965373237317,
+      "beta_rmse": 0.21818848683420325,
+      "m_mae": 1.686578512454179,
+      "m_pearson": 0.7880077511772409,
+      "m_rmse": 2.136023860868518,
+      "m_spearman": 0.7265276321080117,
+      "model": "kmer_ridge",
+      "n_features": 2772,
+      "n_test_loci": 26570
+    }
+  ],
+  "alpha_grid": [
+    0.01,
+    0.1,
+    1.0,
+    10.0,
+    100.0,
+    1000.0,
+    10000.0,
+    100000.0,
+    1000000.0
+  ],
+  "analysis": "classical sequence baselines on SilentMethyl splits",
+  "fairness_note": "Trained on the same splits, same target column, same 1,000-bp window, same target-CpG exclusions, and scored through scripts/20. No published cross-tissue weights are involved, so no tissue handicap favours either side.",
+  "generated_utc": "2026-08-28T04:14:42+00:00",
+  "interpretation": "These baselines are the referent for signed rho and direction agreement. If kmer_ridge matches the neural models on variant effects, the finding is that sequence-only allelic methylation prediction is much harder than reported, and DNABERT-2 pretraining is not what closes the gap. If it does not, the architecture is earning its keep. Report whichever is true.",
+  "k_max": 6,
+  "models": [
+    "composition",
+    "kmer_ridge"
+  ],
+  "purpose": "mentor requirement 3, and the referent for the requirement-6 variant-effect numbers",
+  "self_checks": {
+    "n_kmer_features": 2772,
+    "rc_invariance_max_abs_diff_composition": 0.0,
+    "rc_invariance_max_abs_diff_kmer": 0.0,
+    "training_common_agreement": {
+      "checked": false,
+      "reason": "ModuleNotFoundError"
+    }
+  },
+  "splits": "data/datafiles/{split}.csv",
+  "variant_scoring": [
+    {
+      "counters": {
+        "alters_target_cpg": 0,
+        "bad_stored_sequence_length": 0,
+        "outside_model_window": 0,
+        "probe_not_in_splits": 0,
+        "reference_base_mismatch": 0,
+        "scoreable": 66495,
+        "stored_sequence_not_cpg_centred": 0,
+        "window_not_cpg_centred": 0
+      },
+      "file": "results/journal/sequence_baselines/variant_scoring/heldout/composition/seed-1/pair_scores.csv",
+      "model": "composition",
+      "rows": 66495
+    },
+    {
+      "counters": {
+        "alters_target_cpg": 0,
+        "bad_stored_sequence_length": 0,
+        "outside_model_window": 0,
+        "probe_not_in_splits": 0,
+        "reference_base_mismatch": 0,
+        "scoreable": 66495,
+        "stored_sequence_not_cpg_centred": 0,
+        "window_not_cpg_centred": 0
+      },
+      "file": "results/journal/sequence_baselines/variant_scoring/heldout/kmer_ridge/seed-1/pair_scores.csv",
+      "model": "kmer_ridge",
+      "rows": 66495
+    }
+  ]
+}

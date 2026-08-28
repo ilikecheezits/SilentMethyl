@@ -130,6 +130,14 @@ local GC content, variant--CpG distance, and substitution class. Disruption
 magnitude alone predicts nothing, so what the model learned is signed and
 family-specific rather than a general sensitivity to motif damage.
 
+Applied to individual variants, the framework produces falsifiable statements
+about local methylation: the highest-ranked synonymous candidate, an \textit{NCOA2}
+variant 9\,bp from its CpG, is predicted to shift methylation by $-0.18$ and
+exceeds all 66 matched background variants, and two \textit{STK11} variants
+including a known pathogenic allele receive substantial predicted shifts. These
+are hypotheses for experimental test rather than validated effects, and they
+define the intended use of the framework.
+
 Two further findings generalise beyond this model. First, uncertainty evaluation on
 bounded bimodal targets is confounded by range compression: a zero-parameter
 heuristic outperforms genuine uncertainty estimators on the $\beta$ scale and
@@ -160,6 +168,19 @@ Section~\ref{sec:tumor-methods} and Section~\ref{sec:tumor-results} (TCGA-BRCA
 tumours as a shifted target domain); Section~\ref{sec:motif-methods} and
 Section~\ref{sec:motif-results} (ETS motif disruption). Abstract, title,
 introduction, discussion and limitations revised throughout.
+
+\smallskip
+\noindent\textbf{Structural pass, 27 Aug 2026.} Results cut from nine subsections
+to eight and re-ordered around one thesis: the model predicts methylation, its
+variant predictions replicate on an independent cohort, the signal runs through
+TF-binding disruption, the context modality cannot contribute to variant effects,
+and the framework yields testable hypotheses about individual variants. The 81
+eGTEx associations were folded into Section~\ref{sec:genoa-results} as the
+tissue-matched-but-small arm rather than deleted, because GENOA is blood and
+would otherwise leave no tissue-matched variant evaluation. The tumour analysis
+was compressed to a single paragraph and the uncertainty section from four
+paragraphs to two. \textit{NCOA2} and \textit{STK11} are retained as a thesis
+component, not an appendix.
 
 \smallskip
 \noindent\textbf{Open question inside a written section.} The context-only model
@@ -605,27 +626,26 @@ state is expected to carry additional information.
 \label{fig:context}
 \end{figure}
 
-\subsection{Breast mQTLs support predicted effect direction}
-
-On 81 independent breast mQTL associations the three-seed fusion ensemble
-recovered 64 of 81 effect directions (79.0\%), achieved signed Spearman
-$\rho=0.610$, and separated positive from negative slopes with AUROC 0.872. The
-pattern held after removing variants on or adjacent to a probe (53 associations;
-$\rho=0.610$, 75.5\% direction agreement, AUROC 0.872).
-
-Absolute magnitudes agreed far less well ($\rho=0.217$ overall, 0.282 after
-filtering), and the model did not separate matched significant leads from
-high-$q$ leads on $|\Delta\widehat M|$ (AUROC 0.512, 95\% CI 0.380--0.646). At
-$n=81$ these estimates are imprecise, which motivated the larger independent
-evaluation below.
-
-\subsection{Independent variant evaluation at scale\NEW}
+\subsection{Independent variant evaluation\REV}
 \label{sec:genoa-results}
 
-Scoring 66{,}495 held-out GENOA pairs increased the independent variant evaluation
-from 81 associations to 39{,}657 unique variants, a scale that supports
+Two external cohorts test the variant-effect predictions, and they trade off
+against each other. \textbf{eGTEx breast mQTLs are tissue-matched but small.} On
+81 associations the three-seed fusion ensemble recovered 79.0\% of effect
+directions and achieved signed Spearman $\rho=0.610$. At $n=81$, however, nothing
+was well estimated: absolute magnitudes agreed poorly ($\rho=0.217$), and the
+model failed to separate matched significant leads from non-significant ones
+(AUROC 0.512, 95\% CI 0.380--0.646, an interval spanning chance). Full results are
+in the Supplementary Data.
+
+\textbf{GENOA is large and stratified but cross-tissue.} Scoring 66{,}495
+held-out variant--CpG pairs raised the evaluation to 39{,}657 unique variants
+across 19{,}081 of the 26{,}570 held-out probes, at a scale that supports
 stratified inference rather than a single pooled estimate
-(Table~\ref{tab:genoa}).
+(Table~\ref{tab:genoa}). Because GENOA measured whole blood while the model's
+context features are breast, this is cross-tissue transfer; the sequence-only
+model, which uses no tissue-specific input, is reported alongside as the
+tissue-agnostic comparator.
 
 \begin{table}[!tbp]
 \centering
@@ -753,31 +773,27 @@ of the 440 synonymous candidates were highly concordant (signed $\rho=0.981$,
 \subsection{Uncertainty is quantifiable, but the standard metric is confounded\NEW}
 \label{sec:uncertainty-results}
 
-Forward/reverse-complement disagreement tracked per-locus error at Spearman
-$\rho\approx0.50$ for the sequence and fusion models (0.35--0.39 for context-only),
-consistently across seeds. On selective prediction, however, the zero-parameter
-heuristic $-|\widehat\beta-0.5|$ outperformed every genuine estimator---including
-the three-seed ensemble---in 8 of 9 model--seed combinations.
+Because the framework is intended to prioritise variants, its predictions need an
+accompanying reliability estimate. Forward/reverse-complement disagreement --
+available at every locus at no additional cost, since both orientations are
+already scored -- tracked per-locus error at Spearman $\rho\approx0.50$ for the
+sequence and fusion models, and retains 75--83\% of a three-seed ensemble's
+incremental information from a single model.
 
-That result is an artifact of the target rather than a property of the
-estimators. Absolute $\beta$ error is mechanically compressed near 0 and 1, so a
-model that is merely confident at extreme predictions appears well calibrated.
-Repeating the comparison on the unbounded $M$ scale, and stratifying finely by
-predicted $\beta$, separates the two explanations: the heuristic's within-stratum
-correlation collapses from $+0.0369$ to $+0.0099$ between the $\beta$ and $M$
-scales, while cross-seed ensemble standard deviation ($+0.0915$ to $+0.0952$) and
-FWD--RC disagreement ($+0.0678$ to $+0.0793$) are unchanged
-(Fig.~\ref{fig:uncertainty}). At 50 strata both genuine estimators outperform the
-heuristic on both scales.
-
-\textbf{Scale-instability is the signature of a metric artifact.} A genuine
-uncertainty signal ranks error about equally well on either scale; a compression
-artifact does not. We recommend that calibration for bounded bimodal targets be
-assessed in logit space, and note that $\beta$ MAE is the field's routine
-reporting choice.
-
-FWD--RC disagreement retains 75--83\% of the ensemble's incremental information
-depending on the measure, from a single model at no additional inference cost.
+Validating that claim exposed a trap worth reporting. On selective prediction the
+zero-parameter heuristic $-|\widehat\beta-0.5|$ outperformed every genuine
+estimator, including the ensemble, in 8 of 9 model--seed combinations. This is a
+property of the metric, not of the estimators: absolute $\beta$ error is
+mechanically compressed near 0 and 1, so a model merely confident at extreme
+predictions appears well calibrated. Repeating the comparison on the unbounded $M$
+scale separates the explanations -- the heuristic's within-stratum correlation
+collapses from $+0.0369$ to $+0.0099$, while cross-seed standard deviation
+($+0.0915$ to $+0.0952$) and FWD--RC disagreement ($+0.0678$ to $+0.0793$) are
+unchanged (Fig.~\ref{fig:uncertainty}). \textbf{Scale-instability is the signature
+of a metric artifact:} a genuine uncertainty signal ranks error about equally well
+on either scale. Since $\beta$ MAE is the field's routine reporting choice, we
+assess calibration in logit space throughout and recommend the same for any
+bounded bimodal target.
 
 \begin{figure}[!tbp]
 \centering
@@ -791,27 +807,22 @@ estimators are scale-stable; the boundary heuristic is not.}
 \label{fig:uncertainty}
 \end{figure}
 
-\subsection{Tumour methylation is predicted from sequence where it has not been reprogrammed\NEW}
+\subsection{A second evaluation domain: TCGA-BRCA tumours\NEW}
 \label{sec:tumor-results}
 
-Holding predictions fixed and scoring them against the 699-tumour target, fusion
-$\beta$ MAE moved from 0.0975 to 0.1180 and ROC-AUC from 0.9696 to 0.9448; the
-sequence model behaved similarly (0.1079 to 0.1296; 0.9590 to 0.9308). Sixty-five
-per cent of held-out probes differ by less than 0.05 between the normal and tumour
-targets, and Spearman correlation between the two targets is 0.956.
-
-Degradation is concentrated exactly where the methylome moved: fusion $\beta$ MAE
-against the tumour target rises monotonically across strata of
-$|\beta_{\text{tumour}}-\beta_{\text{normal}}|$, from 0.0769 in the smallest
-stratum to 0.4082 in the largest. Most of the tumour methylome at these probes is
-therefore recoverable from sequence and reference chromatin context alone, and the
-model's error is an estimate of the state-specific remainder.
-
-The context-only model is a partial exception: its $\beta$ MAE is unchanged
-(0.1395 versus 0.1396) and its $M$ MAE improves. Whether this reflects genuine
-robustness of coarse chromatin signal or the bounded-range compression described
-in Section~\ref{sec:uncertainty-results} reappearing because tumour $\beta$ is less
-bimodal is not yet resolved\ifdraftmode\ (see draft status)\fi.
+Because the model's inputs depend on genomic position rather than disease state,
+its predictions are identical for normal and tumour tissue; scoring 699 unpaired
+TCGA-BRCA tumours therefore holds predictions fixed and varies only the target,
+measuring the component of the tumour methylome determined by sequence and
+reference chromatin context. Fusion $\beta$ MAE moved from 0.0975 to 0.1180 and
+ROC-AUC from 0.9696 to 0.9448. Sixty-five per cent of held-out probes differ by
+less than 0.05 between the two targets, and degradation is confined to those that
+moved: stratifying on $|\beta_{\text{tumour}}-\beta_{\text{normal}}|$, error against
+the tumour target rises from 0.0769 to 0.4082 across strata while error against the
+normal target stays near 0.13, so the effect is target movement rather than probe
+difficulty. Most of the tumour methylome at these probes is thus recoverable
+without observing the tumour. The context-only model showed no degradation, which
+we report without explanation.
 
 \subsection{Disrupting ETS-family motifs predicts hypermethylation\NEW}
 \label{sec:motif-results}
@@ -892,7 +903,14 @@ matrices rather than several independent findings. Second, the 18 factors with
 previously reported methylation-sensitive binding have median rank 136 of 831 --
 enriched relative to a chance expectation of 416, but decisively outranked by ETS.
 
-\subsection{Variant prioritization and case studies}
+\subsection{From ranked variants to testable biological hypotheses}
+
+The preceding sections establish what the predictions are worth in aggregate. The
+purpose of the framework, however, is to act on individual variants: to take a
+specific substitution in a disease-relevant gene and produce a concrete,
+falsifiable statement about local methylation that an experiment can test. This
+section shows that end-to-end path, for a synonymous variant and a nonsynonymous
+one.
 
 Applied as a prioritization engine to 440 synonymous variant--CpG pairs, the
 fusion model produced consistent rankings across seeds (r $=$ 0.681--0.699).

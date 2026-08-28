@@ -120,8 +120,35 @@ MODEL_WINDOW_SIZE = 1000
 
 REQUIRED_INPUT_COLUMNS = [
     "Variant_ID", "chr", "Position_1based", "Ref", "Alt",
-    "probeID", "probe_split", "distance_bp", "beta_genoa_ref_to_alt",
+    "probeID", "probe_split", "distance_bp",
 ]
+
+# The cohort-effect column is resolved rather than hard-coded, so the same
+# scorer runs on GENOA (`beta_genoa_ref_to_alt`) and on eGTEx Breast Mammary
+# (`beta_ref_to_alt`). Whichever is found is copied to the canonical name so
+# every downstream script sees one column regardless of cohort. The REQUIREMENT
+# is not the name -- it is that the effect is already keyed REF->ALT, which is
+# what the GENOA sign bug taught us to state explicitly.
+CANONICAL_EFFECT = "beta_ref_to_alt"
+CANONICAL_PVALUE = "pvalue"
+EFFECT_COLUMN_CANDIDATES = ("beta_ref_to_alt", "beta_genoa_ref_to_alt")
+PVALUE_COLUMN_CANDIDATES = ("pvalue", "p_wald", "pval_nominal")
+
+
+def resolve_column(frame: pd.DataFrame, requested: str,
+                   candidates: tuple[str, ...], what: str) -> str:
+    if requested != "auto":
+        if requested not in frame.columns:
+            raise SystemExit(f"--{what}-column {requested!r} is not in the input")
+        return requested
+    found = [c for c in candidates if c in frame.columns]
+    if not found:
+        raise SystemExit(
+            f"no {what} column found. Looked for {list(candidates)}. "
+            f"For the effect column this must already be keyed REF->ALT: "
+            f"comparing the model's REF->ALT delta against a minor-allele-keyed "
+            f"beta silently inverts a fraction of the pairs.")
+    return found[0]
 
 
 def parse_args() -> argparse.Namespace:
@@ -144,6 +171,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--split-template", default="data/datafiles/{split}.csv")
     p.add_argument("--hm450-manifest", type=Path,
                    default=Path("data/HM450.hg38.manifest.tsv.gz"))
+    p.add_argument("--effect-column", default="auto",
+                   help="cohort effect size, already keyed REF->ALT. 'auto' picks "
+                        f"the first of {list(EFFECT_COLUMN_CANDIDATES)} present.")
+    p.add_argument("--pvalue-column", default="auto",
+                   help=f"'auto' picks the first of {list(PVALUE_COLUMN_CANDIDATES)}.")
     p.add_argument("--include-masked-probes", action="store_true")
     p.add_argument("--model-path", default="zhihan1996/DNABERT-2-117M")
     p.add_argument("--local-model-dir", default="./dnabert2_local")
@@ -516,10 +548,20 @@ def main() -> int:
     absent = [c for c in REQUIRED_INPUT_COLUMNS if c not in pairs.columns]
     if absent:
         raise SystemExit(
-            f"{args.input_csv} is missing {absent}. Regenerate it with "
-            f"`python -u data/build_genoa_scoring_input.py` -- in particular "
-            f"beta_genoa_ref_to_alt is required, because comparing the model delta "
-            f"against raw beta_genoa mixes two effect-allele conventions.")
+            f"{args.input_csv} is missing {absent}. Regenerate it with the "
+            f"cohort's builder (data/build_genoa_scoring_input.py or "
+            f"data/harmonize_egtex_mqtl.py).")
+
+    effect_col = resolve_column(pairs, args.effect_column,
+                                EFFECT_COLUMN_CANDIDATES, "effect")
+    pvalue_col = resolve_column(pairs, args.pvalue_column,
+                                PVALUE_COLUMN_CANDIDATES, "pvalue")
+    if effect_col != CANONICAL_EFFECT:
+        pairs[CANONICAL_EFFECT] = pairs[effect_col]
+    if pvalue_col != CANONICAL_PVALUE:
+        pairs[CANONICAL_PVALUE] = pairs[pvalue_col]
+    LOGGER.info("effect column: %s -> %s | p-value column: %s -> %s",
+                effect_col, CANONICAL_EFFECT, pvalue_col, CANONICAL_PVALUE)
     LOGGER.info("%d pairs read from %s", len(pairs), args.input_csv)
 
     expected_split = {"heldout": {"test"}, "model_visible": {"train", "val"}}[args.stratum]
@@ -579,6 +621,14 @@ def main() -> int:
     # overwrite the same run_summary.json and only the last one to finish would be
     # recorded.
     suffix = f"_shard{args.shard}" if args.num_shards > 1 else ""
+    # A --limit run is a smoke test and must never occupy the filename a real run
+    # writes to. Without this, `--limit 200` leaves a 200-row pair_scores.csv at
+    # the exact path the array job uses; if the array task then fails, the stale
+    # file survives and scripts/20 reads it as a complete result. It prints the
+    # row count, so the mistake is visible -- but nothing raises, and a silently
+    # 380x-undersized cohort is precisely the kind of error that reaches a figure.
+    if args.limit > 0:
+        suffix += f"_smoke{args.limit}"
     run_tag = "_".join(
         ["-".join(args.models), "seed" + "-".join(str(s) for s in args.seeds)]
         + ([f"shard{args.shard}of{args.num_shards}"] if args.num_shards > 1 else [])

@@ -115,7 +115,14 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--scores-dir", type=Path,
                    default=Path("results/journal/genoa_variant_scoring"))
     p.add_argument("--stratum", default="heldout", choices=("heldout", "model_visible"))
-    p.add_argument("--model", default="fusion", choices=("fusion", "sequence"))
+    # No `choices` here: baseline models from scripts/23 come through this same
+    # analysis under their own names, and the k-mer baseline in particular is
+    # the control that decides whether the ETS coupling is learned grammar or
+    # sequence composition. Restricting to the two neural models would rule out
+    # the one comparison that can answer it.
+    p.add_argument("--model", default="fusion",
+                   help="Model name as it appears in the scores directory layout "
+                        "(fusion, sequence, kmer_ridge, composition, ...).")
     p.add_argument("--seeds", nargs="+", type=int, default=[42, 43, 44])
     p.add_argument("--jaspar", type=Path,
                    default=Path("data/external/jaspar/"

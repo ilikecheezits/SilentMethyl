@@ -1,0 +1,7 @@
+
+==========================================================================
+absolute methylation prediction -- test split, same splits as the neural models
+      model  n_features     alpha   m_rmse  m_pearson  m_spearman  beta_mae      auc
+composition           3      0.01 2.479212   0.702543    0.630934  0.195404 0.874763
+ kmer_ridge        2772 100000.00 2.136024   0.788008    0.726528  0.156497 0.918998
+==========================================================================
