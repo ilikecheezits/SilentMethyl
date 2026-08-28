@@ -667,16 +667,21 @@ differ from the training data along different axes. The predictions validate in
 both, and the pattern of where they are strong and where they attenuate is the
 pattern the architecture predicts rather than an unexplained scatter of results.
 
-\textbf{In matched tissue, agreement is strong.} On the 81 eGTEx breast lead
-mQTLs --- the same tissue the model was trained on --- the three-seed fusion
-ensemble recovered 79.0\% of effect directions at signed Spearman
-$\rho=0.610$ (95\% CI $0.452$--$0.731$, $p\approx1\times10^{-9}$). These are
-lead variants for 81 distinct probes distributed across the genome, so they are
-close to independent and the interval is not inflated by linkage. Discrimination
-between significant and non-significant leads is not estimable at this sample
-size (AUROC 0.512, CI 0.380--0.646, an interval spanning chance) and neither is
-absolute magnitude ($\rho=0.217$); both are reported in the Supplementary Data
-and neither is interpreted here.
+\textbf{In matched tissue, agreement is strong.} The complete eGTEx Breast
+Mammary association set (2.75 billion tests) yields 76{,}893 held-out
+variant--CpG pairs. Significance follows the study's own two-stage permutation
+procedure rather than a genome-wide constant: probe-level FDR $\le0.05$ gives a
+calibrated nominal cutoff of $p\le1.483\times10^{-5}$, declared before any eGTEx
+score existed. On the resulting 418 significant non-CpG-altering pairs the
+three-seed fusion ensemble reaches signed $\rho=0.246$ ($0.114$--$0.402$) and
+59.6\% direction agreement ($0.547$--$0.652$), with a calibration slope of
+$1.60$ ($1.13$--$2.28$). Every metric exceeds the cross-tissue cohort below.
+
+The 81 previously published eGTEx lead mQTLs, a subset of this set, give
+$\rho=0.610$ ($0.452$--$0.731$, $p\approx1\times10^{-9}$) and 79.0\% direction
+agreement. Lead variants are enriched for large, precisely measured effects, so
+that figure is not comparable to a whole-cohort estimate and is reported as the
+lead-variant stratum rather than as the headline.
 
 \textbf{Across tissue and ancestry, the effect replicates at scale but
 attenuates.} Scoring 66{,}495
@@ -711,21 +716,47 @@ AUROC, unmatched & $0.600$ [$0.586$, $0.614$] & $0.603$ [$0.589$, $0.617$] \\
 \end{tabular}}
 \end{table}
 
-\paragraph{The attenuation is attributable to tissue, and is the expected
-direction.} Signed $\rho$ falls roughly four-fold between the tissue-matched
-cohort ($0.610$) and the cross-tissue one ($0.152$), and direction agreement
-falls from 79.0\% to 55.3\%. Both cross-tissue intervals exclude the null, so the
-effect is present; it is simply weaker where the tissue no longer matches. One
-alternative explanation must be stated: the eGTEx set consists of lead variants,
-which are enriched for large, precisely measured effects, whereas the GENOA set
-is every genome-wide significant pair. Part of the gap is therefore
-lead-versus-all rather than tissue. Separating the two requires lead and non-lead
-strata within a single cohort, which the complete eGTEx association set supports.
+\paragraph{The two cohorts agree, and combining them is the result.} Compared
+like with like --- all significant non-CpG-altering pairs in each --- the
+tissue-matched cohort exceeds the cross-tissue one on every metric
+(Table~\ref{tab:cohorts}). An inverse-variance meta-analysis on Fisher-transformed
+$\rho$, weighted by independent 1-Mb linkage blocks rather than pair counts,
+gives $\rho=0.178$ ($0.068$--$0.283$, $p=1.6\times10^{-3}$) with
+\textbf{Cochran's $Q=0.57$ ($p=0.45$), $I^2=0\%$}. The cohorts differ in tissue,
+genetic ancestry, donor count, platform generation and genotyping pipeline, and
+show no detectable heterogeneity. The effect is not a property of either
+cohort's idiosyncrasies.
+
+\begin{table}[!tbp]
+\centering
+\caption{\textbf{Variant-effect performance in two external cohorts.} Held-out
+stratum, significant non-CpG-altering pairs, three-seed fusion ensemble. Each
+cohort uses its own pre-declared significance definition. Brackets are 95\%
+block-bootstrap intervals.}
+\label{tab:cohorts}
+\small
+\resizebox{\columnwidth}{!}{
+\begin{tabular}{lcc}
+\toprule
+ & eGTEx breast & GENOA blood \\
+ & tissue-matched & cross-tissue, cross-ancestry \\
+\midrule
+$n$ & 418 & 4,037 \\
+Signed $\rho$ & $\mathbf{+0.246}$ [$+0.114$, $+0.402$] & $+0.152$ [$+0.118$, $+0.186$] \\
+Direction agreement & $\mathbf{0.596}$ [$0.547$, $0.652$] & $0.553$ [$0.536$, $0.571$] \\
+Calibration slope & $\mathbf{+1.60}$ [$+1.13$, $+2.28$] & $+1.17$ [$+0.96$, $+1.44$] \\
+\midrule
+\multicolumn{3}{l}{\emph{Meta-analysis:} $\rho=0.178$ [$0.068$, $0.283$],
+$p=1.6\times10^{-3}$, $I^2=0\%$} \\
+\bottomrule
+\end{tabular}}
+\end{table}
 
 \paragraph{The relationship is quantitative, not merely ordinal.} Regressing
 reported effect on predicted $\Delta M$ over the significant stratum gives a
-slope of $+1.17$ ($+0.96$, $+1.44$) for fusion and $+0.98$ ($+0.81$, $+1.20$) for
-sequence. Rank statistics establish that the ordering is right; a slope whose
+slope of $+1.17$ ($+0.96$, $+1.44$) in GENOA and $+1.60$ ($+1.13$, $+2.28$) in
+eGTEx; the sequence-only model gives $+0.98$ ($+0.81$, $+1.20$) and $+1.25$
+($+0.82$, $+1.84$). Rank statistics establish that the ordering is right; a slope whose
 interval excludes zero establishes that predicted magnitude scales with measured
 effect. The numeric value should not be read as calibration --- reported effects
 are on an inverse-normal-transformed scale and predictions are in $M$-value units
@@ -826,6 +857,30 @@ genome-wide significant meQTLs from tested-but-null pairs, unmatched and within
 distance strata, against the distance-only baseline.}
 \label{fig:discrimination}
 \end{figure}
+
+\paragraph{Discrimination is what separates the model from a composition
+baseline.\NEW} Scored through the identical evaluator on the identical pairs, the
+$k$-mer ridge reaches signed $\rho=0.100$ ($0.059$--$0.133$) --- so it carries
+some compositional signal --- but its distance-matched AUROC is $0.503$
+($0.488$--$0.518$), indistinguishable from chance, against $0.570$
+($0.554$--$0.585$) for fusion. The intervals do not overlap. The composition
+model is below chance at $0.460$ ($0.447$--$0.474$). After the dominant confound
+is matched away, a position-blind sequence model cannot separate real meQTLs from
+matched null pairs and this model can. That is the concrete content of the
+positional-resolution claim.
+
+\paragraph{The negative control behaves differently in the two cohorts, and we
+report both.\NEW} In GENOA the null stratum ($p>0.5$, $n=13{,}330$) gives
+$\rho=-0.004$ ($-0.021$, $+0.013$), covering zero. In eGTEx the corresponding
+stratum ($n=20{,}964$) gives $\rho=+0.019$ ($+0.006$, $+0.032$), excluding it.
+The magnitude is negligible, and the eGTEx gradient decays monotonically
+($0.348\rightarrow0.214\rightarrow0.109\rightarrow0.097\rightarrow0.033
+\rightarrow0.019$) rather than collapsing, which is what an underpowered cohort
+should produce: with 50--100 donors, $p>0.5$ still contains many real but
+undetectable mQTLs, whereas GENOA's $\sim$1{,}000 donors make that stratum
+closer to genuinely null. We therefore rest the internal negative-control claim
+on GENOA and describe the eGTEx residual as sub-threshold signal, not as a second
+clean null.
 
 \paragraph{What bounds the cross-tissue result.} Two limits are worth stating
 precisely, because each has a mechanism and neither is a matter of sample size.
