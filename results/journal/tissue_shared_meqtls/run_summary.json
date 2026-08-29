@@ -1,0 +1,114 @@
+{
+  "analysis": "model accuracy on tissue-shared vs tissue-specific meQTLs",
+  "both_directions": "run GENOA->eGTEx and eGTEx->GENOA; a result appearing in only one direction is a cohort artifact, not a tissue effect",
+  "confound_controls": {
+    "matched_on": "|Z| in the discovery cohort, without replacement",
+    "power_screen": "a pair counts as tissue-specific only if the replication cohort could have detected an effect of the observed magnitude, compared in Z units",
+    "why": "shared meQTLs have larger effects and larger effects are easier to predict; without matching the result would be a restatement of effect size"
+  },
+  "generated_utc": "2026-08-28T22:13:43+00:00",
+  "hypothesis": "a sequence-only variant pathway should predict sequence-intrinsic (tissue-shared) meQTLs better than chromatin-mediated (tissue-specific) ones",
+  "parameters": {
+    "egtex": "results/journal/egtex_variant_scoring",
+    "egtex_threshold": 1.483e-05,
+    "genoa": "results/journal/genoa_variant_scoring",
+    "genoa_threshold": 5e-08,
+    "model": "fusion",
+    "n_boot": 2000,
+    "output_dir": "results/journal/tissue_shared_meqtls",
+    "random_seed": 42,
+    "replication_p": 0.05,
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "z_tolerance": 0.25
+  },
+  "results": [
+    {
+      "direction_agreement_difference": 0.03955477525774975,
+      "direction_agreement_difference_ci": [
+        0.0069263071090354825,
+        0.07024818615274338
+      ],
+      "direction_agreement_shared": 0.5934959349593496,
+      "direction_agreement_shared_ci": [
+        0.5597382305194806,
+        0.6272204779347637
+      ],
+      "direction_agreement_tissue_specific": 0.55420054200542,
+      "direction_agreement_tissue_specific_ci": [
+        0.5217326450140085,
+        0.5901386748844376
+      ],
+      "discovery": "GENOA",
+      "matched": 738,
+      "median_absZ_shared": 11.728199264870252,
+      "median_absZ_specific": 10.953861322301348,
+      "replication": "eGTEx",
+      "shared": 868,
+      "signed_rho_difference": 0.04975082931338492,
+      "signed_rho_difference_ci": [
+        -0.026714610068972557,
+        0.12518423346087149
+      ],
+      "signed_rho_shared": 0.2085243276282497,
+      "signed_rho_shared_ci": [
+        0.11593433344767151,
+        0.28754108925338284
+      ],
+      "signed_rho_tissue_specific": 0.1571774391601076,
+      "signed_rho_tissue_specific_ci": [
+        0.08595733195154989,
+        0.23076008306215054
+      ],
+      "significant_in_discovery": 2822,
+      "specific": 904,
+      "tested_in_both": 21070,
+      "underpowered_dropped": 1050
+    },
+    {
+      "direction_agreement_difference": 0.35101877000741105,
+      "direction_agreement_difference_ci": [
+        0.22916666666666663,
+        0.4569838919549515
+      ],
+      "direction_agreement_shared": 0.6666666666666666,
+      "direction_agreement_shared_ci": [
+        NaN,
+        NaN
+      ],
+      "direction_agreement_tissue_specific": 0.3333333333333333,
+      "direction_agreement_tissue_specific_ci": [
+        0.1875,
+        0.5263157894736842
+      ],
+      "discovery": "eGTEx",
+      "matched": 24,
+      "median_absZ_shared": 8.082108207087217,
+      "median_absZ_specific": 6.108995562858144,
+      "replication": "GENOA",
+      "shared": 190,
+      "signed_rho_difference": 0.4206456247220388,
+      "signed_rho_difference_ci": [
+        0.03774041220037409,
+        0.7715989645283402
+      ],
+      "signed_rho_shared": 0.2969081209212041,
+      "signed_rho_shared_ci": [
+        NaN,
+        NaN
+      ],
+      "signed_rho_tissue_specific": -0.07548038997846593,
+      "signed_rho_tissue_specific_ci": [
+        -0.4433487596156474,
+        0.3476190133224643
+      ],
+      "significant_in_discovery": 214,
+      "specific": 24,
+      "tested_in_both": 21070,
+      "underpowered_dropped": 0
+    }
+  ]
+}

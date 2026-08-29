@@ -319,6 +319,45 @@ after the exact window and target-CpG exclusion the held-out (chr8–9) stratum 
 land in the same order of magnitude as GENOA's 66,495. **Not yet run — do not quote
 a number until `egtex_scoring_summary.json` exists.**
 
+**PRE-REGISTERED SIGNIFICANCE THRESHOLD (declared 2026-08-28, BEFORE any eGTEx
+model score existed — the GPU array was still queued).**
+
+`data/egtex_significance_threshold.py` on the study's own permutation output:
+
+| FDR | mCpG probes | % of 754,054 tested | calibrated nominal cutoff |
+|---|---|---|---|
+| 0.01 | 7,527 | 1.00% | 2.312e-06 |
+| **0.05** | **13,256** | **1.76%** | **1.483e-05** |
+| 0.10 | 18,923 | 2.51% | 4.348e-05 |
+
+The cohort's own calibration is **297x less strict than the 5e-8 we had been
+using**. Held-out counts:
+
+| definition | pairs |
+|---|---|
+| p < 5e-8 (the GWAS constant, wrong test) | 295 |
+| calibrated nominal p <= 1.483e-05 | 772 |
+| **two-stage: mCpG probe AND calibrated nominal** | **596** |
+| probe's own lead variant, in window | 80 |
+
+**Declared primary definition: the two-stage set, n = 596.** Nominal-only (772)
+is the sensitivity analysis. Both are reported; the threshold-free significance
+gradient remains the primary evidence the signal is real.
+
+*Power, computed before the fact.* At n = 596 a direction agreement of 0.553
+carries a naive 95% interval of [0.513, 0.593] — excluding chance, where n = 295
+gave [0.496, 0.610] and did not. Signed rho of 0.15 gives [0.070, 0.229]. Block
+bootstrapping will widen both. So the tissue-matched arm moves from *cannot
+support a claim* to *marginal but viable*. That is an honest description and the
+one to use — it is not a rescue.
+
+*Why only 1.76% of probes are mCpGs.* eGTEx Breast has roughly 50-100 donors.
+This is a power ceiling in the cohort, not a defect in our pipeline: the
+held-out and model-visible mCpG fractions agree at 1.8% and 1.7%.
+
+*model_visible gives 8,508 two-stage pairs* — 14x the held-out set and
+well-powered, which is what makes the memorisation contrast worth running.
+
 *Manuscript consequence, once the numbers land.* eGTEx Breast Mammary becomes the
 primary requirement-6 result; GENOA moves to a transfer subsection; the 81 lead
 variants are superseded and their table row is dropped. Do not restructure the
@@ -381,6 +420,57 @@ and checks the emitted file carries every column scripts/20 requires.
 (the architecture-vs-architecture comparison, ~1 GPU-hour) and the published
 CpGenie/DeepCpG weights (cross-tissue, confounded, and a 2017 environment to
 resurrect). Phase those after the CPU baselines return a number.
+
+**Variant-effect synthesis (scripts/24, GENOA only, 2026-08-28).** eGTEx was
+still scoring; re-run the identical command when the array lands and the
+meta-analysis appears automatically.
+
+| metric | fusion | sequence |
+|---|---|---|
+| signed rho | +0.152 [+0.118, +0.186] | +0.150 [+0.116, +0.182] |
+| direction agreement | 0.553 [0.536, 0.571] | 0.554 [0.536, 0.571] |
+| **calibration slope** | **+1.171 [+0.955, +1.435]** | +0.985 [+0.812, +1.200] |
+| null control rho (p>0.5, n=13,330) | -0.0037 [-0.0205, +0.0131] | -0.0015 |
+
+*New: the relationship is quantitative.* The calibration slope is the regression
+of reported effect on predicted delta-M. Rank statistics say the ordering is
+right; a slope excluding zero says predicted magnitude scales with measured
+effect. **Do not read the value as calibration** -- reported effects are on an
+inverse-normal scale and predictions are in M-value units, so a slope near 1 is a
+coincidence of scales. OLS is attenuated by predictor error, so the true
+relationship is at least this steep.
+
+*Spatial localisation -- the second negative control.* Direction agreement by
+distance (fusion, significant, non-CpG-altering):
+
+| distance | n | direction |
+|---|---|---|
+| 0-50 bp | 844 | 0.568 [0.534, 0.601] |
+| **50-100 bp** | 479 | **0.605 [0.559, 0.654]** |
+| 100-200 bp | 761 | 0.558 [0.524, 0.594] |
+| 200-300 bp | 685 | 0.545 [0.506, 0.582] |
+| 300-400 bp | 642 | 0.555 [0.514, 0.598] |
+| **400-501 bp** | 626 | **0.497 [0.459, 0.535]** |
+
+Both sub-100 bp bins exclude chance; the window edge lands on it. Confounds (LD,
+GC, probe properties) have no reason to decay with distance from the CpG; a
+bounded receptive field must. This is an orthogonal negative control to the
+association-strength null.
+
+*Precision quintiles are FLAT -- the honest negative.* Binning the significant
+pairs by |effect|/SE gives 0.521, 0.564, 0.541, 0.576, 0.566 across q1-q5, all
+intervals overlapping. Only q1 covers chance. **So ~0.55-0.58 is the model's
+resolution limit, not noise in the reported betas.** We cannot attribute the
+modest direction agreement to a noisy reference, and should not try.
+
+*Tissue matching is the largest single effect.* eGTEx breast leads (n=81):
+rho = 0.610 [0.452, 0.731], p ~ 1e-9, 79.0% direction. GENOA blood (n=4,037):
+rho = 0.152, 55.3%. **Four-fold.** Confound to resolve: the 81 are lead variants
+(enriched for large, precisely measured effects) while GENOA's are all
+genome-wide significant pairs, so part of the gap is lead-versus-all. The
+complete eGTEx set supports lead and non-lead strata within one cohort, which
+separates the two. `egtex_probe_significance.csv` carries the lead variant IDs;
+80 leads fall inside the held-out window.
 
 **7. Regulatory enrichment.** JASPAR CORE vertebrates (877 matrices, 831 tested)
 scanned on both strands across the 42,866 non-CpG-altering held-out GENOA pairs.
@@ -479,6 +569,59 @@ direction, the effect is compositional and must be described that way. If it doe
 not, the grammar reading survives a real attempt to kill it, and the claim gets
 much stronger.
 
+**ANSWERED, 2026-08-28. It is composition.** `scripts/22` run on the `kmer_ridge`
+baseline (`results/journal/motif_disruption_kmer_baseline/`) reproduces the ETS
+coupling **more strongly than the neural models**:
+
+| factor | fusion rho | kmer_ridge rho |
+|---|---|---|
+| ELF4 | −0.266 | **−0.467** |
+| FEV | −0.257 | **−0.466** |
+| ERG | −0.237 | **−0.400** |
+| GABPA | −0.233 | **−0.377** |
+| ETV1 | −0.237 | **−0.376** |
+
+A linear ridge over RC-collapsed k-mer counts has no attention, no pretraining
+and no concept of a binding site. Standardised against each model's own null the
+two are equivalent (~6 IQR-halves out in both). The ETS coupling is a response to
+GGAA/TTCC *sequence content*, not learned regulatory grammar, and the manuscript
+must say so.
+
+**This generalises beyond us, and is worth one paragraph as a methodological
+caution.** A PWM-disruption-coupling analysis cannot demonstrate that a sequence
+model learned regulatory grammar, because a bag-of-k-mers model reproduces the
+result. Any paper claiming grammar from this style of analysis needs a
+composition-only control. We have one; almost nobody runs it.
+
+**But the same run produced a dissociation that favours the neural model, and it
+is the more interesting half.** Q3 meQTL discrimination:
+
+| model | strong disruption | weak disruption |
+|---|---|---|
+| fusion | 0.5918 [0.570, 0.614] | 0.5962 [0.574, 0.620] |
+| kmer_ridge | **0.5162** [0.496, 0.535] | **0.5090** [0.486, 0.533] |
+
+The k-mer model is *better* at ETS coupling and *much worse* at telling real
+meQTLs from null ones — 0.51 versus 0.59, near chance. The two capabilities come
+apart, which means the motif coupling is not what drives meQTL discrimination and
+the neural models hold something the k-mer model does not.
+
+*Leading hypothesis, to be tested not assumed:* **bag-of-k-mers is
+position-blind.** Changing one base changes the same k-mer counts wherever it
+sits in the 1,000-bp window, so `kmer_ridge` cannot express "variants nearer the
+CpG matter more" — the single largest real effect in the data (distance alone
+gives AUROC 0.595 on GENOA). If that is the explanation, the neural advantage is
+positional encoding rather than sequence grammar. **scripts/20's
+distance-matched AUROC on the baseline scores tests this directly** and is the
+first thing to run when `SM_baselines` lands. Do not claim the neural advantage
+until that separates positional information from everything else.
+
+Also: known methylation-sensitive factors rank 136/831 for fusion versus 232/831
+for `kmer_ridge` (chance 416). Modest, but it points the same way.
+
+The earlier framing rules stand and are now better supported: one 4-bp core, one
+finding, recovery of known biology rather than new biology.
+
 Do this before the manuscript describes the ETS result as motif-disruption
 learning. As written, §7's framing rules are already correct and conservative —
 the risk is not the record, it is restating it more loudly in the paper than the
@@ -500,8 +643,21 @@ Run this BEFORE deciding anything about retraining. It reads only the existing
 split CSVs and the HM450 manifest, and answers three questions in descending
 order of how much damage a bad answer does.
 
-**1. Cross-split sequence leakage — never checked, and it can invalidate every
-held-out number.** Chromosome-blocked splits stop *positional* leakage. They do
+**1. Cross-split sequence leakage — CHECKED 2026-08-28, and the splits are clean.**
+MinHash over canonical 31-mers, sketch 128:
+
+| split | n | median | p99 | Jaccard > 0.5 | > 0.8 |
+|---|---|---|---|---|---|
+| val | 46,557 | 0.000 | 0.094 | 30 (0.06%) | 11 |
+| **test** | **26,570** | **0.000** | **0.094** | **4 (0.02%)** | **2** |
+
+**Four of 26,570 held-out probes share more than half their 31-mers with a
+training probe.** Ninety-nine percent sit below 0.094. Held-out performance is
+not memorisation, and the chromosome-blocked design does what it was meant to.
+Worth one Methods sentence: the check is rarely run, and a reviewer who wonders
+about paralogues or segmental duplications gets a number instead of silence.
+
+*Original rationale, retained:* Chromosome-blocked splits stop *positional* leakage. They do
 nothing about *sequence-similarity* leakage: segmental duplications, paralogues
 and recent repeat families put near-identical 1,000-bp windows on different
 chromosomes, and CpG-island promoters are exactly where duplications cluster. If
@@ -515,23 +671,61 @@ similarity-filtered test subset alongside the full one. A reviewer who asks this
 question and gets a prepared answer is reassured; one who asks and gets silence
 is not.
 
-**2. Probe QC is currently inconsistent, and by accident.**
-`data/build_training_data.py` applies **none** of the HM450 manifest masks.
-`scripts/05_matched_background.py` and `scripts/19` **do** exclude
-`MASK_general` when scoring. So the model is trained on a probe population it is
-never evaluated on. That is not automatically wrong — more training signal can
-be worth some target noise, and masked probes are not uniformly useless — but it
-is presently inherited rather than chosen, and the size of the discrepancy has
-never been reported. The audit reports it per split for `MASK_general`,
-`MASK_snp5_common`, `MASK_snp5_GMAF1p`, `MASK_mapping`,
-`MASK_typeINextBaseSwitch` and `MASK_rmsk15`.
+**2. Probe QC — RESOLVED 2026-08-28. My earlier claim here was wrong.**
 
-*Decide it deliberately.* `MASK_snp5_common` is the one with a direct bearing on
-the variant work: a common SNP under the probe body corrupts the measured beta
-in exactly the donors whose genotype the meQTL analysis is about. Training on
-those probes teaches the model to fit a measurement artifact.
+I wrote that `data/build_training_data.py` applies none of the HM450 masks,
+inferring it from a grep that found no `MASK` string in that file. The audit
+settles it empirically, and the inference was wrong:
 
-**3. Split comparability.** Chromosome-blocked splits are not random samples. If
+| split | n | MASK_general | MASK_snp5_common | MASK_rmsk15 | mapping / GMAF1p / nextBase |
+|---|---|---|---|---|---|
+| train | 345,359 | **0.0%** | 10.96% | 14.42% | 0.0% |
+| val | 46,557 | **0.0%** | 11.66% | 14.13% | 0.0% |
+| test | 26,570 | **0.0%** | 11.69% | 15.71% | 0.0% |
+
+`MASK_general` is **zero in all three splits**, so masked probes never enter the
+training data; the exclusion happens upstream of `build_training_data.py`. That
+matches `scripts/19`, which dropped 0 of 76,893 eGTEx pairs at its own probe-QC
+step. Training and scoring QC are consistent and there is nothing to fix.
+`MASK_general` subsumes mapping, GMAF1p and next-base-switch, which is why those
+are zero as well.
+
+**What is real: ~11% of probes in every split carry a common SNP within 5 bp
+(`MASK_snp5_common`) and ~15% overlap repeats (`MASK_rmsk15`).** Neither is
+covered by `MASK_general`, and both are present in train and test alike. The
+balance across splits (10.96 / 11.66 / 11.69) means they do not bias the
+train/test comparison — but `MASK_snp5_common` bears directly on the variant
+work, because a common SNP under the probe corrupts the measured beta in exactly
+the donors whose genotype the meQTL analysis is about.
+
+*Action, cheap and worth doing:* re-run the variant evaluation excluding
+`MASK_snp5_common` probes as a sensitivity analysis. If signed rho holds, the
+result is strengthened against an obvious reviewer question. No retraining —
+it is a filter at evaluation time.
+
+**3. Split comparability — chr8–9 are modestly more methylated, and the model
+handles it.**
+
+| split | n | median beta | SD(M) | beta < 0.3 | beta > 0.7 |
+|---|---|---|---|---|---|
+| train | 345,359 | 0.550 | 3.55 | 39.9% | 42.3% |
+| val | 46,557 | 0.596 | 3.54 | 38.5% | 44.1% |
+| test | 26,570 | **0.642** | 3.46 | 36.1% | **46.5%** |
+
+Held-out chromosomes carry a median beta 0.09 above the training chromosomes and
+4 points more hypermethylated probes. Spread is comparable (SD of M 3.46 vs
+3.55), so this is a shift in location, not scale.
+
+**Report this as a point in the model's favour.** A model that had learned the
+training mean would be biased low on a more-methylated test set. Observed mean
+signed error is **-0.002 to -0.004** across seeds — essentially zero. The model
+tracks the shift rather than regressing toward the training distribution.
+
+It is also the strongest argument for requirement 2: if chr8–9 differ this much
+in composition, performance may depend on which chromosomes are held out, and
+repeated splits are how that gets measured rather than assumed.
+
+*Original rationale, retained:* Chromosome-blocked splits are not random samples. If
 chr8–9 differ from the training chromosomes in methylation distribution, part of
 the train/test gap is composition rather than generalisation. Reported so it can
 be stated in the paper rather than discovered in review.
@@ -856,3 +1050,137 @@ need to re-extract context features at 400 and 2,000 bp.
 `data/reference/hg19ToHg38.over.chain.gz` is already in the repo. Liftover happens
 in the harmonization step and writes new files — raw downloads stay byte-identical
 to the published release so they remain checksum-verifiable against the source.
+
+---
+
+## E. Closing entries — 29 Aug 2026
+
+### E.1 Probe-QC sensitivity: `MASK_snp5_common`
+
+`scripts/27_mask_snp_sensitivity.py`. No model was re-run; the `predictions.csv`
+written at test time was re-scored, and the published `beta_mae` and `auc` were
+reproduced from it for all 9 model-seed combinations to within 5e-4 as a check
+that metric definitions had not drifted (18 values checked, 18 passed).
+
+The HM450 manifest flags 15.40% of probes (74,764 / 485,577) as
+`MASK_snp5_common` — a common SNP within 5 bp of the interrogated CpG, where the
+measured beta may be partly a genotype artefact. In the held-out set this is
+3,105 / 26,570 probes (11.7%).
+
+| model | stratum | n | beta MAE | ROC-AUC |
+|---|---|---|---|---|
+| fusion | all | 26,570 | 0.0993 ± 0.0020 | 0.9680 ± 0.0017 |
+| fusion | retained | 23,465 | 0.0993 ± 0.0021 | 0.9689 ± 0.0017 |
+| fusion | excluded | 3,105 | 0.0987 ± 0.0015 | 0.9530 ± 0.0023 |
+| sequence | all | 26,570 | 0.1099 ± 0.0006 | 0.9569 ± 0.0006 |
+| sequence | retained | 23,465 | 0.1102 ± 0.0007 | 0.9579 ± 0.0006 |
+| sequence | excluded | 3,105 | 0.1079 ± 0.0008 | 0.9362 ± 0.0010 |
+| epi | all | 26,570 | 0.1395 ± 0.0001 | 0.9187 ± 0.0001 |
+| epi | retained | 23,465 | 0.1409 ± 0.0001 | 0.9190 ± 0.0001 |
+| epi | excluded | 3,105 | 0.1290 ± 0.0003 | 0.9096 ± 0.0001 |
+
+**Result: the headline metrics are not propped up by genotype-affected probes.**
+Excluding them leaves fusion beta MAE unchanged at 0.0993 and *raises* ROC-AUC
+0.9680 → 0.9689. The flagged probes are the harder stratum, not the easier one,
+which is the direction that rules out the reviewer's concern: had the model been
+reading genotype artefact, those probes would have scored *better*, not worse.
+
+**All three architectures lose discrimination on the same probes** (fusion
+−0.0159, sequence −0.0217, epi −0.0094 in AUC relative to retained). A deficit
+shared by a sequence-only model, a context-only model, and their fusion is a
+property of the probes, not of any one model.
+
+**Unresolved, and worth one cheap check.** On the excluded stratum AUC falls
+while beta MAE *improves* (most sharply for epi: 0.1409 → 0.1290). Lower error
+and worse discrimination together is the signature of a less bimodal target
+distribution — the same range-compression mechanism documented in the
+uncertainty section. If that is what this is, it would be its third appearance in
+our own results, and it is very likely the explanation for the open tumour-domain
+question (§ context-only model does not degrade on TCGA and its M MAE improves).
+`positive_rate` per stratum is already in
+`results/journal/mask_sensitivity/mask_sensitivity.csv`; comparing the beta
+histograms of the two strata would settle it in minutes. **This is a hypothesis,
+not a finding — do not write it into the manuscript until it is checked.**
+
+### E.2 ClinVar matched-background test — designed, attempted, abandoned, never run
+
+Recorded so that its absence is not later read as a suppressed result.
+
+**Pre-registered** in `preregistration.json` before any score existed:
+
+- primary cohort: 35 held-out non-truncating ClinVar variants (of 322 in the
+  literature cohort; 47 held out, 12 truncating and excluded)
+- secondary cohort: 16 with unambiguous ClinVar calls
+- primary statistic: count with matched-background tail probability < 0.05
+  against a binomial null of 0.05; expects 1.75 at n = 35, so ≥ 6 gives p < 0.01
+- two-sided; power declared in advance: **a null result could not distinguish
+  absence of enrichment from insufficient power and would have to be reported as
+  inconclusive**
+
+**Why it was abandoned.** `compute_matched_background_statistics` draws each
+variant's comparators from the input frame itself. Feeding it only the 35
+ClinVar variants would have compared each pathogenic variant against the other
+34 pathogenic variants — precisely the missing-comparison-group problem the
+matched-background design exists to solve. A valid run required rebuilding the
+input as those 35 variants embedded in a background pool drawn from the general
+held-out population, i.e. a new cohort construction plus a fresh multi-hour GPU
+scoring run, against a declared power statement whose most likely outcome was an
+inconclusive paragraph.
+
+**Nothing was computed.** The smoke test that exposed the flaw ran 2 candidates
+against 25 comparators and produced `min_tail=0.5`, which is an artefact of
+having one comparator. No primary or secondary statistic was ever calculated on
+any cohort, so no result was examined and none was withheld. The decision was
+made on cost and design grounds before any number existed.
+
+**Consequence for the paper.** Clinical relevance rests on the two-cohort
+variant-effect validation rather than a systematic ClinVar enrichment. STK11 and
+NCOA2 remain (mentor's instruction) as explicitly labelled hypothesis
+generation, with split status stated: NCOA2 on a held-out chr8–9 probe, both
+STK11 probes in the training split.
+
+### E.3 Manuscript correction pass — `main_revised.tex`
+
+Nine edits, three of them corrections against our own earlier text:
+
+1. **Abstract motif claim rewritten.** It asserted "a specific regulatory
+   relationship the model was never shown" and survival of GC control. The
+   results section had already been revised to report that a k-mer ridge
+   baseline reproduces the coupling *more strongly*, i.e. that it is
+   compositional. The abstract was contradicting the paper's own result.
+2. **False claim behind the draft switch removed.** The `\else` branch of the
+   limitations paragraph read "Evaluation uses a chromosome-holdout design with
+   repeated blocked splits." Repeated splits were deferred and never run, so
+   setting `\draftmodefalse` for submission would have printed a false methods
+   claim that nobody would re-read. Now states the single-holdout design and
+   what the intervals do and do not cover.
+3. **Split status added to the case studies**, in the abstract and in the
+   ranked-variants section.
+4. **Two-cohort meta-analysis promoted into the abstract** (ρ = 0.178,
+   0.068–0.283, p = 1.6e-3, I² = 0%, plus the GENOA null control).
+5. **Probe-QC sensitivity paragraph added** to the performance section (E.1).
+6. ClinVar figure removed from the outstanding list; E.2 recorded in the
+   draft-status section.
+
+**Verification.** The container lacks `lmodern`, so the PDF must be rebuilt on
+the Mac. What was verified here: with `lmodern` stubbed out, the edited file and
+the pristine file produce byte-identical LaTeX error profiles (7 × "Undefined x
+coordinate", from figure code, in both). The edits introduce no new LaTeX errors.
+Every one of the nine substitutions asserted exactly one match before applying.
+
+### E.4 Bucket list at this stopping point
+
+| # | item | state |
+|---|---|---|
+| 1 | `MASK_snp5_common` sensitivity | **done** (E.1) |
+| 2 | Abstract motif claim vs results | **done** |
+| 3 | STK11/NCOA2 split status | **done** in text; figure label still to add |
+| 4 | Meta-analysis into abstract | **done** |
+| 5 | ClinVar test recorded as abandoned | **done** (E.2) |
+| 6 | Tumour-domain open question | open — E.1 suggests a cheap resolution |
+| 7 | supplementary_package + reproducibility rebuild | open, stale |
+| 8 | Delete 45 GB raw eGTEx | open |
+| 9 | Rebuild `main_revised.pdf` on the Mac | open |
+
+Requirement 2 (repeated chromosome-blocked splits) remains deferred by decision,
+and the limitations section now says so in both draft and submission branches.

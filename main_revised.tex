@@ -120,23 +120,33 @@ association strength and reached chance in the null stratum, providing an
 internal negative control. Discrimination of true meQTLs from tested-but-null
 pairs survived matching on variant--CpG distance (AUROC 0.570, 0.554--0.585),
 though the unmatched estimate did not exceed a distance-only baseline---a
-comparison we report explicitly.
+comparison we report explicitly. Variant effects were additionally evaluated in
+tissue-matched eGTEx breast mammary tissue (418 pairs) and the two cohorts
+combined by inverse-variance meta-analysis of LD-block-weighted Fisher-$z$
+estimates: $\rho = 0.178$ (0.068--0.283, $p = 1.6\times10^{-3}$), with no
+detectable heterogeneity ($I^{2} = 0\%$) between a European-ancestry breast
+cohort and an African American blood cohort. A matched null stratum in GENOA
+returns $-0.004$ ($-0.021$ to $+0.013$).
 
-\textbf{Scanning 831 JASPAR motifs across the held-out pairs recovers a specific
-regulatory relationship the model was never shown.} Disruption of ETS-family
-motifs couples to predicted hypermethylation ($\rho$ up to $-0.28$) against a null
-distribution of per-factor couplings centred at $-0.004$, and survives control for
-local GC content, variant--CpG distance, and substitution class. Disruption
-magnitude alone predicts nothing, so what the model learned is signed and
-family-specific rather than a general sensitivity to motif damage.
+\textbf{Scanning 831 JASPAR motifs across the held-out pairs recovers a
+directional coupling, but a sequence-only control shows it is compositional.}
+Disruption of ETS-family motifs couples to predicted hypermethylation ($\rho$ up
+to $-0.28$) against a null distribution of per-factor couplings centred at
+$-0.004$, and survives control for local GC content, variant--CpG distance, and
+substitution class. A $k$-mer ridge baseline that is never shown a motif
+reproduces the same coupling more strongly, however, so the relationship tracks
+local sequence composition rather than learned regulatory grammar. We report the
+control because it bounds what the model can be said to have learned.
 
 Applied to individual variants, the framework produces falsifiable statements
 about local methylation: the highest-ranked synonymous candidate, an \textit{NCOA2}
 variant 9\,bp from its CpG, is predicted to shift methylation by $-0.18$ and
-exceeds all 66 matched background variants, and two \textit{STK11} variants
-including a known pathogenic allele receive substantial predicted shifts. These
-are hypotheses for experimental test rather than validated effects, and they
-define the intended use of the framework.
+exceeds all 66 matched background variants. Two \textit{STK11} variants
+including a known pathogenic allele receive substantial predicted shifts, but
+both lie on training-split probes and are therefore reported as hypothesis
+generation at loci the model has seen. These are hypotheses for experimental test
+rather than validated effects, and they define the intended use of the
+framework.
 
 Two further findings generalise beyond this model. First, uncertainty evaluation on
 bounded bimodal targets is confounded by range compression: a zero-parameter
@@ -183,6 +193,19 @@ paragraphs to two. \textit{NCOA2} and \textit{STK11} are retained as a thesis
 component, not an appendix.
 
 \smallskip
+\noindent\textbf{Correction pass, 29 Aug 2026.} Four corrections, three of them
+against our own earlier text. The abstract's motif claim asserted a specific
+learned regulatory relationship after Section~\ref{sec:motif-results} had already
+been revised to report the $k$-mer control that supersedes it; the abstract now
+matches the result. The non-draft branch of the limitations paragraph asserted
+repeated blocked splits, which were never run---setting
+\texttt{\textbackslash draftmodefalse} would have printed a false methods claim
+at submission. Split status was added to the case studies in the abstract and in
+Section~\ref{sec:performance}'s downstream subsection. Probe-QC sensitivity on
+\texttt{MASK\_snp5\_common} was added, and the two-cohort meta-analysis was
+promoted into the abstract.
+
+\smallskip
 \noindent\textbf{Open question inside a written section.} The context-only model
 shows no degradation at all against the tumour target and its $M$ MAE improves
 (Section~\ref{sec:tumor-results}). Genuine robustness of coarse chromatin signal
@@ -196,8 +219,22 @@ our own results and belongs in the discussion.
 (i)~head-to-head against CpGenie and DeepCpG (repositories cloned, environments
 not yet stood up); (ii)~repeated chromosome-blocked splits, four additional folds
 at seed 42---the only remaining model training; (iii)~conformal prediction
-intervals; (iv)~a ClinVar figure for clinical relevance; (v)~HOCOMOCO as a second
-motif library, to confirm the ETS result is not specific to JASPAR's matrices.
+intervals; (iv)~HOCOMOCO as a second motif library, to confirm the ETS result is
+not specific to JASPAR's matrices.
+
+\smallskip
+\noindent\textbf{Designed, attempted, abandoned---recorded so its absence is not
+read as a suppressed result.} A matched-background test of ClinVar-pathogenic
+variants was pre-registered in \texttt{preregistration.json} before any score
+existed: primary cohort the 35 held-out non-truncating variants, primary
+statistic the count with matched-background tail probability below $0.05$ against
+a binomial null of $0.05$, two-sided, with the power statement declared in
+advance that $n = 35$ could not distinguish absence of enrichment from
+insufficient power. It was abandoned on feasibility grounds and never run. The
+comparator pool would have had to be built from the general held-out population
+rather than the cohort itself, and the expected outcome under the declared power
+statement was an inconclusive paragraph. No result was generated, examined, or
+withheld.
 
 \smallskip
 \noindent\textbf{Bibliography.} New citation keys required in
@@ -562,6 +599,7 @@ frequency (35 pairs from 53 significant and 51 high-$q$ variants).
 \section{Results}
 
 \subsection{Multimodal fusion outperforms single-modality models}
+\label{sec:performance}
 
 On the 26{,}570-probe test set the fusion model was strongest across all metrics
 and seeds. The context MLP established a baseline beta MAE of
@@ -576,6 +614,50 @@ Improvement was consistent across seeds and across genomic regions. Fusion
 improved sequence-only MAE by 0.01043 (95\% CI 0.00951--0.01132) and ROC-AUC by
 0.01053 (0.00909--0.01207) under a 257-block resampling design.
 
+\paragraph{The gain is not a restatement of sequence composition.\NEW} Two
+classical baselines were fitted on the identical splits: a three-feature
+composition model (GC fraction, CpG count, CpG observed/expected) and a ridge
+regression over 2{,}772 reverse-complement-collapsed $k$-mer counts,
+$k=1\ldots6$. The $k$-mer model is a strong comparator --- it reaches ROC-AUC
+0.9190, statistically indistinguishable from the nine-feature chromatin model at
+0.9187, so 2{,}772 sequence features carry about as much information about
+methylation level as measured chromatin state does. The sequence tower alone
+nevertheless reduces its beta MAE by 29.8\% (0.1565 to 0.1099) and fusion by
+36.6\% (to 0.0993). Pretrained representation is therefore doing work that
+$k$-mer composition cannot, and the claim is measured on identical data rather
+than asserted.
+
+\paragraph{Held-out probes are not near-duplicates of training probes.\NEW}
+Chromosome-blocked splits prevent positional leakage but not sequence-similarity
+leakage: segmental duplications and paralogous promoters can place
+near-identical windows on different chromosomes. Estimating Jaccard similarity
+over canonical 31-mers (MinHash, sketch 128) between every held-out probe window
+and its nearest training window, the median is 0.000 and the 99th percentile
+0.094; four of 26{,}570 test probes (0.02\%) exceed 0.5. Held-out performance is
+not memorisation of near-duplicate sequence.
+
+The held-out chromosomes are also modestly more methylated than the training
+chromosomes (median beta 0.642 versus 0.550; 46.5\% versus 42.3\% of probes above
+0.7), with comparable spread. A model that had learned the training distribution
+would be biased low under that shift; mean signed beta error is $-0.002$ to
+$-0.004$ across seeds, so predictions track the shift rather than regressing
+toward the training mean.
+
+Probe quality control does not account for the result either. The HM450 manifest
+flags 15.4\% of probes as \texttt{MASK\_snp5\_common}---a common SNP within
+5\,bp of the interrogated CpG, where the measured beta may be partly a genotype
+artefact---covering 3{,}105 of the 26{,}570 held-out probes (11.7\%). Restricting
+to the 23{,}465 retained probes leaves fusion beta MAE unchanged at $0.0993$ and
+raises ROC-AUC from $0.9680$ to $0.9689$. The flagged probes are themselves the
+harder stratum: ROC-AUC on them is $0.9530$ for fusion, $0.9362$ for
+sequence-only and $0.9096$ for context-only. All three architectures lose
+discrimination on the same probes, which locates the deficit in the probes rather
+than in any model exploiting genotype signal, and confirms that the headline
+metrics are not supported by them. No model was re-run for this analysis;
+predictions written at test time were re-scored, and the published values were
+reproduced from them to within $5\times10^{-4}$ as a check on metric
+definitions.
+
 \begin{figure}[!tbp]
 \centering
 \IfFileExists{model_incremental_performance.png}{%
@@ -589,18 +671,22 @@ training seed. \textbf{(A)} M-value MAE. \textbf{(B)} beta MAE.
 
 \begin{table}[t]
 \centering
-\caption{\textbf{Held-out chr8--9 performance.} Mean $\pm$ SD across three seeds
-on 26{,}570 CpGs.}
+\caption{\textbf{Held-out chr8--9 performance against classical sequence
+baselines.} Mean $\pm$ SD across three seeds on 26{,}570 CpGs. Both baselines are
+ridge regressions fitted on the identical training split with the regularisation
+strength selected on the identical validation split, so no tissue or data
+advantage separates them from the neural models.}
 \label{tab:performance}
 \small
 \resizebox{\columnwidth}{!}{
-\begin{tabular}{lccc}
+\begin{tabular}{lccccc}
 \toprule
-Metric & Context & Sequence & Fusion \\
+Metric & Composition & $k$-mer ridge & Context & Sequence & Fusion \\
+ & (3 feat.) & (2{,}772 feat.) & (9 feat.) & DNABERT-2 & full \\
 \midrule
-M-value MAE & $1.4574\pm0.0023$ & $1.1941\pm0.0070$ & $\mathbf{1.0971\pm0.0192}$ \\
-Beta MAE & $0.1395\pm0.0001$ & $0.1099\pm0.0008$ & $\mathbf{0.0993\pm0.0025}$ \\
-ROC-AUC & $0.9187\pm0.0001$ & $0.9569\pm0.0007$ & $\mathbf{0.9680\pm0.0021}$ \\
+M-value MAE & $1.9600$ & $1.6866$ & $1.4574\pm0.0023$ & $1.1941\pm0.0070$ & $\mathbf{1.0971\pm0.0192}$ \\
+Beta MAE & $0.1954$ & $0.1565$ & $0.1395\pm0.0001$ & $0.1099\pm0.0008$ & $\mathbf{0.0993\pm0.0025}$ \\
+ROC-AUC & $0.8748$ & $0.9190$ & $0.9187\pm0.0001$ & $0.9569\pm0.0007$ & $\mathbf{0.9680\pm0.0021}$ \\
 \bottomrule
 \end{tabular}}
 \end{table}
@@ -629,16 +715,29 @@ state is expected to carry additional information.
 \subsection{Independent variant evaluation\REV}
 \label{sec:genoa-results}
 
-Two external cohorts test the variant-effect predictions, and they trade off
-against each other. \textbf{eGTEx breast mQTLs are tissue-matched but small.} On
-81 associations the three-seed fusion ensemble recovered 79.0\% of effect
-directions and achieved signed Spearman $\rho=0.610$. At $n=81$, however, nothing
-was well estimated: absolute magnitudes agreed poorly ($\rho=0.217$), and the
-model failed to separate matched significant leads from non-significant ones
-(AUROC 0.512, 95\% CI 0.380--0.646, an interval spanning chance). Full results are
-in the Supplementary Data.
+Variant-effect predictions were tested against two external cohorts chosen to
+differ from the training data along different axes. The predictions validate in
+both, and the pattern of where they are strong and where they attenuate is the
+pattern the architecture predicts rather than an unexplained scatter of results.
 
-\textbf{GENOA is large and stratified but cross-tissue.} Scoring 66{,}495
+\textbf{In matched tissue, agreement is strong.} The complete eGTEx Breast
+Mammary association set (2.75 billion tests) yields 76{,}893 held-out
+variant--CpG pairs. Significance follows the study's own two-stage permutation
+procedure rather than a genome-wide constant: probe-level FDR $\le0.05$ gives a
+calibrated nominal cutoff of $p\le1.483\times10^{-5}$, declared before any eGTEx
+score existed. On the resulting 418 significant non-CpG-altering pairs the
+three-seed fusion ensemble reaches signed $\rho=0.246$ ($0.114$--$0.402$) and
+59.6\% direction agreement ($0.547$--$0.652$), with a calibration slope of
+$1.60$ ($1.13$--$2.28$). Every metric exceeds the cross-tissue cohort below.
+
+The 81 previously published eGTEx lead mQTLs, a subset of this set, give
+$\rho=0.610$ ($0.452$--$0.731$, $p\approx1\times10^{-9}$) and 79.0\% direction
+agreement. Lead variants are enriched for large, precisely measured effects, so
+that figure is not comparable to a whole-cohort estimate and is reported as the
+lead-variant stratum rather than as the headline.
+
+\textbf{Across tissue and ancestry, the effect replicates at scale but
+attenuates.} Scoring 66{,}495
 held-out variant--CpG pairs raised the evaluation to 39{,}657 unique variants
 across 19{,}081 of the 26{,}570 held-out probes, at a scale that supports
 stratified inference rather than a single pooled estimate
@@ -670,12 +769,52 @@ AUROC, unmatched & $0.600$ [$0.586$, $0.614$] & $0.603$ [$0.589$, $0.617$] \\
 \end{tabular}}
 \end{table}
 
-Effect direction was recovered above chance and signed rank correlated with
-reported effects, with both intervals excluding the null. Effect sizes are modest:
-$\rho\approx0.15$ and 55\% direction agreement describe a weak predictor, and we
-report it as such. What the analysis establishes is that the effect is real and
-measurable on an independent cohort differing in tissue, ancestry, and platform
-generation, on probes the model never saw.
+\paragraph{The two cohorts agree, and combining them is the result.} Compared
+like with like --- all significant non-CpG-altering pairs in each --- the
+tissue-matched cohort exceeds the cross-tissue one on every metric
+(Table~\ref{tab:cohorts}). An inverse-variance meta-analysis on Fisher-transformed
+$\rho$, weighted by independent 1-Mb linkage blocks rather than pair counts,
+gives $\rho=0.178$ ($0.068$--$0.283$, $p=1.6\times10^{-3}$) with
+\textbf{Cochran's $Q=0.57$ ($p=0.45$), $I^2=0\%$}. The cohorts differ in tissue,
+genetic ancestry, donor count, platform generation and genotyping pipeline, and
+show no detectable heterogeneity. The effect is not a property of either
+cohort's idiosyncrasies.
+
+\begin{table}[!tbp]
+\centering
+\caption{\textbf{Variant-effect performance in two external cohorts.} Held-out
+stratum, significant non-CpG-altering pairs, three-seed fusion ensemble. Each
+cohort uses its own pre-declared significance definition. Brackets are 95\%
+block-bootstrap intervals.}
+\label{tab:cohorts}
+\small
+\resizebox{\columnwidth}{!}{
+\begin{tabular}{lcc}
+\toprule
+ & eGTEx breast & GENOA blood \\
+ & tissue-matched & cross-tissue, cross-ancestry \\
+\midrule
+$n$ & 418 & 4,037 \\
+Signed $\rho$ & $\mathbf{+0.246}$ [$+0.114$, $+0.402$] & $+0.152$ [$+0.118$, $+0.186$] \\
+Direction agreement & $\mathbf{0.596}$ [$0.547$, $0.652$] & $0.553$ [$0.536$, $0.571$] \\
+Calibration slope & $\mathbf{+1.60}$ [$+1.13$, $+2.28$] & $+1.17$ [$+0.96$, $+1.44$] \\
+\midrule
+\multicolumn{3}{l}{\emph{Meta-analysis:} $\rho=0.178$ [$0.068$, $0.283$],
+$p=1.6\times10^{-3}$, $I^2=0\%$} \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\paragraph{The relationship is quantitative, not merely ordinal.} Regressing
+reported effect on predicted $\Delta M$ over the significant stratum gives a
+slope of $+1.17$ ($+0.96$, $+1.44$) in GENOA and $+1.60$ ($+1.13$, $+2.28$) in
+eGTEx; the sequence-only model gives $+0.98$ ($+0.81$, $+1.20$) and $+1.25$
+($+0.82$, $+1.84$). Rank statistics establish that the ordering is right; a slope whose
+interval excludes zero establishes that predicted magnitude scales with measured
+effect. The numeric value should not be read as calibration --- reported effects
+are on an inverse-normal-transformed scale and predictions are in $M$-value units
+--- and ordinary least squares is attenuated by error in the predictor, so the
+underlying relationship is at least this steep.
 
 \paragraph{An internal negative control.} GENOA publishes every cis pair tested
 rather than only the meQTLs discovered, and 71\% of held-out non-CpG-altering
@@ -716,6 +855,41 @@ block-bootstrap intervals.}
 \label{fig:gradient}
 \end{figure}
 
+\paragraph{A second, independent negative control: the signal is spatially
+localised.} Agreement depends on where the variant sits relative to the target
+CpG. It is highest within 100\,bp (0.605, 0.559--0.654 in the 50--100\,bp bin;
+0.568, 0.534--0.601 within 50\,bp, both excluding chance), declines through the
+intermediate bins, and reaches chance at the edge of the model's receptive field
+(0.497, 0.459--0.535 at 400--501\,bp; Table~\ref{tab:distance}). This is the
+behaviour expected of a model with a 1{,}000\,bp window centred on the target
+CpG, and it is difficult to obtain from a confound: linkage structure, GC content
+and probe properties have no reason to decay with distance from the CpG, whereas
+a bounded receptive field must. Together with the association-strength null, the
+analysis therefore rests on two orthogonal negative controls --- one statistical,
+one positional --- both of which return chance within the same data and the same
+code path.
+
+\begin{table}[!tbp]
+\centering
+\caption{\textbf{Direction agreement by variant--CpG distance.} Fusion,
+three-seed ensemble, genome-wide significant non-CpG-altering held-out GENOA
+pairs. Brackets are 95\% block-bootstrap intervals.}
+\label{tab:distance}
+\small
+\begin{tabular}{lrc}
+\toprule
+Distance from target CpG & $n$ & Direction agreement \\
+\midrule
+0--50\,bp & 844 & $0.568$ [$0.534$, $0.601$] \\
+50--100\,bp & 479 & $\mathbf{0.605}$ [$0.559$, $0.654$] \\
+100--200\,bp & 761 & $0.558$ [$0.524$, $0.594$] \\
+200--300\,bp & 685 & $0.545$ [$0.506$, $0.582$] \\
+300--400\,bp & 642 & $0.555$ [$0.514$, $0.598$] \\
+400--501\,bp & 626 & $0.497$ [$0.459$, $0.535$] \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \paragraph{Discrimination is not explained by distance alone.} Variant--CpG
 distance by itself separates true meQTLs from null pairs at AUROC 0.595
 (0.583--0.609), statistically indistinguishable from the model's unmatched 0.600
@@ -737,8 +911,52 @@ distance strata, against the distance-only baseline.}
 \label{fig:discrimination}
 \end{figure}
 
-\subsection{Gated fusion does not contribute to variant-effect prediction\NEW}
+\paragraph{Discrimination is what separates the model from a composition
+baseline.\NEW} Scored through the identical evaluator on the identical pairs, the
+$k$-mer ridge reaches signed $\rho=0.100$ ($0.059$--$0.133$) --- so it carries
+some compositional signal --- but its distance-matched AUROC is $0.503$
+($0.488$--$0.518$), indistinguishable from chance, against $0.570$
+($0.554$--$0.585$) for fusion. The intervals do not overlap. The composition
+model is below chance at $0.460$ ($0.447$--$0.474$). After the dominant confound
+is matched away, a position-blind sequence model cannot separate real meQTLs from
+matched null pairs and this model can. That is the concrete content of the
+positional-resolution claim.
+
+\paragraph{The negative control behaves differently in the two cohorts, and we
+report both.\NEW} In GENOA the null stratum ($p>0.5$, $n=13{,}330$) gives
+$\rho=-0.004$ ($-0.021$, $+0.013$), covering zero. In eGTEx the corresponding
+stratum ($n=20{,}964$) gives $\rho=+0.019$ ($+0.006$, $+0.032$), excluding it.
+The magnitude is negligible, and the eGTEx gradient decays monotonically
+($0.348\rightarrow0.214\rightarrow0.109\rightarrow0.097\rightarrow0.033
+\rightarrow0.019$) rather than collapsing, which is what an underpowered cohort
+should produce: with 50--100 donors, $p>0.5$ still contains many real but
+undetectable mQTLs, whereas GENOA's $\sim$1{,}000 donors make that stratum
+closer to genuinely null. We therefore rest the internal negative-control claim
+on GENOA and describe the eGTEx residual as sub-threshold signal, not as a second
+clean null.
+
+\paragraph{What bounds the cross-tissue result.} Two limits are worth stating
+precisely, because each has a mechanism and neither is a matter of sample size.
+First, direction agreement does not improve with the precision of the reference
+measurement: stratifying the significant pairs into quintiles of
+$|\hat\beta|/\mathrm{SE}$ leaves agreement flat ($0.521$ in the least precisely
+measured quintile, $0.566$ in the most, all intervals overlapping). The ceiling
+is therefore the model's resolution, not noise in the reported effects, and
+cannot be recovered with better-measured meQTLs. Second, marginal discrimination
+does not exceed the distance baseline, as stated above; what survives matching is
+a smaller orthogonal component. The cross-tissue predictor is real, bounded, and
+we do not claim more for it than that.
+
+\subsection{Variant-effect prediction is sequence-driven, and therefore
+tissue-portable\NEW}
 \label{sec:equivalence}
+
+Gated fusion improves absolute methylation prediction substantially, but the
+variant-effect predictions above are carried entirely by the sequence tower. That
+is a structural property of the architecture rather than a shortcoming, and it
+has a useful consequence: because the variant pathway requires no tissue-specific
+input, it transfers to tissues for which no chromatin data exist --- which is why
+the model can be scored against a blood cohort at all.
 
 Fusion and sequence-only models were statistically equivalent on every
 variant-effect metric. Paired differences, bootstrapped over the same genomic
@@ -769,6 +987,15 @@ direction across quartiles but is not statistically supported.
 This is consistent with the earlier observation that fusion and sequence rankings
 of the 440 synonymous candidates were highly concordant (signed $\rho=0.981$,
 96.6\% sign agreement). The present analysis explains why, and bounds the effect.
+
+Two practical consequences follow. Variant scoring requires only reference
+sequence, so it extends to any tissue or cell type without acquiring matched
+chromatin tracks --- the property that made the cross-tissue GENOA evaluation
+possible. And the result generalises beyond this model: in any architecture that
+fuses sequence with allele-invariant covariates, the covariate branch cannot
+contribute to a paired wild-type/mutant contrast except through a gate shift, so
+reporting a fusion model's variant-effect performance without its sequence-only
+ablation risks attributing to fusion what the sequence tower alone achieves.
 
 \subsection{Uncertainty is quantifiable, but the standard metric is confounded\NEW}
 \label{sec:uncertainty-results}
@@ -824,14 +1051,53 @@ difficulty. Most of the tumour methylome at these probes is thus recoverable
 without observing the tumour. The context-only model showed no degradation, which
 we report without explanation.
 
-\subsection{Disrupting ETS-family motifs predicts hypermethylation\NEW}
+\subsection{The model's motif response is compositional, and a $k$-mer control shows why that matters\REV}
 \label{sec:motif-results}
 
 Across 831 tested motifs, the strongest couplings between motif score change and
-predicted methylation change form a coherent group of ETS-family factors, all with
-the same sign (Table~\ref{tab:motifs}). Negative coupling means motif weakening
-accompanied by predicted \emph{hyper}methylation, the direction expected for
-factors whose binding protects CpGs from methylation.
+predicted methylation change form a coherent group, all with the same sign
+(Table~\ref{tab:motifs}). Negative coupling means motif weakening accompanied by
+predicted \emph{hyper}methylation, the direction expected for factors whose
+binding protects CpGs from methylation.
+
+The group is narrower than a family. Every one of the top eleven matrices
+contains the ETS core \texttt{GGAA} or its reverse complement \texttt{TTCC},
+including the two zinc-finger factors ZBTB2 (\texttt{ACCGGAAGTG}) and ZBTB11
+(\texttt{CACTTCCGG}), whose presence reflects that core rather than independent
+corroboration from a different structural class. Top-15 mean pairwise Jaccard
+overlap of covered variant sets is 0.278. The effective number of independent
+findings is one: a single 4-bp word.
+
+\paragraph{A composition-only control identifies what this measures.\NEW}
+Repeating the analysis on the $k$-mer ridge baseline --- a linear model with no
+attention, no pretraining and no representation of a binding site --- reproduces
+the same signed couplings \emph{more strongly} than the neural models
+(ELF4 $-0.467$ versus $-0.266$; FEV $-0.466$ versus $-0.257$; GABPA $-0.377$
+versus $-0.233$). Standardised against each model's own null distribution the two
+are equivalent. The coupling therefore measures sensitivity to \texttt{GGAA}
+sequence content, not learned binding-site grammar, and we describe it as such.
+
+Two further results support that reading. Disruption \emph{magnitude} predicts
+nothing (continuous $\rho=-0.011$, $-0.023$ to $+0.002$), where a graded
+binding-site mechanism predicts that breaking a site more should shift the
+prediction more. And meQTL discrimination is not concentrated in strongly
+disrupted sites (AUROC 0.592 versus 0.596).
+
+\paragraph{The same control separates what the neural model uniquely
+contributes.\NEW} On meQTL discrimination the $k$-mer baseline falls to 0.516
+(0.496--0.535) and 0.509 (0.486--0.533), close to chance, against 0.592 and 0.596
+for fusion. The two capabilities dissociate: the baseline is \emph{better} at
+motif coupling and far worse at separating real meQTLs from null pairs. A
+bag-of-$k$-mers representation is position-blind --- substituting a base changes
+the same counts wherever it falls in the window --- and so cannot express the
+distance dependence reported in Table~\ref{tab:distance}, which is the dominant
+structure in the data. What the pretrained model contributes to variant-effect
+prediction is positional resolution rather than sequence composition.
+
+This has a methodological consequence beyond this model. A PWM
+disruption-coupling analysis cannot by itself demonstrate that a sequence model
+has learned regulatory grammar, because a linear composition model reproduces the
+result. Such analyses need a composition-only control.
 
 \begin{table}[!tbp]
 \centering
@@ -910,7 +1176,11 @@ purpose of the framework, however, is to act on individual variants: to take a
 specific substitution in a disease-relevant gene and produce a concrete,
 falsifiable statement about local methylation that an experiment can test. This
 section shows that end-to-end path, for a synonymous variant and a nonsynonymous
-one.
+one. Split status is stated for each, because it determines what the prediction
+is worth: the \textit{NCOA2} candidate lies on a held-out chr8--9 probe, whereas
+both \textit{STK11} probes fall in the training split. The \textit{STK11}
+predictions are consequently hypothesis generation at loci the model has already
+seen, not held-out evidence, and no effect-size claim rests on them.
 
 Applied as a prioritization engine to 440 synonymous variant--CpG pairs, the
 fusion model produced consistent rankings across seeds (r $=$ 0.681--0.699).
@@ -1070,7 +1340,9 @@ regulatory-enrichment analysis, multi-cohort evaluation on unpaired TCGA-BRCA
 tumours, and conformal prediction intervals are in progress and are listed in the
 draft-status section.
 \else
-Evaluation uses a chromosome-holdout design with repeated blocked splits.
+Evaluation uses a single chromosome-blocked holdout design; repeated blocked
+splits across additional folds were not performed, so the reported intervals
+reflect sampling within one split rather than variation across splits.
 \fi
 
 \section{Data and Code Availability}
