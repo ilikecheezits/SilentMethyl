@@ -1050,3 +1050,137 @@ need to re-extract context features at 400 and 2,000 bp.
 `data/reference/hg19ToHg38.over.chain.gz` is already in the repo. Liftover happens
 in the harmonization step and writes new files — raw downloads stay byte-identical
 to the published release so they remain checksum-verifiable against the source.
+
+---
+
+## E. Closing entries — 29 Aug 2026
+
+### E.1 Probe-QC sensitivity: `MASK_snp5_common`
+
+`scripts/27_mask_snp_sensitivity.py`. No model was re-run; the `predictions.csv`
+written at test time was re-scored, and the published `beta_mae` and `auc` were
+reproduced from it for all 9 model-seed combinations to within 5e-4 as a check
+that metric definitions had not drifted (18 values checked, 18 passed).
+
+The HM450 manifest flags 15.40% of probes (74,764 / 485,577) as
+`MASK_snp5_common` — a common SNP within 5 bp of the interrogated CpG, where the
+measured beta may be partly a genotype artefact. In the held-out set this is
+3,105 / 26,570 probes (11.7%).
+
+| model | stratum | n | beta MAE | ROC-AUC |
+|---|---|---|---|---|
+| fusion | all | 26,570 | 0.0993 ± 0.0020 | 0.9680 ± 0.0017 |
+| fusion | retained | 23,465 | 0.0993 ± 0.0021 | 0.9689 ± 0.0017 |
+| fusion | excluded | 3,105 | 0.0987 ± 0.0015 | 0.9530 ± 0.0023 |
+| sequence | all | 26,570 | 0.1099 ± 0.0006 | 0.9569 ± 0.0006 |
+| sequence | retained | 23,465 | 0.1102 ± 0.0007 | 0.9579 ± 0.0006 |
+| sequence | excluded | 3,105 | 0.1079 ± 0.0008 | 0.9362 ± 0.0010 |
+| epi | all | 26,570 | 0.1395 ± 0.0001 | 0.9187 ± 0.0001 |
+| epi | retained | 23,465 | 0.1409 ± 0.0001 | 0.9190 ± 0.0001 |
+| epi | excluded | 3,105 | 0.1290 ± 0.0003 | 0.9096 ± 0.0001 |
+
+**Result: the headline metrics are not propped up by genotype-affected probes.**
+Excluding them leaves fusion beta MAE unchanged at 0.0993 and *raises* ROC-AUC
+0.9680 → 0.9689. The flagged probes are the harder stratum, not the easier one,
+which is the direction that rules out the reviewer's concern: had the model been
+reading genotype artefact, those probes would have scored *better*, not worse.
+
+**All three architectures lose discrimination on the same probes** (fusion
+−0.0159, sequence −0.0217, epi −0.0094 in AUC relative to retained). A deficit
+shared by a sequence-only model, a context-only model, and their fusion is a
+property of the probes, not of any one model.
+
+**Unresolved, and worth one cheap check.** On the excluded stratum AUC falls
+while beta MAE *improves* (most sharply for epi: 0.1409 → 0.1290). Lower error
+and worse discrimination together is the signature of a less bimodal target
+distribution — the same range-compression mechanism documented in the
+uncertainty section. If that is what this is, it would be its third appearance in
+our own results, and it is very likely the explanation for the open tumour-domain
+question (§ context-only model does not degrade on TCGA and its M MAE improves).
+`positive_rate` per stratum is already in
+`results/journal/mask_sensitivity/mask_sensitivity.csv`; comparing the beta
+histograms of the two strata would settle it in minutes. **This is a hypothesis,
+not a finding — do not write it into the manuscript until it is checked.**
+
+### E.2 ClinVar matched-background test — designed, attempted, abandoned, never run
+
+Recorded so that its absence is not later read as a suppressed result.
+
+**Pre-registered** in `preregistration.json` before any score existed:
+
+- primary cohort: 35 held-out non-truncating ClinVar variants (of 322 in the
+  literature cohort; 47 held out, 12 truncating and excluded)
+- secondary cohort: 16 with unambiguous ClinVar calls
+- primary statistic: count with matched-background tail probability < 0.05
+  against a binomial null of 0.05; expects 1.75 at n = 35, so ≥ 6 gives p < 0.01
+- two-sided; power declared in advance: **a null result could not distinguish
+  absence of enrichment from insufficient power and would have to be reported as
+  inconclusive**
+
+**Why it was abandoned.** `compute_matched_background_statistics` draws each
+variant's comparators from the input frame itself. Feeding it only the 35
+ClinVar variants would have compared each pathogenic variant against the other
+34 pathogenic variants — precisely the missing-comparison-group problem the
+matched-background design exists to solve. A valid run required rebuilding the
+input as those 35 variants embedded in a background pool drawn from the general
+held-out population, i.e. a new cohort construction plus a fresh multi-hour GPU
+scoring run, against a declared power statement whose most likely outcome was an
+inconclusive paragraph.
+
+**Nothing was computed.** The smoke test that exposed the flaw ran 2 candidates
+against 25 comparators and produced `min_tail=0.5`, which is an artefact of
+having one comparator. No primary or secondary statistic was ever calculated on
+any cohort, so no result was examined and none was withheld. The decision was
+made on cost and design grounds before any number existed.
+
+**Consequence for the paper.** Clinical relevance rests on the two-cohort
+variant-effect validation rather than a systematic ClinVar enrichment. STK11 and
+NCOA2 remain (mentor's instruction) as explicitly labelled hypothesis
+generation, with split status stated: NCOA2 on a held-out chr8–9 probe, both
+STK11 probes in the training split.
+
+### E.3 Manuscript correction pass — `main_revised.tex`
+
+Nine edits, three of them corrections against our own earlier text:
+
+1. **Abstract motif claim rewritten.** It asserted "a specific regulatory
+   relationship the model was never shown" and survival of GC control. The
+   results section had already been revised to report that a k-mer ridge
+   baseline reproduces the coupling *more strongly*, i.e. that it is
+   compositional. The abstract was contradicting the paper's own result.
+2. **False claim behind the draft switch removed.** The `\else` branch of the
+   limitations paragraph read "Evaluation uses a chromosome-holdout design with
+   repeated blocked splits." Repeated splits were deferred and never run, so
+   setting `\draftmodefalse` for submission would have printed a false methods
+   claim that nobody would re-read. Now states the single-holdout design and
+   what the intervals do and do not cover.
+3. **Split status added to the case studies**, in the abstract and in the
+   ranked-variants section.
+4. **Two-cohort meta-analysis promoted into the abstract** (ρ = 0.178,
+   0.068–0.283, p = 1.6e-3, I² = 0%, plus the GENOA null control).
+5. **Probe-QC sensitivity paragraph added** to the performance section (E.1).
+6. ClinVar figure removed from the outstanding list; E.2 recorded in the
+   draft-status section.
+
+**Verification.** The container lacks `lmodern`, so the PDF must be rebuilt on
+the Mac. What was verified here: with `lmodern` stubbed out, the edited file and
+the pristine file produce byte-identical LaTeX error profiles (7 × "Undefined x
+coordinate", from figure code, in both). The edits introduce no new LaTeX errors.
+Every one of the nine substitutions asserted exactly one match before applying.
+
+### E.4 Bucket list at this stopping point
+
+| # | item | state |
+|---|---|---|
+| 1 | `MASK_snp5_common` sensitivity | **done** (E.1) |
+| 2 | Abstract motif claim vs results | **done** |
+| 3 | STK11/NCOA2 split status | **done** in text; figure label still to add |
+| 4 | Meta-analysis into abstract | **done** |
+| 5 | ClinVar test recorded as abandoned | **done** (E.2) |
+| 6 | Tumour-domain open question | open — E.1 suggests a cheap resolution |
+| 7 | supplementary_package + reproducibility rebuild | open, stale |
+| 8 | Delete 45 GB raw eGTEx | open |
+| 9 | Rebuild `main_revised.pdf` on the Mac | open |
+
+Requirement 2 (repeated chromosome-blocked splits) remains deferred by decision,
+and the limitations section now says so in both draft and submission branches.
