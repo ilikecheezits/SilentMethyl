@@ -57,6 +57,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import random
 from pathlib import Path
 
 import numpy as np
@@ -67,13 +68,77 @@ from sklearn.metrics import roc_auc_score
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-from training_common import (  # shared so cropping/RC cannot drift from ours
-    centered_crop,
-    deterministic_rc_choice,
-    m_to_beta_numpy,
-    reverse_complement,
-    set_seed,
-)
+# training_common imports transformers at module level, which walks the whole
+# transformers package tree on the shared filesystem and stalls for minutes on a
+# cold node. A CNN baseline has no business paying that cost for four small pure
+# functions, so they are duplicated here VERBATIM from training_common and
+# checked against it by --verify (the pattern scripts/23 already uses).
+
+def set_seed(seed: int) -> None:
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+
+def reverse_complement(seq: str) -> str:
+    return seq.upper().translate(str.maketrans("ACGTN", "TGCAN"))[::-1]
+
+
+def centered_crop(seq: str, window_size: int) -> str:
+    seq = seq.upper()
+    if window_size <= 0 or window_size > len(seq):
+        raise ValueError(f"window_size={window_size} is invalid for sequence length {len(seq)}")
+    center_right = len(seq) // 2
+    start = center_right - (window_size // 2)
+    end = start + window_size
+    return seq[start:end]
+
+
+def m_to_beta_numpy(m_value: np.ndarray) -> np.ndarray:
+    x = np.asarray(m_value, dtype=np.float64) * math.log(2.0)
+    out = np.empty_like(x)
+    positive = x >= 0
+    out[positive] = 1.0 / (1.0 + np.exp(-x[positive]))
+    exp_x = np.exp(x[~positive])
+    out[~positive] = exp_x / (1.0 + exp_x)
+    return out
+
+
+def deterministic_rc_choice(seed: int, epoch: int, idx: int, probability: float) -> bool:
+    if probability <= 0.0:
+        return False
+    if probability >= 1.0:
+        return True
+    local_seed = (
+        (int(seed) * 0x9E3779B185EBCA87)
+        ^ (int(epoch) * 0xC2B2AE3D27D4EB4F)
+        ^ (int(idx) * 0x165667B19E3779F9)
+    ) & ((1 << 64) - 1)
+    return random.Random(local_seed).random() < probability
+
+
+def verify_against_training_common() -> dict:
+    """Prove the duplicated helpers match the originals. Pays the slow import."""
+    try:
+        import training_common as tc
+    except Exception as exc:                                   # noqa: BLE001
+        return {"checked": False, "reason": f"{type(exc).__name__}: {exc}"}
+    rng = random.Random(0)
+    seqs = ["".join(rng.choice("ACGTN") for _ in range(5000)) for _ in range(20)]
+    for s in seqs:
+        assert centered_crop(s, 1000) == tc.centered_crop(s, 1000), "centered_crop"
+        assert reverse_complement(s) == tc.reverse_complement(s), "reverse_complement"
+    m = np.linspace(-8, 8, 401)
+    assert np.allclose(m_to_beta_numpy(m), tc.m_to_beta_numpy(m)), "m_to_beta_numpy"
+    for seed in (42, 43):
+        for epoch in range(3):
+            for idx in range(200):
+                assert (deterministic_rc_choice(seed, epoch, idx, 0.5)
+                        == tc.deterministic_rc_choice(seed, epoch, idx, 0.5)), "rc_choice"
+    return {"checked": True, "sequences": len(seqs), "rc_draws": 2 * 3 * 200}
 
 BASES = {"A": 0, "C": 1, "G": 2, "T": 3}
 M_COL, BIN_COL, BETA_COL = "M_Value_Target", "Binary_State_Target", "Median_Beta"
@@ -300,9 +365,18 @@ def main() -> int:
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--grid", action="store_true",
                    help="Tune on the validation split over the authors' own grid.")
+    p.add_argument("--verify", action="store_true",
+                   help="Check the duplicated helpers against training_common. "
+                        "Pays the slow transformers import; run once, not per job.")
     p.add_argument("--max-rows", type=int, default=0, help="smoke testing only")
     p.add_argument("--output-dir", default="results/journal/published_baselines")
     args = p.parse_args()
+
+    if args.verify:
+        report = verify_against_training_common()
+        print(f"training_common verification: {report}")
+        if not report.get("checked"):
+            print("  could not import training_common; helpers UNVERIFIED")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"device: {device}")
