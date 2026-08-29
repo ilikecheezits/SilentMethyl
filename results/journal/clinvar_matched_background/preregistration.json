@@ -1,0 +1,37 @@
+{
+  "analysis": "ClinVar-pathogenic variants vs matched background",
+  "columns_dropped_for_scripts05": [
+    "HM450_MASK_general"
+  ],
+  "counts": {
+    "cohort_total": 322,
+    "held_out": 47,
+    "held_out_truncating_excluded": 12,
+    "primary_clinical_significance": {
+      "Conflicting classifications of pathogenicity": 18,
+      "Likely pathogenic": 5,
+      "Pathogenic/Likely pathogenic": 11,
+      "nan": 1
+    },
+    "primary_cpg_effect": {
+      "both_created_and_destroyed": 3,
+      "created": 12,
+      "destroyed": 7,
+      "unchanged": 13
+    },
+    "primary_n": 35,
+    "secondary_n": 16
+  },
+  "eligibility": {
+    "held_out_only": "Model_Split == test; the STK11 case-study variants are on training probes and are excluded",
+    "nearby_cpg_altering": "KEPT and stratified, not excluded",
+    "non_truncating_only": "Ter/fs variants are pathogenic by protein truncation; their ClinVar call is not evidence about methylation"
+  },
+  "generated_utc": "2026-08-28T23:47:50+00:00",
+  "power_statement": "at n=35, a mean percentile of 65 is ~3 SE from the null and detectable; 58 is not. A null result does NOT distinguish no enrichment from underpowered and must be reported as inconclusive.",
+  "prepared_cohort": "results/journal/clinvar_matched_background/clinvar_heldout_nontruncating_cohort.csv",
+  "primary_statistic": "count of variants with matched-background tail probability < 0.05, against a binomial null of 0.05; two-sided",
+  "secondary_statistic": "mean matched-background percentile against a null of 50",
+  "source": "results/journal/literature_variant_screen/literature_variant_predictions_ranked.csv",
+  "status": "PRE-REGISTERED -- written before any matched-background score for this cohort existed"
+}

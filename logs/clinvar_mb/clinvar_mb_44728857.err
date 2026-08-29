@@ -1,0 +1,5 @@
+usage: prepare_clinvar_matched_background.py [-h] [--ranked RANKED]
+                                             [--output-dir OUTPUT_DIR]
+                                             [--prepare] [--analyse]
+                                             [--scored SCORED]
+prepare_clinvar_matched_background.py: error: unrecognized arguments: --run --device cpu

@@ -1,0 +1,13 @@
+[*] Host:    v004.ib.bridges2.psc.edu
+[*] Job:     44680120 task 0
+[*] Scoring: model=fusion seed=42  cohort=eGTEx Breast Mammary
+[*] Started: Fri Aug 28 07:37:28 EDT 2026
+Tesla V100-SXM2-32GB, 32768 MiB
+
+======================================================================
+stratum          : heldout
+pairs scored     : 76,893
+  fusion    seed 42    76,893 rows
+output           : results/journal/egtex_variant_scoring/heldout
+======================================================================
+[done] fusion seed 42: Fri Aug 28 08:52:45 EDT 2026

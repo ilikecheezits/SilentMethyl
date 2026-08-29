@@ -1,0 +1,23 @@
+Traceback (most recent call last):
+  File "/jet/home/szhang37/.conda/envs/silentmethyl/lib/python3.10/site-packages/pandas/core/indexes/base.py", line 3812, in get_loc
+    return self._engine.get_loc(casted_key)
+  File "pandas/_libs/index.pyx", line 167, in pandas._libs.index.IndexEngine.get_loc
+  File "pandas/_libs/index.pyx", line 196, in pandas._libs.index.IndexEngine.get_loc
+  File "pandas/_libs/hashtable_class_helper.pxi", line 7088, in pandas._libs.hashtable.PyObjectHashTable.get_item
+  File "pandas/_libs/hashtable_class_helper.pxi", line 7096, in pandas._libs.hashtable.PyObjectHashTable.get_item
+KeyError: 'HM450_MASK_general'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/ocean/projects/med250012p/szhang37/SilentMethyl/scripts/05_matched_background.py", line 777, in <module>
+    main()
+  File "/ocean/projects/med250012p/szhang37/SilentMethyl/scripts/05_matched_background.py", line 656, in main
+    raw_df = apply_probe_qc(raw_df, args.hm450_manifest, args.include_masked_probes)
+  File "/ocean/projects/med250012p/szhang37/SilentMethyl/scripts/05_matched_background.py", line 233, in apply_probe_qc
+    if out["HM450_MASK_general"].isna().any():
+  File "/jet/home/szhang37/.conda/envs/silentmethyl/lib/python3.10/site-packages/pandas/core/frame.py", line 4113, in __getitem__
+    indexer = self.columns.get_loc(key)
+  File "/jet/home/szhang37/.conda/envs/silentmethyl/lib/python3.10/site-packages/pandas/core/indexes/base.py", line 3819, in get_loc
+    raise KeyError(key) from err
+KeyError: 'HM450_MASK_general'

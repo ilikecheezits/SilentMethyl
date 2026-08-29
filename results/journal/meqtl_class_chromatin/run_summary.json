@@ -1,0 +1,131 @@
+{
+  "analysis": "chromatin characterisation of meQTL classes",
+  "chromatin": [
+    {
+      "ci_high": 0.008955122062499992,
+      "ci_low": -0.010210166549999998,
+      "feature": "Ref_ATAC_Signal",
+      "mannwhitney_p": 0.7100244313199215,
+      "median_difference": -0.001856255499999994,
+      "median_shared": 0.044878074500000004,
+      "median_specific": 0.04673433,
+      "n_shared": 526,
+      "n_specific": 539,
+      "rank_biserial": 0.01316689828368256
+    },
+    {
+      "ci_high": 0.1995949,
+      "ci_low": -0.00011869374999999326,
+      "feature": "Ref_H3K4me3_Signal",
+      "mannwhitney_p": 0.09166879693841101,
+      "median_difference": 0.0,
+      "median_shared": 0.0,
+      "median_specific": 0.0,
+      "n_shared": 526,
+      "n_specific": 539,
+      "rank_biserial": 0.05517893296274612
+    },
+    {
+      "ci_high": 0.008302279499999994,
+      "ci_low": -0.4636422975000001,
+      "feature": "Ref_H3K27ac_Signal",
+      "mannwhitney_p": 0.26414776251722316,
+      "median_difference": -0.17154580000000003,
+      "median_shared": 0.44154,
+      "median_specific": 0.6130858,
+      "n_shared": 526,
+      "n_specific": 539,
+      "rank_biserial": -0.03906332667875312
+    },
+    {
+      "ci_high": 0.12091494517499991,
+      "ci_low": -0.008623201250000006,
+      "feature": "Ref_H3K27me3_Signal",
+      "mannwhitney_p": 0.006283143200429521,
+      "median_difference": 0.04317869500000002,
+      "median_shared": 0.13323869500000002,
+      "median_specific": 0.09006,
+      "n_shared": 526,
+      "n_specific": 539,
+      "rank_biserial": 0.09436923749797188
+    },
+    {
+      "ci_high": 0.093042401125,
+      "ci_low": -0.026695399750000015,
+      "feature": "Ref_H3K9me3_Signal",
+      "mannwhitney_p": 0.09417616916168461,
+      "median_difference": 0.01832974499999998,
+      "median_shared": 0.19828644499999998,
+      "median_specific": 0.1799567,
+      "n_shared": 526,
+      "n_specific": 539,
+      "rank_biserial": 0.05882954633633619
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "feature": "Ref_H3K36me3_Signal",
+      "mannwhitney_p": 0.7126166680370076,
+      "median_difference": 0.0,
+      "median_shared": 0.0,
+      "median_specific": 0.0,
+      "n_shared": 526,
+      "n_specific": 539,
+      "rank_biserial": -0.01151971331221735
+    },
+    {
+      "ci_high": 0.019329516250000008,
+      "ci_low": -0.3107515075,
+      "feature": "Ref_H3K4me1_Signal",
+      "mannwhitney_p": 0.06533060833597397,
+      "median_difference": -0.15607977000000006,
+      "median_shared": 0.62911513,
+      "median_specific": 0.7851949,
+      "n_shared": 526,
+      "n_specific": 539,
+      "rank_biserial": -0.06523487376284764
+    },
+    {
+      "ci_high": 0.1425124999999999,
+      "ci_low": -0.14651250000000007,
+      "feature": "Target_Base_PhyloP_100way_1",
+      "mannwhitney_p": 0.815655174690536,
+      "median_difference": -0.0014999999999999458,
+      "median_shared": -0.5565,
+      "median_specific": -0.555,
+      "n_shared": 526,
+      "n_specific": 539,
+      "rank_biserial": 0.008257087833404952
+    },
+    {
+      "ci_high": 0.19251249999999995,
+      "ci_low": -0.08804999999999996,
+      "feature": "Target_Base_PhyloP_100way_2",
+      "mannwhitney_p": 0.6559940578977836,
+      "median_difference": 0.06,
+      "median_shared": -0.324,
+      "median_specific": -0.384,
+      "n_shared": 526,
+      "n_specific": 539,
+      "rank_biserial": 0.015773471504052727
+    }
+  ],
+  "feature_list_verified": {
+    "checked": true
+  },
+  "generated_utc": "2026-08-28T22:19:29+00:00",
+  "interpretation": "The chromatin comparison is independent of the model. If blood-discovered meQTLs that do NOT replicate in breast sit in breast-inactive chromatin, the shared/specific split is a biological partition rather than a relabelling of model error.",
+  "regression": {
+    "ci_high": 0.1806368129049171,
+    "ci_low": 0.013547494646417085,
+    "coefficient_shared": 0.09889428159773998,
+    "covariates": [
+      "shared",
+      "absZ",
+      "abs_distance_bp"
+    ],
+    "n_pairs": 1772,
+    "n_shared": 868,
+    "note": "logistic coefficient on standardised predictors; positive means the model gets tissue-shared meQTLs right more often at equal effect size and distance"
+  }
+}

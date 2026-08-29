@@ -1,0 +1,30 @@
+{
+  "background_interpretation": "descriptive observed-synonymous comparators selected by similarity-priority tiers; not a random-mutation null or calibrated p-value",
+  "background_random_seed": 42,
+  "candidate_rows_after_probe_qc": 2,
+  "candidate_rows_input_before_probe_qc": 35,
+  "candidate_rows_model_visible": 2,
+  "checkpoints": [
+    {
+      "seed": 42,
+      "sha256": "0fb8d1b449725fdbc4d6e146505b71d5d580b10014c71ca139ee511d1ea63ae9",
+      "weights_path": "checkpoints_journal/seed42/fusion/best_weights.pth"
+    }
+  ],
+  "cross_seed_aggregation": "single available seed",
+  "cross_seed_stability_inference_available": false,
+  "hm450_manifest": "data/HM450.hg38.manifest.tsv.gz",
+  "inference_precision": "fp32_forced_and_dtype_audited",
+  "input_csv": "results/journal/clinvar_matched_background/clinvar_heldout_nontruncating_cohort.csv",
+  "masked_probes_included": false,
+  "matched_background_delta_column": "Predicted_Delta_Beta",
+  "max_comparators": 25,
+  "min_comparators": 5,
+  "minimum_empirical_tail_probability": 0.5,
+  "output_rows": 2,
+  "primary_ranking": "absolute value of cross-seed mean RC-averaged mutant-minus-WT beta shift",
+  "requested_seeds": [
+    42
+  ],
+  "seed_count": 1
+}
