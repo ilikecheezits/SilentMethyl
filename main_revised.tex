@@ -148,6 +148,17 @@ generation at loci the model has seen. These are hypotheses for experimental tes
 rather than validated effects, and they define the intended use of the
 framework.
 
+Asked directly whether predicted effect magnitude identifies clinically
+annotated variants, the answer is no: two pre-registered matched-background
+tests---35 held-out ClinVar-pathogenic variants and 32 breast-cancer GWAS risk
+variants, each against 14{,}996 substitution- and distance-matched
+comparators---returned null (0 of 35 and 3 of 32 exceeding their matched
+backgrounds, against 1.8 and 1.6 expected). We report this boundary because it
+delimits the intended use: the framework predicts the methylation consequence of
+a substitution, with calibrated uncertainty and no detectable loss of accuracy
+when transferred to an African American cohort, but does not classify variants
+by pathogenicity from predicted magnitude alone.
+
 Two further findings generalise beyond this model. First, uncertainty evaluation on
 bounded bimodal targets is confounded by range compression: a zero-parameter
 heuristic outperforms genuine uncertainty estimators on the $\beta$ scale and
@@ -193,6 +204,16 @@ paragraphs to two. \textit{NCOA2} and \textit{STK11} are retained as a thesis
 component, not an appendix.
 
 \smallskip
+\noindent\textbf{Translational-scope pass, 29 Aug 2026.} Added
+Section~\ref{sec:matched-methods} and Section~\ref{sec:translational}: two
+pre-registered matched-background tests of clinically annotated variant sets,
+both null, plus the portability and calibration arguments they bound. The
+pre-registrations, amendments and analysis code are in
+\texttt{results/journal/\{clinvar,gwas\}\_matched\_background/}. The ClinVar
+cohort's effective sample size of six probes and the GWAS cohort's power are
+both stated in the text rather than left implicit.
+
+\smallskip
 \noindent\textbf{Correction pass, 29 Aug 2026.} Four corrections, three of them
 against our own earlier text. The abstract's motif claim asserted a specific
 learned regulatory relationship after Section~\ref{sec:motif-results} had already
@@ -216,11 +237,14 @@ our own results and belongs in the discussion.
 
 \smallskip
 \noindent\textbf{Not yet written, in priority order.}
-(i)~head-to-head against CpGenie and DeepCpG (repositories cloned, environments
-not yet stood up); (ii)~repeated chromosome-blocked splits, four additional folds
-at seed 42---the only remaining model training; (iii)~conformal prediction
-intervals; (iv)~HOCOMOCO as a second motif library, to confirm the ETS result is
-not specific to JASPAR's matrices.
+(i)~head-to-head against CpGenie and DeepCpG---\emph{in progress}: both
+architectures were reimplemented from their published source and are being
+trained on our splits, since the originals are 2017-era Keras/Theano and the
+published CpGenie weights are GM12878, not breast, which would make scoring them
+a cross-tissue strawman. Hyperparameters are selected on the validation split
+over the authors' own declared grid; (ii)~repeated chromosome-blocked splits,
+four additional folds at seed 42; (iii)~conformal prediction intervals;
+(iv)~HOCOMOCO as a second motif library.
 
 \smallskip
 \noindent\textbf{Designed, attempted, abandoned---recorded so its absence is not
@@ -595,6 +619,45 @@ sensitivity analysis dropped mutations within or immediately adjacent to a probe
 A matched analysis tested whether predicted magnitude separated significant leads
 from high-$q$ associations ($q\ge0.5$) matched on chromosome and minor allele
 frequency (35 pairs from 53 significant and 51 high-$q$ variants).
+
+\subsection{Matched-background tests of clinically annotated variant sets\NEW}
+\label{sec:matched-methods}
+
+Two pre-registered tests ask whether predicted effect magnitude is larger for
+clinically annotated variants than for comparable variants. Both compare each
+variant against a background matched on substitution class (SBS96), CpG effect,
+and distance to the target CpG, using the tiered matching of the candidate
+analysis; the reported statistic is the variant's percentile within its own
+matched background, and the two-sided empirical tail probability.
+
+\textbf{Background construction.} Sequence and epigenomic features in this
+project are properties of the probe rather than of the variant, so a comparator
+is a different single-base substitution inside a held-out probe window. We
+generated 14{,}996 such variants across 5{,}000 held-out probes, positions and
+alternate alleles drawn uniformly at random within the 1{,}000\,bp model window
+excluding the centred CpG, capped at three per probe (fixed seed). A generated
+background is disjoint from the tested cohorts by construction, carries no
+allele-frequency confound, and can be made large enough that matching resolves
+at strict tiers.
+
+\textbf{Cohorts.} The first cohort is the 35 held-out non-truncating
+ClinVar-pathogenic variants from the literature screen. The second is
+breast-cancer associations from the GWAS Catalog on the held-out chromosomes
+within 500\,bp of a held-out probe; reference alleles were taken from Ensembl
+(GRCh38) and alternate alleles from the catalogue's risk allele, giving 32
+variants on 32 distinct probes. The coordinate convention was validated by
+requiring the reference base read from the probe window to match the Ensembl
+reference allele, which held for 32 of 32 at the adopted offset against 21.9\%
+and 37.5\% at the alternatives.
+
+\textbf{Statistics and pre-registration.} Cohort definitions, both statistics,
+the clustering unit and the power calculation were fixed in writing before any
+variant was scored, together with the interpretation rule for each possible
+outcome; amendments are timestamped and recorded. Because variants at the same
+CpG share the window and the context features, \emph{the probe is the
+independent unit} and all interval estimates cluster on it. A context check
+comparing cohort and background on all nine epigenomic features is run before
+any result is interpreted.
 
 \section{Results}
 
@@ -1231,6 +1294,54 @@ at cg08681293, 204\,bp downstream), the latter a known pathogenic truncating
 variant. Both target CpGs lie on training chromosomes, so this is an illustrative
 application rather than validation.
 
+\subsection{Translational scope: portability, calibrated confidence, and the
+limits of variant classification\NEW}
+\label{sec:translational}
+
+Three findings bear on whether this framework could be used rather than only
+reported, and one of them is a boundary rather than a capability.
+
+\textbf{Predictions transfer across ancestry.} Methylation and variant-effect
+predictors are overwhelmingly developed and evaluated in European-ancestry data,
+and failure to transfer is a recognised barrier to equitable genomic medicine.
+Section~\ref{sec:genoa-results} provides a direct measurement rather than an
+assumption: the pooled estimate across a European-ancestry breast cohort and an
+African American whole-blood cohort is $\rho = 0.178$ (0.068--0.283) with no
+detectable heterogeneity ($I^{2} = 0\%$). Ancestry and tissue differ together
+between these cohorts and cannot be separated (Limitations), so the defensible
+statement is the practical one: performance does not degrade when the model is
+moved to an African American cohort.
+
+\textbf{Confidence is calibrated, on the appropriate scale.}
+Section~\ref{sec:uncertainty-results} shows that reverse-complement disagreement
+tracks error, and that calibration must be assessed on the logit scale because a
+zero-parameter boundary heuristic outperforms genuine estimators on the bounded
+$\beta$ scale. A predictor that cannot indicate when it is unreliable is not
+usable for individual variant interpretation, so this is a prerequisite rather
+than an accessory result.
+
+\textbf{Predicted effect magnitude does not classify clinically annotated
+variants.} We tested this directly, twice, under pre-registration
+(Section~\ref{sec:matched-methods}). For 35 held-out non-truncating
+ClinVar-pathogenic variants, none exceeded its matched background at the 0.05
+tail (0 of 35, $p = 0.42$); that cohort spans only six distinct probes, with 25
+variants at a single CpG, so its effective sample size is six and the test is
+uninformative whatever background is used. For 32 breast-cancer GWAS risk
+variants on 32 distinct probes, 3 exceeded the tail against 1.6 expected
+($p = 0.21$), and the probe-clustered mean matched-background percentile was
+54.9 (44.8--65.2, $p = 0.36$). The second test was adequately controlled --
+matching held substitution class fixed for 25 of 32 variants, and no context
+feature differed materially between cohort and background (largest
+$|d| = 0.36$) -- so it is a clean null rather than an ambiguous one. Its power
+was 0.50 at a true mean percentile of 60, so it constrains the effect to roughly
+ten percentile points and does not establish absence.
+
+Taken together these delimit the intended use. The framework predicts and ranks
+the \emph{methylation consequence} of a substitution, with calibrated
+uncertainty and demonstrated transfer across tissue and ancestry. It does not
+identify pathogenic or risk variants from predicted effect magnitude alone, and
+we report that boundary rather than leaving it to be discovered.
+
 \section{Discussion}
 
 SilentMethyl unifies two tasks in regulatory genomics: predicting baseline CpG
@@ -1325,6 +1436,17 @@ so the finding concerns one motif family rather than a set of factors. The tumou
 evaluation holds model inputs fixed and varies only the target, and measures the
 sequence-determined component of the tumour methylome rather than generalisation
 to a new input domain.
+
+The cross-ancestry claim is confounded with tissue. GENOA differs from the
+reference data in ancestry \emph{and} in tissue, so the absence of heterogeneity
+($I^{2} = 0\%$) shows that performance survives both differences together
+without establishing which, if either, the model is robust to individually.
+
+The two matched-background tests were powered to detect a mean percentile of
+about 60 in the GWAS cohort and nothing at all in the ClinVar cohort, whose 35
+variants span six probes. Neither result establishes the absence of an
+association between predicted magnitude and clinical annotation; they exclude
+effects larger than roughly ten percentile points in the better-powered case.
 
 Ancestry-stratified error on the training cohort is not adequately powered:
 open genetic ancestry calls for the 97 training normals yield 84 European, 4
