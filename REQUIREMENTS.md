@@ -1160,6 +1160,66 @@ scoring input, `clinvar_cohort_ids.json`, `scored/`, and
 that JSON reads INCONCLUSIVE via the enrichment-direction rule only; the
 clustered analysis above is the correct reading and supersedes it.
 
+### E.2b Breast-cancer GWAS risk-variant matched-background test — RUN, clean null
+
+Pre-registered in `results/journal/gwas_matched_background/preregistration.json`
+before any variant was scored, with two amendments logged at the time (retain
+multi-allelic variants; hit bar 7->6 once the achieved n was known). Executed on
+GPU, 15,028 variants x 4 passes x 3 seeds.
+
+**Cohort.** GWAS Catalog breast-cancer associations, chr8/9 only (the held-out
+chromosomes), within 500 bp of a held-out HM450 probe. 556 unique rsIDs -> 429
+with a single-base risk allele -> 41 variant-probe pairs -> 35 with a reference
+allele resolved from Ensembl GRCh38 -> **32 with ALT != REF**, on **32 distinct
+probes, one variant each**.
+
+**Coordinate validation.** The offset convention was determined empirically:
+reference base agreed for 32/32 (100%) at offset -1, versus 21.9% at 0 and 37.5%
+at +1. Had +0 been assumed, every variant would have been scored one base off
+while looking perfectly valid.
+
+**The design was sound this time**, which is what makes the null meaningful:
+
+| check | result |
+|---|---|
+| independence | 32 variants / 32 probes — no pseudoreplication |
+| match quality | 25/32 at T2 (same SBS96, same CpG effect, +/-50 bp) |
+| comparators | min 21, median 30, max 152 |
+| context confound | largest |d| = 0.36 across nine features; none material |
+
+**Result: NULL.**
+
+- primary: 3 of 32 with tail probability < 0.05, against 1.6 expected,
+  binomial p = 0.21 (pre-registered bar: 6+ at p < 0.01)
+- secondary: mean matched-background percentile **54.9 [44.8, 65.2]**,
+  clustered by probe, t = +0.93, p = 0.36
+- variant-level mean identical at 54.9, confirming the independence
+
+**Interpretation, per the declared power statement.** Directionally positive but
+far from significant. The interval spans a 5-point depletion to a 15-point
+enrichment, so a modest true effect is not excluded — power at a true mean of 60
+was 0.50. Report as null with that limitation attached, not as evidence of
+absence.
+
+**Why the null is unsurprising.** GWAS risk variants act through expression,
+splicing and protein-level mechanisms as well as methylation. The 32 variants
+lying within 500 bp of a held-out HM450 probe are a narrow slice of that biology,
+and the model only sees local sequence.
+
+**Consequence for the journal question.** Genome Medicine's clinical-relevance
+criterion remains unmet by testing. Two pre-registered attempts, two nulls: E.2
+uninformative for a structural reason, E.2b clean and properly controlled.
+Remaining options are argued rather than demonstrated — a ranked resource table
+for clinically actionable genes, and a VUS-interpretation framing — or a
+different journal. That is a decision for the mentor conversation, not an
+analysis problem.
+
+**Provenance.** `results/journal/gwas_matched_background/` holds the
+pre-registration with both amendments, `gwas_cohort.csv`,
+`gwas_cohort_summary.json`, `ensembl_cache.json`, the scoring input, `scored/`
+and `gwas_matched_background_result.json`. Built by `data/build_gwas_cohort.py`,
+analysed by `data/gwas_matched_background.py`.
+
 ### E.3 Manuscript correction pass — `main_revised.tex`
 
 Nine edits, three of them corrections against our own earlier text:

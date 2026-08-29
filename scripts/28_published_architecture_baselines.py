@@ -1,0 +1,365 @@
+#!/usr/bin/env python
+"""CpGenie and DeepCpG architectures, reimplemented and trained on our splits.
+
+WHY REIMPLEMENT RATHER THAN RUN THE ORIGINAL CODE
+
+Both are 2017-era Keras/Theano/TF1 and do not install on current hardware. More
+importantly, the published CpGenie weights were trained on GM12878
+lymphoblastoid cells, not breast, so scoring them against our targets would hand
+them a cross-tissue handicap and produce a strawman comparison. Training their
+architectures on our data, our splits and our tissue is the fair test and the
+one the reviewer question actually asks.
+
+ARCHITECTURES, TAKEN FROM SOURCE, NOT FROM MEMORY
+
+CpGenie -- data/external/baselines/CpGenie/cnn/seq_128x3_5_5_2f_simple.template
+    The template's Convolution2D(128, 1, 5) over a (4, 1, L) input is a width-5
+    1-D convolution with the four bases as channels.
+        conv[128@5,same] -> maxpool[5,stride3]
+        conv[256@5,same] -> maxpool[5,stride3]
+        conv[512@5,same] -> maxpool[5,stride3]
+        flatten -> dense[64] -> dropout -> dense[64] -> dropout -> head
+    Max-norm 3 on the convolutional weights; RMSprop(rho=0.9, eps=1e-6).
+    Dropout and learning rate were tuned by the authors via hyperas over
+    dropout in {0.3, 0.5, 0.7} and lr in {0.01, 0.001, 0.0001}; we tune over the
+    same grid on our validation split rather than fixing an arbitrary value.
+
+DeepCpG -- data/external/baselines/deepcpg/deepcpg/models/dna.py, CnnL2h128
+        conv[128@11] -> maxpool[4] -> conv[256@3] -> maxpool[2]
+        -> flatten -> dense[128] -> dropout -> head
+    Base-class defaults: dropout 0.0, l1_decay 0.0, l2_decay 0.0,
+    glorot_uniform (models/utils.py:441). We additionally tune dropout on our
+    validation split, which can only help the baseline.
+    Faithfulness check: their docstring states 4,100,000 parameters; at our
+    1,000 bp input the trunk computes to 3,997,824 plus heads. FAITHFULNESS_CHECK
+    below asserts this, so a misreading of the layer spec fails loudly.
+
+DELIBERATE DEVIATIONS, ALL STATED IN THE MANUSCRIPT
+
+  * Output head. Both originals predict a binary methylation state. Our metrics
+    include beta MAE and M-value MAE, so each published trunk carries the same
+    dual head our models use (M-value regression + binary logit) and the same
+    losses (Huber delta=1.345 + BCEWithLogits). This isolates the architecture
+    rather than the output parameterisation, which is the comparison we want.
+  * Window. Trained at our 1,000 bp rather than their defaults, so the input is
+    identical across all models in the table.
+  * Reverse-complement handling. Same deterministic RC augmentation during
+    training and RC-averaged prediction at test time as our models, imported
+    from training_common rather than reimplemented.
+
+    python -u scripts/28_published_architecture_baselines.py \
+        --arch cpgenie --dropout 0.5 --lr 0.001 --seed 42
+    python -u scripts/28_published_architecture_baselines.py --arch cpgenie --grid
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import math
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import torch
+import torch.nn as nn
+from sklearn.metrics import roc_auc_score
+from torch.utils.data import DataLoader, Dataset
+from tqdm import tqdm
+
+from training_common import (  # shared so cropping/RC cannot drift from ours
+    centered_crop,
+    deterministic_rc_choice,
+    m_to_beta_numpy,
+    reverse_complement,
+    set_seed,
+)
+
+BASES = {"A": 0, "C": 1, "G": 2, "T": 3}
+M_COL, BIN_COL, BETA_COL = "M_Value_Target", "Binary_State_Target", "Median_Beta"
+FAITHFULNESS_CHECK = {"deepcpg_trunk_params": 3_997_824}
+
+
+# ----------------------------------------------------------------------------- data
+class OneHotDataset(Dataset):
+    """One-hot sequence + targets, using training_common's crop and RC logic."""
+
+    def __init__(self, df: pd.DataFrame, window: int = 1000, training: bool = False,
+                 rc_probability: float = 0.5, seed: int = 42) -> None:
+        for c in ("Healthy_5000bp_DNA", M_COL, BIN_COL, BETA_COL):
+            if c not in df.columns:
+                raise ValueError(f"input lacks {c}")
+        self.df = df.reset_index(drop=True)
+        self.window, self.training = int(window), bool(training)
+        self.rc_probability, self.seed, self.epoch = float(rc_probability), int(seed), 0
+
+    def set_epoch(self, epoch: int) -> None:
+        self.epoch = int(epoch)
+
+    def __len__(self) -> int:
+        return len(self.df)
+
+    @staticmethod
+    def encode(seq: str) -> np.ndarray:
+        x = np.zeros((4, len(seq)), dtype=np.float32)
+        for i, b in enumerate(seq):
+            j = BASES.get(b)
+            if j is not None:          # N and other ambiguity codes stay all-zero
+                x[j, i] = 1.0
+        return x
+
+    def __getitem__(self, idx: int):
+        row = self.df.iloc[idx]
+        seq = centered_crop(str(row["Healthy_5000bp_DNA"]), self.window)
+        if self.training and deterministic_rc_choice(
+                self.seed, self.epoch, idx, self.rc_probability):
+            seq = reverse_complement(seq)
+        return (torch.from_numpy(self.encode(seq)),
+                torch.tensor(float(row[M_COL]), dtype=torch.float32),
+                torch.tensor(float(row[BIN_COL]), dtype=torch.float32))
+
+
+# ----------------------------------------------------------------- architectures
+class MaxNorm:
+    """Renormalise conv weights to a maximum norm, as CpGenie's W_constraint does."""
+
+    def __init__(self, model: nn.Module, max_value: float = 3.0) -> None:
+        self.convs = [m for m in model.modules() if isinstance(m, nn.Conv1d)]
+        self.max_value = float(max_value)
+
+    @torch.no_grad()
+    def apply(self) -> None:
+        for conv in self.convs:
+            w = conv.weight
+            norm = w.flatten(1).norm(2, dim=1).clamp(min=1e-12)
+            factor = (norm.clamp(max=self.max_value) / norm).view(-1, 1, 1)
+            w.mul_(factor)
+
+
+class DualHead(nn.Module):
+    """Same head as our models: M-value regression plus a binary logit."""
+
+    def __init__(self, in_dim: int) -> None:
+        super().__init__()
+        self.m = nn.Linear(in_dim, 1)
+        self.logit = nn.Linear(in_dim, 1)
+
+    def forward(self, x):
+        return self.m(x).squeeze(-1), self.logit(x).squeeze(-1)
+
+
+class CpGenieCNN(nn.Module):
+    def __init__(self, window: int = 1000, dropout: float = 0.5) -> None:
+        super().__init__()
+        self.features = nn.Sequential(
+            nn.Conv1d(4, 128, 5, padding="same"), nn.ReLU(),
+            nn.MaxPool1d(kernel_size=5, stride=3),
+            nn.Conv1d(128, 256, 5, padding="same"), nn.ReLU(),
+            nn.MaxPool1d(kernel_size=5, stride=3),
+            nn.Conv1d(256, 512, 5, padding="same"), nn.ReLU(),
+            nn.MaxPool1d(kernel_size=5, stride=3),
+        )
+        with torch.no_grad():
+            flat = self.features(torch.zeros(1, 4, window)).flatten(1).shape[1]
+        self.dense = nn.Sequential(
+            nn.Flatten(), nn.Linear(flat, 64), nn.ReLU(), nn.Dropout(dropout),
+            nn.Linear(64, 64), nn.ReLU(), nn.Dropout(dropout),
+        )
+        self.head = DualHead(64)
+
+    def forward(self, x):
+        return self.head(self.dense(self.features(x)))
+
+
+class DeepCpGDnaCNN(nn.Module):
+    """CnnL2h128 from deepcpg/models/dna.py. No padding, matching Keras 'valid'."""
+
+    def __init__(self, window: int = 1000, dropout: float = 0.0,
+                 hidden: int = 128) -> None:
+        super().__init__()
+        self.features = nn.Sequential(
+            nn.Conv1d(4, 128, 11), nn.ReLU(), nn.MaxPool1d(4),
+            nn.Conv1d(128, 256, 3), nn.ReLU(), nn.MaxPool1d(2),
+        )
+        with torch.no_grad():
+            flat = self.features(torch.zeros(1, 4, window)).flatten(1).shape[1]
+        self.dense = nn.Sequential(
+            nn.Flatten(), nn.Linear(flat, hidden), nn.ReLU(), nn.Dropout(dropout))
+        self.head = DualHead(hidden)
+        self.trunk_params = flat * hidden + hidden
+
+    def forward(self, x):
+        return self.head(self.dense(self.features(x)))
+
+
+def build(arch: str, window: int, dropout: float) -> nn.Module:
+    if arch == "cpgenie":
+        return CpGenieCNN(window, dropout)
+    if arch == "deepcpg":
+        model = DeepCpGDnaCNN(window, dropout)
+        expect = FAITHFULNESS_CHECK["deepcpg_trunk_params"]
+        if window == 1000 and model.trunk_params != expect:
+            raise SystemExit(
+                f"DeepCpG dense-layer parameter count is {model.trunk_params}, "
+                f"expected {expect}. The layer spec has been misread; refusing "
+                f"to train a model that is not the published architecture.")
+        return model
+    raise SystemExit(f"unknown arch {arch}")
+
+
+# ------------------------------------------------------------------------ metrics
+@torch.no_grad()
+def evaluate(model: nn.Module, loader: DataLoader, device) -> tuple[dict, pd.DataFrame]:
+    """RC-averaged prediction, matching our own test protocol."""
+    model.eval()
+    m_pred, m_true, logit, binary = [], [], [], []
+    for x, m, b in tqdm(loader, desc="eval", leave=False):
+        x = x.to(device)
+        mf, lf = model(x)
+        mr, lr = model(torch.flip(x, dims=[1, 2]))   # reverse complement
+        m_pred.append(((mf + mr) / 2).cpu().numpy())
+        logit.append(((lf + lr) / 2).cpu().numpy())
+        m_true.append(m.numpy())
+        binary.append(b.numpy())
+    m_pred = np.concatenate(m_pred); m_true = np.concatenate(m_true)
+    logit = np.concatenate(logit); binary = np.concatenate(binary)
+    beta_pred = m_to_beta_numpy(m_pred); beta_true = m_to_beta_numpy(m_true)
+    prob = 1.0 / (1.0 + np.exp(-logit))
+    metrics = {
+        "n": int(len(m_true)),
+        "m_mae": float(np.mean(np.abs(m_pred - m_true))),
+        "m_rmse": float(np.sqrt(np.mean((m_pred - m_true) ** 2))),
+        "beta_mae": float(np.mean(np.abs(beta_pred - beta_true))),
+        "beta_rmse": float(np.sqrt(np.mean((beta_pred - beta_true) ** 2))),
+        "auc": float(roc_auc_score(binary, prob)) if len(np.unique(binary)) == 2 else None,
+    }
+    preds = pd.DataFrame({"true_m": m_true, "pred_m_rc_avg": m_pred,
+                          "true_beta": beta_true, "pred_beta_rc_avg": beta_pred,
+                          "binary_true": binary.astype(int),
+                          "class_prob_rc_avg": prob})
+    return metrics, preds
+
+
+def train_one(args, dropout: float, lr: float, seed: int,
+              train_df, val_df, device) -> tuple[dict, nn.Module]:
+    set_seed(seed)
+    model = build(args.arch, args.window, dropout).to(device)
+    maxnorm = MaxNorm(model, 3.0) if args.arch == "cpgenie" else None
+    opt = (torch.optim.RMSprop(model.parameters(), lr=lr, alpha=0.9, eps=1e-6)
+           if args.arch == "cpgenie"
+           else torch.optim.Adam(model.parameters(), lr=lr))
+    bce, huber = nn.BCEWithLogitsLoss(), nn.HuberLoss(delta=1.345)
+
+    tr = OneHotDataset(train_df, args.window, True, args.rc_probability, seed)
+    va = OneHotDataset(val_df, args.window, False, 0.0, seed)
+    trl = DataLoader(tr, batch_size=args.batch_size, shuffle=True,
+                     num_workers=args.num_workers, pin_memory=True, drop_last=True)
+    val = DataLoader(va, batch_size=args.batch_size * 2, shuffle=False,
+                     num_workers=args.num_workers, pin_memory=True)
+
+    best, best_state = math.inf, None
+    for epoch in range(1, args.epochs + 1):
+        tr.set_epoch(epoch)
+        model.train()
+        total = 0.0
+        for x, m, b in tqdm(trl, desc=f"{args.arch} d={dropout} lr={lr} e{epoch}"):
+            x, m, b = x.to(device), m.to(device), b.to(device)
+            opt.zero_grad(set_to_none=True)
+            mp, lg = model(x)
+            loss = huber(mp, m) + bce(lg, b)
+            loss.backward()
+            opt.step()
+            if maxnorm:
+                maxnorm.apply()
+            total += float(loss)
+        vm, _ = evaluate(model, val, device)
+        print(f"  epoch {epoch}: train_loss {total/max(1,len(trl)):.4f}  "
+              f"val beta_mae {vm['beta_mae']:.4f}  val auc {vm['auc']:.4f}")
+        if vm["beta_mae"] < best:
+            best = vm["beta_mae"]
+            best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+    if best_state is not None:
+        model.load_state_dict(best_state)
+    return {"dropout": dropout, "lr": lr, "seed": seed, "val_beta_mae": best}, model
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(description=__doc__,
+                                formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--arch", choices=("cpgenie", "deepcpg"), required=True)
+    p.add_argument("--train", default="data/datafiles/train.csv")
+    p.add_argument("--val", default="data/datafiles/val.csv")
+    p.add_argument("--test", default="data/datafiles/test.csv")
+    p.add_argument("--window", type=int, default=1000)
+    p.add_argument("--epochs", type=int, default=10)
+    p.add_argument("--batch-size", type=int, default=128)
+    p.add_argument("--num-workers", type=int, default=4)
+    p.add_argument("--rc-probability", type=float, default=0.5)
+    p.add_argument("--dropout", type=float, default=0.5)
+    p.add_argument("--lr", type=float, default=0.001)
+    p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--grid", action="store_true",
+                   help="Tune on the validation split over the authors' own grid.")
+    p.add_argument("--max-rows", type=int, default=0, help="smoke testing only")
+    p.add_argument("--output-dir", default="results/journal/published_baselines")
+    args = p.parse_args()
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"device: {device}")
+    train_df, val_df = pd.read_csv(args.train), pd.read_csv(args.val)
+    test_df = pd.read_csv(args.test)
+    if args.max_rows > 0:
+        train_df = train_df.head(args.max_rows)
+        val_df = val_df.head(max(64, args.max_rows // 4))
+        test_df = test_df.head(max(64, args.max_rows // 4))
+    print(f"train {len(train_df)}  val {len(val_df)}  test {len(test_df)}")
+    model = build(args.arch, args.window, args.dropout)
+    print(f"{args.arch}: {sum(p.numel() for p in model.parameters()):,} parameters")
+
+    out = Path(args.output_dir) / args.arch
+    out.mkdir(parents=True, exist_ok=True)
+
+    if args.grid:
+        grid = ([(d, lr) for d in (0.3, 0.5, 0.7) for lr in (0.01, 0.001, 0.0001)]
+                if args.arch == "cpgenie"
+                else [(d, 0.001) for d in (0.0, 0.3, 0.5)])
+        print(f"tuning over {len(grid)} configurations on the validation split")
+        rows = []
+        for d, lr in grid:
+            r, _ = train_one(args, d, lr, args.seed, train_df, val_df, device)
+            rows.append(r)
+            print(f"  -> dropout {d} lr {lr}: val beta MAE {r['val_beta_mae']:.4f}")
+        tab = pd.DataFrame(rows).sort_values("val_beta_mae")
+        tab.to_csv(out / "grid_search.csv", index=False)
+        best = tab.iloc[0]
+        print(f"\nselected: dropout {best['dropout']} lr {best['lr']} "
+              f"(val beta MAE {best['val_beta_mae']:.4f})")
+        (out / "selected_hyperparameters.json").write_text(json.dumps(
+            {"dropout": float(best["dropout"]), "lr": float(best["lr"]),
+             "selected_on": "validation beta MAE", "grid": [list(g) for g in grid]},
+            indent=2) + "\n")
+        return 0
+
+    res, model = train_one(args, args.dropout, args.lr, args.seed,
+                           train_df, val_df, device)
+    te = OneHotDataset(test_df, args.window, False, 0.0, args.seed)
+    tel = DataLoader(te, batch_size=args.batch_size * 2, shuffle=False,
+                     num_workers=args.num_workers, pin_memory=True)
+    metrics, preds = evaluate(model, tel, device)
+    metrics.update({"arch": args.arch, "seed": args.seed, "dropout": args.dropout,
+                    "lr": args.lr, "window": args.window, "epochs": args.epochs,
+                    "val_beta_mae": res["val_beta_mae"],
+                    "parameters": int(sum(p.numel() for p in model.parameters()))})
+    seed_dir = out / f"seed{args.seed}"
+    seed_dir.mkdir(parents=True, exist_ok=True)
+    preds.to_csv(seed_dir / "predictions.csv", index=False)
+    (seed_dir / "metrics.json").write_text(json.dumps(metrics, indent=2) + "\n")
+    torch.save(model.state_dict(), seed_dir / "weights.pth")
+    print(f"\nTEST  beta MAE {metrics['beta_mae']:.4f}   M MAE {metrics['m_mae']:.4f}"
+          f"   AUC {metrics['auc']:.4f}   n={metrics['n']}")
+    print(f"wrote {seed_dir}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
