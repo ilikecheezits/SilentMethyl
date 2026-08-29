@@ -41,7 +41,10 @@ SCORED = OUT_DIR / "scored" / "candidate_matched_background_statistics.csv"
 NULL_TAIL_RATE = 0.05
 TAIL_ALPHA = 0.05
 NULL_PERCENTILE = 50.0
-PRIMARY_HIT_BAR = 7          # pre-registered at n = 46
+PRIMARY_HIT_BAR = 6          # pre-registered bar at the achieved n = 32:
+                             # 6 hits gives binomial p = 0.0046, 5 gives 0.0204.
+                             # Set by the same p < 0.01 rule as the original
+                             # n = 46 bar of 7, before any variant was scored.
 BOOTSTRAP = 10000
 
 TAIL_COL = "Matched_Empirical_Tail_Probability"

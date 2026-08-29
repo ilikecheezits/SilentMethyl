@@ -31,7 +31,7 @@
   "primary_statistic": {
     "definition": "count of cohort variants whose matched-background two-sided tail probability is below 0.05, against a binomial null of 0.05",
     "expected_under_null_at_n46": 2.3,
-    "threshold": "7 or more of 46 gives p < 0.01",
+    "threshold": "6 or more of 32 gives p < 0.01 (amended from '7 or more of 46' when the achieved n was known)",
     "sided": "two-sided"
   },
   "secondary_statistic": {
@@ -78,6 +78,13 @@
       "change": "Multi-allelic variants are retained rather than excluded.",
       "reason": "The original exclusion assumed ambiguity about which alternate allele to use. There is none: the GWAS Catalog names the risk allele, and Ensembl gives the reference as the first entry of allele_string. REF is taken from Ensembl, ALT is the catalog's risk allele. Excluding these would have dropped rs1219648, an established FGFR2 breast-cancer risk variant, for no reason.",
       "effect_on_power": "Retains variants, so achieved n is equal or larger. Power stated above is unchanged or conservative."
+    },
+    {
+      "date": "2026-08-29",
+      "before_any_scoring": true,
+      "change": "Primary hit bar changed from 7 to 6, and power restated for n = 32.",
+      "reason": "The pre-registration fixed the bar at '7 or more of 46' and stated that the achieved n would be lower and the power recomputed on it. Achieved n is 32. At n=32 the smallest count reaching p < 0.01 against a binomial null of 0.05 is 6 (p = 0.0046); 5 gives only p = 0.0204. The bar is set by the same p < 0.01 rule as before, not chosen to suit a result -- no variant has been scored.",
+      "effect_on_power": "Detectable mean rises 58.4 -> 60.0; power at true 60 falls 0.65 -> 0.50."
     }
   ],
   "allele_resolution": {
@@ -90,5 +97,34 @@
       "Ensembl mapping chromosome and position agree with the catalog"
     ],
     "cross_check": "catalog CHR_POS must equal the Ensembl mapping start; disagreement indicates a build mismatch and halts the build"
+  },
+  "achieved_cohort": {
+    "recorded": "2026-08-29, after cohort construction, BEFORE any variant was scored",
+    "variants": 32,
+    "distinct_probes": 32,
+    "max_variants_per_probe": 1,
+    "median_distance_bp": 194,
+    "attrition": {
+      "unique_rsids_chr8_9": 556,
+      "with_single_base_risk_allele": 429,
+      "within_500bp_of_a_heldout_probe": 41,
+      "distinct_rsids_there": 35,
+      "reference_allele_resolved": 35,
+      "risk_allele_differs_from_reference": 32
+    },
+    "offset_convention": "-1, reference base agreed for 32/32 (100%); +0 gave 21.9%, +1 gave 37.5%",
+    "note": "Every variant sits on its own probe, so variant-level and probe-level analyses coincide and the pseudoreplication that invalidated the ClinVar test is absent."
+  },
+  "power_recomputed_on_achieved_n": {
+    "n": 32,
+    "standard_error": 5.11,
+    "smallest_detectable_mean_two_sided_0.05": 60.0,
+    "power_at_true_mean_55": 0.16,
+    "power_at_true_mean_58": 0.35,
+    "power_at_true_mean_60": 0.5,
+    "power_at_true_mean_65": 0.84,
+    "power_at_true_mean_70": 0.97,
+    "binomial_expected_hits": 1.6,
+    "statement": "Weaker than the n=46 projection: the smallest detectable mean percentile rises from 58.4 to 60.0, and power at a true mean of 60 is only 0.50. A null result constrains the effect to roughly 10 percentile points or less and does not establish absence."
   }
 }
