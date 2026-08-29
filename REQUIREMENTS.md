@@ -1168,19 +1168,37 @@ the pristine file produce byte-identical LaTeX error profiles (7 × "Undefined x
 coordinate", from figure code, in both). The edits introduce no new LaTeX errors.
 Every one of the nine substitutions asserted exactly one match before applying.
 
-### E.4 Bucket list at this stopping point
+### E.4 Bucket list — updated 29 Aug 2026
 
-| # | item | state |
+**Closed this session**
+
+| item | outcome |
+|---|---|
+| `MASK_snp5_common` sensitivity | done — E.1 |
+| Abstract motif claim vs results | done — abstract now matches §motif-results |
+| STK11/NCOA2 split status in text | done — abstract and ranked-variants section |
+| Meta-analysis into abstract | done |
+| ClinVar test recorded as abandoned | done — E.2 |
+| Cluster workspace cleanup | done — 596 → 574 files, 146 → 141 dirs |
+| 45 GB raw eGTEx deletion | **cancelled by decision** — retained deliberately for possible later use |
+
+**Open, in the order I would take them**
+
+| # | item | note |
 |---|---|---|
-| 1 | `MASK_snp5_common` sensitivity | **done** (E.1) |
-| 2 | Abstract motif claim vs results | **done** |
-| 3 | STK11/NCOA2 split status | **done** in text; figure label still to add |
-| 4 | Meta-analysis into abstract | **done** |
-| 5 | ClinVar test recorded as abandoned | **done** (E.2) |
-| 6 | Tumour-domain open question | open — E.1 suggests a cheap resolution |
-| 7 | supplementary_package + reproducibility rebuild | open, stale |
-| 8 | Delete 45 GB raw eGTEx | open |
-| 9 | Rebuild `main_revised.pdf` on the Mac | open |
+| 1 | Install TeX packages, rebuild `main_revised.pdf` | BasicTeX lacks `placeins`, `float`, `preprint` (supplies `balance`), `natbib`, `caption`, `xcolor`, `hyperref`. `sudo tlmgr install` them, then two `pdflatex` passes. Supersedes both the stale `main_revised.pdf` and `main_revised_preview.pdf` |
+| 2 | Verify NCOA2 is on a held-out probe | **inferred, never confirmed.** Asserted in the abstract *and* the ranked-variants section; both flip if it is wrong |
+| 3 | Beta-histogram check, MASK excluded stratum | lower MAE with worse AUC is the range-compression signature; would very likely resolve item 4 at the same time. Hypothesis only — not for the manuscript until checked |
+| 4 | Tumour-domain open question | context-only model does not degrade on TCGA and its M MAE improves; robustness vs compression still undecided |
+| 5 | Split-status label on the case-study figure | text states it, the figure does not |
+| 6 | Finish local repo cleanup, commit | `data/external/bend` (dropped BEND clone), `data/__pycache__`, `scripts/__pycache__` — the latter holds bytecode for three scripts that no longer exist anywhere |
+| 7 | `supplementary_package` + `reproducibility` rebuilds | stale; must run on the cluster where the source CSVs live |
+| 8 | Read both `\draftmode` branches with the switch flipped | how the false "repeated blocked splits" claim survived undetected. Applies to every `\else` branch, not just that one |
 
-Requirement 2 (repeated chromosome-blocked splits) remains deferred by decision,
-and the limitations section now says so in both draft and submission branches.
+**Deferred by decision, not oversight:** requirement 2 (repeated chromosome-blocked splits). The limitations section now states the single-holdout design in both the draft and the submission branch.
+
+**Lost:** `data/prepare_clinvar_matched_background.py` was deleted rather than archived during cleanup and is absent from both trees. E.2 is now the only surviving record of that design. Recoverable on request.
+
+### E.5 PDF build state
+
+`main_revised.tex` (77,986 B) carries the nine corrections. `main_revised.pdf` (184,173 B) predates them and still contains the overclaimed motif abstract and the false repeated-splits line — **do not circulate it**. `main_revised_preview.pdf` is a 14-page build of the current `.tex` made without Latin Modern (`lmodern` and `[T1]{fontenc}` commented out, Computer Modern under OT1 substituted), so it is a reading copy only. Verified in it: zero undefined references or citations; the corrected motif wording, the training-split sentence, I² = 0%, and the 0.9689 probe-QC figure all render. The corrected limitations sentence does *not* appear there because `\draftmodetrue` prints the other branch — see open item 8.
