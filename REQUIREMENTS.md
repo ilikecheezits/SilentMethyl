@@ -1102,42 +1102,63 @@ question (§ context-only model does not degrade on TCGA and its M MAE improves)
 histograms of the two strata would settle it in minutes. **This is a hypothesis,
 not a finding — do not write it into the manuscript until it is checked.**
 
-### E.2 ClinVar matched-background test — designed, attempted, abandoned, never run
+### E.2 ClinVar matched-background test — RUN, and uninformative for a structural reason
 
-Recorded so that its absence is not later read as a suppressed result.
+Superseded the earlier "abandoned, never run" entry: the test was rebuilt,
+pre-flighted, executed on GPU (job 44784867, 15,031 variants x 4 passes x 3
+seeds, 48 min) and analysed. It is reported here in full because the reason it
+fails is more useful than the result.
 
-**Pre-registered** in `preregistration.json` before any score existed:
+**Design as executed.** The 35 held-out non-truncating ClinVar variants were
+scored inside a pool of 14,996 synthetic comparators — single-base substitutions
+drawn at random inside held-out probe windows, positions and alleles uniform,
+never the protected centred CpG (`data/build_synthetic_background.py`). A
+pre-flight (`data/preflight_clinvar_background.py`) confirmed before any GPU
+time that 32 of 35 matched at T2 (same SBS96, same CpG effect, distance within
+50 bp) and that no variant drew a material share of its background from the
+ClinVar set.
 
-- primary cohort: 35 held-out non-truncating ClinVar variants (of 322 in the
-  literature cohort; 47 held out, 12 truncating and excluded)
-- secondary cohort: 16 with unambiguous ClinVar calls
-- primary statistic: count with matched-background tail probability < 0.05
-  against a binomial null of 0.05; expects 1.75 at n = 35, so ≥ 6 gives p < 0.01
-- two-sided; power declared in advance: **a null result could not distinguish
-  absence of enrichment from insufficient power and would have to be reported as
-  inconclusive**
+**Pre-registered primary statistic: null.** 0 of 35 variants had a
+matched-background tail probability below 0.05, against 1.75 expected;
+binomial p = 0.42.
 
-**Why it was abandoned.** `compute_matched_background_statistics` draws each
-variant's comparators from the input frame itself. Feeding it only the 35
-ClinVar variants would have compared each pathogenic variant against the other
-34 pathogenic variants — precisely the missing-comparison-group problem the
-matched-background design exists to solve. A valid run required rebuilding the
-input as those 35 variants embedded in a background pool drawn from the general
-held-out population, i.e. a new cohort construction plus a fresh multi-hour GPU
-scoring run, against a declared power statement whose most likely outcome was an
-inconclusive paragraph.
+**The secondary statistic looked significant in the WRONG direction, and was an
+artefact.** Variant-level mean percentile 37.1, z = -3.30 (secondary cohort
+35.6, z = -2.67). Two confounds account for all of it:
 
-**Nothing was computed.** The smoke test that exposed the flaw ran 2 candidates
-against 25 comparators and produced `min_tail=0.5`, which is an artefact of
-having one comparator. No primary or secondary statistic was ever calculated on
-any cohort, so no result was examined and none was withheld. The decision was
-made on cost and design grounds before any number existed.
+1. **Pseudoreplication.** The 35 variants span only **6 distinct probes**, with
+   **25 of them on `cg13601799` alone**. Treating them as independent counted one
+   locus 25 times. Clustered by probe: mean 46.1 [23.7, 68.5], t = -0.448,
+   **p = 0.67** — null.
+2. **Context mismatch.** The ClinVar loci sit in markedly less active chromatin
+   than the background pool: ATAC 0.004 vs 0.403, H3K4me3 4.36 vs 16.59,
+   H3K27ac 0.47 vs 3.34, phyloP -1.83 vs -0.50. Matching held substitution
+   class, CpG effect and distance fixed, but not genomic context.
 
-**Consequence for the paper.** Clinical relevance rests on the two-cohort
-variant-effect validation rather than a systematic ClinVar enrichment. STK11 and
-NCOA2 remain (mentor's instruction) as explicitly labelled hypothesis
-generation, with split status stated: NCOA2 on a held-out chr8–9 probe, both
-STK11 probes in the training split.
+**The power statement in the pre-registration was wrong.** It assumed n = 35.
+The independent unit is the probe, so the real n is 6. At n = 6 a true mean
+percentile of 70 is undetectable; roughly 80 would be needed. The declared
+threshold ("65 detectable, 58 not") never applied.
+
+**Conclusion, and why it closes the question.** The held-out ClinVar cohort
+cannot support a matched-background test — not with a larger background, not
+with stricter matching. Six independent loci is a structural ceiling of the
+cohort, not a shortfall of this attempt. Any future version needs more held-out
+probes carrying ClinVar-pathogenic non-truncating variants, which is a data
+problem rather than an analysis one.
+
+**What is reportable.** The primary statistic as pre-registered (null), the
+effective sample size (6 probes, not 35 variants), and the structural reason the
+test is uninformative. The apparent depletion must NOT be reported as a finding;
+it is fully explained by pseudoreplication and context mismatch, and it
+disappears under the correct clustering.
+
+**Provenance.** `results/journal/clinvar_matched_background/` holds
+`preregistration.json`, the cohort, the synthetic pool and its summary, the
+scoring input, `clinvar_cohort_ids.json`, `scored/`, and
+`clinvar_matched_background_result.json`. Note that the verdict string inside
+that JSON reads INCONCLUSIVE via the enrichment-direction rule only; the
+clustered analysis above is the correct reading and supersedes it.
 
 ### E.3 Manuscript correction pass — `main_revised.tex`
 
@@ -1178,7 +1199,7 @@ Every one of the nine substitutions asserted exactly one match before applying.
 | Abstract motif claim vs results | done — abstract now matches §motif-results |
 | STK11/NCOA2 split status in text | done — abstract and ranked-variants section |
 | Meta-analysis into abstract | done |
-| ClinVar test recorded as abandoned | done — E.2 |
+| ClinVar matched-background test | **run** — E.2. Primary statistic null; apparent depletion is pseudoreplication (6 probes, 25 variants on one) plus context mismatch. Cohort cannot support the test |
 | Cluster workspace cleanup | done — 596 → 574 files, 146 → 141 dirs |
 | 45 GB raw eGTEx deletion | **cancelled by decision** — retained deliberately for possible later use |
 
