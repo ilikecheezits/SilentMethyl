@@ -1,0 +1,15 @@
+{
+  "probe_table": "data/datafiles/test.csv",
+  "probes_available": 26570,
+  "requested": 15000,
+  "emitted": 14996,
+  "probes_used": 5000,
+  "max_per_probe": 3,
+  "random_seed": 42,
+  "probes_skipped": {
+    "short_sequence": 0,
+    "not_cpg_centred": 0,
+    "ambiguous_base": 0
+  },
+  "design_note": "Positions and alternate alleles drawn uniformly at random within the 1,000 bp model window, excluding the protected centred CpG. No attempt is made to match particular ClinVar variants; matching is performed afterwards by scripts/05 exactly as for any cohort."
+}

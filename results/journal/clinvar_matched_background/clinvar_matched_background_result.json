@@ -1,0 +1,40 @@
+{
+  "scored_file": "results/journal/clinvar_matched_background/scored/candidate_matched_background_statistics.csv",
+  "results": [
+    {
+      "label": "PRIMARY  (all held-out non-truncating)",
+      "n": 35,
+      "hits": 0,
+      "expected_hits": 1.75,
+      "binomial_p": 0.4203183827579349,
+      "mean_percentile": 37.06095095745477,
+      "percentile_ci": [
+        29.542035292766645,
+        44.803041441037486
+      ],
+      "percentile_se": 3.9159592494510145,
+      "median_percentile": 32.30769230769231
+    },
+    {
+      "label": "SECONDARY (unambiguous ClinVar calls)",
+      "n": 16,
+      "hits": 0,
+      "expected_hits": 0.8,
+      "binomial_p": 1.0,
+      "mean_percentile": 35.58115192365351,
+      "percentile_ci": [
+        25.22199876208291,
+        46.31594970530186
+      ],
+      "percentile_se": 5.403059868050707,
+      "median_percentile": 33.65384615384615
+    }
+  ],
+  "verdict": "INCONCLUSIVE, not negative. The declared power statement says n = 35 cannot distinguish absence of enrichment from insufficient power. Report it that way.",
+  "preregistered": {
+    "null_tail_rate": 0.05,
+    "tail_alpha": 0.05,
+    "primary_bar": "6 or more hits, binomial p < 0.01",
+    "power_statement": "at n = 35 a mean percentile of 65 is ~3 SE from the null and detectable; 58 is not. A null result cannot distinguish no enrichment from underpowered."
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "scored_file": "results/journal/gwas_matched_background/scored/candidate_matched_background_statistics.csv",
+  "n_variants": 32,
+  "n_probes": 32,
+  "hits": 3,
+  "binomial_p": 0.21388552705899083,
+  "clustered_percentile": {
+    "n_clusters": 32,
+    "mean": 54.879896076039486,
+    "ci": [
+      44.77584449843356,
+      65.24823817890243
+    ],
+    "se": 5.233529870515594,
+    "t": 0.9324292010888497,
+    "p": 0.35832054396333934
+  },
+  "variant_level_mean": 54.87989607603948,
+  "context_check": {
+    "Ref_ATAC_Signal": {
+      "cohort_mean": 0.2684624553375,
+      "background_mean": 0.40314876591760995,
+      "cohens_d": -0.19373293917425044
+    },
+    "Ref_H3K4me3_Signal": {
+      "cohort_mean": 17.268034965625,
+      "background_mean": 16.585668000099826,
+      "cohens_d": 0.01675071283977247
+    },
+    "Ref_H3K27ac_Signal": {
+      "cohort_mean": 3.679880675625,
+      "background_mean": 3.3413713095454853,
+      "cohens_d": 0.04922450159483819
+    },
+    "Ref_H3K27me3_Signal": {
+      "cohort_mean": 0.259289669,
+      "background_mean": 0.5313494684290477,
+      "cohens_d": -0.30715810686906597
+    },
+    "Ref_H3K9me3_Signal": {
+      "cohort_mean": 0.30182237225,
+      "background_mean": 0.32462928554172443,
+      "cohens_d": -0.04160695376068149
+    },
+    "Ref_H3K36me3_Signal": {
+      "cohort_mean": 2.391362,
+      "background_mean": 1.3578331803787143,
+      "cohens_d": 0.2433428217016636
+    },
+    "Ref_H3K4me1_Signal": {
+      "cohort_mean": 1.0636924361562499,
+      "background_mean": 1.0771592819394704,
+      "cohens_d": -0.010139138846740607
+    },
+    "Target_Base_PhyloP_100way_1": {
+      "cohort_mean": -0.3889375,
+      "background_mean": -0.5026570418778341,
+      "cohens_d": 0.06654245236399375
+    },
+    "Target_Base_PhyloP_100way_2": {
+      "cohort_mean": -0.81821875,
+      "background_mean": -0.2221649773272873,
+      "cohens_d": -0.3624857586621677
+    }
+  },
+  "material_context_differences": [],
+  "verdict": "NULL. Consistent with no enrichment. Per the declared power statement, this constrains the effect to roughly 8 percentile points or less; it does not establish absence."
+}
