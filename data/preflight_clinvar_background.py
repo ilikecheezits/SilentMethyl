@@ -43,9 +43,9 @@ import pandas as pd
 
 sys.path.insert(0, "scripts")
 
-CLINVAR = Path("results/journal/clinvar_matched_background/"
-               "clinvar_heldout_nontruncating_cohort.csv")
-POOL = Path("data/datafiles/testing_data_test_only.csv")
+DEFAULT_CLINVAR = ("results/journal/clinvar_matched_background/"
+                   "clinvar_heldout_nontruncating_cohort.csv")
+DEFAULT_POOL = "data/datafiles/testing_data_test_only.csv"
 
 WINDOW_SIZE = 1000          # scripts/05 --window-size default
 MIN_COMPARATORS = 20        # scripts/05 --min-comparators default
@@ -124,6 +124,15 @@ def derive(df: pd.DataFrame, label: str, centered_crop, annotate_variant,
 
 
 def main() -> int:
+    import argparse
+    ap = argparse.ArgumentParser(description="Pre-flight for the ClinVar test")
+    ap.add_argument("--clinvar", default=DEFAULT_CLINVAR)
+    ap.add_argument("--pool", default=DEFAULT_POOL,
+                    help="Background pool CSV. Must satisfy the same scripts/05 "
+                         "input contract as the ClinVar cohort.")
+    args = ap.parse_args()
+    CLINVAR, POOL = Path(args.clinvar), Path(args.pool)
+
     for p in (CLINVAR, POOL):
         if not p.exists():
             print(f"MISSING: {p}")
