@@ -1220,6 +1220,70 @@ pre-registration with both amendments, `gwas_cohort.csv`,
 and `gwas_matched_background_result.json`. Built by `data/build_gwas_cohort.py`,
 analysed by `data/gwas_matched_background.py`.
 
+### E.6 Published-architecture head-to-head — DONE, and we win on every metric
+
+`scripts/28_published_architecture_baselines.py`. CpGenie and DeepCpG
+reimplemented from released source (not from the papers, which omit the layer
+tables), trained on our splits, three seeds each.
+
+**Why reimplement.** Both are 2017 Keras/Theano/TF1 and do not install on current
+hardware; more importantly the published CpGenie weights are GM12878
+lymphoblastoid, not breast, so scoring them would have been a cross-tissue
+strawman that favours us for the wrong reason.
+
+**Faithfulness.** Layer specs read from
+`CpGenie/cnn/seq_128x3_5_5_2f_simple.template` and
+`deepcpg/models/dna.py::CnnL2h128`. DeepCpG's own docstring claims 4,100,000
+parameters; our implementation computes 4,102,402 at the 1,000 bp input, and the
+script refuses to train if the dense layer does not match 3,997,824.
+Reverse-complement and crop helpers are duplicated verbatim from
+`training_common` and asserted equal to it by `--verify`.
+
+**Tuning was theirs, not ours.** CpGenie over the hyperas grid its template
+declares (dropout {0.3,0.5,0.7} x lr {0.01,0.001,0.0001}); DeepCpG over dropout
+{0.0,0.3,0.5}. Selected on validation beta MAE; the test split was never used for
+selection. `lr=0.01` collapses CpGenie to 0.345 (constant prediction), 0.001 wins
+in the interior. **Both selected the lowest dropout offered** (0.3 and 0.0) — a
+boundary selection, reported in the manuscript, meaning a lower dropout than
+either grid contains might serve these baselines slightly better.
+
+| model | M MAE | beta MAE | ROC-AUC | params |
+|---|---|---|---|---|
+| Composition (3) | 1.9600 | 0.1954 | 0.8748 | — |
+| k-mer ridge (2,772) | 1.6866 | 0.1565 | 0.9190 | — |
+| Context only (9) | 1.4574 | 0.1395 | 0.9187 | — |
+| **CpGenie** (reimpl.) | 1.3858 ± 0.0084 | 0.1281 ± 0.0011 | 0.9406 ± 0.0005 | 2.0 M |
+| **DeepCpG** (DNA module) | 1.3412 ± 0.0092 | 0.1253 ± 0.0004 | 0.9437 ± 0.0009 | 4.1 M |
+| Sequence (DNABERT-2) | 1.1941 | 0.1099 | 0.9569 | 117 M |
+| **Fusion** | **1.0971** | **0.0993** | **0.9680** | 117 M |
+
+**Monotone ordering, no ties.** Published CNNs beat the classical baselines
+(CpGenie 18.1% below k-mer ridge) and are beaten by the pretrained encoder:
+sequence-only alone is 12.3% below DeepCpG, fusion is **20.8% below** on beta
+MAE, 18.2% on M MAE, +0.0243 AUC.
+
+**Stated against ourselves in the manuscript:** the DNABERT-2 encoder is 117 M
+parameters against 2.0 M and 4.1 M and arrives pretrained, so the margin reflects
+capacity and pretraining together, not architecture alone; and both published
+trunks were given our dual head, which is fairer for comparison but is not the
+configuration their authors evaluated.
+
+### E.7 Mentor requirement scorecard
+
+| # | requirement | state |
+|---|---|---|
+| 1 | multi-cohort testing | **met** — GENOA (66,495 pairs), eGTEx breast, TCGA-BRCA tumour domain |
+| 2 | repeated chromosome-blocked splits | **deferred by decision** — single holdout; stated in both branches of Limitations |
+| 3 | stronger baselines and ablations | **met, strongly** — E.6: seven comparators including two published architectures, plus the fusion/sequence equivalence ablation |
+| 4 | uncertainty calibration | **met** — RC disagreement, plus the generalisable finding that calibration must be assessed in logit space |
+| 5 | ancestry analyses | **partial** — African American GENOA cohort with I² = 0%, but confounded with tissue; training-cohort stratification underpowered (84/4/1) |
+| 6 | independent variant evaluation | **met, strengthened** — two cohorts, meta-analysis, null control, distance and significance gradients, distance-matched AUROC |
+| 7 | regulatory enrichment | **met but reinterpreted** — ETS coupling real, and reported as compositional after the k-mer control reproduced it more strongly |
+
+Five met (three of them strongly), one partial, one deferred by decision. The two
+that are not fully met are stated as such in the manuscript rather than papered
+over.
+
 ### E.3 Manuscript correction pass — `main_revised.tex`
 
 Nine edits, three of them corrections against our own earlier text:

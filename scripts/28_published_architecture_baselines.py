@@ -348,6 +348,125 @@ def train_one(args, dropout: float, lr: float, seed: int,
     return {"dropout": dropout, "lr": lr, "seed": seed, "val_beta_mae": best}, model
 
 
+
+# --------------------------------------------------------- variant-effect mode
+# Mirrors scripts/23 score_variants() exactly -- same constants, same guards,
+# same emitted schema -- so scripts/20 evaluates these baselines through the
+# identical code path as the neural models: identical distance matching,
+# identical 1 Mb block bootstrap. CpGenie in particular was designed for this
+# task ("Predicting the impact of non-coding variants on DNA methylation"), so
+# this is the comparison on its home ground rather than on absolute prediction.
+FULL_TARGET_C_INDEX = 2499
+FULL_SEQUENCE_LENGTH = 5000
+MODEL_WINDOW_SIZE = 1000
+CENTER_C_INDEX, CENTER_G_INDEX = 499, 500
+PROTECTED_CPG_INDICES = frozenset({CENTER_C_INDEX, CENTER_G_INDEX})
+
+
+@torch.no_grad()
+def _predict_m(model: nn.Module, windows: list[str], device, batch: int) -> np.ndarray:
+    """RC-averaged M-value for each window, batched."""
+    out = []
+    for i in range(0, len(windows), batch):
+        chunk = windows[i:i + batch]
+        x = torch.from_numpy(np.stack([OneHotDataset.encode(w) for w in chunk]))
+        x = x.to(device)
+        mf, _ = model(x)
+        mr, _ = model(torch.flip(x, dims=[1, 2]))
+        out.append((((mf + mr) / 2).cpu().numpy()))
+    return np.concatenate(out) if out else np.zeros(0)
+
+
+def score_pairs(args, device) -> int:
+    pairs = pd.read_csv(args.pairs, low_memory=False)
+    probes = pd.read_csv(args.test, low_memory=False)
+    records = dict(zip(probes["probeID"].astype(str),
+                       probes["Healthy_5000bp_DNA"].astype(str)))
+    print(f"pairs {len(pairs)}   probe sequences {len(records)}")
+
+    need = ["Variant_ID", "probeID", "distance_bp", "Ref", "Alt"]
+    missing = [c for c in need if c not in pairs.columns]
+    if missing:
+        print(f"STOP: pairs file lacks {missing}")
+        return 1
+
+    counters = {k: 0 for k in ("probe_not_in_splits", "bad_stored_sequence_length",
+                               "stored_sequence_not_cpg_centred",
+                               "outside_model_window", "alters_target_cpg",
+                               "reference_base_mismatch", "window_not_cpg_centred",
+                               "scoreable")}
+    rows, wt_windows, mut_windows = [], [], []
+    for row in pairs.itertuples(index=False):
+        probe = str(row.probeID)
+        sequence = records.get(probe)
+        if sequence is None:
+            counters["probe_not_in_splits"] += 1; continue
+        sequence = sequence.upper()
+        if len(sequence) != FULL_SEQUENCE_LENGTH:
+            counters["bad_stored_sequence_length"] += 1; continue
+        if sequence[FULL_TARGET_C_INDEX:FULL_TARGET_C_INDEX + 2] != "CG":
+            counters["stored_sequence_not_cpg_centred"] += 1; continue
+        offset = int(row.distance_bp)
+        full_index = FULL_TARGET_C_INDEX + offset
+        window_index = CENTER_C_INDEX + offset
+        if not 0 <= window_index < MODEL_WINDOW_SIZE:
+            counters["outside_model_window"] += 1; continue
+        if window_index in PROTECTED_CPG_INDICES:
+            counters["alters_target_cpg"] += 1; continue
+        if sequence[full_index] != str(row.Ref).upper():
+            counters["reference_base_mismatch"] += 1; continue
+        mutated = (sequence[:full_index] + str(row.Alt).upper()
+                   + sequence[full_index + 1:])
+        wt_window = centered_crop(sequence, MODEL_WINDOW_SIZE)
+        mut_window = centered_crop(mutated, MODEL_WINDOW_SIZE)
+        if wt_window[CENTER_C_INDEX:CENTER_G_INDEX + 1] != "CG":
+            counters["window_not_cpg_centred"] += 1; continue
+        rec = row._asdict()
+        rec["Pair_UID"] = f"{row.Variant_ID}|{probe}"
+        rec["Mutation_Window_Index"] = int(window_index)
+        rows.append(rec); wt_windows.append(wt_window); mut_windows.append(mut_window)
+        counters["scoreable"] += 1
+
+    print(f"counters: {counters}")
+    if not rows:
+        print("STOP: nothing scoreable")
+        return 1
+    base = pd.DataFrame(rows).reset_index(drop=True)
+
+    out_root = Path(args.output_dir) / "variant_scoring" / args.stratum / args.arch
+    for seed in args.seeds:
+        w = Path(args.output_dir) / args.arch / f"seed{seed}" / "weights.pth"
+        if not w.exists():
+            print(f"STOP: missing {w}; train the seeds first")
+            return 1
+        model = build(args.arch, args.window, args.dropout).to(device)
+        model.load_state_dict(torch.load(w, map_location=device))
+        model.eval()
+        wt_m = _predict_m(model, wt_windows, device, args.batch_size * 2)
+        mut_m = _predict_m(model, mut_windows, device, args.batch_size * 2)
+        out = base.copy()
+        out["Model"] = args.arch
+        out["Seed"] = int(seed)
+        out["WT_M_RC_Avg"] = wt_m
+        out["MUT_M_RC_Avg"] = mut_m
+        out["WT_Beta_RC_Avg"] = m_to_beta_numpy(wt_m)
+        out["MUT_Beta_RC_Avg"] = m_to_beta_numpy(mut_m)
+        out["Predicted_Delta_M"] = mut_m - wt_m
+        out["Predicted_Delta_Beta"] = out["MUT_Beta_RC_Avg"] - out["WT_Beta_RC_Avg"]
+        out["Absolute_Delta_M"] = np.abs(out["Predicted_Delta_M"])
+        out["Absolute_Delta_Beta"] = np.abs(out["Predicted_Delta_Beta"])
+        target = out_root / f"seed{seed}" / "pair_scores.csv"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        out.to_csv(target, index=False)
+        print(f"  seed {seed}: {len(out)} pairs -> {target}")
+        print(f"    median |delta beta| {out['Absolute_Delta_Beta'].median():.5f}")
+    (out_root / "scoring_summary.json").write_text(json.dumps(
+        {"arch": args.arch, "pairs_file": args.pairs, "stratum": args.stratum,
+         "seeds": list(args.seeds), "counters": counters,
+         "scoreable": counters["scoreable"]}, indent=2) + "\n")
+    print(f"\nwrote {out_root}")
+    return 0
+
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -369,6 +488,11 @@ def main() -> int:
                    help="Check the duplicated helpers against training_common. "
                         "Pays the slow transformers import; run once, not per job.")
     p.add_argument("--max-rows", type=int, default=0, help="smoke testing only")
+    p.add_argument("--score-pairs", action="store_true",
+                   help="Score variant pairs with trained checkpoints instead of training.")
+    p.add_argument("--pairs", default="data/external/genoa_meqtl/scoring/genoa_scoring_input_heldout.csv")
+    p.add_argument("--stratum", default="heldout")
+    p.add_argument("--seeds", nargs="+", type=int, default=[42, 43, 44])
     p.add_argument("--output-dir", default="results/journal/published_baselines")
     args = p.parse_args()
 
@@ -380,6 +504,14 @@ def main() -> int:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"device: {device}")
+    if args.score_pairs:
+        sel = Path(args.output_dir) / args.arch / "selected_hyperparameters.json"
+        if sel.exists():
+            cfg = json.loads(sel.read_text())
+            args.dropout = float(cfg["dropout"])
+            print(f"using selected dropout {args.dropout} from {sel}")
+        return score_pairs(args, device)
+
     train_df, val_df = pd.read_csv(args.train), pd.read_csv(args.val)
     test_df = pd.read_csv(args.test)
     if args.max_rows > 0:

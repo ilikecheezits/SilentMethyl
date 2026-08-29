@@ -109,6 +109,11 @@ of 0.0993 and ROC-AUC of 0.9680 on 26{,}570 held-out CpGs, exceeding both
 single-modality baselines, with the largest gains at CpG shores and at loci with
 high accessibility or H3K27ac signal.
 
+Against published methylation architectures reimplemented from source and
+trained on the identical splits with hyperparameters tuned over their authors'
+own grids, the fusion model lowers beta MAE 20.8\% below the better of them
+(CpGenie $0.1281$, DeepCpG $0.1253$), with ROC-AUC 0.0243 higher.
+
 \textbf{We evaluate variant effects on an independent cohort three orders of
 magnitude larger than prior work}: 66{,}495 held-out variant--CpG pairs
 (39{,}657 unique variants) from GENOA, an African American whole-blood meQTL
@@ -237,14 +242,15 @@ our own results and belongs in the discussion.
 
 \smallskip
 \noindent\textbf{Not yet written, in priority order.}
-(i)~head-to-head against CpGenie and DeepCpG---\emph{in progress}: both
-architectures were reimplemented from their published source and are being
-trained on our splits, since the originals are 2017-era Keras/Theano and the
-published CpGenie weights are GM12878, not breast, which would make scoring them
-a cross-tissue strawman. Hyperparameters are selected on the validation split
-over the authors' own declared grid; (ii)~repeated chromosome-blocked splits,
-four additional folds at seed 42; (iii)~conformal prediction intervals;
-(iv)~HOCOMOCO as a second motif library.
+(i)~repeated chromosome-blocked splits, four additional folds at seed 42---the
+only remaining model training; (ii)~conformal prediction intervals;
+(iii)~HOCOMOCO as a second motif library.
+
+\smallskip
+\noindent\textbf{Completed since the previous pass.} The head-to-head against
+CpGenie and DeepCpG is done (Section~\ref{sec:published-methods},
+Table~\ref{tab:performance}): both reimplemented from released source, trained
+on our splits, tuned over their authors' own grids, three seeds each.
 
 \smallskip
 \noindent\textbf{Designed, attempted, abandoned---recorded so its absence is not
@@ -263,7 +269,9 @@ withheld.
 \smallskip
 \noindent\textbf{Bibliography.} New citation keys required in
 \texttt{references.bib}: \texttt{shang2023genoa}, \texttt{avsec2025alphagenome},
-\texttt{ying2024methylgpt}, \texttt{gemma2012}, \texttt{castrocolin2013jaspar}. If \texttt{references.bib} is
+\texttt{ying2024methylgpt}, \texttt{gemma2012}, \texttt{castrocolin2013jaspar},
+\texttt{zeng2017cpgenie}, \texttt{angermueller2017deepcpg},
+\texttt{buniello2019gwascatalog}. If \texttt{references.bib} is
 absent at build time, this document falls back to a key-only reference list so
 that it still compiles.
 \normalsize
@@ -620,6 +628,48 @@ A matched analysis tested whether predicted magnitude separated significant lead
 from high-$q$ associations ($q\ge0.5$) matched on chromosome and minor allele
 frequency (35 pairs from 53 significant and 51 high-$q$ variants).
 
+\subsection{Published methylation architectures, reimplemented\NEW}
+\label{sec:published-methods}
+
+Comparison against CpGenie \cite{zeng2017cpgenie} and DeepCpG
+\cite{angermueller2017deepcpg} required a decision about how to run them. Both
+are 2017-era Keras/Theano/TensorFlow-1 codebases that do not install on current
+hardware, and the published CpGenie weights were trained on GM12878
+lymphoblastoid cells rather than breast tissue, so scoring those weights against
+our targets would impose a cross-tissue handicap and produce a comparison
+favourable to us for the wrong reason. We therefore reimplemented both
+architectures and trained them on our splits.
+
+Layer specifications were taken from the released source rather than from the
+papers. CpGenie follows \texttt{cnn/seq\_128x3\_5\_5\_2f\_simple.template}:
+three convolution/max-pool stacks (128, 256 and 512 filters of width 5, pooling
+width 5 stride 3) into two 64-unit dense layers with dropout, max-norm 3 on the
+convolutional weights, and RMSprop. DeepCpG follows \texttt{CnnL2h128} in
+\texttt{deepcpg/models/dna.py}: convolution 128@11, max-pool 4, convolution
+256@3, max-pool 2, dense 128, dropout. As a check on our reading of the layer
+specification, the DeepCpG dense layer computes to 3{,}997{,}824 parameters at a
+1{,}000\,bp input against the 4{,}100{,}000 its own docstring reports.
+
+Both were trained on the identical training split with the identical
+reverse-complement augmentation and the identical loss used for our models, and
+evaluated with the same reverse-complement averaging. Hyperparameters were
+selected on the validation split over the grids the authors themselves declare:
+for CpGenie, dropout $\in \{0.3, 0.5, 0.7\}$ crossed with learning rate
+$\in \{0.01, 0.001, 0.0001\}$, the hyperas search in their template; for
+DeepCpG, dropout $\in \{0.0, 0.3, 0.5\}$ at their default learning rate. The
+test split was never used for selection. Selected settings were dropout 0.3 and
+learning rate 0.001 for CpGenie, and dropout 0.0 for DeepCpG; both sat at the
+lower edge of the dropout range offered, which we report because it means a
+lower dropout than either grid contains might serve these baselines slightly
+better.
+
+Two deviations are deliberate. Both originals predict a binary methylation
+state, so we attached our dual head---M-value regression plus a binary
+logit---to each published trunk, which scores every model on identical targets
+and isolates the architecture rather than the output parameterisation. And both
+were trained at our 1{,}000\,bp window rather than their own defaults, so the
+input is identical across the comparison.
+
 \subsection{Matched-background tests of clinically annotated variant sets\NEW}
 \label{sec:matched-methods}
 
@@ -734,25 +784,49 @@ training seed. \textbf{(A)} M-value MAE. \textbf{(B)} beta MAE.
 
 \begin{table}[t]
 \centering
-\caption{\textbf{Held-out chr8--9 performance against classical sequence
-baselines.} Mean $\pm$ SD across three seeds on 26{,}570 CpGs. Both baselines are
-ridge regressions fitted on the identical training split with the regularisation
-strength selected on the identical validation split, so no tissue or data
-advantage separates them from the neural models.}
+\caption{\textbf{Held-out chr8--9 performance against classical baselines and
+published methylation architectures.\REV} Mean $\pm$ SD across three seeds on
+26{,}570 CpGs. Every model is fitted on the identical training split with
+hyperparameters selected on the identical validation split, so no tissue or data
+advantage separates them. The ridge baselines have their regularisation strength
+tuned; CpGenie and DeepCpG were reimplemented from their published source and
+tuned over the authors' own declared grids (Section~\ref{sec:published-methods}).
+Parameter counts: CpGenie 2.0\,M, DeepCpG 4.1\,M, DNABERT-2 encoder 117\,M.}
 \label{tab:performance}
 \small
 \resizebox{\columnwidth}{!}{
-\begin{tabular}{lccccc}
+\begin{tabular}{lccccccc}
 \toprule
-Metric & Composition & $k$-mer ridge & Context & Sequence & Fusion \\
- & (3 feat.) & (2{,}772 feat.) & (9 feat.) & DNABERT-2 & full \\
+Metric & Composition & $k$-mer ridge & Context & CpGenie & DeepCpG & Sequence & Fusion \\
+ & (3 feat.) & (2{,}772 feat.) & (9 feat.) & (reimpl.) & (DNA module) & DNABERT-2 & full \\
 \midrule
-M-value MAE & $1.9600$ & $1.6866$ & $1.4574\pm0.0023$ & $1.1941\pm0.0070$ & $\mathbf{1.0971\pm0.0192}$ \\
-Beta MAE & $0.1954$ & $0.1565$ & $0.1395\pm0.0001$ & $0.1099\pm0.0008$ & $\mathbf{0.0993\pm0.0025}$ \\
-ROC-AUC & $0.8748$ & $0.9190$ & $0.9187\pm0.0001$ & $0.9569\pm0.0007$ & $\mathbf{0.9680\pm0.0021}$ \\
+M-value MAE & $1.9600$ & $1.6866$ & $1.4574\pm0.0023$ & $1.3858\pm0.0084$ & $1.3412\pm0.0092$ & $1.1941\pm0.0070$ & $\mathbf{1.0971\pm0.0192}$ \\
+Beta MAE & $0.1954$ & $0.1565$ & $0.1395\pm0.0001$ & $0.1281\pm0.0011$ & $0.1253\pm0.0004$ & $0.1099\pm0.0008$ & $\mathbf{0.0993\pm0.0025}$ \\
+ROC-AUC & $0.8748$ & $0.9190$ & $0.9187\pm0.0001$ & $0.9406\pm0.0005$ & $0.9437\pm0.0009$ & $0.9569\pm0.0007$ & $\mathbf{0.9680\pm0.0021}$ \\
 \bottomrule
 \end{tabular}}
 \end{table}
+
+Against the published architectures the ordering is monotone and the margin is
+substantial. CpGenie and DeepCpG, trained on our splits with hyperparameters
+selected over the grids their own authors declared, reach beta MAE
+$0.1281\pm0.0011$ and $0.1253\pm0.0004$ with ROC-AUC $0.9406$ and $0.9437$. Both
+clearly exceed the classical baselines---CpGenie improves on $k$-mer ridge by
+18.1\%---confirming that a learned convolutional encoder extracts more from the
+same sequence than fixed $k$-mer counts. Both are in turn exceeded by the
+pretrained encoder: sequence-only DNABERT-2 lowers beta MAE 12.3\% below the
+better of them, and the full fusion model lowers it \textbf{20.8\%}, with
+M-value MAE 18.2\% lower and ROC-AUC 0.0243 higher.
+
+Two things temper that comparison and we state them rather than leaving them
+implicit. The DNABERT-2 encoder carries roughly 117\,M parameters against
+CpGenie's 2.0\,M and DeepCpG's 4.1\,M, and it arrives pretrained on genomic
+sequence, so the gain reflects capacity and pretraining together rather than
+architecture alone. And both published models were designed for a binary
+methylation-state objective; we attached our dual regression-plus-classification
+head to their published trunks so that all seven columns are scored on identical
+targets, which is the fairer comparison but is not the configuration their
+authors evaluated.
 
 \subsection{Reference context contributes across regulatory conditions}
 
@@ -1413,6 +1487,44 @@ disruptors. A model that had learned a general sensitivity to motif damage would
 show both. That neither appears, while a signed family-level coupling does, is
 more informative than the positive result alone, and is the reason we report the
 three together.
+
+\subsection*{What the evidence supports\NEW}
+
+It is worth stating plainly what has and has not been established, because the
+strength of this work lies in the breadth of the evaluation rather than in any
+single number.
+
+Absolute methylation prediction is established against seven comparators on one
+held-out set: two classical sequence baselines, a context-only model, two
+published deep architectures reimplemented and tuned on identical data, and our
+own sequence-only ablation. The ordering is monotone and the fusion model leads
+every column (Table~\ref{tab:performance}). Held-out performance is not an
+artefact of near-duplicate sequence (four of 26{,}570 probes exceed a MinHash
+Jaccard of 0.5), of distributional drift (predictions track the held-out
+chromosomes' higher methylation rather than regressing to the training mean), or
+of genotype-affected probes (excluding \texttt{MASK\_snp5\_common} leaves beta
+MAE unchanged and raises ROC-AUC).
+
+Variant-effect prediction is established on two independent cohorts that fail in
+different directions---a large cross-tissue, cross-ancestry meQTL study and a
+small tissue-matched one---with a pooled estimate showing no detectable
+heterogeneity, a null stratum that returns nothing, a monotone gradient with
+association strength, a monotone gradient with distance, and discrimination that
+survives matching on distance. Each of those could have failed independently and
+none did.
+
+The mechanism connecting the two is not left as an observation. Because the
+context features are identical for reference and alternate alleles, the context
+modality cannot create a variant effect, and the paired equivalence intervals
+confirm it does not (Section~\ref{sec:equivalence}). That explains both why
+context improves absolute prediction and why the variant pathway transfers to a
+different tissue.
+
+Where results did not hold up, we report the control that undermined them: the
+motif coupling is reproduced more strongly by a $k$-mer model that never sees a
+motif, and two pre-registered tests of clinical variant classification returned
+null. Those are stated in the main text rather than deferred to supplementary
+material, and they are what delimit the intended use of the framework.
 
 \subsection*{Limitations}
 
