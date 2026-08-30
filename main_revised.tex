@@ -94,87 +94,26 @@ Uncertainty and Independent Cross-Tissue Variant Validation}
 \maketitle
 
 \begin{abstract}
-DNA methylation is a central component of epigenetic regulation, yet directly
-measuring how individual nucleotide variants alter local methylation remains
-difficult because matched genetic and epigenetic data are scarce. We present
-SilentMethyl, a multimodal gated-fusion framework that combines a DNABERT-2
-encoder over 1{,}000-bp CpG-centered sequence with an MLP encoding breast
-epigenomic context---chromatin accessibility, six histone marks, and evolutionary
-conservation. Learned gates weight the two representations per locus to predict
-CpG methylation, and paired wild-type/mutant scoring estimates
-variant-associated methylation change.
 
-Under chromosome-blocked splitting, the fusion model reached a $\beta$-value MAE
-of 0.0993 and ROC-AUC of 0.9680 on 26{,}570 held-out CpGs, exceeding both
-single-modality baselines, with the largest gains at CpG shores and at loci with
-high accessibility or H3K27ac signal.
+DNA methylation is shaped both by local sequence and by the chromatin context in
+which that sequence sits, but establishing which single-nucleotide variants
+actually change methylation remains difficult. We present SilentMethyl, a gated
+fusion of a pretrained DNA language model with reference epigenomic features that
+predicts CpG methylation and the methylation change a variant causes. Under
+chromosome-blocked splitting the model reaches a $\beta$-value MAE of 0.0993 and
+ROC-AUC of 0.968 on 26{,}570 held-out CpGs, outperforming six comparators
+including the CpGenie and DeepCpG architectures retrained on identical data.
+Predicted variant effects replicate across two independent cohorts --- 66{,}495
+variant--CpG pairs from an African American whole-blood meQTL study and 76{,}893
+from tissue-matched breast --- agreeing in direction and rank, surviving matching
+on variant--CpG distance, and pooling with no detectable heterogeneity. Two
+findings generalise beyond this model. Gated fusion improves absolute prediction
+but contributes nothing to variant-effect prediction, because context features
+are identical for both alleles and therefore cannot create a variant effect; and
+uncertainty on bounded bimodal targets is confounded by range compression, so
+calibration must be assessed in logit space. Predicted effect magnitude does not
+by itself identify clinically annotated variants.
 
-Against published methylation architectures reimplemented from source and
-trained on the identical splits with hyperparameters tuned over their authors'
-own grids, the fusion model lowers beta MAE 20.8\% below the better of them
-(CpGenie $0.1281$, DeepCpG $0.1253$), with ROC-AUC 0.0243 higher.
-
-\textbf{We evaluate variant effects on an independent cohort three orders of
-magnitude larger than prior work}: 66{,}495 held-out variant--CpG pairs
-(39{,}657 unique variants) from GENOA, an African American whole-blood meQTL
-study, harmonised to hg38 and covering 19{,}081 of the 26{,}570 held-out probes.
-Among genome-wide significant associations the model recovered effect direction
-above chance (55.3\%, 95\% CI 53.6--57.0) and correlated with reported effects in
-signed rank ($\rho = 0.152$, 0.117--0.188). Agreement declined monotonically with
-association strength and reached chance in the null stratum, providing an
-internal negative control. Discrimination of true meQTLs from tested-but-null
-pairs survived matching on variant--CpG distance (AUROC 0.570, 0.554--0.585),
-though the unmatched estimate did not exceed a distance-only baseline---a
-comparison we report explicitly. Variant effects were additionally evaluated in
-tissue-matched eGTEx breast mammary tissue (418 pairs) and the two cohorts
-combined by inverse-variance meta-analysis of LD-block-weighted Fisher-$z$
-estimates: $\rho = 0.178$ (0.068--0.283, $p = 1.6\times10^{-3}$), with no
-detectable heterogeneity ($I^{2} = 0\%$) between a European-ancestry breast
-cohort and an African American blood cohort. A matched null stratum in GENOA
-returns $-0.004$ ($-0.021$ to $+0.013$).
-
-\textbf{Scanning 831 JASPAR motifs across the held-out pairs recovers a
-directional coupling, but a sequence-only control shows it is compositional.}
-Disruption of ETS-family motifs couples to predicted hypermethylation ($\rho$ up
-to $-0.28$) against a null distribution of per-factor couplings centred at
-$-0.004$, and survives control for local GC content, variant--CpG distance, and
-substitution class. A $k$-mer ridge baseline that is never shown a motif
-reproduces the same coupling more strongly, however, so the relationship tracks
-local sequence composition rather than learned regulatory grammar. We report the
-control because it bounds what the model can be said to have learned.
-
-Applied to individual variants, the framework produces falsifiable statements
-about local methylation: the highest-ranked synonymous candidate, an \textit{NCOA2}
-variant 9\,bp from its CpG, is predicted to shift methylation by $-0.18$ and
-exceeds all 66 matched background variants. Two \textit{STK11} variants
-including a known pathogenic allele receive substantial predicted shifts, but
-both lie on training-split probes and are therefore reported as hypothesis
-generation at loci the model has seen. These are hypotheses for experimental test
-rather than validated effects, and they define the intended use of the
-framework.
-
-Asked directly whether predicted effect magnitude identifies clinically
-annotated variants, the answer is no: two pre-registered matched-background
-tests---35 held-out ClinVar-pathogenic variants and 32 breast-cancer GWAS risk
-variants, each against 14{,}996 substitution- and distance-matched
-comparators---returned null (0 of 35 and 3 of 32 exceeding their matched
-backgrounds, against 1.8 and 1.6 expected). We report this boundary because it
-delimits the intended use: the framework predicts the methylation consequence of
-a substitution, with calibrated uncertainty and no detectable loss of accuracy
-when transferred to an African American cohort, but does not classify variants
-by pathogenicity from predicted magnitude alone.
-
-Two further findings generalise beyond this model. First, uncertainty evaluation on
-bounded bimodal targets is confounded by range compression: a zero-parameter
-heuristic outperforms genuine uncertainty estimators on the $\beta$ scale and
-collapses on the unbounded logit scale, so calibration should be assessed in
-logit space. Second, gated multimodal fusion improves absolute methylation
-prediction but contributes nothing to variant-effect prediction (paired
-equivalence intervals bounded within $\pm 0.007$), because context features are
-allele-invariant and therefore cannot create a variant effect. Together these
-results establish SilentMethyl as a calibrated framework linking sequence
-variation to local epigenetic regulation, and delimit what multimodal fusion can
-and cannot contribute to variant-effect prediction.
 \end{abstract}
 
 \ifdraftmode
@@ -232,13 +171,20 @@ Section~\ref{sec:performance}'s downstream subsection. Probe-QC sensitivity on
 promoted into the abstract.
 
 \smallskip
-\noindent\textbf{Open question inside a written section.} The context-only model
-shows no degradation at all against the tumour target and its $M$ MAE improves
-(Section~\ref{sec:tumor-results}). Genuine robustness of coarse chromatin signal
-and bounded-range compression from a less bimodal tumour $\beta$ distribution both
-predict this. Resolve before the text asserts either; if it is compression, that
-is a third appearance of our own Section~\ref{sec:uncertainty-results} finding in
-our own results and belongs in the discussion.
+\noindent\textbf{Open question inside a written section, tested and still open.}
+The context-only model shows no degradation at all against the tumour target and
+its $M$ MAE improves (Section~\ref{sec:tumor-results}). Genuine robustness of
+coarse chromatin signal and bounded-range compression from a less bimodal tumour
+$\beta$ distribution both predict this. The compression limb was tested directly
+on the \texttt{MASK\_snp5\_common} strata, where the same signature appears, by
+resampling unflagged probes to the flagged stratum's $\beta$ histogram
+(\texttt{scripts/29\_range\_compression\_check.py}). It did not resolve: the
+differences being attributed are 0.005--0.010 in ROC-AUC and 0.0006--0.012 in
+beta MAE, against a combined standard error of roughly 0.007, and the three
+models do not behave alike. The test is underpowered relative to the effect it
+was asked to explain, the result is recorded in
+\texttt{results/journal/range\_compression/}, and neither limb may be asserted in
+the text.
 
 \smallskip
 \noindent\textbf{Not yet written, in priority order.}
@@ -248,23 +194,33 @@ only remaining model training; (ii)~conformal prediction intervals;
 
 \smallskip
 \noindent\textbf{Completed since the previous pass.} The head-to-head against
-CpGenie and DeepCpG is done (Section~\ref{sec:published-methods},
-Table~\ref{tab:performance}): both reimplemented from released source, trained
-on our splits, tuned over their authors' own grids, three seeds each.
+CpGenie and DeepCpG is done on both tasks. Absolute prediction:
+Section~\ref{sec:published-methods} and Table~\ref{tab:performance}, both models
+reimplemented from released source, trained on our splits, tuned over their
+authors' own grids, three seeds each. Variant effects: both scored on the
+identical GENOA and eGTEx pairs and compared to fusion on a shared
+distance-matched cohort with paired intervals
+(\texttt{scripts/30\_paired\_model\_comparison.py},
+Section~\ref{sec:genoa-results}). The variant-effect arm returned eleven nulls in
+twelve comparisons and is written up as convergence across architectures; it was
+run after the absolute-prediction arm and reversed the ordering we had provisionally
+read off unpaired per-model estimates.
 
 \smallskip
-\noindent\textbf{Designed, attempted, abandoned---recorded so its absence is not
-read as a suppressed result.} A matched-background test of ClinVar-pathogenic
-variants was pre-registered in \texttt{preregistration.json} before any score
-existed: primary cohort the 35 held-out non-truncating variants, primary
-statistic the count with matched-background tail probability below $0.05$ against
-a binomial null of $0.05$, two-sided, with the power statement declared in
-advance that $n = 35$ could not distinguish absence of enrichment from
-insufficient power. It was abandoned on feasibility grounds and never run. The
-comparator pool would have had to be built from the general held-out population
-rather than the cohort itself, and the expected outcome under the declared power
-statement was an inconclusive paragraph. No result was generated, examined, or
-withheld.
+\noindent\textbf{Run, and uninformative for a structural reason---recorded so its
+absence from the claims is not read as a suppressed result.} The ClinVar
+matched-background test was pre-registered in \texttt{preregistration.json}
+before any score existed: primary cohort the 35 held-out non-truncating variants,
+primary statistic the count with matched-background tail probability below $0.05$
+against a binomial null of $0.05$, two-sided, with a power statement declared in
+advance. It was subsequently built against a synthetic comparator pool drawn from
+the general held-out population and run. The result is reported in
+Section~\ref{sec:translational}. It carries no weight because the 35 variants
+span only six distinct probes, 25 of them on a single CpG: the apparent
+depletion at variant level disappears once the interval is clustered on probe,
+leaving an effective $n$ of six that no comparator pool can rescue. An earlier
+version of this section stated the test had been abandoned and never run; that
+was true when written and is corrected here.
 
 \smallskip
 \noindent\textbf{Bibliography.} New citation keys required in
@@ -396,21 +352,7 @@ central CpG. A missingness mask accompanied each feature; missing values were
 imputed with the feature's global median. Reference data were derived from shared
 resources and were not patient-specific.
 
-\begin{table}[!htbp]
-\centering
-\caption{Chromosome split dataset. Methylated means median $\beta>0.5$.}
-\label{tab:splits}
-\small
-\begin{tabular}{lrrr}
-\toprule
-Split & Loci & Mean $\beta$ & Methylated \\
-\midrule
-Train & 345,359 & 0.4948 & 52.25\% \\
-Validation & 46,557 & 0.5035 & 53.19\% \\
-Test & 26,570 & 0.5029 & 53.20\% \\
-\bottomrule
-\end{tabular}
-\end{table}
+
 
 \begin{figure*}[t]
     \centering
@@ -428,6 +370,10 @@ Test & 26,570 & 0.5029 & 53.20\% \\
 \end{figure*}
 
 \subsection{Models, training, and evaluation}
+
+Figure~\ref{fig:silentmethyl_workflow} summarises target construction, the
+chromosome partition, the gated architecture, and the paired scoring and
+evaluation paths described in this section.
 The sequence module comprised a pretrained DNABERT-2 (117M)
 transformer \cite{zhou2024dnabert2} followed by a convolutional layer and masked
 attention pooling:
@@ -544,6 +490,20 @@ distance, sampled without replacement so that no null could be reused. Within th
 matched cohort, distance alone achieves AUROC $0.500$ by construction, so residual
 discrimination is attributable to the model. The distance-only baseline is
 reported alongside every discrimination estimate.
+
+\paragraph{Paired comparison between models.\NEW} Two models evaluated
+separately receive independent draws of matched negatives, so part of any gap
+between their reported AUROCs is matching noise rather than model difference.
+Marginal intervals are also the wrong instrument for a between-model claim:
+estimates computed on the same variants are strongly correlated, so overlapping
+marginal intervals do not imply that a difference is absent. Every between-model
+comparison in this work therefore uses a single shared distance-matched cohort
+--- matching depends only on the significance label and the variant--CpG
+distance, both properties of the variant rather than of the model --- with the
+difference bootstrapped over the same 1-Mb blocks for both models inside each
+resample. Model-specific point estimates on the shared cohort differ slightly
+from the per-model values in Table~\ref{tab:genoa} for exactly this reason; the
+differences, not the marginal values, are the comparison.
 
 \subsection{Uncertainty quantification\NEW}
 \label{sec:uncertainty-methods}
@@ -761,15 +721,12 @@ flags 15.4\% of probes as \texttt{MASK\_snp5\_common}---a common SNP within
 5\,bp of the interrogated CpG, where the measured beta may be partly a genotype
 artefact---covering 3{,}105 of the 26{,}570 held-out probes (11.7\%). Restricting
 to the 23{,}465 retained probes leaves fusion beta MAE unchanged at $0.0993$ and
-raises ROC-AUC from $0.9680$ to $0.9689$. The flagged probes are themselves the
-harder stratum: ROC-AUC on them is $0.9530$ for fusion, $0.9362$ for
-sequence-only and $0.9096$ for context-only. All three architectures lose
-discrimination on the same probes, which locates the deficit in the probes rather
-than in any model exploiting genotype signal, and confirms that the headline
-metrics are not supported by them. No model was re-run for this analysis;
-predictions written at test time were re-scored, and the published values were
-reproduced from them to within $5\times10^{-4}$ as a check on metric
-definitions.
+raises ROC-AUC from $0.9680$ to $0.9689$. The flagged probes are the harder
+stratum for all three architectures (fusion $0.9530$, sequence-only $0.9362$,
+context-only $0.9096$), which locates the deficit in the probes rather than in
+any model exploiting genotype signal. No model was re-run; predictions written at
+test time were re-scored and reproduced the published values to within
+$5\times10^{-4}$.
 
 \begin{figure}[!tbp]
 \centering
@@ -963,22 +920,7 @@ zero on both metrics, providing a negative control internal to the same dataset.
 Intermediate strata are not strictly monotone and their intervals overlap; the
 interpretable contrast is significant versus null.
 
-\begin{table}[!tbp]
-\centering
-\caption{\textbf{Agreement by association strength.} Fusion, three-seed ensemble,
-non-CpG-altering held-out pairs.}
-\label{tab:gradient}
-\small
-\begin{tabular}{lrcc}
-\toprule
-Stratum & $n$ & Signed $\rho$ & Direction \\
-\midrule
-$p<5\times10^{-8}$ & 4,037 & $+0.152$ [$+0.117$, $+0.184$] & 0.553 \\
-$0.05$--$0.5$ & 15,891 & $+0.023$ [$+0.006$, $+0.040$] & 0.508 \\
-$p>0.5$ & 13,330 & $-0.004$ [$-0.020$, $+0.014$] & 0.497 \\
-\bottomrule
-\end{tabular}
-\end{table}
+
 
 \begin{figure}[!tbp]
 \centering
@@ -993,39 +935,16 @@ block-bootstrap intervals.}
 \end{figure}
 
 \paragraph{A second, independent negative control: the signal is spatially
-localised.} Agreement depends on where the variant sits relative to the target
-CpG. It is highest within 100\,bp (0.605, 0.559--0.654 in the 50--100\,bp bin;
-0.568, 0.534--0.601 within 50\,bp, both excluding chance), declines through the
-intermediate bins, and reaches chance at the edge of the model's receptive field
-(0.497, 0.459--0.535 at 400--501\,bp; Table~\ref{tab:distance}). This is the
-behaviour expected of a model with a 1{,}000\,bp window centred on the target
-CpG, and it is difficult to obtain from a confound: linkage structure, GC content
-and probe properties have no reason to decay with distance from the CpG, whereas
-a bounded receptive field must. Together with the association-strength null, the
-analysis therefore rests on two orthogonal negative controls --- one statistical,
-one positional --- both of which return chance within the same data and the same
-code path.
+localised.} Agreement is highest within 100\,bp (0.605, 0.559--0.654 in the
+50--100\,bp bin), declines through the intermediate bins, and reaches chance at
+the edge of the model's receptive field (0.497, 0.459--0.535 at 400--501\,bp;
+Table~\ref{tab:distance}). A confound is unlikely to produce this: linkage
+structure, GC content and probe properties have no reason to decay with distance
+from the CpG, whereas a 1{,}000\,bp window centred on it must. With the
+association-strength null, the analysis rests on two orthogonal negative
+controls, one statistical and one positional.
 
-\begin{table}[!tbp]
-\centering
-\caption{\textbf{Direction agreement by variant--CpG distance.} Fusion,
-three-seed ensemble, genome-wide significant non-CpG-altering held-out GENOA
-pairs. Brackets are 95\% block-bootstrap intervals.}
-\label{tab:distance}
-\small
-\begin{tabular}{lrc}
-\toprule
-Distance from target CpG & $n$ & Direction agreement \\
-\midrule
-0--50\,bp & 844 & $0.568$ [$0.534$, $0.601$] \\
-50--100\,bp & 479 & $\mathbf{0.605}$ [$0.559$, $0.654$] \\
-100--200\,bp & 761 & $0.558$ [$0.524$, $0.594$] \\
-200--300\,bp & 685 & $0.545$ [$0.506$, $0.582$] \\
-300--400\,bp & 642 & $0.555$ [$0.514$, $0.598$] \\
-400--501\,bp & 626 & $0.497$ [$0.459$, $0.535$] \\
-\bottomrule
-\end{tabular}
-\end{table}
+
 
 \paragraph{Discrimination is not explained by distance alone.} Variant--CpG
 distance by itself separates true meQTLs from null pairs at AUROC 0.595
@@ -1058,6 +977,36 @@ model is below chance at $0.460$ ($0.447$--$0.474$). After the dominant confound
 is matched away, a position-blind sequence model cannot separate real meQTLs from
 matched null pairs and this model can. That is the concrete content of the
 positional-resolution claim.
+
+\paragraph{Published architectures reach the same external signal, and that is
+the finding.\NEW} CpGenie and DeepCpG were scored on the identical held-out
+variant--CpG pairs through the identical evaluator and compared to fusion on a
+single shared distance-matched cohort, with paired block-bootstrap intervals on
+the difference (Section~\ref{sec:stats}). Of twelve comparisons across the two
+cohorts and three metrics, one interval excludes zero: in GENOA, fusion exceeds
+DeepCpG on distance-matched AUROC by $+0.018$ ($+0.004$, $+0.032$). Fusion
+against CpGenie is $+0.004$ ($-0.014$, $+0.020$); signed $\rho$ and direction
+agreement separate no pair of models in either cohort; and in the tissue-matched
+eGTEx cohort, where 418 significant pairs give intervals about $\pm0.05$ wide,
+every difference spans zero in both directions. This is convergence, not a failure to
+win. Three architectures designed independently over a decade recover the same
+external meQTL directions at the same strength, while a $k$-mer ridge on the same
+sequence sits at chance after matching. That the comparison returns chance for
+one comparator and agreement for three is what makes the agreement informative:
+the replicating signal belongs to sequence modelling rather than to this
+architecture, which speaks to whether the external validation reflects the
+cohorts or the model more directly than any margin would. It is also what the
+gating analysis predicts --- the context tower is allele-invariant and cannot
+create a variant effect (Section~\ref{sec:equivalence}), so the capacity
+separating fusion on absolute prediction is capacity the variant pathway does not
+use.
+
+One asymmetry is worth recording. CpGenie is clearly behind DeepCpG on absolute
+prediction (beta MAE $0.1281$ versus $0.1253$, ROC-AUC $0.9406$ versus $0.9437$;
+Table~\ref{tab:performance}) and is not behind it on variant effects. Accuracy on
+marginal methylation does not by itself establish fidelity to allele-specific
+sequence determinants, and the two capabilities should be evaluated separately
+rather than one being taken as evidence for the other.
 
 \paragraph{The negative control behaves differently in the two cohorts, and we
 report both.\NEW} In GENOA the null stratum ($p>0.5$, $n=13{,}330$) gives
@@ -1193,7 +1142,7 @@ we report without explanation.
 
 Across 831 tested motifs, the strongest couplings between motif score change and
 predicted methylation change form a coherent group, all with the same sign
-(Table~\ref{tab:motifs}). Negative coupling means motif weakening accompanied by
+(Table~\ref{tab:motifs}, Fig.~\ref{fig:motifs}). Negative coupling means motif weakening accompanied by
 predicted \emph{hyper}methylation, the direction expected for factors whose
 binding protects CpGs from methylation.
 
@@ -1236,28 +1185,7 @@ disruption-coupling analysis cannot by itself demonstrate that a sequence model
 has learned regulatory grammar, because a linear composition model reproduces the
 result. Such analyses need a composition-only control.
 
-\begin{table}[!tbp]
-\centering
-\caption{\textbf{Strongest per-factor coupling between motif disruption and
-predicted methylation change.} Spearman $\rho$ between the change in relative
-motif score and $\Delta\widehat M$, among held-out non-CpG-altering pairs covered
-by each motif. Successive columns add controls. All $q_{\text{BH}}<10^{-12}$.}
-\label{tab:motifs}
-\small
-\resizebox{\columnwidth}{!}{
-\begin{tabular}{lrrrrr}
-\toprule
-Factor & $n$ & $\rho$ & +GC/dist & +subst. & motif GC \\
-\midrule
-ELF4  & 1,005 & $-0.266$ & $-0.268$ & $\mathbf{-0.281}$ & 0.55 \\
-FEV   & 2,068 & $-0.257$ & $-0.259$ & $-0.257$ & 0.56 \\
-EHF   & 1,711 & $-0.251$ & $-0.253$ & $-0.252$ & 0.51 \\
-ELF1  & 1,352 & $-0.242$ & $-0.246$ & $-0.233$ & 0.54 \\
-ETV1  & 1,606 & $-0.237$ & $-0.242$ & $-0.240$ & 0.49 \\
-GABPA &   968 & $-0.233$ & $-0.235$ & $-0.230$ & 0.50 \\
-\bottomrule
-\end{tabular}}
-\end{table}
+
 
 The result survives three controls, each addressing a distinct alternative
 explanation.
@@ -1349,16 +1277,7 @@ growth \cite{cai2019ncoa2}; no published evidence links this specific variant to
 \textit{NCOA2} activation, and the prediction constitutes a testable hypothesis
 rather than a finding.
 
-\begin{figure}[H]
-\centering
-\IfFileExists{top_candidate_matched_background.png}{%
-  \includegraphics[width=0.95\columnwidth]{top_candidate_matched_background.png}%
-}{\missingfigure{top_candidate_matched_background.png}{1.9in}}
-\caption{\textbf{Top candidate versus matched background.} The absolute response
-of the \textit{NCOA2}-associated candidate compared with 66 matched observed
-synonymous variants.}
-\label{fig:top-candidate}
-\end{figure}
+
 
 The framework extends to any single-nucleotide change. Among studied
 nonsynonymous variants in breast-cancer genes, the two highest-ranked were both
@@ -1488,45 +1407,13 @@ show both. That neither appears, while a signed family-level coupling does, is
 more informative than the positive result alone, and is the reason we report the
 three together.
 
-\subsection*{What the evidence supports\NEW}
-
-It is worth stating plainly what has and has not been established, because the
-strength of this work lies in the breadth of the evaluation rather than in any
-single number.
-
-Absolute methylation prediction is established against seven comparators on one
-held-out set: two classical sequence baselines, a context-only model, two
-published deep architectures reimplemented and tuned on identical data, and our
-own sequence-only ablation. The ordering is monotone and the fusion model leads
-every column (Table~\ref{tab:performance}). Held-out performance is not an
-artefact of near-duplicate sequence (four of 26{,}570 probes exceed a MinHash
-Jaccard of 0.5), of distributional drift (predictions track the held-out
-chromosomes' higher methylation rather than regressing to the training mean), or
-of genotype-affected probes (excluding \texttt{MASK\_snp5\_common} leaves beta
-MAE unchanged and raises ROC-AUC).
-
-Variant-effect prediction is established on two independent cohorts that fail in
-different directions---a large cross-tissue, cross-ancestry meQTL study and a
-small tissue-matched one---with a pooled estimate showing no detectable
-heterogeneity, a null stratum that returns nothing, a monotone gradient with
-association strength, a monotone gradient with distance, and discrimination that
-survives matching on distance. Each of those could have failed independently and
-none did.
-
-The mechanism connecting the two is not left as an observation. Because the
-context features are identical for reference and alternate alleles, the context
-modality cannot create a variant effect, and the paired equivalence intervals
-confirm it does not (Section~\ref{sec:equivalence}). That explains both why
-context improves absolute prediction and why the variant pathway transfers to a
-different tissue.
-
-Where results did not hold up, we report the control that undermined them: the
-motif coupling is reproduced more strongly by a $k$-mer model that never sees a
-motif, and two pre-registered tests of clinical variant classification returned
-null. Those are stated in the main text rather than deferred to supplementary
-material, and they are what delimit the intended use of the framework.
-
 \subsection*{Limitations}
+
+One boundary belongs first. This architecture is not established as predicting
+variant effects better than earlier ones: on paired intervals against CpGenie and
+DeepCpG over identical pairs, eleven of twelve comparisons are indistinguishable.
+What the external cohorts establish is that the meQTL signal is real and
+reproducible, not that it is best recovered here.
 
 Methylation targets derive from cohort medians of 97 TCGA solid-tissue-normal
 breast samples collected adjacent to tumours, which may retain field effects or
@@ -1569,10 +1456,9 @@ ancestry contrast.
 
 \ifdraftmode
 Evaluation currently uses a single chromosome-holdout design; repeated
-chromosome-blocked splits, head-to-head comparison against CpGenie and DeepCpG,
-regulatory-enrichment analysis, multi-cohort evaluation on unpaired TCGA-BRCA
-tumours, and conformal prediction intervals are in progress and are listed in the
-draft-status section.
+chromosome-blocked splits, regulatory-enrichment analysis, multi-cohort
+evaluation on unpaired TCGA-BRCA tumours, and conformal prediction intervals are
+in progress and are listed in the draft-status section.
 \else
 Evaluation uses a single chromosome-blocked holdout design; repeated blocked
 splits across additional folds were not performed, so the reported intervals
@@ -1589,17 +1475,13 @@ Harmonised GENOA variant--CpG pairs, per-seed variant scores, and the evaluation
 outputs underlying Tables~\ref{tab:genoa} and~\ref{tab:gradient} are included in
 the Supplementary Data.
 
-\section{Conclusion}
-
-SilentMethyl predicts CpG methylation and paired methylation differences caused
-by single-nucleotide variation in unseen chromosome regions. Fusion outperformed
-single-modality baselines for locus-level prediction. On an independent cohort of
-39{,}657 variants differing in tissue, ancestry, and platform, predicted variant
-effects agreed with reported effects in direction and rank, with discrimination
-that survives matching on variant--CpG distance. Two accompanying findings
-delimit the approach: uncertainty on bounded bimodal targets must be assessed in
-logit space, and gated fusion cannot contribute to variant-effect prediction
-while its context features remain allele-invariant.
+SilentMethyl predicts CpG methylation and the methylation differences caused by
+single-nucleotide variation in unseen chromosome regions, and its variant
+predictions agree with reported effects in direction and rank across cohorts
+differing in tissue, ancestry and platform. The two accompanying findings ---
+that calibration on bounded bimodal targets must be assessed in logit space, and
+that gated fusion cannot contribute to variant-effect prediction while its
+context features remain allele-invariant --- apply to any model built this way.
 
 \balance
 
@@ -1652,5 +1534,100 @@ while its context features remain allele-invariant.
   \bibitem{kent2002ucsc} \texttt{kent2002ucsc}
   \end{thebibliography}}
 }
+
+
+\clearpage
+\section*{Supplementary Figures and Tables}
+\setcounter{table}{0}\setcounter{figure}{0}
+\renewcommand{\thetable}{S\arabic{table}}
+\renewcommand{\thefigure}{S\arabic{figure}}
+
+\begin{table}[!htbp]
+\centering
+\caption{Chromosome split dataset. Methylated means median $\beta>0.5$.}
+\label{tab:splits}
+\small
+\begin{tabular}{lrrr}
+\toprule
+Split & Loci & Mean $\beta$ & Methylated \\
+\midrule
+Train & 345,359 & 0.4948 & 52.25\% \\
+Validation & 46,557 & 0.5035 & 53.19\% \\
+Test & 26,570 & 0.5029 & 53.20\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[!htbp]
+\centering
+\caption{\textbf{Agreement by association strength.} Fusion, three-seed ensemble,
+non-CpG-altering held-out pairs.}
+\label{tab:gradient}
+\small
+\begin{tabular}{lrcc}
+\toprule
+Stratum & $n$ & Signed $\rho$ & Direction \\
+\midrule
+$p<5\times10^{-8}$ & 4,037 & $+0.152$ [$+0.117$, $+0.184$] & 0.553 \\
+$0.05$--$0.5$ & 15,891 & $+0.023$ [$+0.006$, $+0.040$] & 0.508 \\
+$p>0.5$ & 13,330 & $-0.004$ [$-0.020$, $+0.014$] & 0.497 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[!htbp]
+\centering
+\caption{\textbf{Direction agreement by variant--CpG distance.} Fusion,
+three-seed ensemble, genome-wide significant non-CpG-altering held-out GENOA
+pairs. Brackets are 95\% block-bootstrap intervals.}
+\label{tab:distance}
+\small
+\begin{tabular}{lrc}
+\toprule
+Distance from target CpG & $n$ & Direction agreement \\
+\midrule
+0--50\,bp & 844 & $0.568$ [$0.534$, $0.601$] \\
+50--100\,bp & 479 & $\mathbf{0.605}$ [$0.559$, $0.654$] \\
+100--200\,bp & 761 & $0.558$ [$0.524$, $0.594$] \\
+200--300\,bp & 685 & $0.545$ [$0.506$, $0.582$] \\
+300--400\,bp & 642 & $0.555$ [$0.514$, $0.598$] \\
+400--501\,bp & 626 & $0.497$ [$0.459$, $0.535$] \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[!htbp]
+\centering
+\caption{\textbf{Strongest per-factor coupling between motif disruption and
+predicted methylation change.} Spearman $\rho$ between the change in relative
+motif score and $\Delta\widehat M$, among held-out non-CpG-altering pairs covered
+by each motif. Successive columns add controls. All $q_{\text{BH}}<10^{-12}$.}
+\label{tab:motifs}
+\small
+\resizebox{\columnwidth}{!}{
+\begin{tabular}{lrrrrr}
+\toprule
+Factor & $n$ & $\rho$ & +GC/dist & +subst. & motif GC \\
+\midrule
+ELF4  & 1,005 & $-0.266$ & $-0.268$ & $\mathbf{-0.281}$ & 0.55 \\
+FEV   & 2,068 & $-0.257$ & $-0.259$ & $-0.257$ & 0.56 \\
+EHF   & 1,711 & $-0.251$ & $-0.253$ & $-0.252$ & 0.51 \\
+ELF1  & 1,352 & $-0.242$ & $-0.246$ & $-0.233$ & 0.54 \\
+ETV1  & 1,606 & $-0.237$ & $-0.242$ & $-0.240$ & 0.49 \\
+GABPA &   968 & $-0.233$ & $-0.235$ & $-0.230$ & 0.50 \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\begin{figure}[!htbp]
+\centering
+\IfFileExists{top_candidate_matched_background.png}{%
+  \includegraphics[width=0.95\columnwidth]{top_candidate_matched_background.png}%
+}{\missingfigure{top_candidate_matched_background.png}{1.9in}}
+\caption{\textbf{Top candidate versus matched background.} The absolute response
+of the \textit{NCOA2}-associated candidate compared with 66 matched observed
+synonymous variants.}
+\label{fig:top-candidate}
+\end{figure}
 
 \end{document}
