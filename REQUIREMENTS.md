@@ -1342,6 +1342,63 @@ capacity the variant pathway does not use.
 not behind it on variant effects. Probe-level accuracy does not establish
 variant-effect fidelity.
 
+### E.9 GWAS regulatory-enrichment tests — RUN, null, and adequately powered
+
+`scripts/31_gwas_regulatory_enrichment.py`. Asks the question in the
+**well-powered direction**: not "do known risk variants score high?" (E.2 n=35,
+E.2b n=32) but "do high-scoring variants land in GWAS loci?", over every held-out
+pair and the whole catalog. Matching, metrics and the block bootstrap are
+imported from `scripts/20` so nothing can drift.
+
+| run | population | labelled pairs | AUROC [95%] | verdict |
+|---|---|---|---|---|
+| GENOA, all tested pairs | every pair, incl. no measured effect | 1,535 | 0.516 [0.492, 0.546] | null |
+| eGTEx, p < 1.483e-5 | measured mQTLs, calibrated cutoff | 44 | 0.454 [0.318, 0.583] | inconclusive, n too small |
+| **eGTEx, p < 0.05** | **measured mQTLs, nominal** | **510** | **0.503 [0.474, 0.537]** | **null** |
+
+Tail statistic (GWAS share of the top 5% by |dM|, null 0.5) also null everywhere
+it could be evaluated: GENOA 0.468 [0.375, 0.567] at top 5%, eGTEx 0.490
+[0.289, 0.673]. Confounds controlled: distance matched exactly, allele frequency
+to |std diff| < 0.02.
+
+**Three corrections made mid-analysis, all recorded as pre-registration
+amendments.**
+1. v1 returned UNINTERPRETABLE, not a result: allele frequency was imbalanced at
+   std diff 0.773, because GWAS hits are common variants by construction.
+   Matching now runs within AF strata. The pre-registration had prescribed
+   exactly this response, so no result was superseded.
+2. Primary statistic moved from whole-distribution AUROC to tail enrichment.
+   Reason: mean |dM| is ~0.04 M-units, so most pairs carry a near-zero
+   prediction and a rank statistic over all of them ranks noise against noise.
+3. Population corrected from *all tested pairs* to *pairs with a measured
+   methylation effect*. The first run used all 42,866 GENOA pairs, ~71% of which
+   have p > 0.05 and therefore no measured effect — the wrong population for a
+   regulatory claim.
+
+**A flaw in the pre-registration I wrote, recorded against myself.** The verdict
+rule was "enrichment if ANY of three tails excludes 0.5" — an OR over three
+*nested* tests, which does not control error across correlated looks. It never
+bit, because none excluded, but had the top 2% come back at [0.51, 0.77] the rule
+as written would have declared enrichment on inadequate grounds.
+
+**Two silent failure modes caught before the eGTEx run, not after.** eGTEx writes
+`maf` where GENOA writes `af_genoa`, so a hardcoded column name would have
+reverted to the uninterpretable v1 matching without saying so; and eGTEx
+`Variant_ID` is a locus string, not an rsID, so rsID-only overlap would have
+matched zero variants and reported a clean-looking null. Allele-frequency columns
+are now detected and named in the output, overlap matches rsID **or** exact
+coordinate, and an unchecked confound blocks an enrichment verdict outright.
+
+**Interpretation.** Four pre-registered tests across two cohorts and three
+annotations (ClinVar, breast GWAS, all-trait GWAS) agree: predicted effect
+magnitude does not identify disease-associated variants. E.2 and E.2b constrained
+nothing; this does, bounding the effect to about +/-0.035 AUROC. Two reasons the
+null is narrower than it appears: most catalog entries tag rather than cause an
+association, and molecular QTL effect size is a known poor predictor of disease
+relevance across this field. **Requirement 7 is now addressed with a negative
+result, which is different from an unmet requirement.** Written into the
+manuscript in two sentences plus one limitations clause.
+
 ### E.7 Mentor requirement scorecard
 
 | # | requirement | state |

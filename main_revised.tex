@@ -793,8 +793,12 @@ Predicted magnitude did not classify clinically annotated variants.
 None of 35 held-out non-truncating ClinVar-pathogenic variants exceeded its
 matched 0.05 tail ($p=0.42$); the cohort represented only six effective probes.
 Three of 32 breast-cancer GWAS variants exceeded the tail ($p=0.21$), with mean
-percentile 54.9 (44.8--65.2; $p=0.36$). Thus, SilentMethyl ranks predicted
-methylation consequences, not pathogenicity or disease risk.
+percentile 54.9 (44.8--65.2; $p=0.36$). A third, better-powered test agrees: labelling every held-out
+mQTL by GWAS Catalog overlap and matching on variant--CpG distance and allele
+frequency, predicted magnitude did not separate associated from unassociated
+variants in either cohort (eGTEx AUROC 0.503, 0.474--0.537, 510 labelled pairs;
+GENOA 0.516, 0.492--0.546, 1{,}535 pairs). SilentMethyl therefore ranks predicted
+methylation consequence, not pathogenicity or disease risk.
 }
 
 \section{Discussion}
@@ -838,7 +842,7 @@ Several limitations define the current scope of these findings. Methylation targ
 {\color{addedred}
 GENOA differs in tissue and ancestry, normalized effects prevent direct
 calibration, motifs were computationally predicted, and the ClinVar test had six effective
-probes. Direction agreement did not improve across quintiles of reference-effect
+probes. GWAS overlap is a noisy proxy for causality, since most catalog entries tag rather than cause an association. Direction agreement did not improve across quintiles of reference-effect
 precision (0.521 to 0.566, intervals overlapping), so the ceiling reflects model
 resolution rather than noise in the reported effects. Repeated chromosome partitions were not evaluated, so
 intervals describe one held-out split.
