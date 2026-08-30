@@ -1,0 +1,73 @@
+{
+  "verdict": "null",
+  "primary_tail_enrichment": [
+    {
+      "fraction": 0.05,
+      "n_in_tail": 154,
+      "gwas_share": 0.4675324675324675,
+      "ci_low": 0.37496168582375483,
+      "ci_high": 0.5668500224517287,
+      "excludes_half": false
+    },
+    {
+      "fraction": 0.02,
+      "n_in_tail": 61,
+      "gwas_share": 0.6229508196721312,
+      "ci_low": 0.44730603448275863,
+      "ci_high": 0.765625,
+      "excludes_half": false
+    },
+    {
+      "fraction": 0.01,
+      "n_in_tail": 31,
+      "gwas_share": 0.6129032258064516,
+      "ci_low": 0.36507575757575755,
+      "ci_high": 0.8165824915824915,
+      "excludes_half": false
+    }
+  ],
+  "af_matching": {
+    "bins": 5,
+    "strata_used": 5
+  },
+  "auroc": 0.5158972508992138,
+  "auroc_ci": [
+    0.4915782984948504,
+    0.5454719594038938
+  ],
+  "n_matched_pairs": 3070,
+  "n_gwas_pairs": 1535,
+  "mean_abs_delta_m": {
+    "gwas": 0.04240484630729595,
+    "background": 0.04015576277244708
+  },
+  "matching": {
+    "significant_n": 1535,
+    "matched_null_n": 1535,
+    "requested_negatives": 1535,
+    "unmatched_slots": 0,
+    "af_strata_used": 5,
+    "median_distance_significant": 252.0,
+    "median_distance_matched_null": 252.0,
+    "distance_only_auroc_after_matching": 0.5
+  },
+  "confounds": [
+    {
+      "feature": "abs_distance_bp",
+      "available": true,
+      "cohort_mean": 253.53159609120522,
+      "background_mean": 253.53159609120522,
+      "standardised_difference": 0.0
+    },
+    {
+      "feature": "af_genoa",
+      "available": true,
+      "cohort_mean": 0.2036586319218241,
+      "background_mean": 0.19484820846905537,
+      "standardised_difference": 0.06197089147046688
+    }
+  ],
+  "n_boot": 500,
+  "block_size_bp": 1000000,
+  "preregistration": "results/journal/gwas_regulatory_enrichment/preregistration.json"
+}

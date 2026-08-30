@@ -758,7 +758,7 @@ def print_report(primary, matched, gradient, paired, args, out) -> None:
             print(f"  {name:<28} {row['value']:+.4f} "
                   f"[{row['ci_low']:+.4f}, {row['ci_high']:+.4f}]  {verdict}")
 
-    print("\nDILUTION GRADIENT  (fusion, seed ensemble)")
+    print(f"\nDILUTION GRADIENT  ({args.models[0]}, seed ensemble)")
     print(f"  {'stratum':<14} {'n':>7} {'signed rho':>22} {'direction':>22}")
     for _, _, label in SIGNIFICANCE_STRATA:
         rho = gradient[(gradient["model"] == args.models[0])

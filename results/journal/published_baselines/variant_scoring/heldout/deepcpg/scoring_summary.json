@@ -1,0 +1,21 @@
+{
+  "arch": "deepcpg",
+  "pairs_file": "data/external/genoa_meqtl/scoring/genoa_scoring_input_heldout.csv",
+  "stratum": "heldout",
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "counters": {
+    "probe_not_in_splits": 0,
+    "bad_stored_sequence_length": 0,
+    "stored_sequence_not_cpg_centred": 0,
+    "outside_model_window": 0,
+    "alters_target_cpg": 0,
+    "reference_base_mismatch": 0,
+    "window_not_cpg_centred": 0,
+    "scoreable": 66495
+  },
+  "scoreable": 66495
+}

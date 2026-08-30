@@ -1,0 +1,57 @@
+{
+  "title": "Are high predicted-effect variants enriched for GWAS associations relative to distance-matched background?",
+  "written": "2026-08-30",
+  "status": "PRE-REGISTERED. Written by --build before any statistic was computed. No result existed when this file was made.",
+  "motivation": "ClinVar annotates on coding and splicing evidence, so a methylation-effect score is not expected to predict it, and the earlier ClinVar and breast-GWAS tests returned nulls that are uninformative about regulatory relevance. GWAS associations are overwhelmingly non-coding and are the appropriate annotation.",
+  "direction": "Reversed relative to E.2/E.2b. Those asked whether known risk variants score high, on 35 and 32 variants. This asks whether high-scoring variants are GWAS associations, over every held-out pair.",
+  "cohort": {
+    "scores": "results/journal/egtex_variant_scoring",
+    "stratum": "heldout",
+    "model": "fusion",
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "pairs": 5634,
+    "labelled_pairs": 510,
+    "labelled_variants": 423,
+    "labelled_probes": 455,
+    "overlap_rule": "variant is itself a catalog association (rsid)",
+    "trait_filter": "all traits",
+    "mqtl_significance": 0.05,
+    "population": "variants with a measured methylation effect at cohort p < 0.05"
+  },
+  "independent_unit": "the PROBE. Variants at one CpG share the window and the context features. Intervals are 1-Mb block bootstraps, which also absorb the LD clustering of GWAS hits.",
+  "primary_statistic": {
+    "definition": "AUROC of |delta M| separating GWAS-associated pairs from distance-matched non-associated pairs",
+    "null": 0.5,
+    "sided": "two-sided"
+  },
+  "secondary_statistic": {
+    "definition": "difference in mean |delta M| between the two groups of the matched cohort"
+  },
+  "prespecified_confounds": {
+    "features": [
+      "abs_distance_bp",
+      "__af__"
+    ],
+    "concern": "Predicted effect rises steeply with proximity to the CpG, and GWAS hits are common variants, so distance and allele frequency could each produce a shift with no regulatory meaning.",
+    "handling": "Distance is matched exactly, with tolerance 10 bp. Allele frequency is reported as a standardised difference and is NOT matched; a large imbalance makes the result uninterpretable and must be stated as such."
+  },
+  "interpretation_rules_fixed_in_advance": {
+    "enrichment": "AUROC interval excludes 0.5 from above and no material confound imbalance.",
+    "depletion": "AUROC interval excludes 0.5 from below. A real possible outcome, reported as depletion, never as 'inconclusive'.",
+    "null": "interval covers 0.5; reported as null with the achieved n attached.",
+    "uninterpretable": "confound imbalance |standardised difference| > 0.25 on any matched feature."
+  },
+  "note": "Trait-agnostic overlap is a weaker claim than a trait-specific one and is reported as such. The model is breast-trained; the catalog spans all traits.",
+  "amendments": [
+    {
+      "date": "2026-08-30",
+      "change": "Primary statistic changed from whole-distribution AUROC to GWAS share of the top |delta M| fraction, at [0.05, 0.02, 0.01]. Matching now runs within 5 allele-frequency strata in addition to exact distance.",
+      "reason": "The v1 run returned UNINTERPRETABLE, not a result: the pre-declared allele-frequency confound was imbalanced at a standardised difference of 0.77, because GWAS associations are common variants by construction. The pre-registration prescribed exactly this response. Separately, mean |delta M| over the matched cohort is about 0.04 M-units, so most pairs carry a near-zero prediction and a rank statistic over the whole distribution is dominated by them; the tail is where a regulatory claim lives.",
+      "no_result_was_superseded": "The v1 verdict was uninterpretable, so no statistical result existed to select away from. The whole-distribution AUROC is still computed and reported as a secondary alongside the tail statistic."
+    }
+  ]
+}

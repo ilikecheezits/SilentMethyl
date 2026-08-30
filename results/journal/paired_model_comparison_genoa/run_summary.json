@@ -1,0 +1,192 @@
+{
+  "purpose": "paired, LD-aware intervals on the difference between models' variant-effect performance; scripts/20 reports marginal intervals only",
+  "reference": "fusion",
+  "specs": [
+    {
+      "dir": "results/journal/genoa_variant_scoring",
+      "model": "fusion",
+      "seeds": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "dir": "results/journal/published_baselines/variant_scoring",
+      "model": "deepcpg",
+      "seeds": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "dir": "results/journal/published_baselines/variant_scoring",
+      "model": "cpgenie",
+      "seeds": [
+        42,
+        43,
+        44
+      ]
+    }
+  ],
+  "stratum": "heldout",
+  "significance_threshold": 5e-08,
+  "n_boot": 500,
+  "block_size_bp": 1000000,
+  "shared_cohort_pairs": 42866,
+  "significant_pairs": 4037,
+  "matching": {
+    "tolerance_bp": 10,
+    "negatives_per_positive": 1,
+    "replacement": false,
+    "significant_n": 4037,
+    "matched_null_n": 4037,
+    "requested_negatives": 4037,
+    "unmatched_slots": 0,
+    "median_distance_significant": 191.0,
+    "median_distance_matched_null": 191.0,
+    "distance_only_auroc_after_matching": 0.5
+  },
+  "per_model_on_shared_cohort": [
+    {
+      "model": "fusion",
+      "metric": "AUROC, distance-matched",
+      "n": 8074,
+      "value": 0.5604392648,
+      "ci_low": 0.5420342155,
+      "ci_high": 0.5780237222
+    },
+    {
+      "model": "deepcpg",
+      "metric": "AUROC, distance-matched",
+      "n": 8074,
+      "value": 0.5426679607,
+      "ci_low": 0.5259516271,
+      "ci_high": 0.5584857689
+    },
+    {
+      "model": "cpgenie",
+      "metric": "AUROC, distance-matched",
+      "n": 8074,
+      "value": 0.5566584398,
+      "ci_low": 0.5372199854,
+      "ci_high": 0.5764423056
+    },
+    {
+      "model": "fusion",
+      "metric": "signed rho (significant)",
+      "n": 4037,
+      "value": 0.1523103831,
+      "ci_low": 0.118963447,
+      "ci_high": 0.1857575033
+    },
+    {
+      "model": "deepcpg",
+      "metric": "signed rho (significant)",
+      "n": 4037,
+      "value": 0.1377886417,
+      "ci_low": 0.1007149728,
+      "ci_high": 0.1759338879
+    },
+    {
+      "model": "cpgenie",
+      "metric": "signed rho (significant)",
+      "n": 4037,
+      "value": 0.1280849081,
+      "ci_low": 0.0840156645,
+      "ci_high": 0.1659471855
+    },
+    {
+      "model": "fusion",
+      "metric": "direction agreement",
+      "n": 4037,
+      "value": 0.5533812237,
+      "ci_low": 0.5345389841,
+      "ci_high": 0.5704804942
+    },
+    {
+      "model": "deepcpg",
+      "metric": "direction agreement",
+      "n": 4037,
+      "value": 0.5479316324,
+      "ci_low": 0.5312526285,
+      "ci_high": 0.5647495631
+    },
+    {
+      "model": "cpgenie",
+      "metric": "direction agreement",
+      "n": 4037,
+      "value": 0.5479316324,
+      "ci_low": 0.5341652475,
+      "ci_high": 0.5627821149
+    }
+  ],
+  "paired_differences": [
+    {
+      "reference": "fusion",
+      "comparison": "deepcpg",
+      "metric": "AUROC, distance-matched",
+      "n": 8074,
+      "difference": 0.0177713041,
+      "ci_low": 0.003534715,
+      "ci_high": 0.0320860384,
+      "interval_excludes_zero": true
+    },
+    {
+      "reference": "fusion",
+      "comparison": "cpgenie",
+      "metric": "AUROC, distance-matched",
+      "n": 8074,
+      "difference": 0.003780825,
+      "ci_low": -0.013450704,
+      "ci_high": 0.0198790802,
+      "interval_excludes_zero": false
+    },
+    {
+      "reference": "fusion",
+      "comparison": "deepcpg",
+      "metric": "signed rho (significant)",
+      "n": 4037,
+      "difference": 0.0145217415,
+      "ci_low": -0.028093377,
+      "ci_high": 0.0545419221,
+      "interval_excludes_zero": false
+    },
+    {
+      "reference": "fusion",
+      "comparison": "cpgenie",
+      "metric": "signed rho (significant)",
+      "n": 4037,
+      "difference": 0.0242254751,
+      "ci_low": -0.0217936701,
+      "ci_high": 0.0682760594,
+      "interval_excludes_zero": false
+    },
+    {
+      "reference": "fusion",
+      "comparison": "deepcpg",
+      "metric": "direction agreement",
+      "n": 4037,
+      "difference": 0.0054495913,
+      "ci_low": -0.0158243955,
+      "ci_high": 0.0268533157,
+      "interval_excludes_zero": false
+    },
+    {
+      "reference": "fusion",
+      "comparison": "cpgenie",
+      "metric": "direction agreement",
+      "n": 4037,
+      "difference": 0.0054495913,
+      "ci_low": -0.0144585955,
+      "ci_high": 0.0242406842,
+      "interval_excludes_zero": false
+    }
+  ],
+  "caveats": {
+    "shared_cohort": "All models are scored on one distance-matched cohort, so the difference contains no matching noise. Each model's marginal value here can differ slightly from its scripts/20 value, which used its own draw of negatives.",
+    "dependence": "Pairs are in LD. Intervals are 1-Mb block bootstraps with both models resampled on the same blocks.",
+    "direction": "A positive difference favours the reference model. An interval spanning zero means the models are not distinguishable on this metric at this n, not that they are equal."
+  }
+}
