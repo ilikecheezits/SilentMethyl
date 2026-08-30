@@ -1493,7 +1493,80 @@ Methods from eleven to nine; main text 4,992 to **4,772**.
 - Two 85-word Methods subsections (`Paired sequence scoring`, `External eGTEx
   mQTL analysis`) demoted to paragraphs.
 
-Verified after every pass: no dangling or uncited `\ref`, all headline numbers
+**Fourth pass — number density.** Structure was fixed but the prose was still
+one number every eight words in places. Results went from 300 numbers in 3,288
+words (9.1 per 100) to 170 in 3,042 (5.6); main text 4,772 to **4,618**; 15 pages
+to **14**.
+
+The rule applied: a number stays in prose only if it is a star result, or if it
+is not available anywhere else. Everything else moved to the table it was already
+duplicating, to a figure that already showed it, or to the Supplementary Data.
+
+- The opening paragraph of Results restated all of Table 1 in prose. Now states
+  the two headline values and cites the table.
+- Per-stratum context gains (5 figures), TCGA stratified errors (6), MASK
+  sensitivity (10), calibration slopes (8, all in Table 3), distance-bin
+  agreement (6, in Table S3), motif per-factor couplings (6), candidate
+  prioritisation medians (5) — all reduced to the claim plus at most one
+  anchoring value.
+- Found another duplicate: the top-15 Jaccard overlap (0.278) was stated twice in
+  the motif section, paragraphs apart.
+
+Star numbers deliberately kept in prose: 0.0993 / 0.9680, the 20.8% margin, the
+two cohort $\rho$ values, meta-analysis 0.178 with $I^2=0$, the 0.595 distance
+baseline, the $k$-mer 0.503, fusion $-$ DeepCpG $+0.018$, the two clinical nulls,
+and the NCOA2 candidate effect.
+
+**Fifth pass — 12 pages, by switching to the submission build.** 14 pages to
+**12**, with no further science removed.
+
+- `\draftmodefalse` is now the default. The Draft-status section and every
+  NEW/REV marker are suppressed (~0.7 page). The scaffolding text is still in the
+  file; `\draftmodetrue` restores it. Confirmed the `\else` branch of Limitations
+  now printing is the accurate single-holdout statement, not the false
+  repeated-splits claim that was there before.
+- New `\ifsupplement` switch, default **false**. Supplementary figures and tables
+  are a separate document at submission, so they are no longer attached to this
+  PDF (~1 page). `\supplementtrue` re-attaches them for internal review.
+- Detaching them broke six in-text pointers (`??` in the PDF). In-text references
+  to the five moved items are now fixed text — Supplementary Table 1–4,
+  Supplementary Figure 1–2 — matching their order in the detached block.
+- **Display items were 11, not 10.** The full-width workflow schematic is
+  `figure*` and my earlier counts only matched `\begin{figure}`. `fig:context`
+  (fusion gain by epigenomic context) moved to the supplement, since the
+  paragraph it supports is now three sentences. Now genuinely 10.
+
+Final: 12 pages, abstract 183/200, main text 4,624/5,000, display items 10/10,
+zero undefined references, zero `??` in the rendered PDF.
+
+**Sixth pass — cutting the procedural detail, most of it added in these
+sessions.** Methods 2,487 to **1,744** words; 12 pages to **11**.
+
+The problem was defensive writing: text written to pre-empt reviewer objections,
+which reads as lab-notebook material and does not help a reader understand
+methylation. What moved to Supplementary Methods:
+
+- `Published methylation architectures` 423 to 115 words. Removed: CpGenie's
+  template filename and filter widths, DeepCpG's layer table, the hyperas grid
+  contents, the selected dropout/learning-rate values, the boundary-selection
+  caveat, and the 3,997,824-parameter faithfulness assertion. Kept: why
+  reimplemented rather than scored from released weights, that tuning used the
+  authors' own grids, and why DeepCpG's DNA module alone.
+- `Matched-background tests` 308 to 130; `Motif disruption analysis` 298 to 120;
+  `Paired comparison between models` 135 to 45.
+- GENOA harmonisation: dropped the 942,186/731 candidate-pair QC counts and the
+  window-index justification for excluding CpG-altering variants.
+- Results: the three-paragraph leakage/QC defence compressed to one paragraph.
+
+**Judgment applied:** a procedural detail stays in the main text only if a reader
+must have it to trust the number, or if omitting it would let the result be
+misread. The effect-allele re-signing stayed on that test (it changes the
+results and is silent if omitted); the parameter-count check did not.
+
+Final: 11 pages, abstract 183/200, main text 4,568/5,000, methods 1,744, display
+items 10/10, zero undefined references.
+
+Verified after every pass: no dangling or uncited `\ref`, all star numbers
 present, NCOA2/STK11/motif content intact.
 
 **Process note — an error worth recording.** The first attempt at the display-item
