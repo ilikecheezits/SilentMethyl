@@ -413,7 +413,7 @@ probability per probe. For seeds 42, 43, and 44 the checkpoint was selected by
 lowest validation beta MAE. Primary metrics were RMSE and MAE for $\beta$ and
 $M$, and ROC-AUC for classification.
 
-\subsection{Paired sequence scoring and sSNV construction}
+\paragraph{Paired sequence scoring and sSNV construction.}
 For each SNV the predicted methylation difference was averaged across strands:
 \[
 \Delta\widehat\beta=
@@ -577,7 +577,7 @@ library scanned, every variant falls inside some occurrence at the 0.80 cutoff,
 leaving no background. Contrasts therefore use top-versus-bottom quartiles of
 disruption magnitude, matched on exact variant--CpG distance and GC quintile.
 
-\subsection{External eGTEx mQTL analysis}
+\paragraph{External eGTEx mQTL analysis.}
 Significant eGTEx Breast Mammary Tissue lead mQTLs ($q<0.05$) were overlapped with
 test-set CpGs \cite{oliva2023mqtl}. After excluding variants outside the sequence
 window or altering their target CpG, 81 associations with 70 unique variants
@@ -791,9 +791,7 @@ we attached our dual head to their published trunks so all seven columns are
 scored on identical targets, which is fairer but is not the configuration their
 authors evaluated.
 
-\subsection{Reference context contributes across regulatory conditions}
-
-Fusion reduced beta MAE in every stratum of GENCODE region, CpG island status,
+\paragraph{Context contributes across regulatory conditions.} Fusion reduced beta MAE in every stratum of GENCODE region, CpG island status,
 ATAC-seq quartile, and H3K27ac quartile. By GENCODE annotation the reduction
 ranged from 0.0088 at intergenic probes to 0.0130 at UTRs. By island status the
 largest gain was at shores (0.0162). Fusion lowered beta MAE by 0.0139 in the
@@ -811,6 +809,22 @@ state is expected to carry additional information.
 \textbf{(B)} ATAC-seq quartile. \textbf{(C)} H3K27ac quartile.}
 \label{fig:context}
 \end{figure}
+
+\paragraph{A second evaluation domain: TCGA-BRCA tumours.\NEW}
+\label{sec:tumor-results}
+Because the model's inputs depend on genomic position rather than disease state,
+its predictions are identical for normal and tumour tissue; scoring 699 unpaired
+TCGA-BRCA tumours therefore holds predictions fixed and varies only the target,
+measuring the component of the tumour methylome determined by sequence and
+reference chromatin context. Fusion $\beta$ MAE moved from 0.0975 to 0.1180 and
+ROC-AUC from 0.9696 to 0.9448. Sixty-five per cent of held-out probes differ by
+less than 0.05 between the two targets, and degradation is confined to those that
+moved: stratifying on $|\beta_{\text{tumour}}-\beta_{\text{normal}}|$, error against
+the tumour target rises from 0.0769 to 0.4082 across strata while error against the
+normal target stays near 0.13, so the effect is target movement rather than probe
+difficulty. Most of the tumour methylome at these probes is thus recoverable
+without observing the tumour. The context-only model showed no degradation, which
+we report without explanation.
 
 \subsection{Independent variant evaluation\REV}
 \label{sec:genoa-results}
@@ -916,15 +930,29 @@ are on an inverse-normal-transformed scale and predictions are in $M$-value unit
 --- and ordinary least squares is attenuated by error in the predictor, so the
 underlying relationship is at least this steep.
 
-\paragraph{An internal negative control.} GENOA publishes every cis pair tested
-rather than only the meQTLs discovered, and 71\% of held-out non-CpG-altering
-pairs have $p>0.05$. Stratifying by association strength shows agreement rising
-with the strength of the underlying association and reaching chance where no
-association exists (Table~\ref{tab:gradient},
-Fig.~\ref{fig:gradient}). The null stratum is statistically indistinguishable from
-zero on both metrics, providing a negative control internal to the same dataset.
-Intermediate strata are not strictly monotone and their intervals overlap; the
-interpretable contrast is significant versus null.
+\paragraph{Two internal negative controls, one statistical and one positional.}
+GENOA publishes every cis pair tested rather than only the meQTLs discovered, and
+71\% of held-out non-CpG-altering pairs have $p>0.05$. Agreement rises with the
+strength of the underlying association and reaches chance where no association
+exists (Table~\ref{tab:gradient}, Fig.~\ref{fig:gradient}); the null stratum is
+indistinguishable from zero on both metrics. Intermediate strata are not strictly
+monotone, so the interpretable contrast is significant versus null. Agreement is
+also spatially localised: highest within 100\,bp (0.605, 0.559--0.654 in the
+50--100\,bp bin), declining through the intermediate bins, and reaching chance at
+the edge of the model's receptive field (0.497, 0.459--0.535 at 400--501\,bp;
+Table~\ref{tab:distance}). A confound is unlikely to produce that decay ---
+linkage structure, GC content and probe properties have no reason to fall away
+with distance from the CpG, whereas a 1{,}000\,bp window centred on it must.
+The two controls fail in different ways and both return chance.
+
+The eGTEx null stratum behaves differently and we report it. There
+($n=20{,}964$) it gives $\rho=+0.019$ ($+0.006$, $+0.032$), excluding zero, against
+GENOA's $-0.004$ ($-0.021$, $+0.013$). The magnitude is negligible and the eGTEx
+gradient decays monotonically rather than collapsing, which is what an
+underpowered cohort should produce: with 50--100 donors, $p>0.5$ still contains
+many real but undetectable mQTLs, whereas GENOA's $\sim$1{,}000 donors make that
+stratum closer to genuinely null. We therefore rest the negative-control claim on
+GENOA and describe the eGTEx residual as sub-threshold signal.
 
 
 
@@ -940,27 +968,24 @@ block-bootstrap intervals.}
 \label{fig:gradient}
 \end{figure}
 
-\paragraph{A second, independent negative control: the signal is spatially
-localised.} Agreement is highest within 100\,bp (0.605, 0.559--0.654 in the
-50--100\,bp bin), declines through the intermediate bins, and reaches chance at
-the edge of the model's receptive field (0.497, 0.459--0.535 at 400--501\,bp;
-Table~\ref{tab:distance}). A confound is unlikely to produce this: linkage
-structure, GC content and probe properties have no reason to decay with distance
-from the CpG, whereas a 1{,}000\,bp window centred on it must. With the
-association-strength null, the analysis rests on two orthogonal negative
-controls, one statistical and one positional.
 
 
-
-\paragraph{Discrimination is not explained by distance alone.} Variant--CpG
-distance by itself separates true meQTLs from null pairs at AUROC 0.595
-(0.583--0.609), statistically indistinguishable from the model's unmatched 0.600
-(0.586--0.614). We state this explicitly: \emph{marginally, predicted effect
-magnitude does not outperform distance}. After matching each significant pair to
-a null pair at identical distance, however, discrimination remains at 0.570
-(0.554--0.585), and exceeds chance in every distance bin examined. The model's
-signal is therefore largely orthogonal to distance rather than a restatement of
-it (Fig.~\ref{fig:discrimination}).
+\paragraph{Discrimination survives the distance confound, and is what separates
+the model from sequence composition.} Variant--CpG distance by itself separates
+true meQTLs from null pairs at AUROC 0.595 (0.583--0.609), indistinguishable from
+the model's unmatched 0.600 (0.586--0.614), so we state plainly that
+\emph{marginally, predicted effect magnitude does not outperform distance}. After
+matching each significant pair to a null pair at identical distance,
+discrimination remains at 0.570 (0.554--0.585) and exceeds chance in every
+distance bin (Fig.~\ref{fig:discrimination}) --- the signal is largely orthogonal
+to distance rather than a restatement of it. That residual is also what separates
+the model from a composition baseline: scored through the identical evaluator on
+the identical pairs, the $k$-mer ridge reaches signed $\rho=0.100$
+($0.059$--$0.133$), so it carries compositional signal, but its distance-matched
+AUROC is $0.503$ ($0.488$--$0.518$), indistinguishable from chance, with
+non-overlapping intervals against fusion. A position-blind sequence model cannot
+separate real meQTLs from distance-matched nulls and this model can, which is the
+concrete content of the positional-resolution claim.
 
 \begin{figure}[!tbp]
 \centering
@@ -972,17 +997,6 @@ genome-wide significant meQTLs from tested-but-null pairs, unmatched and within
 distance strata, against the distance-only baseline.}
 \label{fig:discrimination}
 \end{figure}
-
-\paragraph{Discrimination is what separates the model from a composition
-baseline.\NEW} Scored through the identical evaluator on the identical pairs, the
-$k$-mer ridge reaches signed $\rho=0.100$ ($0.059$--$0.133$) --- so it carries
-some compositional signal --- but its distance-matched AUROC is $0.503$
-($0.488$--$0.518$), indistinguishable from chance, against $0.570$
-($0.554$--$0.585$) for fusion. The intervals do not overlap. The composition
-model is below chance at $0.460$ ($0.447$--$0.474$). After the dominant confound
-is matched away, a position-blind sequence model cannot separate real meQTLs from
-matched null pairs and this model can. That is the concrete content of the
-positional-resolution claim.
 
 \paragraph{Published architectures reach the same external signal, and that is
 the finding.\NEW} CpGenie and DeepCpG were scored on the identical held-out
@@ -996,36 +1010,17 @@ agreement separate no pair of models in either cohort; and in the tissue-matched
 eGTEx cohort, where 418 significant pairs give intervals about $\pm0.05$ wide,
 every difference spans zero in both directions. This is convergence, not a failure to
 win. Three architectures designed independently over a decade recover the same
-external meQTL directions at the same strength, while a $k$-mer ridge on the same
-sequence sits at chance after matching. That the comparison returns chance for
-one comparator and agreement for three is what makes the agreement informative:
-the replicating signal belongs to sequence modelling rather than to this
-architecture, which speaks to whether the external validation reflects the
-cohorts or the model more directly than any margin would. It is also what the
-gating analysis predicts --- the context tower is allele-invariant and cannot
-create a variant effect (Section~\ref{sec:equivalence}), so the capacity
-separating fusion on absolute prediction is capacity the variant pathway does not
-use.
-
-One asymmetry is worth recording. CpGenie is clearly behind DeepCpG on absolute
-prediction (beta MAE $0.1281$ versus $0.1253$, ROC-AUC $0.9406$ versus $0.9437$;
-Table~\ref{tab:performance}) and is not behind it on variant effects. Accuracy on
-marginal methylation does not by itself establish fidelity to allele-specific
-sequence determinants, and the two capabilities should be evaluated separately
-rather than one being taken as evidence for the other.
-
-\paragraph{The negative control behaves differently in the two cohorts, and we
-report both.\NEW} In GENOA the null stratum ($p>0.5$, $n=13{,}330$) gives
-$\rho=-0.004$ ($-0.021$, $+0.013$), covering zero. In eGTEx the corresponding
-stratum ($n=20{,}964$) gives $\rho=+0.019$ ($+0.006$, $+0.032$), excluding it.
-The magnitude is negligible, and the eGTEx gradient decays monotonically
-($0.348\rightarrow0.214\rightarrow0.109\rightarrow0.097\rightarrow0.033
-\rightarrow0.019$) rather than collapsing, which is what an underpowered cohort
-should produce: with 50--100 donors, $p>0.5$ still contains many real but
-undetectable mQTLs, whereas GENOA's $\sim$1{,}000 donors make that stratum
-closer to genuinely null. We therefore rest the internal negative-control claim
-on GENOA and describe the eGTEx residual as sub-threshold signal, not as a second
-clean null.
+external signal at the same strength while a $k$-mer ridge sits at chance after
+matching; that the comparison can return chance for one comparator and agreement
+for three is what makes the agreement informative. The replicating signal belongs
+to sequence modelling rather than to this architecture. It is also what the
+gating analysis predicts: the context tower is allele-invariant and cannot create
+a variant effect (Section~\ref{sec:equivalence}), so the capacity separating
+fusion on absolute prediction is capacity the variant pathway does not use. One
+asymmetry follows from this --- CpGenie is behind DeepCpG on absolute prediction
+(Table~\ref{tab:performance}) and not behind it on variant effects, so accuracy
+on marginal methylation does not by itself establish fidelity to allele-specific
+sequence determinants.
 
 \paragraph{What bounds the cross-tissue result.} Two limits are worth stating
 precisely, because each has a mechanism and neither is a matter of sample size.
@@ -1125,23 +1120,6 @@ absolute error, on the bounded $\beta$ scale and the unbounded $M$ scale. Genuin
 estimators are scale-stable; the boundary heuristic is not.}
 \label{fig:uncertainty}
 \end{figure}
-
-\subsection{A second evaluation domain: TCGA-BRCA tumours\NEW}
-\label{sec:tumor-results}
-
-Because the model's inputs depend on genomic position rather than disease state,
-its predictions are identical for normal and tumour tissue; scoring 699 unpaired
-TCGA-BRCA tumours therefore holds predictions fixed and varies only the target,
-measuring the component of the tumour methylome determined by sequence and
-reference chromatin context. Fusion $\beta$ MAE moved from 0.0975 to 0.1180 and
-ROC-AUC from 0.9696 to 0.9448. Sixty-five per cent of held-out probes differ by
-less than 0.05 between the two targets, and degradation is confined to those that
-moved: stratifying on $|\beta_{\text{tumour}}-\beta_{\text{normal}}|$, error against
-the tumour target rises from 0.0769 to 0.4082 across strata while error against the
-normal target stays near 0.13, so the effect is target movement rather than probe
-difficulty. Most of the tumour methylome at these probes is thus recoverable
-without observing the tumour. The context-only model showed no degradation, which
-we report without explanation.
 
 \subsection{The model's motif response is compositional, and a $k$-mer control shows why that matters\REV}
 \label{sec:motif-results}
@@ -1270,28 +1248,10 @@ at cg08681293, 204\,bp downstream), the latter a known pathogenic truncating
 variant. Both target CpGs lie on training chromosomes, so this is an illustrative
 application rather than validation.
 
-\subsection{Translational scope: portability, calibrated confidence, and the
-limits of variant classification\NEW}
+\paragraph{Predicted effect magnitude does not classify clinically annotated
+variants.\NEW}
 \label{sec:translational}
-
-Three findings bear on whether this framework could be used rather than only
-reported, and one is a boundary rather than a capability.
-
-\textbf{Predictions transfer across ancestry.} Methylation predictors are
-overwhelmingly developed in European-ancestry data, and failure to transfer is a
-recognised barrier to equitable genomic medicine.
-Section~\ref{sec:genoa-results} measures it rather than assuming it: pooling a
-European-ancestry breast cohort with an African American whole-blood cohort gives
-$\rho = 0.178$ (0.068--0.283) with no detectable heterogeneity ($I^{2} = 0\%$).
-Ancestry and tissue differ together here and cannot be separated (Limitations),
-so the defensible statement is practical: performance does not degrade when the
-model is moved to an African American cohort. Confidence is also calibrated where
-it must be --- reverse-complement disagreement tracks error, on the logit scale
-(Section~\ref{sec:uncertainty-results}) --- which is a prerequisite for
-interpreting any individual variant.
-
-\textbf{Predicted effect magnitude does not classify clinically annotated
-variants.} We tested this twice under pre-registration
+We tested this twice under pre-registration
 (Section~\ref{sec:matched-methods}). Of 35 held-out non-truncating
 ClinVar-pathogenic variants, none exceeded its matched background at the 0.05
 tail (0 of 35, $p = 0.42$) --- though that cohort spans six distinct probes, with
@@ -1305,11 +1265,11 @@ it is a clean null, with power 0.50 at a true mean percentile of 60. It
 constrains the effect to roughly ten percentile points rather than establishing
 absence.
 
-These delimit the intended use. The framework predicts and ranks the
-\emph{methylation consequence} of a substitution, with calibrated uncertainty and
-demonstrated transfer across tissue and ancestry. It does not identify pathogenic
-or risk variants from predicted magnitude alone, and we report that boundary
-rather than leaving it to be found.
+Together with the transfer and calibration results above, this delimits the
+intended use: the framework predicts and ranks the \emph{methylation consequence}
+of a substitution, with calibrated uncertainty and demonstrated transfer across
+tissue and ancestry, but does not identify pathogenic or risk variants from
+predicted magnitude alone.
 
 \section{Discussion}
 

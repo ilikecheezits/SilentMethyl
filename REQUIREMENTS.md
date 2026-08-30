@@ -1474,6 +1474,28 @@ redundancy rather than content:
 claim, or a restatement. NCOA2/STK11 and the motif result are retained; the motif
 section is shorter but says the same thing its own control supports.
 
+**Third pass — structural consolidation, not word-shaving.** Hitting the limit is
+not the same as reading well. Results went from nine subsections to six and
+Methods from eleven to nine; main text 4,992 to **4,772**.
+
+- Three Results subsections were under 175 words and had their own headings
+  (`Reference context contributes`, `A second evaluation domain: TCGA-BRCA`,
+  and the 70-word context-strata result). All demoted to paragraphs inside the
+  prediction-performance section, where they belong.
+- `Translational scope` was mostly cross-references to sections the reader had
+  just finished. Its unique content — the two pre-registered clinical nulls —
+  moved into `From ranked variants to testable biological hypotheses`, where it
+  reads as the boundary on the ranking rather than as a separate claim.
+- The variant-evaluation section carried nine `\paragraph` headings in 1,118
+  words — one every 124 words, which reads as a bullet list. Three
+  negative-control paragraphs merged into one; two discrimination paragraphs
+  merged into one. Now six headings in 1,026 words.
+- Two 85-word Methods subsections (`Paired sequence scoring`, `External eGTEx
+  mQTL analysis`) demoted to paragraphs.
+
+Verified after every pass: no dangling or uncited `\ref`, all headline numbers
+present, NCOA2/STK11/motif content intact.
+
 **Process note — an error worth recording.** The first attempt at the display-item
 move used a regex with `.*?` spanning from `\begin{table}` to the label, which
 matched across intervening tables and silently deleted roughly 2,900 words of
