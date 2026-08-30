@@ -1249,6 +1249,21 @@ hardware; more importantly the published CpGenie weights are GM12878
 lymphoblastoid, not breast, so scoring them would have been a cross-tissue
 strawman that favours us for the wrong reason.
 
+**Only DeepCpG's DNA module is used, and that is a design choice, not a
+handicap — challenged and verified 30 Aug 2026.** Published DeepCpG has three
+modules: DNA (`CnnL2h128`, sequence only), CpG (`RnnL1`, a bidirectional GRU over
+observed methylation at neighbouring CpGs across cells), and Joint. Our
+implementation is `DeepCpGDnaCNN`, whose `forward(x)` takes one one-hot sequence
+tensor; no second input path exists. Two reasons, both now in the manuscript
+methods: the neighbour input does not exist in a bulk cohort-median design, and
+it is *measured*, hence identical for REF and ALT, so it contributes exactly zero
+to a predicted variant effect — the same allele-invariance that governs our own
+context tower. Running full DeepCpG would raise its absolute-prediction numbers
+while adding nothing to the variant comparison. CpGenie is sequence-only (1001 bp
+flank, no neighbour input) and was built specifically for variant impact on
+methylation and meQTL detection, making it the more apt comparator for the
+variant arm.
+
 **Faithfulness.** Layer specs read from
 `CpGenie/cnn/seq_128x3_5_5_2f_simple.template` and
 `deepcpg/models/dna.py::CnnL2h128`. DeepCpG's own docstring claims 4,100,000

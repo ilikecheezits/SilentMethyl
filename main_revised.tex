@@ -606,7 +606,15 @@ three convolution/max-pool stacks (128, 256 and 512 filters of width 5, pooling
 width 5 stride 3) into two 64-unit dense layers with dropout, max-norm 3 on the
 convolutional weights, and RMSprop. DeepCpG follows \texttt{CnnL2h128} in
 \texttt{deepcpg/models/dna.py}: convolution 128@11, max-pool 4, convolution
-256@3, max-pool 2, dense 128, dropout. As a check on our reading of the layer
+256@3, max-pool 2, dense 128, dropout. Published DeepCpG additionally carries a
+CpG module, which reads observed methylation at neighbouring CpGs across cells,
+and a joint module. We use the DNA module alone, for two reasons. The neighbour
+input does not exist in a bulk cohort-median design, and more fundamentally it is
+measured rather than predicted, so it is identical for the reference and
+alternate alleles and contributes exactly zero to any predicted variant effect
+--- the same allele-invariance that governs our own context tower
+(Section~\ref{sec:equivalence}). The DNA module is therefore not a weakened
+DeepCpG but the only part of it that can address this task. As a check on our reading of the layer
 specification, the DeepCpG dense layer computes to 3{,}997{,}824 parameters at a
 1{,}000\,bp input against the 4{,}100{,}000 its own docstring reports.
 
