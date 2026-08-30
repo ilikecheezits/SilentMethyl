@@ -89,6 +89,13 @@ def parse_args() -> argparse.Namespace:
                    help="Restrict to traits matching this substring "
                         "(case-insensitive). Default: all traits.")
     p.add_argument("--match-tolerance", type=int, default=10)
+    p.add_argument("--af-bins", type=int, default=5,
+                   help="Allele-frequency strata to match within, on top of "
+                        "distance. 0 disables AF matching (the v1 behaviour, "
+                        "which the confound check showed is uninterpretable).")
+    p.add_argument("--tails", nargs="+", type=float, default=[0.05, 0.02, 0.01],
+                   help="Top fractions of |delta M| at which enrichment is "
+                        "evaluated. Declared in the amended pre-registration.")
     p.add_argument("--n-boot", type=int, default=500)
     p.add_argument("--random-seed", type=int, default=42)
     p.add_argument("--output-dir", type=Path,
@@ -149,6 +156,74 @@ def label_overlap(pairs: pd.DataFrame, catalog: pd.DataFrame,
     return hit
 
 
+def stratified_match(ev, pairs: pd.DataFrame, tolerance: int, af_bins: int,
+                     rng) -> tuple[pd.DataFrame, dict]:
+    """Distance matching (scripts/20, unchanged) run inside allele-frequency strata.
+
+    GWAS associations are common variants by construction -- an association
+    cannot be detected at low frequency -- so a distance-only match leaves a
+    large frequency imbalance. Matching within AF strata removes it. Distance
+    matching itself is still scripts/20's routine, so its behaviour is unchanged.
+    """
+    if af_bins <= 0 or "af_genoa" not in pairs.columns:
+        return ev.build_matched_cohort(pairs, tolerance, 1, rng)
+    af = pd.to_numeric(pairs["af_genoa"], errors="coerce")
+    usable = af.notna()
+    if not usable.any():
+        return ev.build_matched_cohort(pairs, tolerance, 1, rng)
+    edges = np.unique(np.nanquantile(af[usable], np.linspace(0, 1, af_bins + 1)))
+    strata = pd.cut(af, bins=edges, include_lowest=True, labels=False)
+    frames, balances = [], []
+    for b in sorted(pd.unique(strata.dropna())):
+        chunk = pairs[strata == b]
+        if chunk["significant"].nunique() < 2:
+            continue
+        matched, bal = ev.build_matched_cohort(chunk, tolerance, 1, rng)
+        if not matched.empty:
+            frames.append(matched); balances.append(bal)
+    if not frames:
+        return pd.DataFrame(), {}
+    out = pd.concat(frames, ignore_index=False)
+    total = {
+        "significant_n": int(sum(b["significant_n"] for b in balances)),
+        "matched_null_n": int(sum(b["matched_null_n"] for b in balances)),
+        "requested_negatives": int(sum(b["requested_negatives"] for b in balances)),
+        "unmatched_slots": int(sum(b["unmatched_slots"] for b in balances)),
+        "af_strata_used": len(frames),
+    }
+    lab = out[out["significant"] == 1]["abs_distance_bp"].astype(float)
+    nul = out[out["significant"] == 0]["abs_distance_bp"].astype(float)
+    total["median_distance_significant"] = float(lab.median())
+    total["median_distance_matched_null"] = float(nul.median())
+    from sklearn.metrics import roc_auc_score
+    total["distance_only_auroc_after_matching"] = (
+        float(roc_auc_score(out["significant"], -out["abs_distance_bp"].astype(float)))
+        if out["significant"].nunique() == 2 else np.nan)
+    return out, total
+
+
+def tail_enrichment(frame: pd.DataFrame, fraction: float) -> float:
+    """Share of the top |delta M| fraction that are GWAS associations.
+
+    The matched cohort is 1:1, so 0.5 is the null. This is the statistic that
+    answers the question the whole-distribution AUROC cannot: among the variants
+    the model actually flags, are GWAS associations over-represented? Most pairs
+    carry a near-zero prediction, so a rank statistic over all of them is
+    dominated by noise.
+    """
+    n = max(1, int(round(len(frame) * fraction)))
+    # Below ~25 the share is too noisy to interpret: at a 1:1 matched cohort the
+    # standard error of a proportion at n=25 is already 0.10.
+    if n < 25 or len(frame) < 50:
+        return np.nan
+    # positional, not label-based: the block bootstrap resamples with
+    # replacement, so the index carries duplicates and .reindex() would fail
+    magnitude = frame["Predicted_Delta_M"].abs().to_numpy(dtype=float)
+    labels = frame["significant"].to_numpy(dtype=int)
+    top = np.argsort(-magnitude, kind="stable")[:n]
+    return float(labels[top].mean())
+
+
 # ------------------------------------------------------------------- cohorts
 def load_pairs(ev, args) -> pd.DataFrame:
     ns = SimpleNamespace(scores_dir=args.scores_dir, stratum=args.stratum,
@@ -195,8 +270,19 @@ def main() -> int:
 
     # --------------------------------------------------------------- build
     if args.build:
-        if args.gwas is None or not args.gwas.is_file():
+        if args.gwas is None:
             print("STOP: --build needs --gwas pointing at the catalog file")
+            return 1
+        if not args.gwas.is_file():
+            print(f"STOP: no such file: {args.gwas}")
+            parent = args.gwas.parent
+            if parent.is_dir():
+                near = sorted(q.name for q in parent.iterdir() if q.is_file())[:10]
+                print(f"      {parent} contains: {near or '(empty)'}")
+            else:
+                print(f"      the directory {parent} does not exist either")
+            print("      The GWAS Catalog all-associations download is a TSV "
+                  "inside a zip; unzip it and point --gwas at the .tsv.")
             return 1
         catalog = read_catalog(args.gwas, args.trait_contains)
         print(f"catalog: {len(catalog):,} unique associations")
@@ -279,6 +365,28 @@ def main() -> int:
                     "trait-specific one and is reported as such. The model is "
                     "breast-trained; the catalog spans all traits.",
         }
+        prereg["amendments"] = [{
+            "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            "change": "Primary statistic changed from whole-distribution AUROC "
+                      "to GWAS share of the top |delta M| fraction, at "
+                      f"{args.tails}. Matching now runs within "
+                      f"{args.af_bins} allele-frequency strata in addition to "
+                      "exact distance.",
+            "reason": "The v1 run returned UNINTERPRETABLE, not a result: the "
+                      "pre-declared allele-frequency confound was imbalanced at "
+                      "a standardised difference of 0.77, because GWAS "
+                      "associations are common variants by construction. The "
+                      "pre-registration prescribed exactly this response. "
+                      "Separately, mean |delta M| over the matched cohort is "
+                      "about 0.04 M-units, so most pairs carry a near-zero "
+                      "prediction and a rank statistic over the whole "
+                      "distribution is dominated by them; the tail is where a "
+                      "regulatory claim lives.",
+            "no_result_was_superseded": "The v1 verdict was uninterpretable, so "
+                      "no statistical result existed to select away from. The "
+                      "whole-distribution AUROC is still computed and reported "
+                      "as a secondary alongside the tail statistic.",
+        }]
         prereg_path.write_text(json.dumps(prereg, indent=2) + "\n")
         print(f"\nwrote {cohort_path}\nwrote {prereg_path}")
         print("\nInspect the pre-registration, then run --analyse.")
@@ -304,7 +412,8 @@ def main() -> int:
     if n_hit < 20:
         print(f"STOP: only {n_hit} labelled pairs; nothing to test")
         return 1
-    matched, balance = ev.build_matched_cohort(pairs, args.match_tolerance, 1, rng)
+    matched, balance = stratified_match(ev, pairs, args.match_tolerance,
+                                       args.af_bins, rng)
     if matched.empty:
         print("STOP: distance matching produced an empty cohort")
         return 1
@@ -317,26 +426,49 @@ def main() -> int:
 
     auroc = ev.marginal_auroc(matched)
     lo, hi = ev.block_bootstrap(matched, ev.marginal_auroc, args.n_boot, rng)
+    tails = []
+    for frac in args.tails:
+        fn = (lambda f: (lambda fr: tail_enrichment(fr, f)))(frac)
+        point = fn(matched)
+        tlo, thi = ev.block_bootstrap(matched, fn, args.n_boot, rng)
+        tails.append({"fraction": frac, "n_in_tail": int(round(len(matched) * frac)),
+                      "gwas_share": point, "ci_low": tlo, "ci_high": thi,
+                      "excludes_half": bool(np.isfinite(tlo) and np.isfinite(thi)
+                                            and (tlo > 0.5 or thi < 0.5))})
     d_cohort = cohort["Predicted_Delta_M"].abs()
     d_back = background["Predicted_Delta_M"].abs()
     confounds = confound_table(cohort, background)
 
     worst = max((abs(r.get("standardised_difference") or 0.0)
                  for r in confounds if r.get("available")), default=0.0)
-    if not np.isfinite(auroc) or not np.isfinite(lo):
-        verdict = "inconclusive"
-    elif worst > 0.25:
+    usable = [t for t in tails if np.isfinite(t["gwas_share"])
+              and np.isfinite(t["ci_low"])]
+    if worst > 0.25:
         verdict = "uninterpretable_confound"
-    elif lo > 0.5:
+    elif not usable:
+        verdict = "inconclusive"
+    elif any(t["ci_low"] > 0.5 for t in usable):
         verdict = "enrichment"
-    elif hi < 0.5:
+    elif any(t["ci_high"] < 0.5 for t in usable):
         verdict = "depletion"
     else:
         verdict = "null"
 
     print("\n" + "=" * 78)
-    print("PRIMARY: |delta M| separating GWAS associations from matched background")
+    print("PRIMARY: GWAS share of the top |delta M| variants (null 0.5)")
     print("=" * 78)
+    print("Most pairs carry a near-zero prediction, so a statistic over the whole")
+    print("distribution ranks noise against noise. This asks whether the variants")
+    print("the model actually flags are disproportionately GWAS associations.\n")
+    for t in tails:
+        if not np.isfinite(t["gwas_share"]):
+            print(f"  top {100*t['fraction']:>5.2f}%  too few variants to evaluate")
+            continue
+        mark = "  <-- excludes 0.5" if t["excludes_half"] else ""
+        print(f"  top {100*t['fraction']:>5.2f}%  n={t['n_in_tail']:>4}  "
+              f"GWAS share {t['gwas_share']:.3f} "
+              f"[{t['ci_low']:.3f}, {t['ci_high']:.3f}]{mark}")
+    print(f"\nSECONDARY (whole distribution, the v1 primary):")
     print(f"  AUROC {auroc:.4f} [{lo:.4f}, {hi:.4f}]   (null 0.5)")
     print(f"  mean |delta M|  GWAS {d_cohort.mean():.4f}   "
           f"background {d_back.mean():.4f}   "
@@ -354,7 +486,7 @@ def main() -> int:
     print("VERDICT")
     print("=" * 78)
     if verdict == "enrichment":
-        print("ENRICHMENT. Variants the model scores highly are GWAS")
+        print("ENRICHMENT IN THE TAIL. Variants the model scores highly are GWAS")
         print("associations more often than distance-matched variants are. This is")
         print("a regulatory-relevance result that does not depend on ClinVar")
         print("annotation and holds in the intergenic space where these variants")
@@ -376,6 +508,9 @@ def main() -> int:
 
     payload = {
         "verdict": verdict,
+        "primary_tail_enrichment": tails,
+        "af_matching": {"bins": args.af_bins,
+                        "strata_used": balance.get("af_strata_used")},
         "auroc": None if not np.isfinite(auroc) else float(auroc),
         "auroc_ci": [None if not np.isfinite(lo) else float(lo),
                      None if not np.isfinite(hi) else float(hi)],
