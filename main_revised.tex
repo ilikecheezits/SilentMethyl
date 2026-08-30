@@ -783,14 +783,12 @@ pretrained encoder: sequence-only DNABERT-2 lowers beta MAE 12.3\% below the
 better of them, and the full fusion model lowers it \textbf{20.8\%}, with
 M-value MAE 18.2\% lower and ROC-AUC 0.0243 higher.
 
-Two things temper that comparison and we state them rather than leaving them
-implicit. The DNABERT-2 encoder carries roughly 117\,M parameters against
-CpGenie's 2.0\,M and DeepCpG's 4.1\,M, and it arrives pretrained on genomic
-sequence, so the gain reflects capacity and pretraining together rather than
-architecture alone. And both published models were designed for a binary
-methylation-state objective; we attached our dual regression-plus-classification
-head to their published trunks so that all seven columns are scored on identical
-targets, which is the fairer comparison but is not the configuration their
+Two things temper that comparison. The DNABERT-2 encoder carries roughly
+117\,M parameters against CpGenie's 2.0\,M and DeepCpG's 4.1\,M and arrives
+pretrained, so the gain reflects capacity and pretraining together rather than
+architecture alone. And both published models target a binary methylation state;
+we attached our dual head to their published trunks so all seven columns are
+scored on identical targets, which is fairer but is not the configuration their
 authors evaluated.
 
 \subsection{Reference context contributes across regulatory conditions}
@@ -818,9 +816,9 @@ state is expected to carry additional information.
 \label{sec:genoa-results}
 
 Variant-effect predictions were tested against two external cohorts chosen to
-differ from the training data along different axes. The predictions validate in
-both, and the pattern of where they are strong and where they attenuate is the
-pattern the architecture predicts rather than an unexplained scatter of results.
+differ from the training data along different axes. They validate in both, and
+where they are strong and where they attenuate follows what the architecture
+predicts.
 
 \textbf{In matched tissue, agreement is strong.} The complete eGTEx Breast
 Mammary association set (2.75 billion tests) yields 76{,}893 held-out
@@ -1047,10 +1045,10 @@ tissue-portable\NEW}
 
 Gated fusion improves absolute methylation prediction substantially, but the
 variant-effect predictions above are carried entirely by the sequence tower. That
-is a structural property of the architecture rather than a shortcoming, and it
-has a useful consequence: because the variant pathway requires no tissue-specific
-input, it transfers to tissues for which no chromatin data exist --- which is why
-the model can be scored against a blood cohort at all.
+is a structural property rather than a shortcoming, with a useful consequence:
+the variant pathway needs no tissue-specific input, so it transfers to tissues
+with no chromatin data --- which is why the model can be scored against a blood
+cohort at all.
 
 Fusion and sequence-only models were statistically equivalent on every
 variant-effect metric. Paired differences, bootstrapped over the same genomic
@@ -1171,12 +1169,6 @@ versus $-0.233$). Standardised against each model's own null distribution the tw
 are equivalent. The coupling therefore measures sensitivity to \texttt{GGAA}
 sequence content, not learned binding-site grammar, and we describe it as such.
 
-Two further results support that reading. Disruption \emph{magnitude} predicts
-nothing (continuous $\rho=-0.011$, $-0.023$ to $+0.002$), where a graded
-binding-site mechanism predicts that breaking a site more should shift the
-prediction more. And meQTL discrimination is not concentrated in strongly
-disrupted sites (AUROC 0.592 versus 0.596).
-
 \paragraph{The same control separates what the neural model uniquely
 contributes.\NEW} On meQTL discrimination the $k$-mer baseline falls to 0.516
 (0.496--0.535) and 0.509 (0.486--0.533), close to chance, against 0.592 and 0.596
@@ -1193,34 +1185,17 @@ disruption-coupling analysis cannot by itself demonstrate that a sequence model
 has learned regulatory grammar, because a linear composition model reproduces the
 result. Such analyses need a composition-only control.
 
-
-
-The result survives three controls, each addressing a distinct alternative
-explanation.
-
-\textbf{It is not a global offset.} Median coupling across all 831 motifs is
-$-0.0037$ (IQR $-0.045$ to $+0.038$), 51.4\% of motifs are negative, and 185 are
-significantly negative against 155 significantly positive at $q<0.05$. The null is
-centred and symmetric, placing the ETS group roughly five interquartile ranges
-outside it.
-
-\textbf{It is not GC or distance.} Partial correlations are unchanged or slightly
-stronger. A library-wide gradient exists ($\rho=-0.20$ between motif GC and
-coupling), but the ETS motifs are mid-GC (0.44--0.65); were composition driving
-the result, GC-rich motifs at 0.85--0.90 would rank highest, and they do not.
-
-\textbf{It is not substitution bias.} ETS cores are purine-rich, so weakening one
-typically implies a G/A$\rightarrow$C/T change, and pyrimidine-rich sequence is
-more methylated on average. Residualising on canonical substitution class leaves
-every coupling essentially unchanged.
-
-Two null results accompany the positive one and are reported with it. The
-\emph{magnitude} of disruption predicts nothing (continuous $\rho=-0.011$,
-$-0.023$ to $+0.002$; strong versus weak median $|\Delta\widehat M|$ 0.0177 versus
-0.0184), and meQTL discrimination is not concentrated among strong disruptors
-(AUROC 0.592, 0.570--0.614, versus 0.596, 0.574--0.620). The model did not learn
-that disrupting motifs matters in general; it learned a signed, family-specific
-relationship.
+Three further controls exclude the obvious alternatives. The coupling is not a
+global offset: median coupling across all 831 motifs is $-0.0037$ (IQR $-0.045$
+to $+0.038$), placing the ETS group roughly five interquartile ranges outside a
+centred, symmetric null. It is not GC content --- the ETS motifs are mid-GC
+(0.44--0.65) while GC-rich motifs at 0.85--0.90 do not rank highest --- and it is
+not substitution bias, since residualising on canonical substitution class leaves
+every coupling essentially unchanged. Two null results complete the picture:
+disruption \emph{magnitude} predicts nothing (continuous $\rho=-0.011$, $-0.023$
+to $+0.002$) and meQTL discrimination is no higher among strong disruptors (AUROC
+0.592, 0.570--0.614, versus 0.596, 0.574--0.620), so there is no general
+sensitivity to motif damage underlying the compositional signal.
 
 \begin{figure}[!tbp]
 \centering
@@ -1300,48 +1275,41 @@ limits of variant classification\NEW}
 \label{sec:translational}
 
 Three findings bear on whether this framework could be used rather than only
-reported, and one of them is a boundary rather than a capability.
+reported, and one is a boundary rather than a capability.
 
-\textbf{Predictions transfer across ancestry.} Methylation and variant-effect
-predictors are overwhelmingly developed and evaluated in European-ancestry data,
-and failure to transfer is a recognised barrier to equitable genomic medicine.
-Section~\ref{sec:genoa-results} provides a direct measurement rather than an
-assumption: the pooled estimate across a European-ancestry breast cohort and an
-African American whole-blood cohort is $\rho = 0.178$ (0.068--0.283) with no
-detectable heterogeneity ($I^{2} = 0\%$). Ancestry and tissue differ together
-between these cohorts and cannot be separated (Limitations), so the defensible
-statement is the practical one: performance does not degrade when the model is
-moved to an African American cohort.
-
-\textbf{Confidence is calibrated, on the appropriate scale.}
-Section~\ref{sec:uncertainty-results} shows that reverse-complement disagreement
-tracks error, and that calibration must be assessed on the logit scale because a
-zero-parameter boundary heuristic outperforms genuine estimators on the bounded
-$\beta$ scale. A predictor that cannot indicate when it is unreliable is not
-usable for individual variant interpretation, so this is a prerequisite rather
-than an accessory result.
+\textbf{Predictions transfer across ancestry.} Methylation predictors are
+overwhelmingly developed in European-ancestry data, and failure to transfer is a
+recognised barrier to equitable genomic medicine.
+Section~\ref{sec:genoa-results} measures it rather than assuming it: pooling a
+European-ancestry breast cohort with an African American whole-blood cohort gives
+$\rho = 0.178$ (0.068--0.283) with no detectable heterogeneity ($I^{2} = 0\%$).
+Ancestry and tissue differ together here and cannot be separated (Limitations),
+so the defensible statement is practical: performance does not degrade when the
+model is moved to an African American cohort. Confidence is also calibrated where
+it must be --- reverse-complement disagreement tracks error, on the logit scale
+(Section~\ref{sec:uncertainty-results}) --- which is a prerequisite for
+interpreting any individual variant.
 
 \textbf{Predicted effect magnitude does not classify clinically annotated
-variants.} We tested this directly, twice, under pre-registration
-(Section~\ref{sec:matched-methods}). For 35 held-out non-truncating
+variants.} We tested this twice under pre-registration
+(Section~\ref{sec:matched-methods}). Of 35 held-out non-truncating
 ClinVar-pathogenic variants, none exceeded its matched background at the 0.05
-tail (0 of 35, $p = 0.42$); that cohort spans only six distinct probes, with 25
-variants at a single CpG, so its effective sample size is six and the test is
-uninformative whatever background is used. For 32 breast-cancer GWAS risk
-variants on 32 distinct probes, 3 exceeded the tail against 1.6 expected
-($p = 0.21$), and the probe-clustered mean matched-background percentile was
-54.9 (44.8--65.2, $p = 0.36$). The second test was adequately controlled --
-matching held substitution class fixed for 25 of 32 variants, and no context
-feature differed materially between cohort and background (largest
-$|d| = 0.36$) -- so it is a clean null rather than an ambiguous one. Its power
-was 0.50 at a true mean percentile of 60, so it constrains the effect to roughly
-ten percentile points and does not establish absence.
+tail (0 of 35, $p = 0.42$) --- though that cohort spans six distinct probes, with
+25 variants at one CpG, so its effective sample size is six and it is
+uninformative whatever background is used. Of 32 breast-cancer GWAS risk variants
+on 32 distinct probes, 3 exceeded the tail against 1.6 expected ($p = 0.21$),
+with a probe-clustered mean matched-background percentile of 54.9 (44.8--65.2,
+$p = 0.36$). The second test was adequately controlled --- no context feature
+differed materially between cohort and background (largest $|d| = 0.36$) --- so
+it is a clean null, with power 0.50 at a true mean percentile of 60. It
+constrains the effect to roughly ten percentile points rather than establishing
+absence.
 
-Taken together these delimit the intended use. The framework predicts and ranks
-the \emph{methylation consequence} of a substitution, with calibrated
-uncertainty and demonstrated transfer across tissue and ancestry. It does not
-identify pathogenic or risk variants from predicted effect magnitude alone, and
-we report that boundary rather than leaving it to be discovered.
+These delimit the intended use. The framework predicts and ranks the
+\emph{methylation consequence} of a substitution, with calibrated uncertainty and
+demonstrated transfer across tissue and ancestry. It does not identify pathogenic
+or risk variants from predicted magnitude alone, and we report that boundary
+rather than leaving it to be found.
 
 \section{Discussion}
 
@@ -1354,25 +1322,22 @@ signal---regions where methylation is expected to reflect an interaction between
 sequence and chromatin state rather than sequence
 alone \cite{jones2012functions,schubeler2015function,encode2012integrated}.
 
-\REV{}The independent variant evaluation is the central addition of this
-revision, and it supports a specific and bounded claim. On 39{,}657 variants from
-a cohort differing in tissue, ancestry and platform generation, predicted effects
-recovered direction above chance and correlated with reported effects in signed
-rank, and discrimination of true meQTLs from tested-but-null pairs survived
-matching on variant--CpG distance. The effect sizes are modest and we do not
-present them otherwise. Their value lies in three properties the earlier
-81-association analysis could not provide: the scale to stratify rather than
-pool, an internal negative control in the form of a null stratum that returns to
-chance, and intervals that respect linkage disequilibrium.
+\REV{}The independent variant evaluation supports a specific and bounded claim.
+On 39{,}657 variants from a cohort differing in tissue, ancestry and platform
+generation, predicted effects recovered direction above chance, correlated with
+reported effects in signed rank, and discriminated true meQTLs from
+tested-but-null pairs after matching on variant--CpG distance. The effect sizes
+are modest and we do not present them otherwise; their value lies in the scale to
+stratify rather than pool, an internal negative control in a null stratum that
+returns to chance, and intervals that respect linkage disequilibrium.
 
 The distance analysis deserves emphasis because it is the most likely source of
-an inflated claim in this literature. Predicted effect magnitude is strongly
-related to variant--CpG proximity, true meQTLs are closer to their CpGs than null
-pairs, and distance alone therefore reaches AUROC 0.595---indistinguishable from
-the model's unmatched estimate. Reporting the unmatched number in isolation would
-substantially overstate what the model contributes. We report it alongside the
-baseline and alongside the distance-matched estimate, which is the quantity that
-reflects the model's own information.
+an inflated claim in this literature. True meQTLs sit closer to their CpGs than
+null pairs, so distance alone reaches AUROC 0.595 --- indistinguishable from the
+model's unmatched estimate. Reporting that number in isolation would
+substantially overstate what the model contributes, which is why every
+discrimination estimate here appears beside both the distance-only baseline and
+the distance-matched value.
 
 \REV{}Two findings generalise past this model. The first is methodological:
 uncertainty evaluation on bounded bimodal targets is confounded by range
@@ -1395,25 +1360,14 @@ themselves allele-dependent might. Notably, this also means that the mismatch
 between the breast context features used here and the blood tissue of the
 validation cohort is not what limits variant-effect performance.
 
-\REV{}The motif analysis supplies the mechanistic layer the earlier draft lacked.
-A model given no motif information, trained only to predict methylation, recovered
-a signed and family-specific relationship: weakening an ETS-family binding site
-accompanies predicted hypermethylation. ETS and GABPA occupancy is an established
-hallmark of unmethylated CpG-island promoters, so the biology itself is not new.
-What is new is the route --- unsupervised recovery from sequence alone, detectable
-on held-out probes in a different tissue, ancestry and platform generation --- and
-the quantitative ordering, in which previously characterised methylation-sensitive
-factors are enriched relative to chance yet decisively outranked. We state the
-distinction explicitly because the alternative reading, that this constitutes a
-new regulatory discovery, would not survive scrutiny and is not what the data
-support.
-
-The accompanying null results constrain the claim usefully. Disruption magnitude
-does not predict effect size, and meQTL discrimination is no higher among strong
-disruptors. A model that had learned a general sensitivity to motif damage would
-show both. That neither appears, while a signed family-level coupling does, is
-more informative than the positive result alone, and is the reason we report the
-three together.
+\REV{}A third generalises as a caution. The model recovers a signed,
+ETS-family-specific coupling between motif disruption and predicted
+hypermethylation --- but a $k$-mer ridge that has no representation of a binding
+site reproduces it more strongly. The coupling measures sensitivity to
+\texttt{GGAA} content rather than learned regulatory grammar, and we report it as
+such. The general lesson is that a PWM disruption analysis cannot on its own
+establish that a sequence model has learned binding-site grammar; it needs a
+composition-only control, which this literature does not routinely include.
 
 \subsection*{Limitations}
 
@@ -1479,9 +1433,8 @@ Code, run instructions, and Supplementary Data are available at
 \url{https://github.com/ilikecheezits/SilentMethyl}. Primary sources are the GDC,
 eGTEx, GENOA, ENCODE, GENCODE, UCSC, and the HM450 annotation resource
 \cite{grossman2016gdc,oliva2023mqtl,shang2023genoa,encode2012integrated,frankish2021gencode,kent2002ucsc,zhou2017infinium}.
-Harmonised GENOA variant--CpG pairs, per-seed variant scores, and the evaluation
-outputs underlying Tables~\ref{tab:genoa} and~\ref{tab:gradient} are included in
-the Supplementary Data.
+Harmonised variant--CpG pairs, per-seed variant scores and all evaluation
+outputs are included in the Supplementary Data.
 
 SilentMethyl predicts CpG methylation and the methylation differences caused by
 single-nucleotide variation in unseen chromosome regions, and its variant

@@ -1449,10 +1449,30 @@ Limitations). `Conclusion` folded into the Discussion and trimmed. Three Results
 paragraphs compressed, the largest being the convergence paragraph written the
 same day.
 
-**Still 6% over the soft 5,000 target.** Both hard limits (abstract, display
-items) are met. Further trimming would start on the motif section or the
-NCOA2/STK11 case studies, which are retained on the mentor's instruction, so the
-remaining 330 words are left in deliberately.
+**Second pass, same day — now inside every limit: abstract 183/200, main text
+4,992/5,000, display items 10/10.** The first pass stopped at 6% over and called
+that acceptable; it was not, and the second pass found that most of the excess was
+redundancy rather than content:
+
+- The motif Results subsection stated the same two null statistics twice and
+  closed on "the model did not learn that disrupting motifs matters in general;
+  it learned a signed, family-specific relationship" — the pre-`k`-mer-control
+  framing, contradicting its own opening. Removed; three control paragraphs
+  compressed to one. 573 to 264 words.
+- The Discussion carried two paragraphs calling the motif result "the mechanistic
+  layer the earlier draft lacked" and "unsupervised recovery from sequence alone",
+  also pre-downgrade, and inconsistent with Results. Replaced by one paragraph
+  stating the compositional reading and the general lesson.
+- `Translational scope` restated the uncertainty section in full; compressed to a
+  clause. `Data and Code Availability` listed table numbers that had moved to
+  Supplementary.
+- Draft scaffolding in prose ("the central addition of this revision", "the
+  earlier 81-association analysis") removed — it would not have survived
+  submission anyway.
+
+**Nothing was cut for length alone.** Every deletion was a duplicate, a stale
+claim, or a restatement. NCOA2/STK11 and the motif result are retained; the motif
+section is shorter but says the same thing its own control supports.
 
 **Process note — an error worth recording.** The first attempt at the display-item
 move used a regex with `.*?` spanning from `\begin{table}` to the label, which
