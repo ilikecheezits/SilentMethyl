@@ -1350,16 +1350,25 @@ E.2b n=32) but "do high-scoring variants land in GWAS loci?", over every held-ou
 pair and the whole catalog. Matching, metrics and the block bootstrap are
 imported from `scripts/20` so nothing can drift.
 
-| run | population | labelled pairs | AUROC [95%] | verdict |
+| run | population | labelled | primary: GWAS share of top 5% | verdict |
 |---|---|---|---|---|
-| GENOA, all tested pairs | every pair, incl. no measured effect | 1,535 | 0.516 [0.492, 0.546] | null |
-| eGTEx, p < 1.483e-5 | measured mQTLs, calibrated cutoff | 44 | 0.454 [0.318, 0.583] | inconclusive, n too small |
-| **eGTEx, p < 0.05** | **measured mQTLs, nominal** | **510** | **0.503 [0.474, 0.537]** | **null** |
+| GENOA, all tested pairs | every pair, incl. no measured effect | 1,535 | 0.468 [0.375, 0.567] | null (wrong population) |
+| eGTEx, p < 1.483e-5 | measured mQTLs, calibrated | 44 | too few to evaluate | inconclusive |
+| **eGTEx, p < 0.05** | **measured mQTLs, nominal** | **510** | **0.490 [0.289, 0.673]** | **null** |
+| **GENOA, p < 0.05** | **measured mQTLs, nominal** | **573** | **0.596 [0.417, 0.752]** | **null** |
 
-Tail statistic (GWAS share of the top 5% by |dM|, null 0.5) also null everywhere
-it could be evaluated: GENOA 0.468 [0.375, 0.567] at top 5%, eGTEx 0.490
-[0.289, 0.673]. Confounds controlled: distance matched exactly, allele frequency
-to |std diff| < 0.02.
+The last two rows are the reportable pair -- same population definition, same
+statistic, both cohorts -- and are what the manuscript quotes.
+
+**A borderline secondary that dissolved, recorded because it nearly reached the
+paper.** On the GENOA nominal run at the default seed, the *demoted*
+whole-distribution AUROC was 0.5373 [0.5009, 0.5620], excluding 0.5 by 0.0009.
+Re-running at a different random seed -- which redraws the matched background as
+well as the bootstrap -- gave 0.5227 [0.4833, 0.5620], with the mean |dM|
+difference falling from +0.0085 to +0.0017. The exclusion was an artefact of one
+background draw. The pre-registered primary was null at both draws and eGTEx was
+null on the same secondary (0.503, 0.474--0.537), so nothing survived. Recorded
+because that first number was one sentence away from being written down.
 
 **Three corrections made mid-analysis, all recorded as pre-registration
 amendments.**
@@ -1373,7 +1382,11 @@ amendments.**
 3. Population corrected from *all tested pairs* to *pairs with a measured
    methylation effect*. The first run used all 42,866 GENOA pairs, ~71% of which
    have p > 0.05 and therefore no measured effect — the wrong population for a
-   regulatory claim.
+   regulatory claim. **The correction was applied to eGTEx first while the
+   uncorrected GENOA number was quoted beside it**, so for one revision the two
+   halves of a single sentence described different populations. Caught while
+   reviewing the cluster tree, not by a check; GENOA was rerun at p < 0.05 and
+   both cohorts now use the same definition.
 
 **A flaw in the pre-registration I wrote, recorded against myself.** The verdict
 rule was "enrichment if ANY of three tails excludes 0.5" — an OR over three
