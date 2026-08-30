@@ -50,7 +50,18 @@ HERE = Path(__file__).resolve().parent
 EVALUATOR = HERE / "20_genoa_variant_evaluation.py"
 
 # Confounds declared before any result exists. Reported whatever they show.
-PRESPECIFIED_CONFOUNDS = ("abs_distance_bp", "af_genoa")
+# Allele frequency is named differently per cohort: GENOA writes af_genoa,
+# eGTEx writes maf. Detected, never assumed -- a missing column silently
+# disables the matching that made the v1 run uninterpretable.
+AF_COLUMN_CANDIDATES = ("af_genoa", "maf", "af", "MAF", "allele_frequency")
+PRESPECIFIED_CONFOUNDS = ("abs_distance_bp", "__af__")
+
+
+def find_af_column(frame: pd.DataFrame) -> str | None:
+    for c in AF_COLUMN_CANDIDATES:
+        if c in frame.columns and pd.to_numeric(frame[c], errors="coerce").notna().any():
+            return c
+    return None
 
 
 def load_evaluator():
@@ -88,6 +99,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--trait-contains", default=None,
                    help="Restrict to traits matching this substring "
                         "(case-insensitive). Default: all traits.")
+    p.add_argument("--mqtl-significance", type=float, default=None,
+                   help="Restrict to pairs whose COHORT p-value is below this, "
+                        "i.e. variants with a measured methylation effect. "
+                        "5e-8 = genome-wide meQTLs; 0.05 = nominal. Default None "
+                        "uses every tested pair, ~71%% of which have no measured "
+                        "effect and are therefore the wrong population for a "
+                        "regulatory claim.")
     p.add_argument("--match-tolerance", type=int, default=10)
     p.add_argument("--af-bins", type=int, default=5,
                    help="Allele-frequency strata to match within, on top of "
@@ -134,8 +152,15 @@ def read_catalog(path: Path, trait_contains: str | None) -> pd.DataFrame:
 def label_overlap(pairs: pd.DataFrame, catalog: pd.DataFrame,
                   window: int) -> pd.Series:
     """True where the scored variant is (or sits within `window` bp of) a hit."""
+    # Two identifier systems: GENOA carries rsIDs in Variant_ID, eGTEx carries a
+    # locus string. Match on BOTH rsID and exact coordinate so neither cohort
+    # silently matches nothing.
     by_rsid = set(catalog["rsid"])
     hit = pairs["Variant_ID"].astype(str).str.strip().str.lower().isin(by_rsid)
+    coords = set(zip(catalog["chr"].astype(str), catalog["pos"].astype("int64")))
+    pair_coords = list(zip(pairs["chr"].astype(str),
+                           pairs["Position_1based"].astype("int64")))
+    hit = hit | pd.Series([c in coords for c in pair_coords], index=pairs.index)
     if window > 0:
         positions: dict[str, np.ndarray] = {
             c: np.sort(g["pos"].to_numpy()) for c, g in catalog.groupby("chr")}
@@ -165,9 +190,10 @@ def stratified_match(ev, pairs: pd.DataFrame, tolerance: int, af_bins: int,
     large frequency imbalance. Matching within AF strata removes it. Distance
     matching itself is still scripts/20's routine, so its behaviour is unchanged.
     """
-    if af_bins <= 0 or "af_genoa" not in pairs.columns:
+    af_col = find_af_column(pairs)
+    if af_bins <= 0 or af_col is None:
         return ev.build_matched_cohort(pairs, tolerance, 1, rng)
-    af = pd.to_numeric(pairs["af_genoa"], errors="coerce")
+    af = pd.to_numeric(pairs[af_col], errors="coerce")
     usable = af.notna()
     if not usable.any():
         return ev.build_matched_cohort(pairs, tolerance, 1, rng)
@@ -241,7 +267,11 @@ def load_pairs(ev, args) -> pd.DataFrame:
 
 def confound_table(cohort: pd.DataFrame, background: pd.DataFrame) -> list[dict]:
     rows = []
+    af_col = find_af_column(cohort)
     for col in PRESPECIFIED_CONFOUNDS:
+        col = af_col if col == "__af__" else col
+        if col is None or col not in cohort.columns:
+            rows.append({"feature": "allele frequency", "available": False}); continue
         if col not in cohort.columns:
             rows.append({"feature": col, "available": False}); continue
         a = pd.to_numeric(cohort[col], errors="coerce").dropna()
@@ -289,6 +319,18 @@ def main() -> int:
         pairs = load_pairs(ev, args)
         print(f"scored:  {len(pairs):,} non-CpG-altering {args.stratum} pairs, "
               f"{pairs['Variant_ID'].nunique():,} variants")
+        if args.mqtl_significance is not None:
+            if "pvalue" not in pairs.columns:
+                print("STOP: no cohort p-value column; cannot restrict to mQTLs")
+                return 1
+            before = len(pairs)
+            keep = pd.to_numeric(pairs["pvalue"], errors="coerce") < args.mqtl_significance
+            pairs = pairs[keep.fillna(False)].reset_index(drop=True)
+            print(f"restricted to measured mQTLs at p < {args.mqtl_significance:g}: "
+                  f"{len(pairs):,} of {before:,} pairs")
+            if pairs.empty:
+                print("STOP: no pairs survive that threshold")
+                return 1
         pairs["gwas_hit"] = label_overlap(pairs, catalog, args.window).astype(int)
         n_hit = int(pairs["gwas_hit"].sum())
         n_var = int(pairs.loc[pairs["gwas_hit"] == 1, "Variant_ID"].nunique())
@@ -328,6 +370,12 @@ def main() -> int:
                                  if args.window == 0 else
                                  f"variant within {args.window} bp of an association"),
                 "trait_filter": args.trait_contains or "all traits",
+                "mqtl_significance": args.mqtl_significance,
+                "population": ("variants with a measured methylation effect at "
+                               f"cohort p < {args.mqtl_significance:g}"
+                               if args.mqtl_significance is not None else
+                               "every tested pair, including those with no "
+                               "measured methylation effect"),
             },
             "independent_unit": (
                 "the PROBE. Variants at one CpG share the window and the context "
@@ -443,8 +491,11 @@ def main() -> int:
                  for r in confounds if r.get("available")), default=0.0)
     usable = [t for t in tails if np.isfinite(t["gwas_share"])
               and np.isfinite(t["ci_low"])]
+    unchecked = [r["feature"] for r in confounds if not r.get("available")]
     if worst > 0.25:
         verdict = "uninterpretable_confound"
+    elif unchecked:
+        verdict = "confound_unchecked"
     elif not usable:
         verdict = "inconclusive"
     elif any(t["ci_low"] > 0.5 for t in usable):
@@ -495,6 +546,11 @@ def main() -> int:
     elif verdict == "depletion":
         print("DEPLETION. High-scoring variants are LESS often GWAS associations")
         print("than matched background. Report as depletion, not as a null.")
+    elif verdict == "confound_unchecked":
+        print("CANNOT BE INTERPRETED AS ENRICHMENT. A pre-declared confound could")
+        print(f"not be checked because its column is absent: {unchecked}.")
+        print("Allele frequency is the confound that made the first run of this")
+        print("test uninterpretable, so a result without it is not reportable.")
     elif verdict == "uninterpretable_confound":
         print("UNINTERPRETABLE. A prespecified confound is materially imbalanced")
         print(f"(worst standardised difference {worst:.3f} > 0.25), so the raw")
@@ -527,6 +583,8 @@ def main() -> int:
     (out / "run_summary.json").write_text(json.dumps(payload, indent=2) + "\n")
     print(f"\noutput: {out}")
     print("=" * 78)
+    payload["unchecked_confounds"] = unchecked
+    (out / "run_summary.json").write_text(json.dumps(payload, indent=2) + "\n")
     return 0 if verdict in ("enrichment", "depletion", "null") else 2
 
 
