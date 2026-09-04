@@ -1090,54 +1090,343 @@ reading genotype artefact, those probes would have scored *better*, not worse.
 shared by a sequence-only model, a context-only model, and their fusion is a
 property of the probes, not of any one model.
 
-**Unresolved, and worth one cheap check.** On the excluded stratum AUC falls
-while beta MAE *improves* (most sharply for epi: 0.1409 → 0.1290). Lower error
-and worse discrimination together is the signature of a less bimodal target
-distribution — the same range-compression mechanism documented in the
-uncertainty section. If that is what this is, it would be its third appearance in
-our own results, and it is very likely the explanation for the open tumour-domain
-question (§ context-only model does not degrade on TCGA and its M MAE improves).
-`positive_rate` per stratum is already in
-`results/journal/mask_sensitivity/mask_sensitivity.csv`; comparing the beta
-histograms of the two strata would settle it in minutes. **This is a hypothesis,
-not a finding — do not write it into the manuscript until it is checked.**
+**Range-compression hypothesis — TESTED 30 Aug 2026, NOT CONFIRMED, and the
+test is underpowered.** `scripts/29_range_compression_check.py` resamples
+unflagged probes to match the flagged stratum's beta histogram and recomputes
+both metrics, so the comparison is against probes that were never flagged but sit
+at the same targets. Output in `results/journal/range_compression/`.
 
-### E.2 ClinVar matched-background test — designed, attempted, abandoned, never run
+| model | ΔAUC retained→excluded | reproduced by beta-matching | ΔbetaMAE | reproduced |
+|---|---|---|---|---|
+| fusion | −0.0159 | 69% | −0.0006 | wrong sign |
+| sequence | −0.0217 | 60% | −0.0023 | wrong sign |
+| epi | −0.0094 | 211% (overshoots) | −0.0119 | 36% |
 
-Recorded so that its absence is not later read as a suppressed result.
+Verdict NOT EXPLAINED, max |AUC gap| 0.0104 against a 0.010 tolerance. But the
+verdict is not the point: **the test cannot resolve an effect this small.**
+Subsample sd is 0.003 (fusion, sequence) to 0.006 (epi), and the excluded
+stratum's own AUC standard error at n = 3,105 is roughly 0.006–0.008, so combined
+precision is about ±0.007 against gaps of 0.005–0.010. Every gap is inside one
+standard error, and the three models do not behave alike, so the heterogeneity is
+not evidence of a mechanism either.
 
-**Pre-registered** in `preregistration.json` before any score existed:
+Also note the premise barely holds: the two strata are far more similar in shape
+than assumed (intermediate fraction 17.2% retained vs 18.8% excluded, sd 0.3725
+vs 0.3245). The MAE difference being explained is 0.0006 for fusion — it was
+over-read as a finding in the first place.
 
-- primary cohort: 35 held-out non-truncating ClinVar variants (of 322 in the
-  literature cohort; 47 held out, 12 truncating and excluded)
-- secondary cohort: 16 with unambiguous ClinVar calls
-- primary statistic: count with matched-background tail probability < 0.05
-  against a binomial null of 0.05; expects 1.75 at n = 35, so ≥ 6 gives p < 0.01
-- two-sided; power declared in advance: **a null result could not distinguish
-  absence of enrichment from insufficient power and would have to be reported as
-  inconclusive**
+**Status: same category as E.2 — run, uninformative for a structural reason, not
+written into the manuscript.** The tumour-domain question (§E.4 item) stays open
+and neither limb may be asserted. The plain sensitivity finding above is
+unaffected and is what the manuscript reports.
 
-**Why it was abandoned.** `compute_matched_background_statistics` draws each
-variant's comparators from the input frame itself. Feeding it only the 35
-ClinVar variants would have compared each pathogenic variant against the other
-34 pathogenic variants — precisely the missing-comparison-group problem the
-matched-background design exists to solve. A valid run required rebuilding the
-input as those 35 variants embedded in a background pool drawn from the general
-held-out population, i.e. a new cohort construction plus a fresh multi-hour GPU
-scoring run, against a declared power statement whose most likely outcome was an
-inconclusive paragraph.
+### E.2 ClinVar matched-background test — RUN, and uninformative for a structural reason
 
-**Nothing was computed.** The smoke test that exposed the flaw ran 2 candidates
-against 25 comparators and produced `min_tail=0.5`, which is an artefact of
-having one comparator. No primary or secondary statistic was ever calculated on
-any cohort, so no result was examined and none was withheld. The decision was
-made on cost and design grounds before any number existed.
+Superseded the earlier "abandoned, never run" entry: the test was rebuilt,
+pre-flighted, executed on GPU (job 44784867, 15,031 variants x 4 passes x 3
+seeds, 48 min) and analysed. It is reported here in full because the reason it
+fails is more useful than the result.
 
-**Consequence for the paper.** Clinical relevance rests on the two-cohort
-variant-effect validation rather than a systematic ClinVar enrichment. STK11 and
-NCOA2 remain (mentor's instruction) as explicitly labelled hypothesis
-generation, with split status stated: NCOA2 on a held-out chr8–9 probe, both
-STK11 probes in the training split.
+**Design as executed.** The 35 held-out non-truncating ClinVar variants were
+scored inside a pool of 14,996 synthetic comparators — single-base substitutions
+drawn at random inside held-out probe windows, positions and alleles uniform,
+never the protected centred CpG (`data/build_synthetic_background.py`). A
+pre-flight (`data/preflight_clinvar_background.py`) confirmed before any GPU
+time that 32 of 35 matched at T2 (same SBS96, same CpG effect, distance within
+50 bp) and that no variant drew a material share of its background from the
+ClinVar set.
+
+**Pre-registered primary statistic: null.** 0 of 35 variants had a
+matched-background tail probability below 0.05, against 1.75 expected;
+binomial p = 0.42.
+
+**The secondary statistic looked significant in the WRONG direction, and was an
+artefact.** Variant-level mean percentile 37.1, z = -3.30 (secondary cohort
+35.6, z = -2.67). Two confounds account for all of it:
+
+1. **Pseudoreplication.** The 35 variants span only **6 distinct probes**, with
+   **25 of them on `cg13601799` alone**. Treating them as independent counted one
+   locus 25 times. Clustered by probe: mean 46.1 [23.7, 68.5], t = -0.448,
+   **p = 0.67** — null.
+2. **Context mismatch.** The ClinVar loci sit in markedly less active chromatin
+   than the background pool: ATAC 0.004 vs 0.403, H3K4me3 4.36 vs 16.59,
+   H3K27ac 0.47 vs 3.34, phyloP -1.83 vs -0.50. Matching held substitution
+   class, CpG effect and distance fixed, but not genomic context.
+
+**The power statement in the pre-registration was wrong.** It assumed n = 35.
+The independent unit is the probe, so the real n is 6. At n = 6 a true mean
+percentile of 70 is undetectable; roughly 80 would be needed. The declared
+threshold ("65 detectable, 58 not") never applied.
+
+**Conclusion, and why it closes the question.** The held-out ClinVar cohort
+cannot support a matched-background test — not with a larger background, not
+with stricter matching. Six independent loci is a structural ceiling of the
+cohort, not a shortfall of this attempt. Any future version needs more held-out
+probes carrying ClinVar-pathogenic non-truncating variants, which is a data
+problem rather than an analysis one.
+
+**What is reportable.** The primary statistic as pre-registered (null), the
+effective sample size (6 probes, not 35 variants), and the structural reason the
+test is uninformative. The apparent depletion must NOT be reported as a finding;
+it is fully explained by pseudoreplication and context mismatch, and it
+disappears under the correct clustering.
+
+**Provenance.** `results/journal/clinvar_matched_background/` holds
+`preregistration.json`, the cohort, the synthetic pool and its summary, the
+scoring input, `clinvar_cohort_ids.json`, `scored/`, and
+`clinvar_matched_background_result.json`. Note that the verdict string inside
+that JSON reads INCONCLUSIVE via the enrichment-direction rule only; the
+clustered analysis above is the correct reading and supersedes it.
+
+### E.2b Breast-cancer GWAS risk-variant matched-background test — RUN, clean null
+
+Pre-registered in `results/journal/gwas_matched_background/preregistration.json`
+before any variant was scored, with two amendments logged at the time (retain
+multi-allelic variants; hit bar 7->6 once the achieved n was known). Executed on
+GPU, 15,028 variants x 4 passes x 3 seeds.
+
+**Cohort.** GWAS Catalog breast-cancer associations, chr8/9 only (the held-out
+chromosomes), within 500 bp of a held-out HM450 probe. 556 unique rsIDs -> 429
+with a single-base risk allele -> 41 variant-probe pairs -> 35 with a reference
+allele resolved from Ensembl GRCh38 -> **32 with ALT != REF**, on **32 distinct
+probes, one variant each**.
+
+**Coordinate validation.** The offset convention was determined empirically:
+reference base agreed for 32/32 (100%) at offset -1, versus 21.9% at 0 and 37.5%
+at +1. Had +0 been assumed, every variant would have been scored one base off
+while looking perfectly valid.
+
+**The design was sound this time**, which is what makes the null meaningful:
+
+| check | result |
+|---|---|
+| independence | 32 variants / 32 probes — no pseudoreplication |
+| match quality | 25/32 at T2 (same SBS96, same CpG effect, +/-50 bp) |
+| comparators | min 21, median 30, max 152 |
+| context confound | largest |d| = 0.36 across nine features; none material |
+
+**Result: NULL.**
+
+- primary: 3 of 32 with tail probability < 0.05, against 1.6 expected,
+  binomial p = 0.21 (pre-registered bar: 6+ at p < 0.01)
+- secondary: mean matched-background percentile **54.9 [44.8, 65.2]**,
+  clustered by probe, t = +0.93, p = 0.36
+- variant-level mean identical at 54.9, confirming the independence
+
+**Interpretation, per the declared power statement.** Directionally positive but
+far from significant. The interval spans a 5-point depletion to a 15-point
+enrichment, so a modest true effect is not excluded — power at a true mean of 60
+was 0.50. Report as null with that limitation attached, not as evidence of
+absence.
+
+**Why the null is unsurprising.** GWAS risk variants act through expression,
+splicing and protein-level mechanisms as well as methylation. The 32 variants
+lying within 500 bp of a held-out HM450 probe are a narrow slice of that biology,
+and the model only sees local sequence.
+
+**Consequence for the journal question.** Genome Medicine's clinical-relevance
+criterion remains unmet by testing. Two pre-registered attempts, two nulls: E.2
+uninformative for a structural reason, E.2b clean and properly controlled.
+Remaining options are argued rather than demonstrated — a ranked resource table
+for clinically actionable genes, and a VUS-interpretation framing — or a
+different journal. That is a decision for the mentor conversation, not an
+analysis problem.
+
+**Provenance.** `results/journal/gwas_matched_background/` holds the
+pre-registration with both amendments, `gwas_cohort.csv`,
+`gwas_cohort_summary.json`, `ensembl_cache.json`, the scoring input, `scored/`
+and `gwas_matched_background_result.json`. Built by `data/build_gwas_cohort.py`,
+analysed by `data/gwas_matched_background.py`.
+
+### E.6 Published-architecture head-to-head — DONE. Decisive on absolute prediction, null on variant effects
+
+`scripts/28_published_architecture_baselines.py`. CpGenie and DeepCpG
+reimplemented from released source (not from the papers, which omit the layer
+tables), trained on our splits, three seeds each.
+
+**Why reimplement.** Both are 2017 Keras/Theano/TF1 and do not install on current
+hardware; more importantly the published CpGenie weights are GM12878
+lymphoblastoid, not breast, so scoring them would have been a cross-tissue
+strawman that favours us for the wrong reason.
+
+**Only DeepCpG's DNA module is used, and that is a design choice, not a
+handicap — challenged and verified 30 Aug 2026.** Published DeepCpG has three
+modules: DNA (`CnnL2h128`, sequence only), CpG (`RnnL1`, a bidirectional GRU over
+observed methylation at neighbouring CpGs across cells), and Joint. Our
+implementation is `DeepCpGDnaCNN`, whose `forward(x)` takes one one-hot sequence
+tensor; no second input path exists. Two reasons, both now in the manuscript
+methods: the neighbour input does not exist in a bulk cohort-median design, and
+it is *measured*, hence identical for REF and ALT, so it contributes exactly zero
+to a predicted variant effect — the same allele-invariance that governs our own
+context tower. Running full DeepCpG would raise its absolute-prediction numbers
+while adding nothing to the variant comparison. CpGenie is sequence-only (1001 bp
+flank, no neighbour input) and was built specifically for variant impact on
+methylation and meQTL detection, making it the more apt comparator for the
+variant arm.
+
+**Faithfulness.** Layer specs read from
+`CpGenie/cnn/seq_128x3_5_5_2f_simple.template` and
+`deepcpg/models/dna.py::CnnL2h128`. DeepCpG's own docstring claims 4,100,000
+parameters; our implementation computes 4,102,402 at the 1,000 bp input, and the
+script refuses to train if the dense layer does not match 3,997,824.
+Reverse-complement and crop helpers are duplicated verbatim from
+`training_common` and asserted equal to it by `--verify`.
+
+**Tuning was theirs, not ours.** CpGenie over the hyperas grid its template
+declares (dropout {0.3,0.5,0.7} x lr {0.01,0.001,0.0001}); DeepCpG over dropout
+{0.0,0.3,0.5}. Selected on validation beta MAE; the test split was never used for
+selection. `lr=0.01` collapses CpGenie to 0.345 (constant prediction), 0.001 wins
+in the interior. **Both selected the lowest dropout offered** (0.3 and 0.0) — a
+boundary selection, reported in the manuscript, meaning a lower dropout than
+either grid contains might serve these baselines slightly better.
+
+| model | M MAE | beta MAE | ROC-AUC | params |
+|---|---|---|---|---|
+| Composition (3) | 1.9600 | 0.1954 | 0.8748 | — |
+| k-mer ridge (2,772) | 1.6866 | 0.1565 | 0.9190 | — |
+| Context only (9) | 1.4574 | 0.1395 | 0.9187 | — |
+| **CpGenie** (reimpl.) | 1.3858 ± 0.0084 | 0.1281 ± 0.0011 | 0.9406 ± 0.0005 | 2.0 M |
+| **DeepCpG** (DNA module) | 1.3412 ± 0.0092 | 0.1253 ± 0.0004 | 0.9437 ± 0.0009 | 4.1 M |
+| Sequence (DNABERT-2) | 1.1941 | 0.1099 | 0.9569 | 117 M |
+| **Fusion** | **1.0971** | **0.0993** | **0.9680** | 117 M |
+
+**Monotone ordering, no ties.** Published CNNs beat the classical baselines
+(CpGenie 18.1% below k-mer ridge) and are beaten by the pretrained encoder:
+sequence-only alone is 12.3% below DeepCpG, fusion is **20.8% below** on beta
+MAE, 18.2% on M MAE, +0.0243 AUC.
+
+**Stated against ourselves in the manuscript:** the DNABERT-2 encoder is 117 M
+parameters against 2.0 M and 4.1 M and arrives pretrained, so the margin reflects
+capacity and pretraining together, not architecture alone; and both published
+trunks were given our dual head, which is fairer for comparison but is not the
+configuration their authors evaluated.
+
+### E.6b Variant-effect arm of the head-to-head — 11 of 12 comparisons null
+
+Both baselines were then scored on the identical GENOA (66,495) and eGTEx
+(76,893) variant–CpG pairs through `scripts/20`, and compared to fusion by
+`scripts/30_paired_model_comparison.py`.
+
+**Why a new script was needed.** `scripts/20` draws each model its own set of
+matched negatives, so part of any between-model gap is matching noise; and its
+intervals are marginal, which is the wrong instrument for a difference between
+estimates computed on the same variants. Script 30 builds ONE shared matched
+cohort (matching depends only on the significance label and the distance, both
+model-independent) and bootstraps the difference over the same blocks for both
+models. It imports every metric and the matching routine from `scripts/20` by
+path so the definitions cannot drift.
+
+**This reversed a reading we had provisionally taken.** Off the unpaired
+per-model numbers the ordering looked monotone (fusion 0.570 > cpgenie 0.5514 >
+deepcpg 0.5444 on distance-matched AUROC). On the shared cohort fusion is 0.5604
+and cpgenie 0.5567 — the gap was mostly the negative draw. Recorded because the
+uncorrected version was nearly written into the manuscript.
+
+| cohort | comparison | distance-matched AUROC | signed rho | direction |
+|---|---|---|---|---|
+| GENOA (n=4,037 sig) | fusion − deepcpg | **+0.0178 [+0.0035, +0.0321]** | +0.0145 [−0.0281, +0.0545] | +0.0054 [−0.0158, +0.0269] |
+| GENOA | fusion − cpgenie | +0.0038 [−0.0135, +0.0199] | +0.0242 [−0.0218, +0.0683] | +0.0054 [−0.0145, +0.0242] |
+| eGTEx (n=418 sig) | fusion − deepcpg | −0.0075 [−0.0483, +0.0390] | +0.0301 [−0.0728, +0.1504] | −0.0072 [−0.0566, +0.0614] |
+| eGTEx | fusion − cpgenie | +0.0098 [−0.0476, +0.0629] | +0.0553 [−0.0217, +0.1556] | +0.0096 [−0.0289, +0.0584] |
+
+One interval of twelve excludes zero. **Written up as convergence across
+architectures, not as a loss**: three architectures spanning a decade recover the
+same external meQTL signal at the same strength while a k-mer ridge on the same
+sequence is at chance after matching (0.503), which is stronger evidence that the
+external validation reflects the cohorts rather than our model than any margin
+would have been. It is also what the gating analysis predicts — the context tower
+is allele-invariant, so the capacity separating fusion on absolute prediction is
+capacity the variant pathway does not use.
+
+**One asymmetry recorded:** CpGenie is behind DeepCpG on absolute prediction and
+not behind it on variant effects. Probe-level accuracy does not establish
+variant-effect fidelity.
+
+### E.9 GWAS regulatory-enrichment tests — RUN, null, and adequately powered
+
+`scripts/31_gwas_regulatory_enrichment.py`. Asks the question in the
+**well-powered direction**: not "do known risk variants score high?" (E.2 n=35,
+E.2b n=32) but "do high-scoring variants land in GWAS loci?", over every held-out
+pair and the whole catalog. Matching, metrics and the block bootstrap are
+imported from `scripts/20` so nothing can drift.
+
+| run | population | labelled | primary: GWAS share of top 5% | verdict |
+|---|---|---|---|---|
+| GENOA, all tested pairs | every pair, incl. no measured effect | 1,535 | 0.468 [0.375, 0.567] | null (wrong population) |
+| eGTEx, p < 1.483e-5 | measured mQTLs, calibrated | 44 | too few to evaluate | inconclusive |
+| **eGTEx, p < 0.05** | **measured mQTLs, nominal** | **510** | **0.490 [0.289, 0.673]** | **null** |
+| **GENOA, p < 0.05** | **measured mQTLs, nominal** | **573** | **0.596 [0.417, 0.752]** | **null** |
+
+The last two rows are the reportable pair -- same population definition, same
+statistic, both cohorts -- and are what the manuscript quotes.
+
+**A borderline secondary that dissolved, recorded because it nearly reached the
+paper.** On the GENOA nominal run at the default seed, the *demoted*
+whole-distribution AUROC was 0.5373 [0.5009, 0.5620], excluding 0.5 by 0.0009.
+Re-running at a different random seed -- which redraws the matched background as
+well as the bootstrap -- gave 0.5227 [0.4833, 0.5620], with the mean |dM|
+difference falling from +0.0085 to +0.0017. The exclusion was an artefact of one
+background draw. The pre-registered primary was null at both draws and eGTEx was
+null on the same secondary (0.503, 0.474--0.537), so nothing survived. Recorded
+because that first number was one sentence away from being written down.
+
+**Three corrections made mid-analysis, all recorded as pre-registration
+amendments.**
+1. v1 returned UNINTERPRETABLE, not a result: allele frequency was imbalanced at
+   std diff 0.773, because GWAS hits are common variants by construction.
+   Matching now runs within AF strata. The pre-registration had prescribed
+   exactly this response, so no result was superseded.
+2. Primary statistic moved from whole-distribution AUROC to tail enrichment.
+   Reason: mean |dM| is ~0.04 M-units, so most pairs carry a near-zero
+   prediction and a rank statistic over all of them ranks noise against noise.
+3. Population corrected from *all tested pairs* to *pairs with a measured
+   methylation effect*. The first run used all 42,866 GENOA pairs, ~71% of which
+   have p > 0.05 and therefore no measured effect — the wrong population for a
+   regulatory claim. **The correction was applied to eGTEx first while the
+   uncorrected GENOA number was quoted beside it**, so for one revision the two
+   halves of a single sentence described different populations. Caught while
+   reviewing the cluster tree, not by a check; GENOA was rerun at p < 0.05 and
+   both cohorts now use the same definition.
+
+**A flaw in the pre-registration I wrote, recorded against myself.** The verdict
+rule was "enrichment if ANY of three tails excludes 0.5" — an OR over three
+*nested* tests, which does not control error across correlated looks. It never
+bit, because none excluded, but had the top 2% come back at [0.51, 0.77] the rule
+as written would have declared enrichment on inadequate grounds.
+
+**Two silent failure modes caught before the eGTEx run, not after.** eGTEx writes
+`maf` where GENOA writes `af_genoa`, so a hardcoded column name would have
+reverted to the uninterpretable v1 matching without saying so; and eGTEx
+`Variant_ID` is a locus string, not an rsID, so rsID-only overlap would have
+matched zero variants and reported a clean-looking null. Allele-frequency columns
+are now detected and named in the output, overlap matches rsID **or** exact
+coordinate, and an unchecked confound blocks an enrichment verdict outright.
+
+**Interpretation.** Four pre-registered tests across two cohorts and three
+annotations (ClinVar, breast GWAS, all-trait GWAS) agree: predicted effect
+magnitude does not identify disease-associated variants. E.2 and E.2b constrained
+nothing; this does, bounding the effect to about +/-0.035 AUROC. Two reasons the
+null is narrower than it appears: most catalog entries tag rather than cause an
+association, and molecular QTL effect size is a known poor predictor of disease
+relevance across this field. **Requirement 7 is now addressed with a negative
+result, which is different from an unmet requirement.** Written into the
+manuscript in two sentences plus one limitations clause.
+
+### E.7 Mentor requirement scorecard
+
+| # | requirement | state |
+|---|---|---|
+| 1 | multi-cohort testing | **met** — GENOA (66,495 pairs), eGTEx breast, TCGA-BRCA tumour domain |
+| 2 | repeated chromosome-blocked splits | **deferred by decision** — single holdout; stated in both branches of Limitations |
+| 3 | stronger baselines and ablations | **met, strongly** — E.6: seven comparators including two published architectures, plus the fusion/sequence equivalence ablation. E.6b extends the head-to-head to variant effects with paired intervals |
+| 4 | uncertainty calibration | **met** — RC disagreement, plus the generalisable finding that calibration must be assessed in logit space |
+| 5 | ancestry analyses | **partial** — African American GENOA cohort with I² = 0%, but confounded with tissue; training-cohort stratification underpowered (84/4/1) |
+| 6 | independent variant evaluation | **met, strengthened** — two cohorts, meta-analysis, null control, distance and significance gradients, distance-matched AUROC, and (E.6b) replication of the same signal by two independent published architectures |
+| 7 | regulatory enrichment | **met but reinterpreted** — ETS coupling real, and reported as compositional after the k-mer control reproduced it more strongly |
+
+Five met (three of them strongly), one partial, one deferred by decision. The two
+that are not fully met are stated as such in the manuscript rather than papered
+over.
 
 ### E.3 Manuscript correction pass — `main_revised.tex`
 
@@ -1168,19 +1457,209 @@ the pristine file produce byte-identical LaTeX error profiles (7 × "Undefined x
 coordinate", from figure code, in both). The edits introduce no new LaTeX errors.
 Every one of the nine substitutions asserted exactly one match before applying.
 
-### E.4 Bucket list at this stopping point
+### E.4 Bucket list — updated 30 Aug 2026
 
-| # | item | state |
+**Closed 30 Aug 2026**
+
+| item | outcome |
+|---|---|
+| Rebuild `main_revised.pdf` | done — built in the cloud container (full TeX Live), 16 pages, zero errors, zero undefined references. Supersedes both the stale `main_revised.pdf` and `main_revised_preview.pdf` |
+| Verify NCOA2 held-out status | **confirmed** — NCOA2 is at 8q13.3 and chr8 is a test chromosome, so held-out status is definitional under chromosome-blocked splitting |
+| Beta-histogram check, MASK excluded stratum | **run** — E.1. Not confirmed, and underpowered relative to the effect. Not for the manuscript |
+| Tumour-domain open question | **stays open** — the compression limb was tested and did not resolve; draft-status entry updated to say so |
+| Baseline variant-effect evaluation | done — E.6b, both cohorts, both baselines, three seeds |
+| Paired between-model intervals | done — `scripts/30_paired_model_comparison.py`; reversed a provisional reading before it reached the manuscript |
+| `DILUTION GRADIENT (fusion, ...)` label bug in `scripts/20` | fixed — the header was hardcoded while the rows came from `args.models[0]`; now prints the actual model. Data in `significance_gradient.csv` was always correct |
+
+**Open, in the order I would take them**
+
+| # | item | note |
 |---|---|---|
-| 1 | `MASK_snp5_common` sensitivity | **done** (E.1) |
-| 2 | Abstract motif claim vs results | **done** |
-| 3 | STK11/NCOA2 split status | **done** in text; figure label still to add |
-| 4 | Meta-analysis into abstract | **done** |
-| 5 | ClinVar test recorded as abandoned | **done** (E.2) |
-| 6 | Tumour-domain open question | open — E.1 suggests a cheap resolution |
-| 7 | supplementary_package + reproducibility rebuild | open, stale |
-| 8 | Delete 45 GB raw eGTEx | open |
-| 9 | Rebuild `main_revised.pdf` on the Mac | open |
+| 1 | **Repeated chromosome-blocked splits** | the only remaining model training, and the only unmet mentor requirement that is not a data limitation. Four additional folds at seed 42 |
+| 2 | Split-status label on the case-study figure | text states it, the figure does not |
+| 3 | `supplementary_package` + `reproducibility` rebuilds | stale; must run on the cluster where the source CSVs live. Now also need the E.6b outputs |
+| 4 | Finish local repo cleanup, commit | `data/external/bend`, `data/__pycache__`, `scripts/__pycache__` |
+| 5 | Read both `\draftmode` branches with the switch flipped | how the false "repeated blocked splits" claim survived undetected. Applies to every `\else` branch |
+| 6 | Figure files are not in the local tree | `results/journal/manuscript_figures/` holds only `run_summary.json` locally, so every local build renders `\missingfigure` placeholders. Sync the PNGs from the cluster before producing a circulating PDF |
 
-Requirement 2 (repeated chromosome-blocked splits) remains deferred by decision,
-and the limitations section now says so in both draft and submission branches.
+**Deferred by decision, not oversight:** nothing. Requirement 2 (repeated
+chromosome-blocked splits) has moved from deferred to open item 1.
+
+**Lost:** `data/prepare_clinvar_matched_background.py` was deleted rather than
+archived during cleanup and is absent from both trees. E.2 is now the only
+surviving record of that design. Recoverable on request.
+
+### E.8 Length pass for Nature Communications — 30 Aug 2026
+
+The draft was over on all three limits. State after the pass:
+
+| | before | after | NC Article |
+|---|---|---|---|
+| abstract | 678 words | **183** | ≤200, no refs |
+| main text (Intro+Results+Discussion+Availability) | 5,812 | **5,330** | ideally ≤5,000 |
+| display items | 15 (8 fig, 7 tab) | **10** (7 fig, 3 tab) | ≤10 |
+| Methods | 2,367 | 2,367 | excluded from the count |
+
+**Abstract** rewritten from six numbered results to one paragraph. Dropped from
+it: the ETS motif result, the NCOA2/STK11 case studies, and the two
+matched-background tests as separate items (compressed to the closing sentence).
+All survive in Results. **Open call for the author:** whether the motif result
+deserves an abstract mention; adding it costs ~25 words from the cohort sentence.
+
+**Moved to `\section*{Supplementary Figures and Tables}`** (renumbered S1–S5,
+in-text `\ref`s resolve automatically): `tab:splits` (Methods dataset table),
+`tab:gradient` (**duplicated `fig:gradient` outright** — same data on facing
+columns), `tab:distance`, `tab:motifs`, `fig:top-candidate`. Nothing load-bearing
+moved: Table 1, both variant tables, and the performance, discrimination,
+gradient and uncertainty figures all stay in the main text.
+
+**Cut:** the `What the evidence supports` subsection (~350 words of restatement;
+its one irreplaceable sentence — what is *not* established — folded into
+Limitations). `Conclusion` folded into the Discussion and trimmed. Three Results
+paragraphs compressed, the largest being the convergence paragraph written the
+same day.
+
+**Second pass, same day — now inside every limit: abstract 183/200, main text
+4,992/5,000, display items 10/10.** The first pass stopped at 6% over and called
+that acceptable; it was not, and the second pass found that most of the excess was
+redundancy rather than content:
+
+- The motif Results subsection stated the same two null statistics twice and
+  closed on "the model did not learn that disrupting motifs matters in general;
+  it learned a signed, family-specific relationship" — the pre-`k`-mer-control
+  framing, contradicting its own opening. Removed; three control paragraphs
+  compressed to one. 573 to 264 words.
+- The Discussion carried two paragraphs calling the motif result "the mechanistic
+  layer the earlier draft lacked" and "unsupervised recovery from sequence alone",
+  also pre-downgrade, and inconsistent with Results. Replaced by one paragraph
+  stating the compositional reading and the general lesson.
+- `Translational scope` restated the uncertainty section in full; compressed to a
+  clause. `Data and Code Availability` listed table numbers that had moved to
+  Supplementary.
+- Draft scaffolding in prose ("the central addition of this revision", "the
+  earlier 81-association analysis") removed — it would not have survived
+  submission anyway.
+
+**Nothing was cut for length alone.** Every deletion was a duplicate, a stale
+claim, or a restatement. NCOA2/STK11 and the motif result are retained; the motif
+section is shorter but says the same thing its own control supports.
+
+**Third pass — structural consolidation, not word-shaving.** Hitting the limit is
+not the same as reading well. Results went from nine subsections to six and
+Methods from eleven to nine; main text 4,992 to **4,772**.
+
+- Three Results subsections were under 175 words and had their own headings
+  (`Reference context contributes`, `A second evaluation domain: TCGA-BRCA`,
+  and the 70-word context-strata result). All demoted to paragraphs inside the
+  prediction-performance section, where they belong.
+- `Translational scope` was mostly cross-references to sections the reader had
+  just finished. Its unique content — the two pre-registered clinical nulls —
+  moved into `From ranked variants to testable biological hypotheses`, where it
+  reads as the boundary on the ranking rather than as a separate claim.
+- The variant-evaluation section carried nine `\paragraph` headings in 1,118
+  words — one every 124 words, which reads as a bullet list. Three
+  negative-control paragraphs merged into one; two discrimination paragraphs
+  merged into one. Now six headings in 1,026 words.
+- Two 85-word Methods subsections (`Paired sequence scoring`, `External eGTEx
+  mQTL analysis`) demoted to paragraphs.
+
+**Fourth pass — number density.** Structure was fixed but the prose was still
+one number every eight words in places. Results went from 300 numbers in 3,288
+words (9.1 per 100) to 170 in 3,042 (5.6); main text 4,772 to **4,618**; 15 pages
+to **14**.
+
+The rule applied: a number stays in prose only if it is a star result, or if it
+is not available anywhere else. Everything else moved to the table it was already
+duplicating, to a figure that already showed it, or to the Supplementary Data.
+
+- The opening paragraph of Results restated all of Table 1 in prose. Now states
+  the two headline values and cites the table.
+- Per-stratum context gains (5 figures), TCGA stratified errors (6), MASK
+  sensitivity (10), calibration slopes (8, all in Table 3), distance-bin
+  agreement (6, in Table S3), motif per-factor couplings (6), candidate
+  prioritisation medians (5) — all reduced to the claim plus at most one
+  anchoring value.
+- Found another duplicate: the top-15 Jaccard overlap (0.278) was stated twice in
+  the motif section, paragraphs apart.
+
+Star numbers deliberately kept in prose: 0.0993 / 0.9680, the 20.8% margin, the
+two cohort $\rho$ values, meta-analysis 0.178 with $I^2=0$, the 0.595 distance
+baseline, the $k$-mer 0.503, fusion $-$ DeepCpG $+0.018$, the two clinical nulls,
+and the NCOA2 candidate effect.
+
+**Fifth pass — 12 pages, by switching to the submission build.** 14 pages to
+**12**, with no further science removed.
+
+- `\draftmodefalse` is now the default. The Draft-status section and every
+  NEW/REV marker are suppressed (~0.7 page). The scaffolding text is still in the
+  file; `\draftmodetrue` restores it. Confirmed the `\else` branch of Limitations
+  now printing is the accurate single-holdout statement, not the false
+  repeated-splits claim that was there before.
+- New `\ifsupplement` switch, default **false**. Supplementary figures and tables
+  are a separate document at submission, so they are no longer attached to this
+  PDF (~1 page). `\supplementtrue` re-attaches them for internal review.
+- Detaching them broke six in-text pointers (`??` in the PDF). In-text references
+  to the five moved items are now fixed text — Supplementary Table 1–4,
+  Supplementary Figure 1–2 — matching their order in the detached block.
+- **Display items were 11, not 10.** The full-width workflow schematic is
+  `figure*` and my earlier counts only matched `\begin{figure}`. `fig:context`
+  (fusion gain by epigenomic context) moved to the supplement, since the
+  paragraph it supports is now three sentences. Now genuinely 10.
+
+Final: 12 pages, abstract 183/200, main text 4,624/5,000, display items 10/10,
+zero undefined references, zero `??` in the rendered PDF.
+
+**Sixth pass — cutting the procedural detail, most of it added in these
+sessions.** Methods 2,487 to **1,744** words; 12 pages to **11**.
+
+The problem was defensive writing: text written to pre-empt reviewer objections,
+which reads as lab-notebook material and does not help a reader understand
+methylation. What moved to Supplementary Methods:
+
+- `Published methylation architectures` 423 to 115 words. Removed: CpGenie's
+  template filename and filter widths, DeepCpG's layer table, the hyperas grid
+  contents, the selected dropout/learning-rate values, the boundary-selection
+  caveat, and the 3,997,824-parameter faithfulness assertion. Kept: why
+  reimplemented rather than scored from released weights, that tuning used the
+  authors' own grids, and why DeepCpG's DNA module alone.
+- `Matched-background tests` 308 to 130; `Motif disruption analysis` 298 to 120;
+  `Paired comparison between models` 135 to 45.
+- GENOA harmonisation: dropped the 942,186/731 candidate-pair QC counts and the
+  window-index justification for excluding CpG-altering variants.
+- Results: the three-paragraph leakage/QC defence compressed to one paragraph.
+
+**Judgment applied:** a procedural detail stays in the main text only if a reader
+must have it to trust the number, or if omitting it would let the result be
+misread. The effect-allele re-signing stayed on that test (it changes the
+results and is silent if omitted); the parameter-count check did not.
+
+Final: 11 pages, abstract 183/200, main text 4,568/5,000, methods 1,744, display
+items 10/10, zero undefined references.
+
+Verified after every pass: no dangling or uncited `\ref`, all star numbers
+present, NCOA2/STK11/motif content intact.
+
+**Process note — an error worth recording.** The first attempt at the display-item
+move used a regex with `.*?` spanning from `\begin{table}` to the label, which
+matched across intervening tables and silently deleted roughly 2,900 words of
+Results. It was caught by the post-edit word count (Results 3,732 → 814), not by
+the LaTeX build, which compiled cleanly. The manuscript was restored from the
+committed copy and the extraction redone by enumerating minimal float blocks and
+selecting by label, with assertions on block size and on one `\label` and one
+`\caption` per block. **A clean compile is not evidence that a LaTeX edit was
+correct.**
+
+### E.5 PDF build state — current as of 30 Aug 2026
+
+`main_revised.pdf` is a fresh full build of the current `main_revised.tex`:
+16 pages, `latexmk -pdf` exit 0, zero errors, zero undefined references or
+citations, cross-references settled over two passes. Built with full TeX Live
+(Latin Modern under T1, no font substitution), so it is not the reduced-font
+reading copy the previous entry described. `main_revised_preview.pdf` is now
+obsolete and can be deleted.
+
+One caveat: the figure PNGs live only on the cluster, so this build renders nine
+`\missingfigure` placeholders. Every table, number and cross-reference is real.
+Sync `results/journal/*/plots/` and `manuscript_figures/` before circulating.
+
+`main.tex` remains untouched.

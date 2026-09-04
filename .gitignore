@@ -142,3 +142,5 @@ cache
 !data/egtex_breast_mqtl_heldout_qc.csv
 !data/egtex_breast_mqtl_model_visible.csv
 !data/run_harmonize_genoa.sh
+data/external/baselines/CpGenie/
+data/external/baselines/deepcpg/

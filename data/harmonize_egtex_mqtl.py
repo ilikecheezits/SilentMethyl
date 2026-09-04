@@ -159,14 +159,14 @@ def decompressor(path: Path) -> str:
 
 
 def run_prefilter(raw: Path, out: Path, half_window: int, force: bool) -> None:
-    if not raw.is_file():
-        raise SystemExit(
-            f"raw eGTEx file not found: {raw}\n"
-            f"Download it first (45,279,365,738 bytes expected)."
-        )
     if out.is_file() and not force:
         logging.info("prefiltered file already exists: %s (use --force to redo)", out)
         return
+    if not raw.is_file():
+        raise SystemExit(
+            f"raw eGTEx file not found: {raw}\n"
+            f"Download it first, or supply an existing --prefiltered slice."
+        )
 
     out.parent.mkdir(parents=True, exist_ok=True)
     tmp = out.with_suffix(out.suffix + ".partial")

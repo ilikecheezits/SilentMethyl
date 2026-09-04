@@ -1,0 +1,74 @@
+{
+  "verdict": "null",
+  "primary_tail_enrichment": [
+    {
+      "fraction": 0.05,
+      "n_in_tail": 51,
+      "gwas_share": 0.49019607843137253,
+      "ci_low": 0.2886645299145299,
+      "ci_high": 0.6729108391608392,
+      "excludes_half": false
+    },
+    {
+      "fraction": 0.02,
+      "n_in_tail": 20,
+      "gwas_share": NaN,
+      "ci_low": NaN,
+      "ci_high": NaN,
+      "excludes_half": false
+    },
+    {
+      "fraction": 0.01,
+      "n_in_tail": 10,
+      "gwas_share": NaN,
+      "ci_low": NaN,
+      "ci_high": NaN,
+      "excludes_half": false
+    }
+  ],
+  "af_matching": {
+    "bins": 5,
+    "strata_used": 5
+  },
+  "auroc": 0.5030757400999615,
+  "auroc_ci": [
+    0.4735934240498449,
+    0.5373278387058387
+  ],
+  "n_matched_pairs": 1020,
+  "n_gwas_pairs": 510,
+  "mean_abs_delta_m": {
+    "gwas": 0.06615712428455421,
+    "background": 0.06406092259374571
+  },
+  "matching": {
+    "significant_n": 510,
+    "matched_null_n": 510,
+    "requested_negatives": 510,
+    "unmatched_slots": 0,
+    "af_strata_used": 5,
+    "median_distance_significant": 217.0,
+    "median_distance_matched_null": 217.0,
+    "distance_only_auroc_after_matching": 0.49987312572087655
+  },
+  "confounds": [
+    {
+      "feature": "abs_distance_bp",
+      "available": true,
+      "cohort_mean": 224.53529411764706,
+      "background_mean": 224.48627450980393,
+      "standardised_difference": 0.00032533217872849463
+    },
+    {
+      "feature": "maf",
+      "available": true,
+      "cohort_mean": 0.2860544274509804,
+      "background_mean": 0.2865824717647059,
+      "standardised_difference": -0.003914513569973579
+    }
+  ],
+  "n_boot": 500,
+  "block_size_bp": 1000000,
+  "preregistration": "results/journal/gwas_enrichment_egtex_nominal/preregistration.json",
+  "unchecked_confounds": []
+}
