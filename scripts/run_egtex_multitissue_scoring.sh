@@ -3,10 +3,10 @@
 #SBATCH --partition=GPU-shared
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --gpus=v100-32:1
-#SBATCH --cpus-per-task=5
-#SBATCH --mem=48G
-#SBATCH --time=12:00:00
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=8G
+#SBATCH --time=03:00:00
 #SBATCH --array=0-5
 #SBATCH --output=logs/egtex_mt_scoring/score_%a_%A.out
 #SBATCH --error=logs/egtex_mt_scoring/score_%a_%A.err
