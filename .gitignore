@@ -149,3 +149,7 @@ data/external/baselines/deepcpg/
 Claude outputs/
 _verify_backup/
 _verify_*/
+
+__pycache__/
+*.pyc
+main_revised.log
