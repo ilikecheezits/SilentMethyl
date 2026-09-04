@@ -23,8 +23,8 @@ steeply with proximity -- and the two groups are compared on |dM| with intervals
 from a 1-Mb block bootstrap. Every metric and the matching routine are imported
 from scripts/20 so no definition can drift.
 
-    python -u scripts/31_gwas_regulatory_enrichment.py --build   --gwas <file>
-    python -u scripts/31_gwas_regulatory_enrichment.py --analyse
+    python -u scripts/52_gwas_enrichment.py --build   --gwas <file>
+    python -u scripts/52_gwas_enrichment.py --analyse
 
 --build writes the cohort and a pre-registration; --analyse refuses to run until
 that pre-registration exists, so the statistics are fixed before any result.
@@ -47,7 +47,7 @@ import numpy as np
 import pandas as pd
 
 HERE = Path(__file__).resolve().parent
-EVALUATOR = HERE / "20_genoa_variant_evaluation.py"
+EVALUATOR = HERE / "21_variant_evaluation.py"
 
 # Confounds declared before any result exists. Reported whatever they show.
 # Allele frequency is named differently per cohort: GENOA writes af_genoa,

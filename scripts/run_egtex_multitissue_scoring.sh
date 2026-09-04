@@ -26,7 +26,7 @@ MODEL="${ENTRY%%:*}"; SEED="${ENTRY##*:}"
 echo "[*] Host: $(hostname)  task ${SLURM_ARRAY_TASK_ID}  ${MODEL} seed ${SEED}"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
-python -u scripts/19_genoa_variant_scoring.py \
+python -u scripts/20_variant_scoring.py \
   --input-csv data/external/egtex_multitissue/scoring/union_scoring_input_heldout.csv \
   --stratum heldout --models "${MODEL}" --seeds "${SEED}" \
   --device cuda --batch-size 32 \

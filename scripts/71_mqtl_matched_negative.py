@@ -67,7 +67,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--positive-control-script",
-        default=str(PROJECT_ROOT / "scripts" / "04_mqtl_positive_control.py"),
+        default=str(PROJECT_ROOT / "scripts" / "70_mqtl_positive_control.py"),
         help="Current positive-control script whose audited inference implementation is reused.",
     )
     parser.add_argument("--models", nargs="+", choices=("fusion", "sequence"), default=("fusion", "sequence"))

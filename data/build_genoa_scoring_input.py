@@ -9,7 +9,7 @@ Harmonization gives you variant-CpG pairs with hg38 coordinates, but GENOA repor
 paired WT/MUT scoring needs REF and ALT. This script resolves REF from hg38.fa at
 each position, assigns ALT as the other allele, and writes the
 `Variant_ID, Gene, chr, Position_1based, Ref, Alt` lead columns that
-scripts/19_genoa_variant_scoring.py consumes.
+scripts/20_variant_scoring.py consumes.
 
 Four things it does that matter for the analysis
 -------------------------------------------------
@@ -68,7 +68,7 @@ COMPLEMENT = str.maketrans("ACGTNacgtn", "TGCANtgcan")
 
 # Geometry of the trained model window, mirrored from
 # scripts/matched_background_utils.py (CENTER_C_INDEX / CENTER_G_INDEX) and
-# scripts/14_known_variant_application.py (MODEL_TARGET_C_INDEX).
+# scripts/63_known_variant_application.py (MODEL_TARGET_C_INDEX).
 # The 1,000-bp crop places the target CpG's C at index 499 and its G at 500, so a
 # variant is visible to the model only when its offset from the C lies in
 # [-499, +500]. Offsets 0 and +1 hit the target CpG itself and are unscoreable:

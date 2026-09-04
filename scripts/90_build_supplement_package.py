@@ -387,7 +387,7 @@ unless a file explicitly states otherwise.
 From the project root, after scripts 02--10 and 12--14 have completed:
 
 ```bash
-python -u scripts/11_build_supplement_package.py
+python -u scripts/90_build_supplement_package.py
 ```
 
 Use `--replace` to rebuild while preserving the prior package in a timestamped

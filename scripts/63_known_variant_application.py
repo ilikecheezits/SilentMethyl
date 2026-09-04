@@ -83,13 +83,13 @@ def arguments() -> argparse.Namespace:
     parser.add_argument(
         "--candidate-scorer",
         type=Path,
-        default=Path("scripts/05_matched_background.py"),
+        default=Path("scripts/60_candidate_background.py"),
         help="Active candidate script whose frozen inference functions are reused.",
     )
     parser.add_argument(
         "--context-script",
         type=Path,
-        default=Path("scripts/12_biological_context_analysis.py"),
+        default=Path("scripts/22_context_stratification.py"),
         help="Active context-analysis script whose annotation functions are reused.",
     )
     parser.add_argument(

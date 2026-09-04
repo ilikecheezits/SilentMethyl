@@ -9,7 +9,7 @@ This script builds a broad candidate panel from two reproducible sources:
 Every candidate is normalized to a GRCh38 chromosome allele, compared against
 the project's existing TCGA candidate and eGTEx benchmark variants, screened
 for an HM450 CpG within SilentMethyl's trained 1,000-bp window, and then passed
-to scripts/14_known_variant_application.py.  It does not silently discard
+to scripts/63_known_variant_application.py.  It does not silently discard
 failures: the output audit records each exclusion reason.
 
 The model chooses neither the literature panel nor the target CpG.  The latter
@@ -111,7 +111,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--known-variant-script", type=Path,
-        default=Path("scripts/14_known_variant_application.py"),
+        default=Path("scripts/63_known_variant_application.py"),
     )
     parser.add_argument(
         "--output-dir", type=Path,

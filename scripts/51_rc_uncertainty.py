@@ -55,13 +55,13 @@ re-inference, no retraining.
 
 Usage
 -----
-    python -u scripts/16_rc_uncertainty.py --stage all
+    python -u scripts/51_rc_uncertainty.py --stage all
 
     # or one stage at a time, reproducing the original three scripts exactly
-    python -u scripts/16_rc_uncertainty.py --stage base
-    python -u scripts/16_rc_uncertainty.py --stage conditional --strata 50 \
+    python -u scripts/51_rc_uncertainty.py --stage base
+    python -u scripts/51_rc_uncertainty.py --stage conditional --strata 50 \
         --output-dir results/journal/rc_uncertainty_conditional_s50
-    python -u scripts/16_rc_uncertainty.py --stage figure \
+    python -u scripts/51_rc_uncertainty.py --stage figure \
         --runs 10:results/journal/rc_uncertainty_conditional \
                20:results/journal/rc_uncertainty_conditional_s20 \
                50:results/journal/rc_uncertainty_conditional_s50

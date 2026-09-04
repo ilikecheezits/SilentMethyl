@@ -41,7 +41,7 @@ resistance, because it writes the full tables whether you ask for them or not.
 
 Usage (run from the repository root)
 ------------------------------------
-    python -u scripts/24_variant_effect_synthesis.py \
+    python -u scripts/30_transfer_synthesis.py \
         --cohort GENOA:results/journal/genoa_variant_scoring:5e-8 \
         --cohort eGTEx:results/journal/egtex_variant_scoring:1.483e-5
 """

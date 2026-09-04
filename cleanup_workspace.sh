@@ -39,7 +39,7 @@ for arg in "$@"; do
 done
 
 # --- refuse to run anywhere but the project root ---------------------------
-for marker in scripts/01_train_fusion_journal.py data/datafiles/train.csv REQUIREMENTS.md; do
+for marker in scripts/12_train_fusion.py data/datafiles/train.csv REQUIREMENTS.md; do
     if [[ ! -e "$marker" ]]; then
         echo "ERROR: $marker not found. Run this from the SilentMethyl root." >&2
         exit 1
@@ -123,7 +123,7 @@ banner "2. Re-clonable third-party source trees"
 # ---------------------------------------------------------------------------
 
 # ~200 files of 2017-era Keras/Theano source, which is most of what makes the
-# tree unreadable. scripts/23_sequence_baselines.py is self-contained and does
+# tree unreadable. scripts/14_baselines_simple.py is self-contained and does
 # not use either of them. If the phase-2 architecture comparison happens, both
 # are one git clone away -- recorded in the RESTORE file written below.
 if [[ -d data/external/baselines ]]; then
@@ -133,7 +133,7 @@ if [[ -d data/external/baselines ]]; then
         cat > data/external/baselines/RESTORE.md <<'RESTORE'
 # Baseline source trees, removed for readability
 
-Neither is used by `scripts/23_sequence_baselines.py`, which is self-contained.
+Neither is used by `scripts/14_baselines_simple.py`, which is self-contained.
 They are only needed for the phase-2 architecture comparison (a CpGenie-style
 CNN retrained on our splits) or for scoring the published cross-tissue weights.
 
@@ -189,7 +189,7 @@ banner "4. Stale or superseded outputs"
 # ---------------------------------------------------------------------------
 
 # Built before scripts 19-22 existed, so it describes a state of the project
-# that no longer exists. scripts/11_build_supplement_package.py regenerates it
+# that no longer exists. scripts/90_build_supplement_package.py regenerates it
 # in minutes, and it must be rebuilt before submission regardless.
 stow "supplementary_package" "supplementary_package_stale" \
      "predates scripts 19-22; rebuild with scripts/11 before submission"

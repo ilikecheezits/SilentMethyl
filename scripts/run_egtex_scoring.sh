@@ -35,7 +35,7 @@
 #
 # Smoke-test first -- one minute on CPU, exercises every code path including the
 # effect-column resolver, which must report `beta_ref_to_alt`, not the GENOA name:
-#     python -u scripts/19_genoa_variant_scoring.py \
+#     python -u scripts/20_variant_scoring.py \
 #       --input-csv data/external/egtex_breast/scoring/egtex_scoring_input_heldout.csv \
 #       --limit 200 --seeds 42 --device cpu \
 #       --output-dir results/journal/egtex_variant_scoring
@@ -68,7 +68,7 @@ echo "[*] Scoring: model=${MODEL} seed=${SEED}  cohort=eGTEx Breast Mammary"
 echo "[*] Started: $(date)"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader || true
 
-python -u scripts/19_genoa_variant_scoring.py \
+python -u scripts/20_variant_scoring.py \
   --input-csv data/external/egtex_breast/scoring/egtex_scoring_input_heldout.csv \
   --stratum heldout \
   --models "${MODEL}" \

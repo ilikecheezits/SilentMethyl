@@ -40,7 +40,7 @@ LOGGER = logging.getLogger("silentmethyl.candidate_model_comparison")
 
 
 def load_candidate_module():
-    path = PROJECT_SCRIPTS / "05_matched_background.py"
+    path = PROJECT_SCRIPTS / "60_candidate_background.py"
     if not path.is_file():
         raise FileNotFoundError(f"Required existing analysis script not found: {path}")
     spec = importlib.util.spec_from_file_location("candidate_background_base", path)
@@ -347,7 +347,7 @@ def main() -> None:
     fusion_long_path = Path(args.fusion_seed_scores)
     if not fusion_path.is_file() or not fusion_long_path.is_file():
         raise FileNotFoundError(
-            "Run scripts/05_matched_background.py --seeds 42 43 44 first; "
+            "Run scripts/60_candidate_background.py --seeds 42 43 44 first; "
             f"missing {fusion_path if not fusion_path.is_file() else fusion_long_path}"
         )
 

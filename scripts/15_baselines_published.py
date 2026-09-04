@@ -47,9 +47,9 @@ DELIBERATE DEVIATIONS, ALL STATED IN THE MANUSCRIPT
     training and RC-averaged prediction at test time as our models, imported
     from training_common rather than reimplemented.
 
-    python -u scripts/28_published_architecture_baselines.py \
+    python -u scripts/15_baselines_published.py \
         --arch cpgenie --dropout 0.5 --lr 0.001 --seed 42
-    python -u scripts/28_published_architecture_baselines.py --arch cpgenie --grid
+    python -u scripts/15_baselines_published.py --arch cpgenie --grid
 """
 
 from __future__ import annotations

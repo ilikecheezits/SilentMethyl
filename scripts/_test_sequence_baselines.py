@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Synthetic end-to-end test for scripts/23_sequence_baselines.py.
+"""Synthetic end-to-end test for scripts/14_baselines_simple.py.
 
 Builds fake train/val/test splits whose methylation target is a KNOWN function of
 sequence, plus a fake variant-scoring input, then checks that:
@@ -228,7 +228,7 @@ def main() -> int:
         shutil.rmtree(ROOT)
     (ROOT / "scripts").mkdir(parents=True)
     write_torch_stub(ROOT)
-    for name in ("23_sequence_baselines.py",):
+    for name in ("14_baselines_simple.py",):
         shutil.copy(SRC / name, ROOT / "scripts" / name)
     repo = Path("/mnt/user-data/uploads/SilentMethyl/scripts")
     for name in ("training_common.py", "matched_background_utils.py"):
@@ -244,7 +244,7 @@ def main() -> int:
 
     print("=" * 74)
     r = subprocess.run(
-        [sys.executable, "-u", "scripts/23_sequence_baselines.py",
+        [sys.executable, "-u", "scripts/14_baselines_simple.py",
          "--task", "both", "--k-max", "4",
          "--input-csv", "data/scoring_input.csv",
          "--output-dir", "results/baselines"],
@@ -288,9 +288,9 @@ def main() -> int:
     sys.path.insert(0, str(ROOT / "_stubs"))
     sys.path.insert(0, str(ROOT / "scripts"))
     import importlib
-    mod = importlib.import_module("23_sequence_baselines") if False else None
+    mod = importlib.import_module("14_baselines_simple") if False else None
     spec = importlib.util.spec_from_file_location(
-        "baselines", ROOT / "scripts" / "23_sequence_baselines.py")
+        "baselines", ROOT / "scripts" / "14_baselines_simple.py")
     baselines = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(baselines)
 

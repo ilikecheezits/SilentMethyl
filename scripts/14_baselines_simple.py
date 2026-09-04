@@ -45,8 +45,8 @@ with no approximation and no feature matrix ever held in memory.
 
 Usage (run from the repository root)
 ------------------------------------
-    python -u scripts/23_sequence_baselines.py --task absolute
-    python -u scripts/23_sequence_baselines.py --task variant \
+    python -u scripts/14_baselines_simple.py --task absolute
+    python -u scripts/14_baselines_simple.py --task variant \
         --input-csv data/external/egtex_breast/scoring/egtex_scoring_input_heldout.csv \
         --output-dir results/journal/egtex_baseline_scoring
 """

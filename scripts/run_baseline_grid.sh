@@ -32,7 +32,7 @@ ARCH="${ARCHS[${SLURM_ARRAY_TASK_ID}]}"
 echo "[*] Host: $(hostname)  arch=${ARCH}  started $(date)"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader || true
 
-"${PY}" -u scripts/28_published_architecture_baselines.py \
+"${PY}" -u scripts/15_baselines_published.py \
   --arch "${ARCH}" --grid --epochs 10 --batch-size 128 --num-workers 5
 
 echo "[done] ${ARCH} $(date)"

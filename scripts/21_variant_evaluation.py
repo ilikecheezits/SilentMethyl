@@ -3,7 +3,7 @@
 Evaluate the GENOA variant scores: the analysis half of Stage B.1.
 
 Consumes the six pair_scores.csv files written by
-scripts/19_genoa_variant_scoring.py (2 models x 3 seeds, held-out stratum) and
+scripts/20_variant_scoring.py (2 models x 3 seeds, held-out stratum) and
 produces the numbers and figures for mentor requirement 6, independent variant
 evaluation.
 
@@ -49,8 +49,8 @@ result in the file.
 
 Usage (run from the repository root)
 ------------------------------------
-    python -u scripts/20_genoa_variant_evaluation.py
-    python -u scripts/20_genoa_variant_evaluation.py --n-boot 2000    # publication
+    python -u scripts/21_variant_evaluation.py
+    python -u scripts/21_variant_evaluation.py --n-boot 2000    # publication
 """
 
 from __future__ import annotations

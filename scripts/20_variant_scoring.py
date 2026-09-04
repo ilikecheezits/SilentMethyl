@@ -12,7 +12,7 @@ model windows, and writes the RC-averaged MUT-minus-WT delta for every pair.
 This is mentor requirement 6, independent variant evaluation, going from n=81 to
 n=39,692 unique variants over 66,557 held-out pairs.
 
-Why this is not scripts/14_known_variant_application.py
+Why this is not scripts/63_known_variant_application.py
 -------------------------------------------------------
 Script 14 is the right engine for a handful of published variants and the wrong
 one here, for three reasons that would each have surfaced as a failure:
@@ -27,7 +27,7 @@ one here, for three reasons that would each have surfaced as a failure:
      column. Here only the probes named in the input are needed -- 19,084 for the
      held-out stratum -- so the read is filtered on arrival.
 
-Numerics are deliberately identical to scripts/05_matched_background.py: FP32 by
+Numerics are deliberately identical to scripts/60_candidate_background.py: FP32 by
 default, the same forward/RC averaging, and the same phyloP swap when building the
 reverse-complement context vector.
 
@@ -54,15 +54,15 @@ the fusion-minus-sequence difference is the quantity worth reporting.
 Usage (run from the repository root)
 ------------------------------------
     # smoke test on CPU or one GPU, 200 pairs, one seed, both models
-    python -u scripts/19_genoa_variant_scoring.py --limit 200 --seeds 42
+    python -u scripts/20_variant_scoring.py --limit 200 --seeds 42
 
     # the real held-out run
-    python -u scripts/19_genoa_variant_scoring.py \
+    python -u scripts/20_variant_scoring.py \
         --input-csv data/external/genoa_meqtl/scoring/genoa_scoring_input_heldout.csv \
         --stratum heldout --seeds 42 43 44 --models fusion sequence
 
     # one shard of a Slurm array
-    python -u scripts/19_genoa_variant_scoring.py --shard "${SLURM_ARRAY_TASK_ID}" \
+    python -u scripts/20_variant_scoring.py --shard "${SLURM_ARRAY_TASK_ID}" \
         --num-shards 6 ...
 """
 
@@ -187,7 +187,7 @@ def parse_args() -> argparse.Namespace:
         "--amp", action="store_true",
         help="CUDA mixed precision. OFF by default: a variant effect is the "
              "difference between two nearly identical predictions and must be "
-             "scored in FP32, matching scripts/05_matched_background.py.",
+             "scored in FP32, matching scripts/60_candidate_background.py.",
     )
     p.add_argument("--shard", type=int, default=0,
                    help="0-based shard index for a Slurm array. Shards split pairs.")
@@ -382,7 +382,7 @@ def _phylop_column_indices() -> tuple[int, int]:
     put. Resolving by name rather than by position (`[:, -2], [:, -1]`) is what
     makes TABULAR_FEATURES safe to extend -- a positional swap would silently
     exchange the wrong columns the moment a feature is appended, with no error and
-    no way to notice afterwards. Mirrors scripts/05_matched_background.py.
+    no way to notice afterwards. Mirrors scripts/60_candidate_background.py.
     """
     try:
         return TABULAR_FEATURES.index(PHYLOP_1), TABULAR_FEATURES.index(PHYLOP_2)

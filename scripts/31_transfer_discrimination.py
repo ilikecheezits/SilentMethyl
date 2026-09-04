@@ -21,7 +21,7 @@ inside each resample, so the pairing is preserved.
 Every definition is imported from scripts/20 rather than re-implemented, so these
 numbers cannot drift from the ones the paper already quotes.
 
-    python -u scripts/30_paired_model_comparison.py \
+    python -u scripts/31_transfer_discrimination.py \
         --reference results/journal/genoa_variant_scoring::fusion::42,43,44 \
         --compare   results/journal/published_baselines/variant_scoring::deepcpg::42,43,44 \
         --compare   results/journal/published_baselines/variant_scoring::cpgenie::42,43,44 \
@@ -46,7 +46,7 @@ import numpy as np
 import pandas as pd
 
 HERE = Path(__file__).resolve().parent
-EVALUATOR = HERE / "20_genoa_variant_evaluation.py"
+EVALUATOR = HERE / "21_variant_evaluation.py"
 
 
 def load_evaluator():

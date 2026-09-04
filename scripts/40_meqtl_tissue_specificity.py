@@ -76,10 +76,10 @@ this extends to the nine-tissue eGTEx panel without changing any logic.
 
 Usage (run from the repository root)
 ------------------------------------
-    python -u scripts/25_meqtl_tissue_specificity.py --stage all
+    python -u scripts/40_meqtl_tissue_specificity.py --stage all
 
     # nine-tissue panel
-    python -u scripts/25_meqtl_tissue_specificity.py --stage matched \\
+    python -u scripts/40_meqtl_tissue_specificity.py --stage matched \\
         --cohort Lung:results/journal/egtex_multitissue_scoring:1.483e-5 \\
         --cohort ColonTransverse:results/journal/egtex_multitissue_scoring:1.483e-5
 """

@@ -65,9 +65,9 @@ Inputs
 
 Usage (run from the repository root; CPU only)
 ----------------------------------------------
-    python -u scripts/22_motif_disruption_enrichment.py --limit 2000   # smoke test
-    python -u scripts/22_motif_disruption_enrichment.py
-    python -u scripts/22_motif_disruption_enrichment.py --n-boot 2000  # publication
+    python -u scripts/50_motif_disruption.py --limit 2000   # smoke test
+    python -u scripts/50_motif_disruption.py
+    python -u scripts/50_motif_disruption.py --n-boot 2000  # publication
 """
 
 from __future__ import annotations
