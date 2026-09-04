@@ -140,7 +140,61 @@ def single_metric(metric, col: str):
     return value
 
 
-def main() -> int:
+TAIL_FRACTIONS = (0.001, 0.005, 0.01, 0.05)
+TAIL_MIN_N = 25
+
+
+def tail_enrichment(fraction: float, min_n: int = TAIL_MIN_N):
+    """Share of the top |predicted effect| that is a real association.
+
+    AUROC weights every pair equally, including the great majority whose
+    predicted effect is near zero and whose ordering is model noise -- so it
+    dilutes exactly the signal a prioritisation claim depends on. This measures
+    the top of the ranking instead. The null value is the cohort's base rate,
+    NOT 0.5, so it must always be reported alongside.
+    """
+    def metric(frame):
+        if "significant" not in frame.columns:
+            return float("nan")
+        y = frame["significant"].to_numpy(dtype=float)
+        s = np.abs(frame["Predicted_Delta_M"].to_numpy(dtype=float))
+        n = max(min_n, int(round(fraction * len(frame))))
+        if n > len(frame) or not np.isfinite(s).any() or y.sum() == 0:
+            return float("nan")
+        top = np.argsort(-s, kind="stable")[:n]
+        return float(y[top].mean())
+    return metric
+
+
+def distance_tail(fraction: float, min_n: int = TAIL_MIN_N):
+    """The same statistic with the model discarded, ranking by proximity alone.
+
+    True meQTLs sit closer to their CpG than tested-but-null pairs, so distance
+    is a free predictor and the confound that matters. On the unmatched cohort
+    this is what the model has to beat; on the distance-matched cohort it should
+    sit at the base rate by construction, which is a useful check that matching
+    worked.
+    """
+    def metric(frame):
+        if "significant" not in frame.columns or "abs_distance_bp" not in frame.columns:
+            return float("nan")
+        y = frame["significant"].to_numpy(dtype=float)
+        s = -np.abs(frame["abs_distance_bp"].to_numpy(dtype=float))
+        n = max(min_n, int(round(fraction * len(frame))))
+        if n > len(frame) or not np.isfinite(s).any() or y.sum() == 0:
+            return float("nan")
+        top = np.argsort(-s, kind="stable")[:n]
+        return float(y[top].mean())
+    return metric
+
+
+def base_rate(frame) -> float:
+    if "significant" not in frame.columns or frame.empty:
+        return float("nan")
+    return float(frame["significant"].to_numpy(dtype=float).mean())
+
+
+
     args = parse_args()
     ev = load_evaluator()
     significance = (ev.GENOME_WIDE if args.significance is None
@@ -216,6 +270,12 @@ def main() -> int:
         (ev.signed_rho, significant_only, "signed rho (significant)"),
         (ev.direction_agreement, significant_only, "direction agreement"),
     ]
+    # Tail enrichment on the UNMATCHED cohort, which is where the comparison
+    # against distance is meaningful: matching neutralises distance by design,
+    # so the model-versus-ruler question can only be asked before matching.
+    for frac in TAIL_FRACTIONS:
+        plan.append((tail_enrichment(frac), wide,
+                     f"tail enrichment, top {frac*100:g}%"))
 
     per_model, differences = [], []
     for metric, frame, label in plan:
@@ -238,12 +298,68 @@ def main() -> int:
                 "interval_excludes_zero": excludes_zero,
             })
 
+    # ---- distance baseline: the number the model must beat ----------------
+    # Reported per tail fraction, with the model-minus-distance difference
+    # bootstrapped over the SAME blocks so the interval is paired rather than
+    # two marginal intervals a reader has to eyeball against each other.
+    tails = []
+    for frac in TAIL_FRACTIONS:
+        d_fn = distance_tail(frac)
+        d_point = d_fn(wide)
+        d_low, d_high = ev.block_bootstrap(wide, d_fn, args.n_boot, rng)
+        tails.append({"model": "distance_only", "fraction": frac,
+                      "n": int(len(wide)), "base_rate": base_rate(wide),
+                      "value": d_point, "ci_low": d_low, "ci_high": d_high,
+                      "difference_vs_distance": float("nan"),
+                      "diff_ci_low": float("nan"), "diff_ci_high": float("nan"),
+                      "interval_excludes_zero": None})
+        for model in names:
+            m_fn = single_metric(tail_enrichment(frac), f"dm__{model}")
+            m_point = m_fn(wide)
+            m_low, m_high = ev.block_bootstrap(wide, m_fn, args.n_boot, rng)
+
+            def paired(frame, _m=model, _f=frac):
+                a = single_metric(tail_enrichment(_f), f"dm__{_m}")(frame)
+                b = distance_tail(_f)(frame)
+                return float(a - b)
+
+            p_point = paired(wide)
+            p_low, p_high = ev.block_bootstrap(wide, paired, args.n_boot, rng)
+            tails.append({
+                "model": model, "fraction": frac, "n": int(len(wide)),
+                "base_rate": base_rate(wide),
+                "value": m_point, "ci_low": m_low, "ci_high": m_high,
+                "difference_vs_distance": p_point,
+                "diff_ci_low": p_low, "diff_ci_high": p_high,
+                "interval_excludes_zero": bool(
+                    np.isfinite(p_low) and np.isfinite(p_high)
+                    and (p_low > 0 or p_high < 0)),
+            })
+    tail_tab = pd.DataFrame(tails)
+
     per_model_tab = pd.DataFrame(per_model)
     diff_tab = pd.DataFrame(differences)
     out = args.output_dir
     out.mkdir(parents=True, exist_ok=True)
     per_model_tab.to_csv(out / "per_model_on_shared_cohort.csv", index=False)
     diff_tab.to_csv(out / "paired_differences.csv", index=False)
+    tail_tab.to_csv(out / "tail_enrichment.csv", index=False)
+
+    print("\n" + "=" * 78)
+    print("TAIL ENRICHMENT vs THE DISTANCE BASELINE (unmatched cohort)")
+    print("A model that only rediscovers proximity shows no difference here.")
+    print("=" * 78)
+    for frac, grp in tail_tab.groupby("fraction"):
+        br = grp["base_rate"].iloc[0]
+        print(f"\n  top {frac*100:g}%   (base rate {br:.4f})")
+        for _, r in grp.iterrows():
+            diff = ("" if not np.isfinite(r["difference_vs_distance"])
+                    else f"   vs distance {r['difference_vs_distance']:+.4f} "
+                         f"[{r['diff_ci_low']:+.4f}, {r['diff_ci_high']:+.4f}]"
+                         f"{'  *' if r['interval_excludes_zero'] else ''}")
+            print(f"    {r['model']:<16} {r['value']:.4f} "
+                  f"[{r['ci_low']:.4f}, {r['ci_high']:.4f}]"
+                  f"   {r['value']/br:>5.2f}x base{diff}")
 
     print("\n" + "=" * 78)
     print("EACH MODEL ON THE SHARED COHORT (marginal intervals, for reference)")
