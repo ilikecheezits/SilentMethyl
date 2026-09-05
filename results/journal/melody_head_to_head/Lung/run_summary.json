@@ -1,0 +1,231 @@
+{
+  "purpose": "paired, LD-aware intervals on the difference between models' variant-effect performance; scripts/20 reports marginal intervals only",
+  "reference": "fusion",
+  "specs": [
+    {
+      "dir": "results/journal/egtex_multitissue_scoring/by_tissue/Lung",
+      "model": "fusion",
+      "seeds": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "dir": "results/journal/melody/by_tissue/Lung",
+      "model": "melody",
+      "seeds": [
+        42
+      ]
+    }
+  ],
+  "stratum": "heldout",
+  "significance_threshold": 5e-08,
+  "n_boot": 500,
+  "block_size_bp": 1000000,
+  "shared_cohort_pairs": 48340,
+  "significant_pairs": 2241,
+  "matching": {
+    "tolerance_bp": 10,
+    "negatives_per_positive": 1,
+    "replacement": false,
+    "significant_n": 2241,
+    "matched_null_n": 2241,
+    "requested_negatives": 2241,
+    "unmatched_slots": 0,
+    "median_distance_significant": 182.0,
+    "median_distance_matched_null": 182.0,
+    "distance_only_auroc_after_matching": 0.5
+  },
+  "per_model_on_shared_cohort": [
+    {
+      "model": "fusion",
+      "metric": "AUROC, distance-matched",
+      "n": 4482,
+      "value": 0.5879540772,
+      "ci_low": 0.5669241576,
+      "ci_high": 0.6090820696
+    },
+    {
+      "model": "melody",
+      "metric": "AUROC, distance-matched",
+      "n": 4482,
+      "value": 0.6019916843,
+      "ci_low": 0.5814599052,
+      "ci_high": 0.6225114145
+    },
+    {
+      "model": "fusion",
+      "metric": "signed rho (significant)",
+      "n": 2241,
+      "value": 0.1810796089,
+      "ci_low": 0.1350038409,
+      "ci_high": 0.2270566064
+    },
+    {
+      "model": "melody",
+      "metric": "signed rho (significant)",
+      "n": 2241,
+      "value": 0.2416925044,
+      "ci_low": 0.1982291252,
+      "ci_high": 0.2878436872
+    },
+    {
+      "model": "fusion",
+      "metric": "direction agreement",
+      "n": 2241,
+      "value": 0.5716198126,
+      "ci_low": 0.5484953225,
+      "ci_high": 0.5928859492
+    },
+    {
+      "model": "melody",
+      "metric": "direction agreement",
+      "n": 2241,
+      "value": 0.5774207943,
+      "ci_low": 0.55362881,
+      "ci_high": 0.6005371083
+    },
+    {
+      "model": "fusion",
+      "metric": "tail enrichment, top 0.1%",
+      "n": 48340,
+      "value": 0.5,
+      "ci_low": 0.2629716981,
+      "ci_high": 0.6526397516
+    },
+    {
+      "model": "melody",
+      "metric": "tail enrichment, top 0.1%",
+      "n": 48340,
+      "value": 0.3333333333,
+      "ci_low": 0.1904761905,
+      "ci_high": 0.4580640423
+    },
+    {
+      "model": "fusion",
+      "metric": "tail enrichment, top 0.5%",
+      "n": 48340,
+      "value": 0.2520661157,
+      "ci_low": 0.1929148707,
+      "ci_high": 0.310290854
+    },
+    {
+      "model": "melody",
+      "metric": "tail enrichment, top 0.5%",
+      "n": 48340,
+      "value": 0.2355371901,
+      "ci_low": 0.1691556748,
+      "ci_high": 0.3042374288
+    },
+    {
+      "model": "fusion",
+      "metric": "tail enrichment, top 1%",
+      "n": 48340,
+      "value": 0.1842650104,
+      "ci_low": 0.1394693972,
+      "ci_high": 0.2273379836
+    },
+    {
+      "model": "melody",
+      "metric": "tail enrichment, top 1%",
+      "n": 48340,
+      "value": 0.182194617,
+      "ci_low": 0.1456274368,
+      "ci_high": 0.2268873533
+    },
+    {
+      "model": "fusion",
+      "metric": "tail enrichment, top 5%",
+      "n": 48340,
+      "value": 0.1199834506,
+      "ci_low": 0.1024503094,
+      "ci_high": 0.1380890382
+    },
+    {
+      "model": "melody",
+      "metric": "tail enrichment, top 5%",
+      "n": 48340,
+      "value": 0.1158460902,
+      "ci_low": 0.1010512282,
+      "ci_high": 0.1327331681
+    }
+  ],
+  "paired_differences": [
+    {
+      "reference": "fusion",
+      "comparison": "melody",
+      "metric": "AUROC, distance-matched",
+      "n": 4482,
+      "difference": -0.0140376071,
+      "ci_low": -0.0342812893,
+      "ci_high": 0.0052439548,
+      "interval_excludes_zero": false
+    },
+    {
+      "reference": "fusion",
+      "comparison": "melody",
+      "metric": "signed rho (significant)",
+      "n": 2241,
+      "difference": -0.0606128955,
+      "ci_low": -0.1094415093,
+      "ci_high": -0.0178447187,
+      "interval_excludes_zero": true
+    },
+    {
+      "reference": "fusion",
+      "comparison": "melody",
+      "metric": "direction agreement",
+      "n": 2241,
+      "difference": -0.0058009817,
+      "ci_low": -0.0316156088,
+      "ci_high": 0.0167612769,
+      "interval_excludes_zero": false
+    },
+    {
+      "reference": "fusion",
+      "comparison": "melody",
+      "metric": "tail enrichment, top 0.1%",
+      "n": 48340,
+      "difference": 0.1666666667,
+      "ci_low": 0.0,
+      "ci_high": 0.3253052326,
+      "interval_excludes_zero": false
+    },
+    {
+      "reference": "fusion",
+      "comparison": "melody",
+      "metric": "tail enrichment, top 0.5%",
+      "n": 48340,
+      "difference": 0.0165289256,
+      "ci_low": -0.0491099809,
+      "ci_high": 0.0800192247,
+      "interval_excludes_zero": false
+    },
+    {
+      "reference": "fusion",
+      "comparison": "melody",
+      "metric": "tail enrichment, top 1%",
+      "n": 48340,
+      "difference": 0.0020703934,
+      "ci_low": -0.0451566202,
+      "ci_high": 0.0369444444,
+      "interval_excludes_zero": false
+    },
+    {
+      "reference": "fusion",
+      "comparison": "melody",
+      "metric": "tail enrichment, top 5%",
+      "n": 48340,
+      "difference": 0.0041373604,
+      "ci_low": -0.0135882923,
+      "ci_high": 0.022987279,
+      "interval_excludes_zero": false
+    }
+  ],
+  "caveats": {
+    "shared_cohort": "All models are scored on one distance-matched cohort, so the difference contains no matching noise. Each model's marginal value here can differ slightly from its scripts/20 value, which used its own draw of negatives.",
+    "dependence": "Pairs are in LD. Intervals are 1-Mb block bootstraps with both models resampled on the same blocks.",
+    "direction": "A positive difference favours the reference model. An interval spanning zero means the models are not distinguishable on this metric at this n, not that they are equal."
+  }
+}
