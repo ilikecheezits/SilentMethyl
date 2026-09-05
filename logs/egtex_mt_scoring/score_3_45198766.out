@@ -1,0 +1,10 @@
+[*] Host: gl002.ib.bridges2.psc.edu  task 3  sequence seed 42
+NVIDIA L40S, 46068 MiB
+
+======================================================================
+stratum          : heldout
+pairs scored     : 80,919
+  sequence  seed 42    80,919 rows
+output           : results/journal/egtex_multitissue_scoring/heldout
+======================================================================
+[done] sequence seed 42: Fri Sep  4 21:04:56 EDT 2026
