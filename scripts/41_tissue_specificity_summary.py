@@ -78,6 +78,47 @@ def collect(results, metric):
     return pd.DataFrame(rows)
 
 
+def power_diagnostic(frame, results, metric):
+    """Does the SIGN of the difference track cohort power rather than biology?
+
+    Added after the nine-tissue run, where every direction calling `shared`
+    had <= 55 pairs per arm and every direction calling `specific` had >= 404 --
+    a clean separation with no overlap. That is not a biological gradient, it is
+    a statement about which cohorts were underpowered.
+
+    The mechanism is winner's curse. In a discovery cohort with ~130 significant
+    pairs, a pair that clears p<5e-8 and then fails to replicate anywhere is
+    more likely a false positive than a tissue-specific meQTL -- and the model
+    ANTI-predicts noise, so the specific arm goes negative. Reporting the
+    per-arm sign alongside n makes that visible instead of leaving it to be
+    discovered by a reviewer.
+    """
+    calls = {}
+    for call in ("shared", "specific"):
+        sub = frame[frame["verdict"] == call]
+        if sub.empty:
+            continue
+        calls[call] = {"n_directions": int(len(sub)),
+                       "min_n_per_arm": int(sub["matched"].min()),
+                       "max_n_per_arm": int(sub["matched"].max()),
+                       "median_n_per_arm": float(sub["matched"].median())}
+    separated = (len(calls) == 2
+                 and calls["shared"]["max_n_per_arm"] < calls["specific"]["min_n_per_arm"])
+
+    # Sign of the tissue-specific arm itself. Negative means anti-predicted,
+    # which is the false-positive signature rather than a mechanism difference.
+    lookup = {(r["discovery"], r["replication"]): r for r in results}
+    neg = []
+    for _, row in frame.iterrows():
+        r = lookup.get((row["discovery"], row["replication"]), {})
+        v = r.get(f"{metric}_tissue_specific")
+        if v is not None and not pd.isna(v) and v < 0:
+            neg.append({"direction": f"{row['discovery']}->{row['replication']}",
+                        "n": row["matched"], "specific_arm": float(v)})
+    return {"by_call": calls, "cleanly_separated_by_n": bool(separated),
+            "directions_with_negative_specific_arm": neg}
+
+
 def pair_concordance(frame):
     """Apply the pre-specified rule: both directions, same sign, both exclude 0."""
     out = []
@@ -153,6 +194,27 @@ def main(argv=None) -> int:
             print(f"  !Z = |Z| medians outside the matching tolerance; "
                   f"{len(bad)} direction(s) NOT controlled")
 
+        diag = power_diagnostic(frame, results, metric)
+        if diag["by_call"]:
+            print("\n  sign of the difference vs cohort power:")
+            for call, s in diag["by_call"].items():
+                print(f"    calls '{call}'  {s['n_directions']:>2} direction(s), "
+                      f"n per arm {s['min_n_per_arm']}-{s['max_n_per_arm']} "
+                      f"(median {s['median_n_per_arm']:.0f})")
+            if diag["cleanly_separated_by_n"]:
+                print("    -> the two calls do NOT overlap in n. The SIGN is "
+                      "determined by discovery-cohort power,")
+                print("       not by biology. Do not report either as a "
+                      "mechanism difference.")
+        neg = diag["directions_with_negative_specific_arm"]
+        if neg:
+            print(f"\n  tissue-specific arm is NEGATIVE in {len(neg)} direction(s) "
+                  f"-- the model anti-predicts them,")
+            print("  which is the winner's-curse signature, not chromatin mediation:")
+            for x in sorted(neg, key=lambda d: d["specific_arm"])[:6]:
+                print(f"    {x['direction']:<44} n={x['n']:>4}  "
+                      f"specific arm {x['specific_arm']:+.4f}")
+
         conc = pair_concordance(frame)
         n_support = int(conc["both_directions_agree"].sum()) if len(conc) else 0
         decision[metric] = {
@@ -165,6 +227,7 @@ def main(argv=None) -> int:
             "classes_favoured": sorted(
                 {c for c in conc.get("class_favoured", pd.Series(dtype=object))
                  .dropna().tolist()}) if len(conc) else [],
+            "power_diagnostic": diag,
         }
         d = decision[metric]
         print(f"\n  directions excluding zero   {d['directions_excluding_zero']} "
@@ -189,6 +252,15 @@ def main(argv=None) -> int:
                   f"favouring {', '.join(d['classes_favoured'])}.")
         print("Check that the favoured class is the SAME across metrics and pairs")
         print("before calling this a finding.")
+        if any(decision[m]["power_diagnostic"]["cleanly_separated_by_n"]
+               for m in passes):
+            print()
+            print("BUT: the sign of the difference separates cleanly by cohort")
+            print("power (see above). A pair meeting the rule only among the")
+            print("least-powered cohorts, whose tissue-specific arm is")
+            print("anti-predicted, is a winner's-curse artifact -- not evidence")
+            print("that the model separates meQTLs by mechanism. Treat the")
+            print("overall answer as NO and report the artifact explicitly.")
     print("=" * 92)
 
     out_dir = args.out or args.results
