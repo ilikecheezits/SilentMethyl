@@ -18,9 +18,11 @@ Two guarantees, both asserted rather than assumed
    appear in both training and testing" condition, checked directly rather than
    inferred from the chromosome rule.
 
-Fold 0 reproduces the published split exactly (val chr10, test chr8+9) so that
-fold 0 must recover the numbers already in the paper. If it does not, the fold
-machinery is broken and nothing else here can be trusted.
+Fold 0 IS the published split -- its chromosome sets are read out of the source
+val.csv and test.csv rather than assumed -- so the already-trained seeds serve as
+fold 0 and it does not need retraining. The probe-level check still runs and will
+say so explicitly. (The published split is val chr10 + chr11, test chr8 + chr9;
+an earlier version of this script hard-coded val as chr10 alone and was wrong.)
 
 Folds 1..K-1 are chosen to hold out a probe count as close as possible to fold
 0's, so performance is comparable across folds rather than confounded with how
@@ -55,7 +57,12 @@ LOGGER = logging.getLogger("splits")
 CHROM_CANDIDATES = ("chr", "chrom", "CHR", "Chromosome", "chromosome",
                     "CpG_chrm", "cpg_chrom", "seqnames")
 
-PUBLISHED_VAL = ["chr10"]
+# Fold 0 must BE the published split, not a guess at it. These are fallbacks
+# only: by default the chromosome sets are read from the source val.csv and
+# test.csv, because a hard-coded guess was wrong once already (the published
+# validation set is chr10 + chr11, not chr10 alone) and a wrong fold 0 silently
+# destroys the one control this whole analysis has.
+PUBLISHED_VAL = ["chr10", "chr11"]
 PUBLISHED_TEST = ["chr8", "chr9"]
 
 # Sex chromosomes are never used as held-out blocks. chrY is absent in female
@@ -187,12 +194,34 @@ def main(argv=None) -> int:
                     help="probeID -> chromosome CSV, if the sources lack one")
     ap.add_argument("--folds", type=int, default=4)
     ap.add_argument("--out-root", type=Path, default=Path("data/datafiles/splits"))
+    ap.add_argument("--fold0-hardcoded", action="store_true",
+                    help="use the built-in published-split constants instead of "
+                         "reading the chromosome sets out of val.csv/test.csv")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
     if args.folds < 2:
         raise SystemExit("STOP: --folds must be at least 2 to be 'repeated'")
+
+    global PUBLISHED_VAL, PUBLISHED_TEST
+    if not args.fold0_hardcoded:
+        derived = {}
+        for arm, name in (("val", "val.csv"), ("test", "test.csv")):
+            path = args.datafiles / name
+            if not path.is_file():
+                raise SystemExit(f"STOP: {path} not found; cannot derive fold 0 "
+                                 f"from the sources (pass --fold0-hardcoded to "
+                                 f"use the built-in fallback instead)")
+            part = pd.read_csv(path, usecols=lambda c: c in CHROM_CANDIDATES)
+            col = next((c for c in CHROM_CANDIDATES if c in part.columns), None)
+            if col is None:
+                raise SystemExit(f"STOP: {path} has no chromosome column, so "
+                                 f"fold 0 cannot be derived from it")
+            derived[arm] = sorted(set(part[col].map(norm_chrom)) - {""})
+        PUBLISHED_VAL, PUBLISHED_TEST = derived["val"], derived["test"]
+        LOGGER.info("fold 0 derived from the source files: val=%s test=%s",
+                    ",".join(PUBLISHED_VAL), ",".join(PUBLISHED_TEST))
 
     frames = []
     for name in [s.strip() for s in args.sources.split(",") if s.strip()]:
