@@ -63,6 +63,63 @@ on GTEx tissues; our signed Spearman among significant pairs is ~0.18 (Lung).
 Their 10-kb window and 39-tissue training will win that metric. Compete on
 discrimination under a distance-matched null, where they have no result at all.
 
+## 3b. Reanalysis of Melody's own Source Data — the strongest point we have
+
+Computed 5 Sep 2026 from `supplemental_data/supplemental_data.xlsx` (Figure 3H
+sheet) and the benchmark CSVs shipped in `meqtl/dataset/processed/GTEX/`. No
+compute, no checkpoint, entirely their published numbers.
+
+**Finding 1 — tissue identity of the model track is second-order.**
+Two-way decomposition of their 8x8 cross-track matrix:
+
+    variance explained by TARGET dataset : 85.0%
+    variance explained by SOURCE track   :  1.4%
+    residual (interaction, incl. matching): 13.5%
+
+The matched track's advantage over other tracks on the same target averages
+**+0.027 Pearson r**. Their claim that related tracks are "best or second-best"
+holds column-wise in 5 of 8 targets, so it is not wrong -- it is just small.
+State it that way; do not claim their result fails.
+
+**Finding 2 — what the 85% actually is: distance.**
+Median variant-CpG distance per benchmark, against their reported Pearson r:
+
+    Ovary       120 bp   0.407        Kidney      473 bp   0.350
+    Prostate    127 bp   0.453        Breast      478 bp   0.371
+    Lung        129 bp   0.427        WholeBlood  484 bp   0.324
+    Colon       153 bp   0.417        Muscle      684 bp   0.278
+
+    Spearman -0.833 (p = 0.010)      Pearson -0.946 (p = 0.0004)
+    cohort size vs r: Pearson +0.323 (p = 0.44)  -- NOT power
+
+Roughly 89% of the variance in Melody's cross-tissue meQTL performance is
+explained by how proximal each benchmark's pairs happen to be. Tissue explains
+1.4%. Sample size explains nothing.
+
+**Why this matters for our paper.** It is the strongest available motivation for
+distance-matched evaluation, and it comes from the leading model rather than
+from us. The argument writes itself: performance differences that look like
+tissue biology are largely differences in benchmark composition, which is
+exactly what a distance-matched null removes.
+
+**Caveats to state honestly, because this is a claim about someone else's work.**
+- n = 8 datasets. The correlation is strong but the sample is small, and we
+  chose the predictor after seeing the pattern. Present it as a reanalysis that
+  motivates our design, not as a definitive decomposition of their method.
+- Melody's authors did NOT hide this: their Fig 3E explicitly shows performance
+  declining with variant-CpG distance for every model tested. The criticism is
+  that no one in this literature CONTROLS for it, not that they concealed it.
+  Say so; it is both fairer and more credible.
+- A correlation across datasets is not the same as distance driving predictions
+  within a dataset. Our own within-cohort result -- distance alone reaching
+  AUROC 0.60-0.69, pinned to 0.5000 by matching -- is what closes that gap. The
+  two together are the argument; either alone is weaker.
+
+**Consequence for priorities.** This reanalysis makes the head-to-head
+confirmatory rather than load-bearing. Still worth doing -- "and when distance
+is controlled directly, here is what happens" beats a correlation over 8 points
+-- but the paper no longer depends on it.
+
 ## 4. The gift — Ovary
 
 Melody, independently: *"Ovary data perform poorly, likely due to either (i)
