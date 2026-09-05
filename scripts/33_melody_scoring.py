@@ -38,6 +38,19 @@ Two input conventions
                   Use this to COMPARE: identical pairs to SilentMethyl, so the
                   output drops straight into scripts/31.
 
+Single-track (Melody-ST) checkpoints
+------------------------------------
+Melody-ST is trained on ONE cell type ("trained on one cell type at a time using
+a single bigWig track as supervision", Methods) and its final layer has a single
+output channel. Track NAMES cannot be resolved against the 39-track list in that
+case, so --n-track 1 requires an explicit --track-index 0:
+
+    python -u scripts/33_melody_scoring.py --format ours \
+        --checkpoint <path to the ST breast checkpoint> \
+        --n-track 1 --track-index 0 \
+        --tracks GSM5652347_Breast-Luminal-Epithelial-Z000000V2 \
+        --input-csv ... --output ...
+
 Output carries `Predicted_Delta_M` so that scripts/31_transfer_discrimination.py
 can consume it as another model without modification.
 
@@ -189,6 +202,12 @@ def main(argv=None) -> int:
                     help="comma-separated track names; predictions are AVERAGED "
                          "across them, which is their 'related tracks' setting")
     ap.add_argument("--n-track", type=int, default=39)
+    ap.add_argument("--track-index", default=None,
+                    help="comma-separated output channel indices, REQUIRED when "
+                         "--n-track < 39 (e.g. a Melody-ST checkpoint has one "
+                         "channel, so this is '0'). With the 39-track MT model "
+                         "the indices are looked up from the track names and "
+                         "this must not be given.")
     ap.add_argument("--margin", type=int, default=1,
                     help="positions either side of the CpG summed over; must be "
                          ">=1 because CpG_start == CpG_end in these cohorts")
@@ -217,13 +236,38 @@ def main(argv=None) -> int:
     from global_constants import track_39_names  # noqa: E402
 
     tracks = [t.strip() for t in args.tracks.split(",") if t.strip()]
-    unknown = [t for t in tracks if t not in track_39_names]
-    if unknown:
+
+    # Name lookup is only valid against the 39-channel MT model. A single-track
+    # ST checkpoint has ONE output channel, so an index taken from the 39-name
+    # list would read past the end of the model's output -- or, worse, silently
+    # index a different channel and return numbers that look plausible.
+    if args.n_track == 39 and args.track_index is None:
+        unknown = [t for t in tracks if t not in track_39_names]
+        if unknown:
+            raise SystemExit(
+                f"STOP: unknown track(s) {unknown}.\nAvailable:\n  " +
+                "\n  ".join(track_39_names))
+        track_idx = [track_39_names.index(t) for t in tracks]
+    else:
+        if args.track_index is None:
+            raise SystemExit(
+                f"STOP: --n-track is {args.n_track}, not 39, so track names "
+                f"cannot be resolved against the 39-track name list. Pass "
+                f"--track-index explicitly (a Melody-ST checkpoint has a single "
+                f"output channel, so --track-index 0).")
+        track_idx = [int(i) for i in str(args.track_index).split(",") if i != ""]
+        if len(track_idx) != len(tracks):
+            raise SystemExit(
+                f"STOP: {len(track_idx)} track index/indices for {len(tracks)} "
+                f"track name(s); they must correspond one to one")
+    bad = [i for i in track_idx if i < 0 or i >= args.n_track]
+    if bad:
         raise SystemExit(
-            f"STOP: unknown track(s) {unknown}.\nAvailable:\n  " +
-            "\n  ".join(track_39_names))
-    track_idx = [track_39_names.index(t) for t in tracks]
-    LOGGER.info("averaging over %d track(s): %s", len(tracks), tracks)
+            f"STOP: track index/indices {bad} are outside the model's "
+            f"{args.n_track} output channel(s). This is the failure mode that "
+            f"returns plausible-looking wrong numbers, so it aborts.")
+    LOGGER.info("averaging over %d track(s): %s -> channel(s) %s",
+                len(tracks), tracks, track_idx)
 
     frame = normalise(pd.read_csv(args.input_csv, dtype=str), args.format)
     for col in ("SNP_region_start", "SNP_region_end", "CPG_region_start",
