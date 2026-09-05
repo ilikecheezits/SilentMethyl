@@ -141,7 +141,10 @@ def build_pairs(frame: pd.DataFrame, genome, counters: dict):
         fetch_start = max(0, center - HALF_WINDOW)
         fetch_end = center + HALF_WINDOW
         try:
-            seq = genome[str(row["chrom"])][fetch_start:fetch_end].seq
+            # pyfaidx returns a plain str under as_raw=True and a Sequence
+            # object otherwise; str() is correct for both.
+            piece = genome[str(row["chrom"])][fetch_start:fetch_end]
+            seq = piece if isinstance(piece, str) else str(piece)
         except (KeyError, ValueError):
             counters["chrom_not_in_genome"] += 1
             continue
