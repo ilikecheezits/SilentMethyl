@@ -58,6 +58,14 @@ CHROM_CANDIDATES = ("chr", "chrom", "CHR", "Chromosome", "chromosome",
 PUBLISHED_VAL = ["chr10"]
 PUBLISHED_TEST = ["chr8", "chr9"]
 
+# Sex chromosomes are never used as held-out blocks. chrY is absent in female
+# donors and chrX carries X-inactivation, so a fold that holds either one out is
+# not measuring the same quantity as a fold that holds out autosomes -- the
+# folds would stop being comparable, which is the whole point of running them.
+# They stay in TRAINING for every fold, so no data is discarded and the training
+# composition is identical across folds.
+NON_EVAL_CHROMS = ("chrX", "chrY", "chrM", "chrMT")
+
 
 def norm_chrom(value) -> str:
     """'8' / 'chr8' / 'Chr8' -> 'chr8'. Keeps X and Y as-is."""
@@ -119,6 +127,11 @@ def build_folds(counts: "pd.Series", n_folds: int) -> list[dict]:
             raise SystemExit(f"STOP: {chrom} is absent from the data, so fold 0 "
                              f"cannot reproduce the published split")
 
+    excluded = [c for c in counts.index if c in NON_EVAL_CHROMS]
+    if excluded:
+        LOGGER.info("held out of every val/test block (train only): %s (%d probes)",
+                    ",".join(excluded), int(counts[excluded].sum()))
+
     target = int(counts[PUBLISHED_TEST].sum())
     LOGGER.info("fold 0 test size %d probes; later folds will match it", target)
 
@@ -126,7 +139,8 @@ def build_folds(counts: "pd.Series", n_folds: int) -> list[dict]:
     used = set(PUBLISHED_VAL + PUBLISHED_TEST)
 
     for k in range(1, n_folds):
-        pool = [c for c in counts.index if c not in used]
+        pool = [c for c in counts.index
+                if c not in used and c not in NON_EVAL_CHROMS]
         if not pool:
             LOGGER.warning("ran out of unused chromosomes at fold %d; stopping "
                            "with %d folds", k, k)
@@ -258,8 +272,12 @@ def main(argv=None) -> int:
                     LOGGER.warning("fold 0 %s differs from %s.csv by %d probes",
                                    arm, arm,
                                    len(published[arm] ^ ids[arm]))
-                LOGGER.warning("fold 0 does NOT reproduce the published split; "
-                               "it must be retrained rather than reused")
+                LOGGER.warning(
+                    "fold 0 does NOT reproduce the published split. If only the "
+                    "VAL arm differs while test matches exactly, the published "
+                    "validation set was not purely chromosome-blocked: fold 0 is "
+                    "then a STRICTER setup, not a reproduction, and must be "
+                    "trained (submit --array=0-3, not 1-3).")
 
         row = {"fold": spec["fold"],
                "val_chroms": ",".join(sorted(val_set)),
