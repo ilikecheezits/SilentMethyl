@@ -42,6 +42,16 @@ echo "=== fold ${FOLD}  seed ${SEED}  $(date -u +%FT%TZ) ==="
 echo "train ${TRAIN}"
 echo "val   ${VAL}"
 
+# Provenance guard. Regenerating the splits while a job is running once left
+# three jobs training on a fold definition that no longer matched
+# splits_summary.json -- silently, because nothing recorded which bytes were
+# actually used. Snapshot the checksums up front and re-check them at the end;
+# a mismatch means the run and the recorded fold definition have diverged.
+SNAP=${OUT}/split_checksums.txt
+md5sum "${TRAIN}" "${VAL}" > "${SNAP}"
+cp data/datafiles/splits/splits_summary.json "${OUT}/splits_summary_at_launch.json"
+cat "${SNAP}"
+
 echo "--- 1/3 sequence tower ---"
 $PY -u scripts/10_train_sequence.py \
     --train_path "${TRAIN}" --val_path "${VAL}" \
@@ -58,5 +68,16 @@ $PY -u scripts/12_train_fusion.py \
     --sequence_weights "${OUT}/sequence_seed${SEED}" \
     --epi_weights "${OUT}/epi_seed${SEED}" \
     --save_dir "${OUT}/fusion_seed${SEED}" --seed ${SEED}
+
+echo "--- provenance check ---"
+if md5sum -c "${SNAP}" --status; then
+  echo "split files unchanged for the whole run"
+else
+  echo "WARNING: the split CSVs CHANGED while this job was running." >&2
+  echo "This fold's checkpoints do not correspond to the recorded fold" >&2
+  echo "definition and must not be used. Regenerate and retrain." >&2
+  md5sum -c "${SNAP}" >&2 || true
+  exit 3
+fi
 
 echo "=== fold ${FOLD} done $(date -u +%FT%TZ) ==="
