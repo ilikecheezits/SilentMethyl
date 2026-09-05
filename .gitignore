@@ -153,3 +153,5 @@ _verify_*/
 __pycache__/
 *.pyc
 main_revised.log
+!data/*.sh
+!data/*.sbatch
