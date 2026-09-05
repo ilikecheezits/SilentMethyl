@@ -194,6 +194,7 @@ def base_rate(frame) -> float:
     return float(frame["significant"].to_numpy(dtype=float).mean())
 
 
+def main() -> int:
 
     args = parse_args()
     ev = load_evaluator()
