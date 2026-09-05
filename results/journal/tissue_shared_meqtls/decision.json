@@ -1,0 +1,105 @@
+{
+  "per_metric": {
+    "direction_agreement": {
+      "classes_favoured": [
+        "shared"
+      ],
+      "directions": 49,
+      "directions_excluding_zero": 8,
+      "favouring_shared": 6,
+      "favouring_specific": 2,
+      "pairs_meeting_rule": 1,
+      "pairs_with_both_directions": 14,
+      "power_diagnostic": {
+        "by_call": {
+          "shared": {
+            "max_n_per_arm": 55,
+            "median_n_per_arm": 35.0,
+            "min_n_per_arm": 24,
+            "n_directions": 6
+          },
+          "specific": {
+            "max_n_per_arm": 845,
+            "median_n_per_arm": 810.5,
+            "min_n_per_arm": 776,
+            "n_directions": 2
+          }
+        },
+        "cleanly_separated_by_n": true,
+        "directions_with_negative_specific_arm": []
+      }
+    },
+    "signed_rho": {
+      "classes_favoured": [
+        "shared"
+      ],
+      "directions": 49,
+      "directions_excluding_zero": 10,
+      "favouring_shared": 6,
+      "favouring_specific": 4,
+      "pairs_meeting_rule": 1,
+      "pairs_with_both_directions": 14,
+      "power_diagnostic": {
+        "by_call": {
+          "shared": {
+            "max_n_per_arm": 55,
+            "median_n_per_arm": 35.0,
+            "min_n_per_arm": 24,
+            "n_directions": 6
+          },
+          "specific": {
+            "max_n_per_arm": 845,
+            "median_n_per_arm": 723.0,
+            "min_n_per_arm": 404,
+            "n_directions": 4
+          }
+        },
+        "cleanly_separated_by_n": true,
+        "directions_with_negative_specific_arm": [
+          {
+            "direction": "Prostate->Lung",
+            "n": 89,
+            "specific_arm": -0.13478812851802607
+          },
+          {
+            "direction": "Prostate->ColonTransverse",
+            "n": 67,
+            "specific_arm": -0.045481759979356357
+          },
+          {
+            "direction": "MuscleSkeletal->Lung",
+            "n": 20,
+            "specific_arm": -0.21552428852073968
+          },
+          {
+            "direction": "MuscleSkeletal->Ovary",
+            "n": 24,
+            "specific_arm": -0.30321603232644423
+          },
+          {
+            "direction": "MuscleSkeletal->WholeBlood",
+            "n": 55,
+            "specific_arm": -0.15471833606978538
+          },
+          {
+            "direction": "MuscleSkeletal->KidneyCortex",
+            "n": 37,
+            "specific_arm": -0.21558095210319386
+          },
+          {
+            "direction": "MuscleSkeletal->BreastMammaryTissue",
+            "n": 33,
+            "specific_arm": -0.25136394011570595
+          },
+          {
+            "direction": "MuscleSkeletal->Testis",
+            "n": 44,
+            "specific_arm": -0.06524053371719657
+          }
+        ]
+      }
+    }
+  },
+  "rule": "a tissue PAIR counts as support only when both ordered directions show a same-signed difference whose 95% block-bootstrap interval excludes zero; fixed before the numbers were read",
+  "sign_convention": "difference = shared - specific; positive supports the hypothesis"
+}
