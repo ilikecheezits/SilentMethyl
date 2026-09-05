@@ -152,6 +152,53 @@ enrichment on the two adequately powered tests only.
 *Scripts:* `60`–`64`
 *Status:* **done.** STK11 and NCOA2 retained per mentor instruction.
 
+### R7 — Cross-cohort, cross-ancestry, cross-platform replication
+*Question:* does the variant-effect signal survive a genuinely independent cohort?
+*Scripts:* `data/harmonize_genoa_meqtl.py`, `20_variant_scoring` (GENOA),
+`21_variant_evaluation`, `30_transfer_synthesis`
+*Status:* **done** (Aug 2026), and under the same design as the nine-tissue work:
+distance-matched negatives at 10 bp tolerance, 1 Mb block bootstrap, distance-only
+baseline reported alongside (~0.595), a null stratum that reaches chance.
+
+Precision-weighted meta-analysis over independent 1 Mb LD blocks:
+
+    fusion    rho_meta 0.1775 [0.0678, 0.2829]  p = 0.0016  I2 = 0.0  Q p = 0.449
+    sequence  rho_meta 0.1698 [0.0599, 0.2757]  p = 0.0026  I2 = 0.0  Q p = 0.546
+
+    eGTEx conditional   breast, European-dominant     81  rho 0.610 [0.452, 0.731]
+    eGTEx regular       breast, European-dominant    418  rho 0.246 [0.114, 0.402]
+    GENOA               whole blood, African American 4037 rho 0.152 [0.117, 0.188]
+    GENOA null control  tested but null pairs           -  rho -0.004 [-0.021, +0.013]
+
+**I2 = 0.** No detectable heterogeneity between cohorts that differ in tissue,
+platform AND ancestry. The weighting is by independent LD blocks, not pair
+counts -- the run summary states that pair-count weighting "would understate the
+variance by roughly an order of magnitude and manufacture significance". Keep
+that sentence; self-imposed conservatism is worth more than the extra stars.
+
+*Two things it confirms without being designed to.* fusion (0.1775) and sequence
+(0.1698) are indistinguishable, so **R2 replicates in an independent cohort**.
+And GENOA is blood scored with breast context, so **R3 holds cross-cohort** too.
+
+*The ancestry claim, stated exactly.* GENOA is African American and eGTEx is
+European-dominant, so this is the cross-ancestry comparison -- but GENOA also
+changes tissue and platform, so ancestry cannot be isolated from it.
+
+**A within-cohort ancestry contrast was attempted and is not possible.** GDC open
+ancestry calls (CCG-AIM-2020, no controlled access) applied to the TCGA-BRCA
+training normals give **84 EUR, 4 AFR, 1 SAS, 8 unlabelled out of 97 donors**.
+Four donors cannot support an error estimate, and `18_ancestry_stratified_error.py`
+refuses to compute one. Write the limitation with those numbers in it: it shows
+the alternative was checked rather than overlooked. Variant-effect stratification
+by ancestry would additionally need per-donor genotypes, which are
+controlled-access and deliberately not used.
+
+*What the nine-tissue work changes.* The 9/1 presentation says ancestry and
+tissue are confounded and "we can't separate which difference the model
+survived". That is now one dimension narrower: R3 varies tissue alone across
+nine European-dominant eGTEx cohorts, so tissue is measured on its own and
+GENOA's marginal contribution is ancestry plus platform. Update the slide.
+
 ### Superseded
 `70_mqtl_positive_control` (81 pairs) and `71_mqtl_matched_negative` (35 pairs)
 are dwarfed by the nine-tissue cohort (13,744 significant pairs). Delete
