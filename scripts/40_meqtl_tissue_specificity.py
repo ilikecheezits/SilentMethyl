@@ -78,10 +78,16 @@ Usage (run from the repository root)
 ------------------------------------
     python -u scripts/40_meqtl_tissue_specificity.py --stage all
 
-    # nine-tissue panel
+    # nine-tissue panel. NOTE the `/by_tissue/<Tissue>` suffix: the parent
+    # directory holds the UNION scoring run, whose label columns (pvalue, beta,
+    # se) are BreastMammaryTissue placeholders. Pointing at it gives nine
+    # identical breast cohorts and a plausible, wrong table. Always use
+    # by_tissue, which data/split_predictions_by_tissue.py writes.
+    # Threshold 5e-8 matches scripts/31, so R3 and R4 partition the same
+    # significant set.
     python -u scripts/40_meqtl_tissue_specificity.py --stage matched \\
-        --cohort Lung:results/journal/egtex_multitissue_scoring:1.483e-5 \\
-        --cohort ColonTransverse:results/journal/egtex_multitissue_scoring:1.483e-5
+        --cohort Lung:results/journal/egtex_multitissue_scoring/by_tissue/Lung:5e-8 \\
+        --cohort ColonTransverse:results/journal/egtex_multitissue_scoring/by_tissue/ColonTransverse:5e-8
 """
 
 from __future__ import annotations
@@ -262,19 +268,28 @@ def match_on_discovery_z(shared, specific, tolerance, rng):
     anything: both arms end up with equally strong effects where they were
     discovered, so a difference in model accuracy cannot be 'shared meQTLs are
     just bigger'.
+
+    Returns BOTH arms. Returning only the specific arm, and letting the caller
+    recover the shared arm as `shared.iloc[:len(matched)]`, is wrong twice over:
+    the shared rows that actually found partners are scattered through the loop
+    rather than sitting in a prefix, so the arms are not paired; and a positional
+    prefix is genomically clustered, which starves the 1-Mb block bootstrap and
+    returns nan intervals. Both were observed before this was fixed.
     """
     pool = specific.copy()
     pool["_used"] = False
-    picked = []
-    for z in shared["absZ_discovery"].to_numpy():
+    picked_specific, picked_shared = [], []
+    for shared_idx, z in shared["absZ_discovery"].items():
         cand = pool.index[(~pool["_used"])
                           & (np.abs(pool["absZ_discovery"] - z) <= tolerance)]
         if len(cand) == 0:
             continue
         choice = rng.choice(cand)
         pool.loc[choice, "_used"] = True
-        picked.append(choice)
-    return pool.loc[picked].drop(columns="_used")
+        picked_specific.append(choice)
+        picked_shared.append(shared_idx)
+    return (pool.loc[picked_specific].drop(columns="_used"),
+            shared.loc[picked_shared])
 
 
 def analyse(discovery, replication, disc_name, rep_name, args, rng, rows):
@@ -323,7 +338,7 @@ def analyse(discovery, replication, disc_name, rep_name, args, rng, rows):
                 "underpowered_dropped": dropped, "matched": 0,
                 "note": "insufficient pairs for a matched comparison"}
 
-    matched = match_on_discovery_z(shared, specific, args.z_tolerance, rng)
+    matched, shared_use = match_on_discovery_z(shared, specific, args.z_tolerance, rng)
     LOGGER.info("  matched %d of %d shared pairs to a specific counterpart",
                 len(matched), len(shared))
     if len(matched) < 20:
@@ -332,8 +347,19 @@ def analyse(discovery, replication, disc_name, rep_name, args, rng, rows):
                 "matched": int(len(matched)),
                 "note": "matching failed; widen --z-tolerance"}
 
-    shared_use = shared.iloc[:len(matched)] if len(shared) > len(matched) else shared
+    # |Z| balance is the whole point of matching, so check it rather than assume
+    # it. A gap this large means the pool could not cover the shared |Z| range
+    # and the comparison is not controlled -- report it instead of hiding it.
+    z_gap = float(abs(shared_use["absZ_discovery"].median()
+                      - matched["absZ_discovery"].median()))
+    if z_gap > args.z_tolerance:
+        LOGGER.warning("  |Z| medians differ by %.2f (> tolerance %.2f): the "
+                       "matched arms are NOT balanced; treat this direction as "
+                       "uncontrolled", z_gap, args.z_tolerance)
+
     out = {"discovery": disc_name, "replication": rep_name,
+           "median_absZ_gap": z_gap,
+           "z_balance_ok": bool(z_gap <= args.z_tolerance),
            "tested_in_both": int(len(merged)),
            "significant_in_discovery": int(len(sig)),
            "shared": int(len(shared)), "specific": int(len(specific)),
