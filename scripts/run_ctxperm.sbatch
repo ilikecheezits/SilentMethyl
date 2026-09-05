@@ -7,6 +7,6 @@
 #SBATCH --time=06:00:00
 #SBATCH --output=logs/ctxperm/%j.out
 #SBATCH --error=logs/ctxperm/%j.err
-set -euo pipefail
-source ~/.bashrc && conda activate silentmethyl
-python -u scripts/23_context_permutation.py
+set -eo pipefail
+PY=/jet/home/szhang37/.conda/envs/silentmethyl/bin/python
+$PY -u scripts/23_context_permutation.py

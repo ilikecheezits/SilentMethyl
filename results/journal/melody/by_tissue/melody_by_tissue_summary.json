@@ -1,0 +1,101 @@
+{
+  "excluded": {
+    "Testis": "no testis cell type exists among Melody's 39 tracks"
+  },
+  "files_written": 8,
+  "generated_utc": "2026-09-05T19:02:43+00:00",
+  "melody_scores": "results/journal/melody/union_pair_scores_15track.csv",
+  "method": "SilentMethyl's per-tissue pair_scores.csv is the template; only Predicted_Delta_M and Absolute_Delta_M are replaced, so both models are evaluated on identical rows",
+  "per_tissue": [
+    {
+      "path": "results/journal/melody/by_tissue/BreastMammaryTissue/heldout/melody/seed42/pair_scores.csv",
+      "rows": 76893,
+      "significant_5e8": 295,
+      "tissue": "BreastMammaryTissue",
+      "tracks": 2
+    },
+    {
+      "path": "results/journal/melody/by_tissue/ColonTransverse/heldout/melody/seed42/pair_scores.csv",
+      "rows": 76453,
+      "significant_5e8": 3765,
+      "tissue": "ColonTransverse",
+      "tracks": 2
+    },
+    {
+      "path": "results/journal/melody/by_tissue/KidneyCortex/heldout/melody/seed42/pair_scores.csv",
+      "rows": 75873,
+      "significant_5e8": 317,
+      "tissue": "KidneyCortex",
+      "tracks": 1
+    },
+    {
+      "path": "results/journal/melody/by_tissue/Lung/heldout/melody/seed42/pair_scores.csv",
+      "rows": 77421,
+      "significant_5e8": 3909,
+      "tissue": "Lung",
+      "tracks": 2
+    },
+    {
+      "path": "results/journal/melody/by_tissue/MuscleSkeletal/heldout/melody/seed42/pair_scores.csv",
+      "rows": 74864,
+      "significant_5e8": 240,
+      "tissue": "MuscleSkeletal",
+      "tracks": 1
+    },
+    {
+      "path": "results/journal/melody/by_tissue/Ovary/heldout/melody/seed42/pair_scores.csv",
+      "rows": 76985,
+      "significant_5e8": 3190,
+      "tissue": "Ovary",
+      "tracks": 1
+    },
+    {
+      "path": "results/journal/melody/by_tissue/Prostate/heldout/melody/seed42/pair_scores.csv",
+      "rows": 70218,
+      "significant_5e8": 1488,
+      "tissue": "Prostate",
+      "tracks": 1
+    },
+    {
+      "path": "results/journal/melody/by_tissue/WholeBlood/heldout/melody/seed42/pair_scores.csv",
+      "rows": 75517,
+      "significant_5e8": 347,
+      "tissue": "WholeBlood",
+      "tracks": 5
+    }
+  ],
+  "template": "results/journal/egtex_multitissue_scoring/by_tissue/<Tissue>/heldout/fusion/seed42",
+  "tissue_tracks": {
+    "BreastMammaryTissue": [
+      "GSM5652347_Breast-Luminal-Epithelial-Z000000V2",
+      "GSM5652350_Breast-Basal-Epithelial-Z000000V6"
+    ],
+    "ColonTransverse": [
+      "GSM5652370_Colon-Right-Epithelial-Z000000V0",
+      "GSM5652198_Colon-Fibroblasts-Z0000042A"
+    ],
+    "KidneyCortex": [
+      "GSM5652189_Kidney-Tubular-Endothel-Z0000042R"
+    ],
+    "Lung": [
+      "GSM5652354_Lung-Alveolar-Epithelial-Z000000T1",
+      "GSM5652335_Lung-Bronchus-Epithelial-Z000000QD"
+    ],
+    "MuscleSkeletal": [
+      "GSM5652205_Skeletal-Muscle-Z00000427"
+    ],
+    "Ovary": [
+      "GSM5652270_Ovary-Epithelial-Z000000QT"
+    ],
+    "Prostate": [
+      "GSM5652338_Prostate-Epithelial-Z000000RV"
+    ],
+    "WholeBlood": [
+      "GSM5652317_Blood-B-Z000000UB",
+      "GSM5652277_Blood-T-CD3-Z000000TV",
+      "GSM5652299_Blood-NK-Z000000TM",
+      "GSM5652302_Blood-Monocytes-Z000000TP",
+      "GSM5652313_Blood-Granulocytes-Z000000TZ"
+    ]
+  }
+}
