@@ -169,6 +169,47 @@ If the §1 claim holds:
 If instead the model predicts tissue-specific mQTLs as well as shared ones, the
 claim in §1 is wrong and R3 is measuring something more generic — say so.
 
+### R4 OUTCOME, recorded 5 Sep 2026 — the answer is NO
+
+72 ordered directions, 49 informative. Five tissues are too underpowered to
+serve as discovery cohorts (BreastMammaryTissue, KidneyCortex, MuscleSkeletal,
+Testis, WholeBlood). Under the pre-specified rule, 1 of 14 reciprocated pairs
+meets it on each metric — and it is the same pair, KidneyCortex ↔ MuscleSkeletal.
+
+That pair does not survive scrutiny, and why it doesn't is now the finding:
+
+- **The sign of the difference separates cleanly by cohort power.** Every
+  direction calling `shared` has 24–55 pairs per arm; every direction calling
+  `specific` has 404–845. No overlap, on either metric.
+- **In the low-power cohorts the tissue-specific arm is anti-predicted** —
+  signed rho −0.3032 (Muscle→Ovary), −0.2514 (Muscle→Breast), −0.2156
+  (Muscle→Kidney), −0.2155 (Muscle→Lung). The model does not merely do worse on
+  those pairs; it gets their direction wrong.
+
+That is winner's curse, not mechanism. A pair clearing p < 5e-8 in a cohort with
+~130 significant pairs genome-wide, which then fails to replicate anywhere, is
+more likely a false positive than a chromatin-mediated mQTL — and noise is
+anti-predicted. "Shared > specific" in those cohorts therefore means "real mQTLs
+beat false discoveries", which is not the hypothesis.
+
+**The adequately powered comparisons run the other way.** Lung→Testis: specific
+rho +0.2359 vs shared +0.0863. Colon→Testis: +0.2272 vs +0.0981. Where the
+tissue-specific class is large enough to hold real biology, the model does as
+well or better on it.
+
+**For the manuscript:** a sequence-only variant pathway does not separate mQTLs
+by mechanism. Report the power artifact explicitly rather than either apparent
+effect — 8–10 of 49 directions exclude zero against ~2.5 expected, so there is
+real structure, and it is a statement about which cohorts were underpowered, not
+about chromatin.
+
+This closes §1 into its final form: methylation *levels* are tissue-specific,
+methylation *responses to variants* are not, and the model captures the
+tissue-generic part. R2, R3 and R4 become one argument.
+
+Consequence for §5: with no biological finding from R4, the Melody head-to-head
+moves from optional to top priority.
+
 ---
 
 ## 5. Journal decision
