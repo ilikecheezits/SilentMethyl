@@ -1,0 +1,58 @@
+2026-09-04 17:46:35,220 - effect column: beta_ref_to_alt -> beta_ref_to_alt | p-value column: pvalue -> pvalue
+2026-09-04 17:46:35,221 - 80919 pairs read from data/external/egtex_multitissue/scoring/union_scoring_input_heldout.csv
+2026-09-04 17:46:42,516 - HM450 probe QC dropped 0 pairs; 80919 remain
+2026-09-04 17:46:58,804 - train split contributed 0 target probes
+2026-09-04 17:47:01,101 - val   split contributed 0 target probes
+2026-09-04 17:47:02,893 - test  split contributed 20848 target probes
+2026-09-04 17:47:02,895 - materialised 20848 target probes
+2026-09-04 17:47:02,990 - device=cuda precision=FP32
+2026-09-04 17:47:03,040 - HTTP Request: HEAD https://huggingface.co/zhihan1996/DNABERT-2-117M/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+2026-09-04 17:47:03,041 - Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+2026-09-04 17:47:03,047 - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/zhihan1996/DNABERT-2-117M/7bce263b15377fc15361f52cfab88f8b586abda0/config.json "HTTP/1.1 200 OK"
+2026-09-04 17:47:03,074 - HTTP Request: HEAD https://huggingface.co/zhihan1996/DNABERT-2-117M/resolve/main/configuration_bert.py "HTTP/1.1 307 Temporary Redirect"
+2026-09-04 17:47:03,082 - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/zhihan1996/DNABERT-2-117M/7bce263b15377fc15361f52cfab88f8b586abda0/configuration_bert.py "HTTP/1.1 200 OK"
+2026-09-04 17:47:03,107 - HTTP Request: HEAD https://huggingface.co/zhihan1996/DNABERT-2-117M/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-09-04 17:47:03,115 - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/zhihan1996/DNABERT-2-117M/7bce263b15377fc15361f52cfab88f8b586abda0/config.json "HTTP/1.1 200 OK"
+2026-09-04 17:47:03,143 - HTTP Request: HEAD https://huggingface.co/zhihan1996/DNABERT-2-117M/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-09-04 17:47:03,153 - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/zhihan1996/DNABERT-2-117M/7bce263b15377fc15361f52cfab88f8b586abda0/tokenizer_config.json "HTTP/1.1 200 OK"
+2026-09-04 17:47:03,183 - HTTP Request: GET https://huggingface.co/api/models/zhihan1996/DNABERT-2-117M/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-09-04 17:47:03,217 - HTTP Request: GET https://huggingface.co/api/models/zhihan1996/DNABERT-2-117M/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-09-04 17:47:10,581 - construction counters: {'scoreable': 80919, 'probe_not_in_splits': 0, 'bad_stored_sequence_length': 0, 'stored_sequence_not_cpg_centred': 0, 'outside_model_window': 0, 'alters_target_cpg': 0, 'reference_base_mismatch': 0, 'unexpected_window_difference': 0, 'window_not_cpg_centred': 0}
+2026-09-04 17:47:14,099 - scoring sequence seed 42
+2026-09-04 17:47:14,124 - --- Performing DNABERT-2 cluster-safe pretrained loading ---
+Traceback (most recent call last):
+  File "/jet/home/szhang37/.conda/envs/silentmethyl/lib/python3.10/site-packages/transformers/configuration_utils.py", line 771, in _get_config_dict
+    config_dict = cls._dict_from_json_file(resolved_config_file)
+  File "/jet/home/szhang37/.conda/envs/silentmethyl/lib/python3.10/site-packages/transformers/configuration_utils.py", line 884, in _dict_from_json_file
+    config_dict = json.loads(text)
+  File "/jet/home/szhang37/.conda/envs/silentmethyl/lib/python3.10/json/__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+  File "/jet/home/szhang37/.conda/envs/silentmethyl/lib/python3.10/json/decoder.py", line 337, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+  File "/jet/home/szhang37/.conda/envs/silentmethyl/lib/python3.10/json/decoder.py", line 355, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/ocean/projects/med250012p/szhang37/SilentMethyl/scripts/20_variant_scoring.py", line 712, in <module>
+    sys.exit(main())
+  File "/ocean/projects/med250012p/szhang37/SilentMethyl/scripts/20_variant_scoring.py", line 644, in main
+    model = build_model(model_type, args, seed, weights, device)
+  File "/ocean/projects/med250012p/szhang37/SilentMethyl/scripts/20_variant_scoring.py", line 417, in build_model
+    model = SequenceOnlyModel(args.model_path, local_dir=args.local_model_dir)
+  File "/ocean/projects/med250012p/szhang37/SilentMethyl/scripts/training_common.py", line 280, in __init__
+    self.sequence_encoder = SequenceEncoder(model_path, local_dir)
+  File "/ocean/projects/med250012p/szhang37/SilentMethyl/scripts/training_common.py", line 225, in __init__
+    self.config, self.bert = patch_and_load_dnabert(model_path, local_dir)
+  File "/ocean/projects/med250012p/szhang37/SilentMethyl/scripts/training_common.py", line 387, in patch_and_load_dnabert
+    config = AutoConfig.from_pretrained(
+  File "/jet/home/szhang37/.conda/envs/silentmethyl/lib/python3.10/site-packages/transformers/models/auto/configuration_auto.py", line 374, in from_pretrained
+    config_dict, unused_kwargs = PreTrainedConfig.get_config_dict(pretrained_model_name_or_path, **kwargs)
+  File "/jet/home/szhang37/.conda/envs/silentmethyl/lib/python3.10/site-packages/transformers/configuration_utils.py", line 682, in get_config_dict
+    config_dict, kwargs = cls._get_config_dict(pretrained_model_name_or_path, **kwargs)
+  File "/jet/home/szhang37/.conda/envs/silentmethyl/lib/python3.10/site-packages/transformers/configuration_utils.py", line 775, in _get_config_dict
+    raise OSError(f"It looks like the config file at '{resolved_config_file}' is not a valid JSON file.")
+OSError: It looks like the config file at './dnabert2_local/config.json' is not a valid JSON file.

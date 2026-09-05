@@ -32,7 +32,7 @@ LR=$("${PY}" -c "import json;print(json.load(open('${SEL}'))['lr'])")
 echo "[*] Host: $(hostname)  ${ARCH} seed ${SEED}  dropout ${DROPOUT} lr ${LR}"
 echo "[*] Started $(date)"
 
-"${PY}" -u scripts/28_published_architecture_baselines.py \
+"${PY}" -u scripts/15_baselines_published.py \
   --arch "${ARCH}" --seed "${SEED}" --dropout "${DROPOUT}" --lr "${LR}" \
   --epochs 10 --batch-size 128 --num-workers 5
 

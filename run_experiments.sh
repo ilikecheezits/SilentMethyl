@@ -43,10 +43,10 @@ conda activate silentmethyl
 mkdir -p logs/experiments results/journal
 
 for required in \
-  scripts/03_target_qc.py \
-  scripts/04_mqtl_positive_control.py \
-  scripts/05_matched_background.py \
-  scripts/06_stability.py \
+  scripts/01_target_qc.py \
+  scripts/70_mqtl_positive_control.py \
+  scripts/60_candidate_background.py \
+  scripts/61_candidate_stability.py \
   data/datafiles/test.csv \
   data/datafiles/testing_data_test_only.csv \
   data/HM450.hg38.manifest.tsv.gz \
@@ -84,18 +84,18 @@ echo "[*] Experiment seeds: ${SEEDS[*]}"
 nvidia-smi || true
 
 echo "[*] Stage 3: target-quality audit"
-python -u scripts/03_target_qc.py
+python -u scripts/01_target_qc.py
 
 echo "[*] Stage 4: frozen eGTEx breast mQTL positive control"
-python -u scripts/04_mqtl_positive_control.py \
+python -u scripts/70_mqtl_positive_control.py \
   --seeds "${SEEDS[@]}"
 
 echo "[*] Stage 5: somatic candidate scoring and matched background"
-python -u scripts/05_matched_background.py \
+python -u scripts/60_candidate_background.py \
   --seeds "${SEEDS[@]}"
 
 echo "[*] Stage 6: forward/RC and cross-seed candidate stability"
-python -u scripts/06_stability.py \
+python -u scripts/61_candidate_stability.py \
   --seeds "${SEEDS[@]}"
 
 python -m json.tool \

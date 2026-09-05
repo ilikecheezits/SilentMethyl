@@ -18,7 +18,7 @@ Stage C (one training pass) → Stage D (re-score + write).
 |---|---|---|---|---|---|
 | 1 | Multi-cohort testing | No — inference | B.2 | **done** | `results/journal/tcga_tumor_domain_shift/` |
 | 2 | Repeated chromosome-blocked splits | **Yes — the only one** | C.1 | not-started | |
-| 3 | Stronger baselines and ablations | No — CPU only | A.2, B.5, C.2–C.3 | **scripted, not yet run** | `scripts/23_sequence_baselines.py` |
+| 3 | Stronger baselines and ablations | No — CPU only | A.2, B.5, C.2–C.3 | **scripted, not yet run** | `scripts/14_baselines_simple.py` |
 | 4 | Uncertainty calibration | No — post-hoc | B.3 | **done (analysis)** | `results/journal/rc_uncertainty{,_conditional}/` |
 | 5 | Ancestry analyses | No — analysis | B.1 | in-progress | `results/journal/genoa_variant_evaluation/` (AFR arm) |
 | 6 | Independent variant evaluation | No — inference | B.1 | **done (GENOA)**; tissue-matched eGTEx arm in progress | `results/journal/genoa_variant_{scoring,evaluation}/` |
@@ -374,7 +374,7 @@ Medicine asks for this explicitly ("comparisons with leading methylation and
 variant-effect predictors"). It is the one outstanding requirement that changes
 what we are allowed to claim rather than how confidently we claim it.
 
-*What is scripted.* `scripts/23_sequence_baselines.py`, CPU-only, no GPU, no new
+*What is scripted.* `scripts/14_baselines_simple.py`, CPU-only, no GPU, no new
 data:
 
 | baseline | features | controls for |
@@ -876,8 +876,8 @@ is in hand.
 
 Read this before touching `TABULAR_FEATURES`.
 
-`make_rc_context()` — in `scripts/05_matched_background.py` and mirrored in
-`scripts/19_genoa_variant_scoring.py` — builds the reverse-complement context
+`make_rc_context()` — in `scripts/60_candidate_background.py` and mirrored in
+`scripts/20_variant_scoring.py` — builds the reverse-complement context
 vector like this:
 
 ```python
@@ -922,7 +922,7 @@ explicit and name-based makes that assumption visible instead of implicit.
    chromosome. Entry point is `data/build_training_data.py`; the feature list
    itself lives in `scripts/training_common.py`.
 4. Change the checkpoint metric to M-value MAE in the three
-   `scripts/01_train_*_journal.py` files.
+   `scripts/10_train_sequence.py`, `scripts/11_train_epi.py` and `scripts/12_train_fusion.py`.
 5. **One** training campaign: 3 seeds × (context + fusion) on the new features,
    *plus* the four requirement-2 folds, submitted together. The sequence tower is
    not retrained unless its input changes.
@@ -1240,7 +1240,7 @@ analysed by `data/gwas_matched_background.py`.
 
 ### E.6 Published-architecture head-to-head — DONE. Decisive on absolute prediction, null on variant effects
 
-`scripts/28_published_architecture_baselines.py`. CpGenie and DeepCpG
+`scripts/15_baselines_published.py`. CpGenie and DeepCpG
 reimplemented from released source (not from the papers, which omit the layer
 tables), trained on our splits, three seeds each.
 
@@ -1305,7 +1305,7 @@ configuration their authors evaluated.
 
 Both baselines were then scored on the identical GENOA (66,495) and eGTEx
 (76,893) variant–CpG pairs through `scripts/20`, and compared to fusion by
-`scripts/30_paired_model_comparison.py`.
+`scripts/31_transfer_discrimination.py`.
 
 **Why a new script was needed.** `scripts/20` draws each model its own set of
 matched negatives, so part of any between-model gap is matching noise; and its
@@ -1344,7 +1344,7 @@ variant-effect fidelity.
 
 ### E.9 GWAS regulatory-enrichment tests — RUN, null, and adequately powered
 
-`scripts/31_gwas_regulatory_enrichment.py`. Asks the question in the
+`scripts/52_gwas_enrichment.py`. Asks the question in the
 **well-powered direction**: not "do known risk variants score high?" (E.2 n=35,
 E.2b n=32) but "do high-scoring variants land in GWAS loci?", over every held-out
 pair and the whole catalog. Matching, metrics and the block bootstrap are
@@ -1468,7 +1468,7 @@ Every one of the nine substitutions asserted exactly one match before applying.
 | Beta-histogram check, MASK excluded stratum | **run** — E.1. Not confirmed, and underpowered relative to the effect. Not for the manuscript |
 | Tumour-domain open question | **stays open** — the compression limb was tested and did not resolve; draft-status entry updated to say so |
 | Baseline variant-effect evaluation | done — E.6b, both cohorts, both baselines, three seeds |
-| Paired between-model intervals | done — `scripts/30_paired_model_comparison.py`; reversed a provisional reading before it reached the manuscript |
+| Paired between-model intervals | done — `scripts/31_transfer_discrimination.py`; reversed a provisional reading before it reached the manuscript |
 | `DILUTION GRADIENT (fusion, ...)` label bug in `scripts/20` | fixed — the header was hardcoded while the rows came from `args.models[0]`; now prints the actual model. Data in `significance_gradient.csv` was always correct |
 
 **Open, in the order I would take them**

@@ -47,7 +47,7 @@ echo "[*] Context ancestor:  $EPI_WEIGHTS"
 echo "[*] Modality towers remain frozen; only gated fusion logic + fresh heads are trained."
 nvidia-smi || true
 
-python -u scripts/01_train_fusion_journal.py \
+python -u scripts/12_train_fusion.py \
   --train_path data/datafiles/train.csv \
   --val_path data/datafiles/val.csv \
   --sequence_weights "$SEQUENCE_WEIGHTS" \

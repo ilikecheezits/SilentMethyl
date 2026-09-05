@@ -1,0 +1,233 @@
+{
+  "purpose": "paired, LD-aware intervals on the difference between models' variant-effect performance; scripts/20 reports marginal intervals only",
+  "reference": "fusion",
+  "specs": [
+    {
+      "dir": "results/journal/egtex_multitissue_scoring/by_tissue/ColonTransverse",
+      "model": "fusion",
+      "seeds": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "dir": "results/journal/egtex_multitissue_scoring/by_tissue/ColonTransverse",
+      "model": "sequence",
+      "seeds": [
+        42,
+        43,
+        44
+      ]
+    }
+  ],
+  "stratum": "heldout",
+  "significance_threshold": 5e-08,
+  "n_boot": 500,
+  "block_size_bp": 1000000,
+  "shared_cohort_pairs": 47801,
+  "significant_pairs": 2118,
+  "matching": {
+    "tolerance_bp": 10,
+    "negatives_per_positive": 1,
+    "replacement": false,
+    "significant_n": 2118,
+    "matched_null_n": 2118,
+    "requested_negatives": 2118,
+    "unmatched_slots": 0,
+    "median_distance_significant": 181.5,
+    "median_distance_matched_null": 181.5,
+    "distance_only_auroc_after_matching": 0.5
+  },
+  "per_model_on_shared_cohort": [
+    {
+      "model": "fusion",
+      "metric": "AUROC, distance-matched",
+      "n": 4236,
+      "value": 0.6051159137,
+      "ci_low": 0.5843737672,
+      "ci_high": 0.6263158511
+    },
+    {
+      "model": "sequence",
+      "metric": "AUROC, distance-matched",
+      "n": 4236,
+      "value": 0.6056397745,
+      "ci_low": 0.5838644376,
+      "ci_high": 0.6282991605
+    },
+    {
+      "model": "fusion",
+      "metric": "signed rho (significant)",
+      "n": 2118,
+      "value": 0.1748079144,
+      "ci_low": 0.1277051927,
+      "ci_high": 0.2239674906
+    },
+    {
+      "model": "sequence",
+      "metric": "signed rho (significant)",
+      "n": 2118,
+      "value": 0.1726717911,
+      "ci_low": 0.1258961648,
+      "ci_high": 0.2210641381
+    },
+    {
+      "model": "fusion",
+      "metric": "direction agreement",
+      "n": 2118,
+      "value": 0.5783758263,
+      "ci_low": 0.5559981669,
+      "ci_high": 0.5988775199
+    },
+    {
+      "model": "sequence",
+      "metric": "direction agreement",
+      "n": 2118,
+      "value": 0.5755429651,
+      "ci_low": 0.5528591005,
+      "ci_high": 0.5960241868
+    },
+    {
+      "model": "fusion",
+      "metric": "tail enrichment, top 0.1%",
+      "n": 47801,
+      "value": 0.4166666667,
+      "ci_low": 0.25,
+      "ci_high": 0.5578888889
+    },
+    {
+      "model": "sequence",
+      "metric": "tail enrichment, top 0.1%",
+      "n": 47801,
+      "value": 0.4375,
+      "ci_low": 0.2988829787,
+      "ci_high": 0.5627391304
+    },
+    {
+      "model": "fusion",
+      "metric": "tail enrichment, top 0.5%",
+      "n": 47801,
+      "value": 0.2468619247,
+      "ci_low": 0.1949010397,
+      "ci_high": 0.3041826087
+    },
+    {
+      "model": "sequence",
+      "metric": "tail enrichment, top 0.5%",
+      "n": 47801,
+      "value": 0.2635983264,
+      "ci_low": 0.2030960185,
+      "ci_high": 0.3236178108
+    },
+    {
+      "model": "fusion",
+      "metric": "tail enrichment, top 1%",
+      "n": 47801,
+      "value": 0.1966527197,
+      "ci_low": 0.1516277734,
+      "ci_high": 0.2330313066
+    },
+    {
+      "model": "sequence",
+      "metric": "tail enrichment, top 1%",
+      "n": 47801,
+      "value": 0.2050209205,
+      "ci_low": 0.1642501421,
+      "ci_high": 0.2497282609
+    },
+    {
+      "model": "fusion",
+      "metric": "tail enrichment, top 5%",
+      "n": 47801,
+      "value": 0.1146443515,
+      "ci_low": 0.0988848005,
+      "ci_high": 0.1303367234
+    },
+    {
+      "model": "sequence",
+      "metric": "tail enrichment, top 5%",
+      "n": 47801,
+      "value": 0.1133891213,
+      "ci_low": 0.0975944512,
+      "ci_high": 0.1302265396
+    }
+  ],
+  "paired_differences": [
+    {
+      "reference": "fusion",
+      "comparison": "sequence",
+      "metric": "AUROC, distance-matched",
+      "n": 4236,
+      "difference": -0.0005238609,
+      "ci_low": -0.0044774078,
+      "ci_high": 0.0035008195,
+      "interval_excludes_zero": false
+    },
+    {
+      "reference": "fusion",
+      "comparison": "sequence",
+      "metric": "signed rho (significant)",
+      "n": 2118,
+      "difference": 0.0021361232,
+      "ci_low": -0.0050416933,
+      "ci_high": 0.0105313187,
+      "interval_excludes_zero": false
+    },
+    {
+      "reference": "fusion",
+      "comparison": "sequence",
+      "metric": "direction agreement",
+      "n": 2118,
+      "difference": 0.0028328612,
+      "ci_low": -0.0039990505,
+      "ci_high": 0.0102671561,
+      "interval_excludes_zero": false
+    },
+    {
+      "reference": "fusion",
+      "comparison": "sequence",
+      "metric": "tail enrichment, top 0.1%",
+      "n": 47801,
+      "difference": -0.0208333333,
+      "ci_low": -0.1428571429,
+      "ci_high": 0.0652173913,
+      "interval_excludes_zero": false
+    },
+    {
+      "reference": "fusion",
+      "comparison": "sequence",
+      "metric": "tail enrichment, top 0.5%",
+      "n": 47801,
+      "difference": -0.0167364017,
+      "ci_low": -0.0431034483,
+      "ci_high": 0.0187635521,
+      "interval_excludes_zero": false
+    },
+    {
+      "reference": "fusion",
+      "comparison": "sequence",
+      "metric": "tail enrichment, top 1%",
+      "n": 47801,
+      "difference": -0.0083682008,
+      "ci_low": -0.0318901231,
+      "ci_high": 0.0121041014,
+      "interval_excludes_zero": false
+    },
+    {
+      "reference": "fusion",
+      "comparison": "sequence",
+      "metric": "tail enrichment, top 5%",
+      "n": 47801,
+      "difference": 0.0012552301,
+      "ci_low": -0.0055276019,
+      "ci_high": 0.0054297092,
+      "interval_excludes_zero": false
+    }
+  ],
+  "caveats": {
+    "shared_cohort": "All models are scored on one distance-matched cohort, so the difference contains no matching noise. Each model's marginal value here can differ slightly from its scripts/20 value, which used its own draw of negatives.",
+    "dependence": "Pairs are in LD. Intervals are 1-Mb block bootstraps with both models resampled on the same blocks.",
+    "direction": "A positive difference favours the reference model. An interval spanning zero means the models are not distinguishable on this metric at this n, not that they are equal."
+  }
+}

@@ -144,3 +144,14 @@ cache
 !data/run_harmonize_genoa.sh
 data/external/baselines/CpGenie/
 data/external/baselines/deepcpg/
+
+# local scratch
+Claude outputs/
+_verify_backup/
+_verify_*/
+
+__pycache__/
+*.pyc
+main_revised.log
+!data/*.sh
+!data/*.sbatch

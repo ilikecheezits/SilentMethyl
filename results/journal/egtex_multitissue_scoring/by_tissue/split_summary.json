@@ -1,0 +1,74 @@
+{
+  "files_written": 54,
+  "generated_utc": "2026-09-05T01:28:00+00:00",
+  "join_key": [
+    "probeID",
+    "Variant_ID"
+  ],
+  "per_tissue": [
+    {
+      "files": 6,
+      "rows": 76893,
+      "significant": 295,
+      "tissue": "BreastMammaryTissue"
+    },
+    {
+      "files": 6,
+      "rows": 76453,
+      "significant": 3765,
+      "tissue": "ColonTransverse"
+    },
+    {
+      "files": 6,
+      "rows": 75873,
+      "significant": 317,
+      "tissue": "KidneyCortex"
+    },
+    {
+      "files": 6,
+      "rows": 77421,
+      "significant": 3909,
+      "tissue": "Lung"
+    },
+    {
+      "files": 6,
+      "rows": 74864,
+      "significant": 240,
+      "tissue": "MuscleSkeletal"
+    },
+    {
+      "files": 6,
+      "rows": 76985,
+      "significant": 3190,
+      "tissue": "Ovary"
+    },
+    {
+      "files": 6,
+      "rows": 70218,
+      "significant": 1488,
+      "tissue": "Prostate"
+    },
+    {
+      "files": 6,
+      "rows": 73524,
+      "significant": 193,
+      "tissue": "Testis"
+    },
+    {
+      "files": 6,
+      "rows": 75517,
+      "significant": 347,
+      "tissue": "WholeBlood"
+    }
+  ],
+  "replaced_columns": [
+    "beta_ref_to_alt",
+    "se",
+    "pvalue",
+    "maf",
+    "ma_count",
+    "ma_samples"
+  ],
+  "source": "results/journal/egtex_multitissue_scoring/heldout",
+  "why": "the union was scored once because model predictions do not depend on the tissue label; these columns carried BreastMammaryTissue values as placeholders and are replaced here with each tissue's own measurements"
+}

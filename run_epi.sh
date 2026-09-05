@@ -31,7 +31,7 @@ echo "[*] Starting journal context-only training"
 echo "[*] seed=$SEED batch=$BATCH_SIZE"
 nvidia-smi || true
 
-python -u scripts/01_train_epi_journal.py \
+python -u scripts/11_train_epi.py \
   --train_path data/datafiles/train.csv \
   --val_path data/datafiles/val.csv \
   --save_dir "$SAVE_DIR" \

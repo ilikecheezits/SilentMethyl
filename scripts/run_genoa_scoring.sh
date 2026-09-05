@@ -36,7 +36,7 @@
 #     mkdir -p logs/genoa_scoring && sbatch scripts/run_genoa_scoring.sh
 #
 # Smoke-test first -- one minute on CPU, and it exercises every code path:
-#     python -u scripts/19_genoa_variant_scoring.py --limit 200 --seeds 42
+#     python -u scripts/20_variant_scoring.py --limit 200 --seeds 42
 #
 # Watch:
 #     squeue -u $USER
@@ -67,7 +67,7 @@ echo "[*] Scoring: model=${MODEL} seed=${SEED}"
 echo "[*] Started: $(date)"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader || true
 
-python -u scripts/19_genoa_variant_scoring.py \
+python -u scripts/20_variant_scoring.py \
   --input-csv data/external/genoa_meqtl/scoring/genoa_scoring_input_heldout.csv \
   --stratum heldout \
   --models "${MODEL}" \

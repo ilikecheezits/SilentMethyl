@@ -3,10 +3,10 @@
 #SBATCH --partition=GPU-shared
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --gpus=v100-32:1
-#SBATCH --cpus-per-task=5
-#SBATCH --mem=48G
-#SBATCH --time=12:00:00
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=8G
+#SBATCH --time=03:00:00
 #SBATCH --array=0-5
 #SBATCH --output=logs/egtex_mt_scoring/score_%a_%A.out
 #SBATCH --error=logs/egtex_mt_scoring/score_%a_%A.err
@@ -26,7 +26,7 @@ MODEL="${ENTRY%%:*}"; SEED="${ENTRY##*:}"
 echo "[*] Host: $(hostname)  task ${SLURM_ARRAY_TASK_ID}  ${MODEL} seed ${SEED}"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
-python -u scripts/19_genoa_variant_scoring.py \
+python -u scripts/20_variant_scoring.py \
   --input-csv data/external/egtex_multitissue/scoring/union_scoring_input_heldout.csv \
   --stratum heldout --models "${MODEL}" --seeds "${SEED}" \
   --device cuda --batch-size 32 \

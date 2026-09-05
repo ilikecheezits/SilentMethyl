@@ -32,7 +32,7 @@ echo "[*] Starting journal sequence-only training"
 echo "[*] seed=$SEED physical_batch=$BATCH_SIZE grad_accum=$GRAD_ACCUM_STEPS effective_batch=$((BATCH_SIZE * GRAD_ACCUM_STEPS))"
 nvidia-smi || true
 
-python -u scripts/01_train_sequence_journal.py \
+python -u scripts/10_train_sequence.py \
   --train_path data/datafiles/train.csv \
   --val_path data/datafiles/val.csv \
   --save_dir "$SAVE_DIR" \
