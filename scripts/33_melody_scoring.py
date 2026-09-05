@@ -208,7 +208,11 @@ def main(argv=None) -> int:
     import torch
     from pyfaidx import Fasta
     sys.path.insert(0, str(args.repo.resolve()))
-    from stateless import load_ckpt          # noqa: E402
+    # sigmoid_first matters: model(x)[0] is RAW LOGITS. Their predict.py applies
+    # sigmoid_first before reporting methylation, and differencing logits instead
+    # of probabilities is not the same ordering -- it cost ~0.15 Pearson r on
+    # their own Whole Blood benchmark before this was added.
+    from stateless import load_ckpt, sigmoid_first   # noqa: E402
     from models import Melody                # noqa: E402
     from global_constants import track_39_names  # noqa: E402
 
@@ -258,6 +262,7 @@ def main(argv=None) -> int:
             pa = model(alt)
         pr = pr[0] if isinstance(pr, (list, tuple)) else pr
         pa = pa[0] if isinstance(pa, (list, tuple)) else pa
+        pr, pa = sigmoid_first(pr), sigmoid_first(pa)   # logits -> methylation
         pred_len = pr.shape[-1]
         for j, (idx, _, _, cs, ce) in enumerate(batch):
             lo, hi = cs - args.margin, ce + args.margin
