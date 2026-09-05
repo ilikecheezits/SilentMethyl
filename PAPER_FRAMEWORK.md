@@ -45,20 +45,73 @@ sequence alone and beat published architectures?
 `15_baselines_published`, `16_paired_model_bootstrap`
 *Status:* **done.** Three arms × three seeds, vs CpGenie, DeepCpG, k-mer ridge,
 composition.
-*To verify before writing:* that the fusion-over-sequence gain on absolute
-methylation is solid with paired intervals. R1 is the only place the named
-architecture earns its keep — if this gain is marginal, the whole framing
-weakens. Check `paired_model_bootstrap/run_summary.json` first.
+*VERIFIED 5 Sep 2026* (the numbers live in
+`paired_model_bootstrap/paired_model_difference_bootstrap.csv`, NOT in
+`run_summary.json`, which holds metadata only). Cross-seed ensemble, 26,570 loci,
+257 genomic blocks, fusion minus sequence-only:
+
+    roc_auc    +0.010533 [+0.009090, +0.012069]   P(diff>=0) = 1.0
+    beta_mae   -0.010429 [-0.011323, -0.009514]   P(diff>=0) = 0.0
+    beta_rmse  -0.019041 [-0.020601, -0.017471]
+    m_mae      -0.094613 [-0.102197, -0.086805]
+    m_rmse     -0.150900 [-0.163059, -0.139263]
+
+All three individual seeds agree in sign with intervals excluding zero. Against
+the epigenomic-only arm the gap is an order of magnitude larger (ensemble
+roc_auc +0.0507, m_mae -0.378), as expected — sequence carries the signal,
+context modifies it.
+
+*How to write it.* The gain is **consistent and significant but small**:
++0.011 AUROC and ~1.0 percentage point of beta-value MAE. Say that explicitly.
+A reviewer will convert 0.011 into plain language whether or not we do, and
+claiming "substantial" here is the kind of overreach that costs credibility on
+the parts of the paper that are strong.
 
 ### R2 — The gain is in the baseline, not the variant response
 *Question:* does the context tower contribute to *variant-effect* prediction?
 *Scripts:* `20_variant_scoring`, `21_variant_evaluation`,
 `22_context_stratification`
-*Status:* **done.** Answer is no, and that is the point — it follows from
-allele invariance. Present as a mechanistic result, never as a limitation
-paragraph.
-*Reserved:* slot `23` for context swapping, which would make this causal rather
-than architectural (§5).
+*Scripts:* also `23_context_permutation` (run 5 Sep 2026, 76,893 pairs,
+identity / shuffle / median, prediction recorded before execution).
+*Status:* **done, and now causal rather than merely architectural.** Corrupting
+the context vector degrades predicted methylation LEVELS far more than predicted
+VARIANT EFFECTS, on normalised error, Spearman and sign agreement, under both
+schemes:
+
+    scheme    quantity   MAE/SD   Spearman   sign agr.   Pearson
+    shuffle   levels     0.3045     0.8610      0.8593    0.9015
+    shuffle   deltas     0.1123     0.9530      0.9499    0.9276
+    median    levels     0.1740     0.9772      0.9605    0.9855
+    median    deltas     0.0692     0.9842      0.9744    0.9649
+
+Normalised error is 2.7x (shuffle) and 2.5x (median) larger for levels than for
+deltas. Construction counters were clean: 76,893 scoreable, 0 reference-base
+mismatches, 0 CpG-altering, 0 window problems.
+
+*State this against ourselves.* The pre-specified `deltas_preserved_more` flag
+was implemented on **Pearson**, and on that metric the median scheme FAILS
+(deltas 0.9649 < levels 0.9855) while shuffle passes. Report both. The reason
+Pearson behaves differently is that methylation levels are bimodal with SD 3.13
+M-units, so a high Pearson is cheap on levels and not comparable across the two
+quantities — which is why normalised MAE, Spearman and sign agreement are the
+fairer reads. Present the Pearson discrepancy in the text rather than choosing
+the three metrics that agree with us; a reviewer who recomputes it will find it.
+
+*Why this matters beyond R2.* It supplies the mechanism for R3. Variant effects
+are near-invariant to what chromatin the model is shown, so a breast-context
+model transferring to lung is not a surprise — it is the predicted consequence
+of allele invariance. R2 and R3 stop being two results and become one argument.
+
+*It also answers the mentor's multi-tissue demand without retraining.* Per
+`why_this_substitutes_for_a_tissue_swap`: a random locus's chromatin is further
+from the truth than another tissue's chromatin at the same locus, so a null here
+implies a null for the tissue swap. Cite this rather than promising nine models.
+
+*Hard constraint on the manuscript.* We may NOT claim that epigenomic context
+improves variant-effect prediction anywhere in the paper. It improves level
+prediction (R1) and is close to inert for deltas (R2). Any sentence implying
+otherwise contradicts our own data.
+*Reserved:* slot `53` for allele-specific methylation (moved from `23`, now used).
 
 ### R3 — Zero-shot transfer across nine tissues
 *Question:* does a breast-trained model prioritise mQTLs in tissues it has never
@@ -79,8 +132,8 @@ corroboration.
 ### R4 — Where transfer fails, and why
 *Question:* can the model distinguish shared from tissue-specific mQTLs?
 *Scripts:* `40_meqtl_tissue_specificity` (`--stage matched,chromatin`)
-*Status:* **not run at nine tissues.** This is the next task and the most
-important one remaining.
+*Status:* **done, 5 Sep 2026. The answer is NO** — see the recorded outcome in
+§4. Winner's curse, not mechanism.
 *Why it matters:* this is the mentor's actual headline question, and it is the
 only remaining item that produces a **biological finding** rather than a
 methodological one — which is exactly what the Nature Communications bar
