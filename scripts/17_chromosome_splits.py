@@ -40,6 +40,7 @@ If the source CSVs carry no chromosome column, supply a mapping:
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
 import logging
 import sys
@@ -130,15 +131,24 @@ def build_folds(counts: "pd.Series", n_folds: int) -> list[dict]:
             LOGGER.warning("ran out of unused chromosomes at fold %d; stopping "
                            "with %d folds", k, k)
             break
-        # Greedily accumulate whole chromosomes until closest to `target`.
-        remaining = sorted(pool, key=lambda c: -counts[c])
-        test, total = [], 0
-        for chrom in remaining:
-            if not test or abs(total + counts[chrom] - target) < abs(total - target):
-                test.append(chrom)
-                total += counts[chrom]
-            if total >= target:
-                break
+        # Exhaustive search over subsets of 1-3 chromosomes for the sum closest
+        # to `target`. A greedy pass seeded on the largest chromosome overshoots
+        # badly (it picks chr1 alone, 54% over), which defeats the point of
+        # matching test size across folds. The pool is <= 24 chromosomes, so the
+        # exact search is trivial and removes the failure mode entirely.
+        best, test = None, None
+        for size in (1, 2, 3):
+            for combo in itertools.combinations(pool, size):
+                # Leave at least one chromosome for validation.
+                if len(pool) - size < 1:
+                    continue
+                gap = abs(int(counts[list(combo)].sum()) - target)
+                if best is None or gap < best:
+                    best, test = gap, list(combo)
+        if test is None:
+            LOGGER.warning("fold %d could not form a test set; stopping with "
+                           "%d folds", k, k)
+            break
         leftover = [c for c in pool if c not in test]
         if not leftover:
             LOGGER.warning("fold %d has no chromosome left for validation; "
@@ -231,10 +241,32 @@ def main(argv=None) -> int:
                         f"STOP: fold {spec['fold']} chromosome appears in both "
                         f"{arm} and {other}")
 
+        if spec["fold"] == 0:
+            published = {}
+            for name in [s.strip() for s in args.sources.split(",") if s.strip()]:
+                arm = Path(name).stem
+                if arm in ("train", "val", "test"):
+                    published[arm] = set(
+                        pd.read_csv(args.datafiles / name, usecols=["probeID"])["probeID"])
+            spec["reproduces_published"] = all(
+                published.get(arm) == ids[arm] for arm in published)
+            if spec["reproduces_published"]:
+                LOGGER.info("fold 0 reproduces the published split EXACTLY -- the "
+                            "existing trained seeds can serve as fold 0, no retrain")
+            else:
+                for arm in published:
+                    LOGGER.warning("fold 0 %s differs from %s.csv by %d probes",
+                                   arm, arm,
+                                   len(published[arm] ^ ids[arm]))
+                LOGGER.warning("fold 0 does NOT reproduce the published split; "
+                               "it must be retrained rather than reused")
+
         row = {"fold": spec["fold"],
                "val_chroms": ",".join(sorted(val_set)),
                "test_chroms": ",".join(sorted(test_set))}
         row.update({f"n_{arm}": len(part) for arm, part in parts.items()})
+        if "reproduces_published" in spec:
+            row["reproduces_published"] = spec["reproduces_published"]
         report.append(row)
 
         if not args.dry_run:
