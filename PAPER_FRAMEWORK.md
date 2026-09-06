@@ -124,6 +124,29 @@ enriched for true mQTLs, so the estimate is conservative).
 *Headline:* breast (0.6141) is indistinguishable from lung (0.5880), colon
 (0.6051), kidney (0.6062). **The model is not better on the tissue it was
 trained on.**
+
+*REFRAMED 5 Sep 2026 after the Melody-ST control.* Melody-ST-Breast -- a
+single-tissue breast model of a completely different architecture -- transfers
+too, and beats fusion on distance-matched AUROC in four of nine tissues (7 of 9
+by sign). So the claim is NOT "our architecture transfers". It is **"single-tissue
+methylation models transfer, and the training tissue matters far less than
+assumed"** -- a finding about the task, demonstrated in two architectures sharing
+nothing but the task. That is broader and harder to attack than the version we
+were writing. Do not claim SilentMethyl transfers best; it does not.
+
+*Where fusion does win, and it is coherent:* Testis (ST-Breast falls BELOW
+chance, 0.4737 [0.3594, 0.5886], rho -0.0740; paired rho +0.2030 and direction
+agreement +0.1170 both DIFFERENT), Kidney (paired rho +0.2364 DIFFERENT), and the
+Colon extreme tail (+0.2500 at top 0.1%, +0.0962 at top 0.5%, both DIFFERENT).
+Fusion holds up in the low-powered and hardest tissues where the U-Net degrades.
+Claim that, not more.
+
+*What tissue matching is worth, measured directly:* ST-Lung vs ST-Breast on
+identical Lung rows -- same architecture, same training scale, same scoring code,
+only the training tissue differs -- gives AUROC -0.0054 [-0.0241, +0.0103], not
+distinguishable, with the interval bounding the effect under ~0.024. Matching
+helps only in the top 0.5% tail (+0.1157 [+0.0288, +0.2126]). See
+[[MELODY_COMPARISON]] section 3d.
 *Must include:* the Melody Fig 3H tension (their tissue-matched tracks *do* win
 — because they train per tissue and we do not); the prostate-vs-ovary result
 killing the donor-sex explanation; Melody's independent ovary anomaly as
@@ -209,42 +232,60 @@ before, since the text still cites them.
 
 ## 3. Work plan, in order
 
-**Tier 1 — required before submission**
+Status as of 5 Sep 2026, end of day. Twelve of thirteen mentor items are closed;
+the analysis phase is essentially over and the bottleneck is writing.
 
-1. **R4 at nine tissues.** Inference-only, no GPU. Hours, not days.
-2. **Repeated chromosome-blocked splits.** The only remaining training and the
-   last unmet item from the original seven. Read `REQUIREMENTS.md` §A2 first —
-   it records a silent-failure hazard in the positional reverse-complement swap
-   that must be fixed before `TABULAR_FEATURES` is extended.
-3. **Rewrite R3 in `main_revised.tex`** with the nine-tissue table, the Melody
-   positioning, and the sex argument. (`main.tex` stays untouched.)
-4. **Housekeeping:** regenerate `S6_active_code_sha256.txt` via
-   `90_build_supplement_package.py` (merged scripts have new content); add the
-   `config.json` concurrent-read note to `REQUIREMENTS.md`; force-add
-   `literature_breast_variant_seeds.csv` if it is hand-curated.
+### Running now
+1. **Folds 1-3** (job 45290715, ~30 h remaining). Epoch 1 complete on all three,
+   beta MAE 0.115-0.124, healthy. Fold 0 is the published split and is NOT
+   retrained. On completion: score each fold, evaluate, and write the spread into
+   R1 and Methods. The jobs self-check that the split CSVs did not change
+   mid-run and exit 3 if they did -- read that line before trusting a fold.
 
-**Tier 2 — high value, gated on public data**
+### Next, in order
+2. **Update R3 in `main_revised.tex`** for the ST control. The subsection
+   currently frames single-tissue transfer as our observation; it must become the
+   architecture-independent version. Add the ST results to the Melody subsection.
+3. **Mentor email.** Every number in it is now checkable. The multi-tissue
+   request gets the architectural answer from R2, not a resource complaint.
+4. **`references.bib`** needs a real entry for `jin2026melody`; only the
+   placeholder bibitem exists.
+5. **Grep `main.tex` and `main_revised.tex`** for any sentence implying
+   epigenomic context improves VARIANT-EFFECT prediction. R2 forbids it.
+6. **Delete the superseded `70_mqtl_positive_control` (81 pairs) and
+   `71_mqtl_matched_negative` (35 pairs)** together with Supplementary S2/S3 in
+   ONE coordinated manuscript edit -- not before, since the text still cites them.
+7. **Commit the outstanding pieces**: `melody_env_freeze.txt` (never created),
+   and the REQUIREMENTS.md notes on the selene_sdk stub, torch 2.6.0+cu124 for
+   sm_70, and the margin-1 / sigmoid_first findings.
 
-5. **Melody head-to-head.** Zenodo record `21386471`. If checkpoints and the
-   meQTL benchmark are public, running Melody on our distance-matched cohorts is
-   inference-only and is the single strongest addition available — it converts
-   the nearest competitor into our strongest baseline. Check this early; it may
-   change how R3 is written.
-6. **Context swap** (slot 23). Needs a non-breast ENCODE line with all nine
-   context features. Would make R2 causal: feed lung context to a breast
-   sequence and show variant effects do not move.
-7. **ASM validation** (slot 53). Needs a public allele-specific methylation
-   resource.
-8. **eQTL / eQTM validation.** GTEx v8 eQTLs are public. eQTMs are harder.
-   Lowest priority of the four — it validates relevance, not the claim.
+### One decision, not yet made
+8. **eQTL / eQTM colocalisation.** The only remaining substantive analysis and
+   the only route to "new biological findings". Public GTEx, donors overlap
+   eGTEx, inference plus joins. **Take the prior seriously before committing:**
+   four disease-variant tests already returned null (ClinVar, breast GWAS,
+   all-trait GWAS in both cohorts), and the honest conclusion recorded on slide 8
+   is that "the model ranks methylation change, not clinical variant relevance".
+   Expression sits closer to methylation than disease does, so this is a better
+   bet than those were -- but it is a bet. Decide once, after the folds land.
 
-**Not doing**
+### Deferred, with reasons
+- **Methylation-LEVEL head-to-head against Melody.** Never tested; the whole
+  Melody comparison is variant effects. Needed before any claim about having the
+  better methylation predictor.
+- **Loyfer WGBS atlas (GSE186458) instead of TCGA.** Would remove the field-
+  cancerisation limitation. Large enough (205 samples, 39 cell types, 28.2M CpGs)
+  but a substantial re-plumbing.
+- **Allele-specific methylation** (slot 53), pooled TCGA baseline, BEND
+  multi-task validation (manifest entry exists, data MISSING -- the Nature
+  Machine Intelligence criterion, and out of scope for this paper).
 
-- Joint multi-tissue training. Melody published it at 39 tissues in the target
-  journal; the context tower is allele-invariant so it cannot answer the
-  tissue-specific-variant question anyway; and it contradicts the retraining
-  scope fixed on 4 Sep.
-- Naïvely pooled multi-tissue baseline — same reason.
+### Closed, do not reopen
+- Multi-tissue joint training: declined on architectural grounds (R2), not
+  resources. Context is allele-invariant; the proposed build cannot answer the
+  question it was proposed for.
+- Within-cohort ancestry stratification: impossible. 84 EUR / 4 AFR / 1 SAS /
+  8 unlabelled of 97 TCGA breast normals. GENOA is the ancestry evidence.
 
 ---
 

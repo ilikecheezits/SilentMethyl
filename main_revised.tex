@@ -389,6 +389,50 @@ exact coordinate, then matched to unlabelled pairs on variant--CpG distance and
 allele frequency. The probe was the independent unit and intervals are 1\,Mb
 block bootstraps; pre-registration, matching balance, and the power calculation
 are in the Supplementary Methods.
+
+\subsection{Cross-tissue transfer, context permutation, and external comparison}
+\label{sec:transfer-methods}
+
+Nine eGTEx tissues (breast, colon transverse, kidney cortex, lung, skeletal
+muscle, ovary, prostate, testis, whole blood; 987 donors) were harmonised to the
+same variant--CpG format as the breast cohort. The breast-trained checkpoints
+were applied unchanged: no target-tissue methylation, no tissue label, and
+breast epigenomic context throughout. Each tissue was analysed with the matched
+design used for GENOA -- significant pairs at $p<5\times10^{-8}$ paired to
+tested-but-null pairs at the same variant--CpG distance, variants creating or
+destroying the target CpG excluded, and 1\,Mb block bootstraps. Matching was
+verified by requiring the distance-only AUROC to equal $0.5000$ after matching;
+runs that failed this check were discarded rather than reported.
+
+To test whether the context pathway carries allele information, the context
+vector was replaced under three schemes -- identity, shuffle (the context of a
+randomly chosen locus), and median (the cohort median context) -- and predicted
+methylation levels and predicted variant effects were compared with the
+unperturbed run. The prediction that levels degrade while effects do not was
+recorded before the analysis was executed. A random locus's chromatin is further
+from the truth than another tissue's chromatin at the same locus, so a null
+result here implies a null result for a tissue swap.
+
+Melody \cite{jin2026melody} was compared on identical rows. Its released
+checkpoints were driven through a reimplementation of the authors' own
+\texttt{SNPEffectDataset} procedure: a 10\,kb window centred on the midpoint of
+the CpG and the variant, per-position allelic differences summed over the CpG
+interval, and \texttt{sigmoid} applied before differencing, since the model
+emits logits. The reimplementation reproduced the authors' published GTEx whole
+blood correlation ($r=0.406$ against a reported $0.407$) with a strict
+checkpoint load and no reference-base mismatches across 80,919 pairs.
+SilentMethyl's per-tissue score table was then used as the template, with only
+the predicted effect columns replaced, so both models were scored on
+byte-identical rows, matched negatives, and resampled blocks.
+
+Repeated chromosome-blocked splits partition the same probes into four folds in
+which no chromosome and no probe appears in two arms. Fold~0 is the published
+split, its chromosome sets read from the source files rather than assumed;
+folds~1--3 hold out probe counts matched to fold~0 (26,748, 26,783, and 26,806
+against 26,570) so that folds are comparable rather than confounded with
+held-out set size. Sex chromosomes remain in training for every fold and are
+never evaluated, because X-inactivation and the absence of chrY in female donors
+would make one fold measure a different quantity from the rest.
 }
 
 \section{Results}
@@ -621,6 +665,196 @@ stronger baseline accuracy did not translate into clearly stronger
 allele-specific prediction, and distance explained most marginal discrimination.
 
 \color{black}
+\color{addedred}
+\subsection{Context is allele-invariant: an architectural limit, tested directly}
+\label{sec:context-permutation}
+
+Corrupting the epigenomic context degraded predicted methylation \emph{levels}
+substantially more than predicted \emph{variant effects} (76,893 pairs; 0
+reference-base mismatches, 0 CpG-altering variants, 0 window failures). On
+normalised error, levels were 2.7$\times$ (shuffle) and 2.5$\times$ (median)
+worse affected than effects, with Spearman correlation and sign agreement
+agreeing in both schemes (Table~\ref{tab:ctxperm}).
+
+\begin{table}[!tbp]
+\centering
+\small
+\caption{\textbf{Agreement with the unperturbed run after context permutation.}
+Normalised error is mean absolute deviation divided by the standard deviation of
+the unperturbed quantity, so levels and effects are comparable despite differing
+scales.}
+\label{tab:ctxperm}
+\begin{tabular}{llcccc}
+\hline
+Scheme & Quantity & MAE/SD & Spearman & Sign agr. & Pearson \\
+\hline
+shuffle & levels  & 0.3045 & 0.8610 & 0.8593 & 0.9015 \\
+shuffle & effects & 0.1123 & 0.9530 & 0.9499 & 0.9276 \\
+median  & levels  & 0.1740 & 0.9772 & 0.9605 & 0.9855 \\
+median  & effects & 0.0692 & 0.9842 & 0.9744 & 0.9649 \\
+\hline
+\end{tabular}
+\end{table}
+
+The pre-specified criterion was implemented on Pearson correlation, and on that
+metric the median scheme fails (effects 0.9649 versus levels 0.9855) while the
+shuffle scheme passes. Methylation levels are bimodal with standard deviation
+3.13 $M$-units, so a high Pearson correlation is inexpensive on levels and is
+not comparable across the two quantities; normalised error, Spearman
+correlation, and sign agreement all favour effects under both schemes. We report
+the discrepancy rather than the three metrics that agree.
+
+This is a property of the architecture, not a deficiency of training. The
+context vector is identical for the reference and alternate allele, so it can
+rescale a variant effect through the gate but cannot create one or set its
+direction. Supplying a different tissue's chromatin would therefore not produce
+tissue-specific variant effects, and no amount of additional training data
+changes this; only an architecture in which context interacts with the allele
+could do so.
+
+\subsection{Zero-shot transfer to eight further tissues}
+\label{sec:transfer}
+
+Applied without modification to nine eGTEx tissues, the breast-trained model
+separated genome-wide significant meQTLs from distance-matched null pairs in
+seven of nine tissues, with distance-only AUROC pinned to $0.5000$ by
+construction in every case. Discrimination in breast --- the training tissue ---
+was 0.614 (0.533--0.700), indistinguishable from colon 0.605 (0.584--0.626),
+kidney cortex 0.606 (0.540--0.670), and lung 0.588 (0.567--0.609). The model was
+therefore no better on the tissue it was trained on than on tissues it had never
+seen.
+
+Prostate, a male-only tissue, transferred among the strongest, while ovary, a
+female-only tissue, was the single tissue with a negative tail difference
+($-0.021$, $-0.163$--$+0.186$) despite a healthy AUROC of 0.586
+(0.565--0.610) and the third-largest cohort. Donor sex therefore does not
+explain the pattern. Melody's authors independently report that ovary performs
+poorly in their benchmark, attributing it to ovary track quality or motif
+representation \cite{jin2026melody}; two architectures with different training
+data and different metrics show the same anomaly, which points to a property of
+the eGTEx ovary data rather than of either model.
+
+Section~\ref{sec:context-permutation} supplies the mechanism. Because predicted
+variant effects are nearly invariant to the chromatin the model is shown, a
+breast-context model operating in lung is not an unexpected success but the
+predicted consequence of allele invariance.
+
+This behaviour is not specific to the present architecture. Melody-ST-Breast, a
+single-tissue breast model with a 10\,kb convolutional encoder--decoder and no
+epigenomic input, also transfers across all nine tissues, reaching
+distance-matched AUROC of 0.59--0.65 and exceeding SilentMethyl in four of nine
+tissues at interval level (Section~\ref{sec:melody}). Two architectures sharing
+nothing but the task therefore show the same behaviour, and the result is a
+property of meQTL prediction rather than of either model. We state the finding in
+that form: single-tissue methylation models transfer, and the training tissue
+matters considerably less than the field assumes.
+
+\subsection{The model cannot separate shared from tissue-specific meQTLs}
+\label{sec:tissue-specificity}
+
+Whether predicted effects distinguish meQTLs shared across tissues from those
+confined to one tissue was tested under a rule fixed before the analysis: a
+tissue pair counts only when both ordered directions agree in sign with
+intervals excluding zero. Across 72 ordered directions, 49 were informative and
+1 of 14 reciprocated tissue pairs met the rule.
+
+That single pair does not support a biological reading. Calls separated cleanly
+by statistical power rather than by tissue: pairs classed as shared came from
+discovery cohorts with 24--55 significant associations per arm, and those classed
+as tissue-specific from cohorts with 404--845, with no overlap between the two
+ranges. In the low-powered cohorts the tissue-specific arm was
+\emph{anti}-predicted, with signed correlations of $-0.15$ to $-0.30$. The
+pattern is consistent with winner's curse: associations clearing a stringent
+threshold in an underpowered cohort are enriched for false positives, and the
+model declines to endorse them. We report this as a negative result with an
+identified mechanism. It also bears on benchmark construction elsewhere in the
+field, since meQTL panels assembled at $p<10^{-5}$ are more exposed to this
+failure mode than the $5\times10^{-8}$ threshold used here.
+
+\subsection{Comparison with a multi-tissue methylation model}
+\label{sec:melody}
+
+Melody \cite{jin2026melody} predicts methylation across 39 cell types from
+10\,kb windows and reports meQTL effect correlations on seven of our nine
+tissues, using the same chromosome split (chr10 validation, chr8 and chr9 test).
+Two comparisons are informative.
+
+\textbf{Reanalysis of the published results.} A two-way decomposition of
+Melody's $8\times8$ cross-track matrix attributes 85.0\% of the variance in
+meQTL performance to which benchmark is tested and 1.4\% to which tissue track
+is used, with the matched track's mean advantage over unmatched tracks being
+$+0.027$ Pearson $r$. Across the eight GTEx benchmarks, median variant--CpG
+distance predicts reported performance at Spearman $-0.833$ ($p=0.010$) and
+Pearson $-0.946$ ($p=0.0004$), while cohort size does not ($+0.323$, $p=0.44$).
+Differences that appear to reflect tissue biology therefore largely reflect how
+proximal each benchmark's pairs happen to be. Melody's authors do not conceal
+this --- their Fig.~3E shows performance declining with distance for every model
+--- and the criticism is that the field does not control for distance, not that
+the effect was hidden. Because the comparison spans eight datasets and the
+predictor was chosen after the pattern was seen, we present it as a reanalysis
+motivating our design rather than a definitive decomposition.
+
+\textbf{Head-to-head on distance-matched cohorts.} Both models were scored on
+byte-identical rows in eight tissues (testis excluded: no testis cell type
+exists among Melody's 39 tracks). Distance-matched AUROC was statistically
+indistinguishable in seven of eight tissues, with only whole blood separating
+($-0.109$, $-0.165$--$-0.051$); all eight point estimates favoured Melody, with
+a median gap near $-0.02$. Melody was better at ranking effect sizes among
+significant pairs in three tissues and we were better in one. This is the
+expected direction: Melody's evaluation is built on effect-size correlation, its
+window is ten times wider, and it is trained on 39 cell types.
+
+The asymmetry is the point. Melody is given tissue-matched tracks in every
+tissue, whereas SilentMethyl is trained on one tissue and given no target-tissue
+information of any kind. Melody-MT is a single model trained on all 39 cell
+types with 39 output channels, so its cross-track validation selects an output
+head rather than transferring to an unseen tissue; Melody-G, which does address
+unseen cell types, requires single-cell RNA-seq from the target and is evaluated
+on methylation levels rather than variant effects. A single-tissue model
+performing indistinguishably from a tissue-matched 39-cell-type model in seven
+of eight tissues bounds what tissue matching buys at roughly 0.02 AUROC --- the
+same order as the $+0.027$ recovered from Melody's own published matrix, by an
+independent route.
+
+\textbf{The single-tissue arm, and a direct measurement of tissue matching.}
+Melody-ST is trained on one cell type at a time and is the architecture-matched
+comparison for a single-tissue model; the published work does not apply one
+across tissues. Applied to all nine tissues, ST-Breast exceeded SilentMethyl on
+distance-matched AUROC in four tissues at interval level and in seven of nine by
+sign, so SilentMethyl is not the strongest transferring single-tissue model.
+Where SilentMethyl held an advantage, the pattern was consistent: in testis, the
+smallest cohort (94 significant pairs), ST-Breast fell below chance (0.474,
+0.359--0.589) while SilentMethyl retained signal, with paired differences of
+$+0.203$ (0.025--0.415) in signed correlation and $+0.117$ (0.033--0.209) in
+direction agreement; kidney cortex showed the same pattern in signed correlation
+($+0.236$, 0.123--0.380); and colon favoured SilentMethyl in the extreme tail
+($+0.250$, 0.088--0.409 at the top 0.1\%).
+
+Running the same architecture both ways isolates tissue matching completely.
+Scored on identical lung rows with identical matched negatives, a lung-trained
+and a breast-trained single-track model differed by $-0.005$
+($-0.024$--$+0.010$) in distance-matched AUROC --- not distinguishable, with the
+interval bounding any advantage of tissue matching below roughly 0.024. Matching
+conferred an advantage only in the top 0.5\% tail ($+0.116$, 0.029--0.213).
+Tissue matching therefore assists selection of the highest-ranked candidates
+while contributing little to discrimination overall.
+
+Four independent estimates agree: 1.4\% of variance attributable to the source
+track and a $+0.027$ matched-track advantage in Melody's published matrix, a
+median gap near 0.02 in the head-to-head, and 0.005 with an upper bound of 0.024
+when one architecture is run both ways. None of these requires SilentMethyl to be
+the better model.
+
+Two limits of that comparison should be stated. Melody contributes one released
+checkpoint against three seeds here, so its intervals are wider for that reason
+alone; and seed averaging reduces noise in our scores, so it should have
+favoured us and did not. Separately, Melody's benchmark retains only pairs with
+$p<10^{-5}$ and absolute effect above 0.5, so it contains no negative controls
+at all; discrimination against a matched null is not a metric on which their
+published results can be compared, which is why we report it for both models
+here rather than citing theirs.
+
+\color{black}
 \subsection{Mechanistic interpretation, uncertainty, and motif controls}
 \label{sec:equivalence}
 \color{addedred}
@@ -839,6 +1073,36 @@ direct perturbation.
 Several limitations define the current scope of these findings. Methylation targets were derived from cohort medians of 97 TCGA solid-tissue-normal breast samples collected adjacent to tumors and may therefore retain field effects or cell-composition heterogeneity \cite{tcga2012breast,teschendorff2016field}. The epigenomic context was derived from MCF-10A reference tracks rather than matched individual samples, and HM450 measurements cover only a subset of genomic CpGs. Evaluation was also performed using one chromosome-holdout design, and the external mQTL benchmark represents germline variation whereas the TCGA prioritization analysis includes somatic variants. These limitations motivate validation in independent breast cohorts, broader CpG coverage, patient- or cell-type-specific epigenomic data, additional genomic and tissue settings, and ultimately direct experimental testing of highly ranked SNV--CpG pairs.
 
 {\color{addedred}
+Four further limits follow from the analyses above. First, cross-ancestry
+evidence rests entirely on the GENOA comparison, in which ancestry, tissue, and
+array platform vary together, so ancestry cannot be isolated; the nine-tissue
+transfer narrows this by measuring tissue variation on its own across
+European-dominant cohorts, but does not remove it. A within-cohort contrast is
+not available: applying the GDC's open ancestry calls to the 97 TCGA breast
+normals gives 84 European, 4 African, 1 South Asian, and 8 unlabelled donors,
+and four donors cannot support an error estimate. Stratifying variant effects by
+ancestry would additionally require individual genotypes, which are
+access-controlled and were deliberately not used.
+
+Second, the epigenomic context pathway improves prediction of methylation
+levels but is close to inert for variant effects
+(Section~\ref{sec:context-permutation}), so no claim is made that tissue-specific
+regulatory context improves variant-effect prediction. Extending the model to
+further tissues by supplying their chromatin would not change this, because
+context enters the allelic contrast only as a scalar gate; an architecture in
+which context interacts with the allele would be required.
+
+Third, the comparison with Melody uses one released checkpoint against three
+seeds here, and is confined to variant effects. No head-to-head comparison of
+methylation \emph{level} prediction was performed, so the two models' relative
+accuracy on that task remains open.
+
+Fourth, the meQTL cohorts are limited to variants within the model's 1\,kb
+window and to CpGs assayed on HM450, so distal regulatory variants and the
+majority of genomic CpGs are outside the scope of every result reported here.
+}
+
+{\color{addedred}
 GENOA differs in tissue and ancestry, normalized effects prevent direct
 calibration, and motifs were computationally predicted. GWAS overlap is a noisy proxy for causality, since most catalog entries tag rather than cause an association. Direction agreement did not improve across quintiles of reference-effect
 precision (0.521 to 0.566, intervals overlapping), so the ceiling reflects model
@@ -888,6 +1152,9 @@ and detailed analysis procedures.
   {\small
   \begin{thebibliography}{99}
   \setlength{\itemsep}{0pt}
+  \bibitem{jin2026melody} \texttt{jin2026melody} --- Jin, Wang, Qiao \emph{et al.},
+  ``Decoding the sequence determinants of locus-specific DNA methylation across
+  human tissues,'' \emph{Nat. Commun.} (2026), doi:10.1038/s41467-026-76744-5.
   \bibitem{jones2012functions} \texttt{jones2012functions}
   \bibitem{schubeler2015function} \texttt{schubeler2015function}
   \bibitem{angermueller2017deepcpg} \texttt{angermueller2017deepcpg}

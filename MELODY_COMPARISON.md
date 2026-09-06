@@ -208,6 +208,107 @@ checkpoint; our reference is three seeds averaged. Seed averaging *reduces* nois
 in our scores, so it should have helped us. The consistent tilt toward Melody is
 therefore not explained by the seed asymmetry.
 
+## 3d. The Melody-ST arm -- single-tissue transfer, and what tissue matching buys
+
+Run 5 Sep 2026. `scripts/33_melody_scoring.py` with the released single-track
+checkpoints, `scripts/35_melody_st_by_tissue.py` to build the cohorts,
+`scripts/31_transfer_discrimination.py` for the comparisons. Output under
+`results/journal/melody_st_head_to_head/<Tissue>` and
+`results/journal/melody_st_matched_vs_unmatched/Lung`.
+
+**Why this arm exists.** Melody-MT is ONE model trained on all 39 cell types with
+39 output channels, and their Methods say so directly: "Melody-MT serves as the
+default model for tasks that involve multiple tissues, including meQTLs effect
+prediction and cross-cell-type transfer." Their Fig 3H cross-track validation is
+therefore output-head selection inside a model that saw every tissue in training.
+Melody-ST is the genuinely single-tissue variant -- "trained on one cell type at a
+time using a single bigWig track as supervision" -- and the paper never applies one
+across tissues. That experiment is the architecture-matched control for R3, and it
+did not exist until now.
+
+### Finding 1 -- single-tissue transfer is NOT specific to SilentMethyl
+
+Melody-ST-Breast, applied to all nine tissues, transfers. Paired difference,
+fusion minus ST-Breast, distance-matched AUROC (negative favours Melody-ST):
+
+    Breast       -0.0378 [-0.1058, +0.0258]  ns
+    Colon        -0.0228 [-0.0463, -0.0006]  ST-Breast better
+    Kidney       +0.0171 [-0.0600, +0.0875]  ns
+    Lung         -0.0220 [-0.0419, -0.0043]  ST-Breast better
+    Muscle       -0.0163 [-0.1278, +0.0735]  ns
+    Ovary        -0.0209 [-0.0406, -0.0028]  ST-Breast better
+    Prostate     -0.0142 [-0.0542, +0.0258]  ns
+    Testis       +0.0908 [-0.0205, +0.1921]  ns
+    WholeBlood   -0.0633 [-0.1212, -0.0115]  ST-Breast better
+
+Seven of nine favour ST-Breast, four at interval level (sign test p ~ 0.18, so
+the direction is weaker than the MT comparison's 8/8). **SilentMethyl is not the
+best-transferring single-tissue model here, and we must not say it is.**
+
+This is the right result and it makes R3 stronger. Two architectures sharing
+nothing but the task -- DNABERT-2 over 1 kb with a gated epigenomic tower, and a
+10 kb U-Net trained on WGBS -- both reach 0.59-0.65 distance-matched AUROC in
+tissues neither has seen. The finding is about **meQTL prediction**, not about
+our model. Rewrite R3 accordingly: "single-tissue methylation models transfer,
+and the training tissue matters far less than assumed."
+
+### Finding 2 -- where fusion does win, and it is a coherent pattern
+
+    Testis   ST-Breast AUROC 0.4737 [0.3594, 0.5886] -- BELOW CHANCE; rho -0.0740
+             fusion 0.5645, rho +0.1290
+             paired rho +0.2030 [+0.0251, +0.4153] DIFFERENT
+             direction agreement +0.1170 [+0.0332, +0.2091] DIFFERENT
+    Kidney   paired rho +0.2364 [+0.1228, +0.3795] DIFFERENT
+             direction agreement +0.0892 [+0.0082, +0.1816] DIFFERENT
+    Colon    tail top 0.1% +0.2500 [+0.0879, +0.4087] DIFFERENT
+             tail top 0.5% +0.0962 [+0.0353, +0.1667] DIFFERENT
+
+Fusion holds up in the low-powered and hardest tissues where the U-Net degrades,
+and dominates the extreme tail in colon. That is a narrower claim than "we
+transfer better" and it is true. Testis is the strongest single case: the
+tissue with the fewest significant pairs (94) is where ST-Breast falls below
+chance and fusion does not.
+
+### Finding 3 -- what tissue matching buys, measured directly
+
+ST-Lung against ST-Breast on identical Lung rows. Same architecture, same
+training-data scale, same scoring code, same matched negatives, same resampled
+blocks. **Only the training tissue differs.** This comparison exists in neither
+paper.
+
+    AUROC, distance-matched   -0.0054 [-0.0241, +0.0103]  not distinguishable
+    signed rho (significant)  +0.0297 [-0.0198, +0.0887]  not distinguishable
+    direction agreement       +0.0170 [-0.0068, +0.0420]  not distinguishable
+    tail top 0.1%             +0.1458 [-0.1022, +0.3984]  not distinguishable
+    tail top 0.5%             +0.1157 [+0.0288, +0.2126]  DIFFERENT
+    tail top 1%               +0.0290 [-0.0218, +0.0932]  not distinguishable
+    tail top 5%               -0.0074 [-0.0214, +0.0108]  not distinguishable
+
+    marginals: ST-Lung 0.6045 [0.5833, 0.6233]   ST-Breast 0.6099 [0.5870, 0.6321]
+
+**Tissue matching buys nothing detectable on discrimination.** The interval is
+tight -- [-0.024, +0.010] -- so it also bounds the effect: whatever tissue
+matching is worth, it is under about 0.024 AUROC. The point estimate slightly
+favours the MISMATCHED model, which is not a claim to make, but it does rule out
+matching being large.
+
+It buys something real in one place: the **top 0.5% tail** (+0.1157
+[+0.0288, +0.2126]). Matching helps you pick the very best candidates and does
+not help you separate meQTLs from nulls in general. State both halves.
+
+### The convergence -- this is the paper's headline
+
+Four independent routes to the same small number:
+
+    two-way decomposition of Melody's published 8x8 matrix   source track 1.4% of variance
+    matched-track advantage in that same matrix              +0.027 Pearson r
+    SilentMethyl vs Melody-MT head-to-head, eight tissues    ~0.02 AUROC median
+    ST-Lung vs ST-Breast, same architecture, same rows       0.005, bounded under 0.024
+
+Their published data, our head-to-head, and their own architecture run both ways
+all agree that tissue matching is worth roughly two AUROC points or less. That
+is the claim, and no part of it requires us to have the better model.
+
 ## 4. The gift — Ovary
 
 Melody, independently: *"Ovary data perform poorly, likely due to either (i)
@@ -225,6 +326,10 @@ Confirmed directly in the head-to-head (§3c): run on *our* ovary cohort,
 spanning zero), and the paired fusion-minus-melody differences are indistinguishable
 throughout. Ovary is the tissue where the two models agree most completely, and
 what they agree on is that neither adds anything to distance.
+
+The ST arm adds a third: Melody-ST-Breast on our ovary cohort also fails to
+clear the distance baseline at every threshold (top 0.1% +0.0000, 0.5% +0.0207,
+1% +0.0353, 5% -0.0021 -- all spanning zero).
 
 Two different architectures, different training data, different metrics, same
 anomaly. That is strong evidence the ovary result is a property of the eGTEx
