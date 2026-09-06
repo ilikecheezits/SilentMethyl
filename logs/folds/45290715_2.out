@@ -1,0 +1,6 @@
+=== fold 2  seed 42  2026-09-05T23:36:46Z ===
+train data/datafiles/splits/fold2/train.csv
+val   data/datafiles/splits/fold2/val.csv
+782f047c15692b7e8bcc7ea048a9567c  data/datafiles/splits/fold2/train.csv
+f460f51a7fac42b00a96ea8f97b9204a  data/datafiles/splits/fold2/val.csv
+--- 1/3 sequence tower ---

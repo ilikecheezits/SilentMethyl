@@ -1,0 +1,6 @@
+=== fold 3  seed 42  2026-09-05T23:36:46Z ===
+train data/datafiles/splits/fold3/train.csv
+val   data/datafiles/splits/fold3/val.csv
+40eb99260e7ffdcc122f1de15933820d  data/datafiles/splits/fold3/train.csv
+b9b75466957197dc42b488675761de93  data/datafiles/splits/fold3/val.csv
+--- 1/3 sequence tower ---
