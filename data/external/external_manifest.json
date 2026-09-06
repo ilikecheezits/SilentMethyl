@@ -47,6 +47,27 @@
       "title": "ClinVar variant summary (weekly VCF, GRCh38)",
       "url": "https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/clinvar.vcf.gz.tbi"
     },
+    "data/external/egtex_breast/BreastMammaryTissue.mQTLs.regular.txt.gz": {
+      "acquisition": "automatic",
+      "bytes": 45279365738,
+      "citation": "Oliva et al., DNA methylation QTL mapping across diverse human tissues (eGTEx)",
+      "derived_files": [
+        "data/external/egtex_breast/egtex_breast_within600.tsv.gz",
+        "data/external/egtex_breast/scoring/egtex_scoring_input_heldout.csv",
+        "data/external/egtex_breast/scoring/egtex_scoring_input_model_visible.csv",
+        "data/external/egtex_breast/scoring/egtex_probe_significance.csv"
+      ],
+      "genome_build": "hg38",
+      "needs_liftover_to_hg38": false,
+      "purpose": "primary breast mQTL cohort; source of every eGTEx breast result",
+      "removed_utc": "2026-09-06T13:01:59+00:00",
+      "restore": "data/fetch_egtex_regular_slices.sh streams this URL through the +/-600 bp filter without storing the raw file, which is how the other eight tissues are handled; add BreastMammaryTissue to its tissue list to regenerate within600 directly.",
+      "sha256": "190d6c28b427f8309f543f293e08abe73bf5068929e8c38dd12e8e1fd8779c61",
+      "source": "egtex",
+      "status": "removed_after_derivation",
+      "title": "eGTEx Breast Mammary Tissue mQTLs, regular (all tested pairs)",
+      "url": "https://storage.googleapis.com/egtex/methylation/epic-arrays/mQTLs/BreastMammaryTissue.mQTLs.regular.txt.gz"
+    },
     "data/external/egtex_mqtl/egtex_mqtl_by_tissue.tar": {
       "acquisition": "manual",
       "citation": "Oliva et al., Nat Genet 2023; GTEx Portal; GEO GSE213478",
