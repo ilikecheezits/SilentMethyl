@@ -63,10 +63,17 @@ $PY -u scripts/11_train_epi.py \
     --save_dir "${OUT}/epi_seed${SEED}" --seed ${SEED}
 
 echo "--- 3/3 gated fusion ---"
+# 12_train_fusion.py takes the .pth FILE, not the save directory -- it sha256's
+# the path. Passing the directory cost three folds 32 h each before failing with
+# IsADirectoryError, so check before spending the fusion stage.
+for w in "${OUT}/sequence_seed${SEED}/best_weights.pth" \
+         "${OUT}/epi_seed${SEED}/best_weights.pth"; do
+  [ -s "$w" ] || { echo "STOP: missing tower weights ${w}" >&2; exit 1; }
+done
 $PY -u scripts/12_train_fusion.py \
     --train_path "${TRAIN}" --val_path "${VAL}" \
-    --sequence_weights "${OUT}/sequence_seed${SEED}" \
-    --epi_weights "${OUT}/epi_seed${SEED}" \
+    --sequence_weights "${OUT}/sequence_seed${SEED}/best_weights.pth" \
+    --epi_weights "${OUT}/epi_seed${SEED}/best_weights.pth" \
     --save_dir "${OUT}/fusion_seed${SEED}" --seed ${SEED}
 
 echo "--- provenance check ---"
