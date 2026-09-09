@@ -525,14 +525,17 @@ difficulty rather than sample size.
 Test-set performance of each fold's own gated fusion model against its own
 sequence-only tower, on chromosomes held out of that fold's training and
 validation. Sex chromosomes are retained in training throughout and never
-evaluated.}
+evaluated. \emph{Every row is seed~42 alone}, so the four folds are directly
+comparable to one another; the three-seed figures quoted elsewhere for the
+published split ($\beta$ MAE $0.0993\pm0.0025$, AUC $0.9680\pm0.0021$) average
+over seeds and are a different estimator, not used here.}
 \label{tab:folds}
 \begin{tabular}{llrrrrr}
 \hline
 Fold & Test chromosomes & $n$ & \multicolumn{2}{c}{$\beta$ MAE} & \multicolumn{2}{c}{AUC} \\
  & & & fusion & seq. & fusion & seq. \\
 \hline
-0 & chr8, chr9 & 26,570 & 0.0993 & 0.1099 & 0.9680 & 0.9569 \\
+0 & chr8, chr9 & 26,570 & 0.0971 & 0.1090 & 0.9699 & 0.9576 \\
 1 & chr12, chr18 & 26,748 & 0.0942 & 0.1040 & 0.9719 & 0.9619 \\
 2 & chr20, chr4 & 26,783 & 0.0990 & 0.1064 & 0.9664 & 0.9571 \\
 3 & chr13, chr15, chr21 & 26,806 & 0.0938 & 0.1049 & 0.9724 & 0.9614 \\
@@ -541,17 +544,28 @@ Fold & Test chromosomes & $n$ & \multicolumn{2}{c}{$\beta$ MAE} & \multicolumn{2
 \end{table}
 
 Fusion improved on its own sequence tower in every fold
-(Table~\ref{tab:folds}). The reduction in $\beta$ MAE ranged from $0.0074$ to
-$0.0111$ and the AUC gain from $+0.0093$ to $+0.0110$, with the originally
-reported values ($-0.0106$ and $+0.0111$) inside both ranges. The paired
-block-bootstrap estimate on the original split, $-0.0104$
-($-0.0113$--$-0.0095$) in $\beta$ MAE and $+0.0105$ ($+0.0091$--$+0.0121$) in
-AUC, is therefore representative rather than favourable: the effect reproduces
-at the same magnitude on three chromosome partitions that share no held-out
-data with it or with each other.
+(Table~\ref{tab:folds}). Across the four folds the reduction in $\beta$ MAE
+ranged from $0.0074$ to $0.0119$ and the AUC gain from $+0.0093$ to $+0.0122$.
+The effect therefore reproduces on three chromosome partitions that share no
+held-out data with the published split or with each other, which is what this
+experiment was built to test.
 
-Absolute performance varied more across folds than the gain did --- fusion
-$\beta$ MAE spanned $0.0938$ to $0.0993$ --- which is the expected consequence
+Two qualifications belong with that statement. First, the published split is
+the \emph{largest} of the four gains under the like-for-like single-seed
+comparison ($+0.0122$ AUC, against $+0.0093$ to $+0.0110$ for the three new
+folds), so the originally reported chromosome partition is at the favourable
+end of the fold distribution rather than in the middle of it. Second, the
+headline figure reported for that split is not the single-seed value but the
+three-seed paired block-bootstrap estimate, $-0.0104$ ($-0.0113$--$-0.0095$) in
+$\beta$ MAE and $+0.0105$ ($+0.0091$--$+0.0121$) in AUC; seed averaging shrinks
+the gain, and that estimate does fall inside the range spanned by the three new
+folds. The fold-to-fold spread, $+0.0093$ to $+0.0122$, is the more complete
+description of the effect's magnitude, and is wider than the block-bootstrap
+interval computed on any one split.
+
+Absolute performance and the size of the gain varied by comparable amounts
+across folds: fusion $\beta$ MAE spanned $0.0938$ to $0.0990$, a range of
+$0.0052$, against a gain range of $0.0045$. Both are the expected consequence
 of chromosomes differing in gene density and CpG-island content. The two folds
 holding out the most gene-poor chromosomes (folds~1 and~3) gave the lowest
 error, so the model is not carried by promoter-dense regions.
@@ -1116,14 +1130,19 @@ interpretation to \texttt{GGAA} composition sensitivity.
 }
 
 {\color{addedred}
-The held-out \textit{NCOA2} candidate combines a large response, close CpG
-proximity, and active context into a testable hypothesis \cite{cai2019ncoa2}.
+The held-out \textit{NCOA2} candidate combines a large predicted response with
+close CpG proximity into a testable hypothesis \cite{cai2019ncoa2}. Its active
+chromatin context is an independent annotation of that locus and not a
+contributor to the predicted effect: because the context pathway is close to
+inert for allelic contrasts (Section~\ref{sec:context-permutation}), the
+ranking of this variant is a sequence-model result, and the chromatin state
+supports only its testability.
 The training-split \textit{STK11} examples extend the workflow to nonsynonymous
 variants but are not validation; neither case establishes causality without
 direct perturbation.
 }
 
-Several limitations define the current scope of these findings. Methylation targets were derived from cohort medians of 97 TCGA solid-tissue-normal breast samples collected adjacent to tumors and may therefore retain field effects or cell-composition heterogeneity \cite{tcga2012breast,teschendorff2016field}. The epigenomic context was derived from MCF-10A reference tracks rather than matched individual samples, and HM450 measurements cover only a subset of genomic CpGs. Evaluation was also performed using one chromosome-holdout design, and the external mQTL benchmark represents germline variation whereas the TCGA prioritization analysis includes somatic variants. {\color{addedred}The single-split limitation has since been addressed directly: Section~\ref{sec:folds} reports four independent chromosome-blocked folds, each retrained end to end, in which the fusion gain reproduces at the reported magnitude.} These limitations motivate validation in independent breast cohorts, broader CpG coverage, patient- or cell-type-specific epigenomic data, additional genomic and tissue settings, and ultimately direct experimental testing of highly ranked SNV--CpG pairs.
+Several limitations define the current scope of these findings. Methylation targets were derived from cohort medians of 97 TCGA solid-tissue-normal breast samples collected adjacent to tumors and may therefore retain field effects or cell-composition heterogeneity \cite{tcga2012breast,teschendorff2016field}. The epigenomic context was derived from MCF-10A reference tracks rather than matched individual samples, and HM450 measurements cover only a subset of genomic CpGs. Evaluation was also performed using one chromosome-holdout design, and the external mQTL benchmark represents germline variation whereas the TCGA prioritization analysis includes somatic variants. {\color{addedred}The single-split limitation has since been addressed directly: Section~\ref{sec:folds} reports four independent chromosome-blocked folds, each retrained end to end, in which the fusion gain reproduces --- though the published split proves to be the most favourable of the four.} These limitations motivate validation in independent breast cohorts, broader CpG coverage, patient- or cell-type-specific epigenomic data, additional genomic and tissue settings, and ultimately direct experimental testing of highly ranked SNV--CpG pairs.
 
 {\color{addedred}
 Four further limits follow from the analyses above. First, cross-ancestry

@@ -468,6 +468,83 @@ Write the paper knowing a reviewer will raise these.
    retention across tissues, and it removes true mQTLs at a *higher* rate than
    background — a conservative filter. State the filter and the range in
    Methods.
+6. **"Your fold table compares an ensemble to single seeds."** It did. Fixed
+   9 Sep 2026 — see §7.
+7. **"Your power diagnostic only fires for your own model."** It did. Fixed
+   9 Sep 2026 — see §7.
+
+### 7. Pre-email audit, 9 Sep 2026
+
+Prompted by the same question that produced the Melody R4 run: *where did we
+assume a control rather than run it?* Four items were closed; the rest are
+recorded as limitations.
+
+**A. The `41` power diagnostic was one-sided — FIXED.**
+`power_diagnostic()` tested only `shared.max_n < specific.min_n`, so it could
+detect the confound only when the `shared` calls were the underpowered side.
+That is SilentMethyl's shape. Melody's R4 failure runs the other way, so the
+test stayed silent for Melody, and the silence was read as "Melody has no power
+confound" — which the test never checked. Now two-sided, reports
+`low_power_call`, and checks BOTH arms for anti-prediction rather than only the
+tissue-specific one. Re-run on SilentMethyl reproduces the same verdict (1 of
+14, `shared` on the low-power side) and additionally surfaces one negative
+*shared* arm (ColonTransverse→Lung, n=132, −0.0040) that the old version never
+printed. **Melody's R4 results must be re-summarised with the patched script
+before any claim comparing the two failure modes.** A `--label` flag was added
+so the two runs are distinguishable in a scrollback.
+
+**B. Fold 0 was a three-seed mean; folds 1–3 are seed 42 — FIXED.**
+The table row `0.0993 / 0.1099 / 0.9680 / 0.9569` is exactly the mean over
+seeds 42/43/44 of the published-split test metrics. Folds 1–3 were trained at
+seed 42 only. The rows were therefore not comparable. Seed-42-only values for
+the published split are `0.0971 / 0.1090 / 0.9699 / 0.9576`.
+
+| | ΔβMAE | ΔAUC |
+|---|---|---|
+| fold 0, seed 42 (correct) | −0.0119 | +0.0122 |
+| fold 0, 3-seed mean (was in table) | −0.0106 | +0.0111 |
+| fold 1 | −0.0098 | +0.0100 |
+| fold 2 | −0.0074 | +0.0093 |
+| fold 3 | −0.0111 | +0.0110 |
+| 3-seed paired bootstrap (ensemble) | −0.0104 | +0.0105 |
+
+This *changes a claim*. The old text said the published values sat "inside both
+ranges" — i.e. the published split was unremarkable. Like-for-like, the
+published split gives the **largest** gain of the four folds. `main_revised.tex`
+now says so explicitly, reports the full spread (+0.0093 to +0.0122), and the
+caption states that every row is seed 42. There are three legitimate estimators
+of one quantity here (single-seed, mean-of-seeds, prediction-ensemble); the rule
+now is that the fold table is single-seed throughout and the ensemble figure is
+only ever quoted as the ensemble.
+
+**C. NCOA2 was justified partly by "active context" — FIXED in the discussion.**
+R2 says context is near-inert for allelic contrasts, so the chromatin state at
+cg20699548 cannot have contributed to the predicted Δβ. The discussion now
+states that the ranking is a sequence-model result and the chromatin annotation
+supports only testability. The Results paragraph was left alone — it describes
+the locus factually and makes no causal claim. `main.tex` untouched, per
+standing instruction; its §328 carries the un-caveated version and should not
+be circulated as the current text.
+
+**D. Fold provenance guards — NOT YET VERIFIED.** Cluster-only; the fusion
+rerun logs were never synced. See §3.
+
+Recorded as limitations rather than run: Melody-ST was validated structurally
+but never functionally (no published ST number exists to reproduce; the
+`--random-init` control is available if wanted); no methylation-*level*
+head-to-head against Melody exists, and the targets are not aligned so it is not
+a cheap run; the k-mer/CpGenie/DeepCpG baselines never went through nine-tissue
+transfer, though Melody-ST already showed transfer is architecture-independent
+(7/9). Melody's own benchmark cannot support a distance-matched null at all —
+p<1e-5 and |effect|>0.5 leaves zero negatives — which is the reason both models
+were evaluated on ours, and that should be stated as a design justification
+rather than left as an apparent gap.
+
+**Still to check:** whether the winner's-curse explanation is written as
+demonstrated or as hypothesised. Cohort size predicts per-dataset performance at
+r=+0.323 (p=0.44) — i.e. not at all — while distance predicts at −0.946. The
+data support the distance story; the power story is an interpretation and must
+be worded as one.
 
 ---
 
