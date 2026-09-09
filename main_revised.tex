@@ -816,27 +816,54 @@ property of meQTL prediction rather than of either model. We state the finding i
 that form: single-tissue methylation models transfer, and the training tissue
 matters considerably less than the field assumes.
 
-\subsection{The model cannot separate shared from tissue-specific meQTLs}
+\subsection{Neither model separates shared from tissue-specific meQTLs}
 \label{sec:tissue-specificity}
 
 Whether predicted effects distinguish meQTLs shared across tissues from those
 confined to one tissue was tested under a rule fixed before the analysis: a
 tissue pair counts only when both ordered directions agree in sign with
 intervals excluding zero. Across 72 ordered directions, 49 were informative and
-1 of 14 reciprocated tissue pairs met the rule.
+1 of 14 reciprocated tissue pairs met the rule, on each of the two metrics.
 
 That single pair does not support a biological reading. Calls separated cleanly
 by statistical power rather than by tissue: pairs classed as shared came from
-discovery cohorts with 24--55 significant associations per arm, and those classed
-as tissue-specific from cohorts with 404--845, with no overlap between the two
+discovery cohorts with 24--67 significant associations per arm, and those classed
+as tissue-specific from cohorts with 404--850, with no overlap between the two
 ranges. In the low-powered cohorts the tissue-specific arm was
-\emph{anti}-predicted, with signed correlations of $-0.15$ to $-0.30$. The
+\emph{anti}-predicted, with signed correlations of $-0.10$ to $-0.30$. The
 pattern is consistent with winner's curse: associations clearing a stringent
 threshold in an underpowered cohort are enriched for false positives, and the
 model declines to endorse them. We report this as a negative result with an
 identified mechanism. It also bears on benchmark construction elsewhere in the
 field, since meQTL panels assembled at $p<10^{-5}$ are more exposed to this
 failure mode than the $5\times10^{-8}$ threshold used here.
+
+\textbf{The same test applied to Melody.} A negative result of this kind is
+only interpretable against a comparator, so the identical analysis was run on
+Melody's scores over the same cohorts (eight tissues; testis has no
+corresponding Melody track). The outcome is negative there as well, and
+informatively so. Of 56 ordered directions 42 were informative; 1 of 14
+reciprocated pairs met the rule on direction agreement and \emph{none} met it on
+signed rank correlation. Melody's calls also separate cleanly by cohort size,
+but with the ranges reversed: directions classed as tissue-specific came from
+cohorts with 24--304 associations per arm and those classed as shared from
+593--692. In both models, therefore, the class that appears to be favoured is the
+one measured in the least-powered cohorts, and the opposite arm is
+anti-predicted --- Melody's shared arm falls to $-0.10$ and $-0.04$ in its two
+smallest cohorts, exactly as our tissue-specific arm does in ours.
+
+The two models fail in opposite directions, which is what makes the result
+interpretable. A single model failing could reflect that model's limitations; a
+sequence-plus-context model and a 39-cell-type sequence model failing in
+\emph{mirrored} directions, each favouring whichever class its underpowered
+cohorts happen to occupy, locates the problem in the benchmark rather than in
+either architecture. We therefore make no claim that predicted variant effects
+carry information about meQTL sharing, and we note that this question cannot be
+settled with discovery cohorts of the size currently available. Our diagnostic
+for this confound was initially one-sided, detecting non-overlapping cohort
+sizes only in the direction our own model produces; it was made symmetric before
+the comparison above was run, and the Melody result was obtained only after that
+correction.
 
 \subsection{Comparison with a multi-tissue methylation model}
 \label{sec:melody}

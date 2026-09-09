@@ -486,12 +486,34 @@ That is SilentMethyl's shape. Melody's R4 failure runs the other way, so the
 test stayed silent for Melody, and the silence was read as "Melody has no power
 confound" — which the test never checked. Now two-sided, reports
 `low_power_call`, and checks BOTH arms for anti-prediction rather than only the
-tissue-specific one. Re-run on SilentMethyl reproduces the same verdict (1 of
-14, `shared` on the low-power side) and additionally surfaces one negative
-*shared* arm (ColonTransverse→Lung, n=132, −0.0040) that the old version never
-printed. **Melody's R4 results must be re-summarised with the patched script
-before any claim comparing the two failure modes.** A `--label` flag was added
-so the two runs are distinguishable in a scrollback.
+tissue-specific one. A `--label` flag was added so the two runs are
+distinguishable in a scrollback.
+
+**A2. Both models re-summarised with the patched script — the answer is clean.**
+Logs: `logs/r41_melody.txt`, `logs/r41_silentmethyl.txt` (cluster).
+
+| | SilentMethyl fusion | Melody-MT |
+|---|---|---|
+| directions attempted / informative | 72 / 49 | 56 / 42 |
+| pairs meeting rule, direction agreement | 1 of 14, favouring **shared** | 1 of 14, favouring **specific** |
+| pairs meeting rule, signed rho | 1 of 14, favouring **shared** | **0 of 14** |
+| low-power side | `shared` (n 24–67) | `specific` (n 24–304) |
+| high-power side | `specific` (n 404–850) | `shared` (n 593–692) |
+| anti-predicted arm | specific, 8 directions, −0.10 to −0.30 | shared, 2 directions, −0.1046 / −0.0357 |
+
+Both separate cleanly by n; **both favour whichever class sits in their
+least-powered cohorts; the directions are mirrored.** That mirroring is the
+whole result — one model failing is a model limitation, two models failing in
+opposite directions with the same power signature locates the problem in the
+benchmark. Melody's anti-predicted *shared* arm would have printed nothing under
+the old one-sided code, so the patch produced evidence, not just tidier output.
+
+Written into `main_revised.tex` §`sec:tissue-specificity`, which is retitled
+"Neither model separates shared from tissue-specific meQTLs" and now discloses
+that our diagnostic was one-sided before the Melody comparison was run. Two
+figures in the original paragraph were also corrected against the fresh run:
+shared-arm cohort range 24–55 → **24–67**, specific-arm range 404–845 →
+**404–850**, anti-prediction floor −0.15 → **−0.10**.
 
 **B. Fold 0 was a three-seed mean; folds 1–3 are seed 42 — FIXED.**
 The table row `0.0993 / 0.1099 / 0.9680 / 0.9569` is exactly the mean over
