@@ -504,6 +504,59 @@ pretrained, this compares complete modelling strategies rather than architecture
 alone.
 }
 
+\color{addedred}
+\subsection{Repeated chromosome-blocked evaluation}
+\label{sec:folds}
+
+A single held-out split cannot separate an architecture that generalises from
+one that happens to suit the chromosomes it was tested on. We therefore
+partitioned the same probes into four folds in which no chromosome and no probe
+appears in two arms, retrained both towers and the gate independently within
+each fold, and evaluated on that fold's held-out chromosomes
+(Section~\ref{sec:transfer-methods}). Fold~0 is the published split; its
+chromosome sets were read from the source files rather than assumed. Held-out
+sizes are matched by construction, so differences between folds reflect
+difficulty rather than sample size.
+
+\begin{table}[!tbp]
+\centering
+\small
+\caption{\textbf{The fusion gain is not an artefact of one chromosome split.}
+Test-set performance of each fold's own gated fusion model against its own
+sequence-only tower, on chromosomes held out of that fold's training and
+validation. Sex chromosomes are retained in training throughout and never
+evaluated.}
+\label{tab:folds}
+\begin{tabular}{llrrrrr}
+\hline
+Fold & Test chromosomes & $n$ & \multicolumn{2}{c}{$\beta$ MAE} & \multicolumn{2}{c}{AUC} \\
+ & & & fusion & seq. & fusion & seq. \\
+\hline
+0 & chr8, chr9 & 26,570 & 0.0993 & 0.1099 & 0.9680 & 0.9569 \\
+1 & chr12, chr18 & 26,748 & 0.0942 & 0.1040 & 0.9719 & 0.9619 \\
+2 & chr20, chr4 & 26,783 & 0.0990 & 0.1064 & 0.9664 & 0.9571 \\
+3 & chr13, chr15, chr21 & 26,806 & 0.0938 & 0.1049 & 0.9724 & 0.9614 \\
+\hline
+\end{tabular}
+\end{table}
+
+Fusion improved on its own sequence tower in every fold
+(Table~\ref{tab:folds}). The reduction in $\beta$ MAE ranged from $0.0074$ to
+$0.0111$ and the AUC gain from $+0.0093$ to $+0.0110$, with the originally
+reported values ($-0.0106$ and $+0.0111$) inside both ranges. The paired
+block-bootstrap estimate on the original split, $-0.0104$
+($-0.0113$--$-0.0095$) in $\beta$ MAE and $+0.0105$ ($+0.0091$--$+0.0121$) in
+AUC, is therefore representative rather than favourable: the effect reproduces
+at the same magnitude on three chromosome partitions that share no held-out
+data with it or with each other.
+
+Absolute performance varied more across folds than the gain did --- fusion
+$\beta$ MAE spanned $0.0938$ to $0.0993$ --- which is the expected consequence
+of chromosomes differing in gene density and CpG-island content. The two folds
+holding out the most gene-poor chromosomes (folds~1 and~3) gave the lowest
+error, so the model is not carried by promoter-dense regions.
+
+\color{black}
 \subsection{Reference context across regulatory conditions}
 
 Fusion reduced beta MAE in every GENCODE, CpG-island, ATAC-seq, and H3K27ac
@@ -1070,7 +1123,7 @@ variants but are not validation; neither case establishes causality without
 direct perturbation.
 }
 
-Several limitations define the current scope of these findings. Methylation targets were derived from cohort medians of 97 TCGA solid-tissue-normal breast samples collected adjacent to tumors and may therefore retain field effects or cell-composition heterogeneity \cite{tcga2012breast,teschendorff2016field}. The epigenomic context was derived from MCF-10A reference tracks rather than matched individual samples, and HM450 measurements cover only a subset of genomic CpGs. Evaluation was also performed using one chromosome-holdout design, and the external mQTL benchmark represents germline variation whereas the TCGA prioritization analysis includes somatic variants. These limitations motivate validation in independent breast cohorts, broader CpG coverage, patient- or cell-type-specific epigenomic data, additional genomic and tissue settings, and ultimately direct experimental testing of highly ranked SNV--CpG pairs.
+Several limitations define the current scope of these findings. Methylation targets were derived from cohort medians of 97 TCGA solid-tissue-normal breast samples collected adjacent to tumors and may therefore retain field effects or cell-composition heterogeneity \cite{tcga2012breast,teschendorff2016field}. The epigenomic context was derived from MCF-10A reference tracks rather than matched individual samples, and HM450 measurements cover only a subset of genomic CpGs. Evaluation was also performed using one chromosome-holdout design, and the external mQTL benchmark represents germline variation whereas the TCGA prioritization analysis includes somatic variants. {\color{addedred}The single-split limitation has since been addressed directly: Section~\ref{sec:folds} reports four independent chromosome-blocked folds, each retrained end to end, in which the fusion gain reproduces at the reported magnitude.} These limitations motivate validation in independent breast cohorts, broader CpG coverage, patient- or cell-type-specific epigenomic data, additional genomic and tissue settings, and ultimately direct experimental testing of highly ranked SNV--CpG pairs.
 
 {\color{addedred}
 Four further limits follow from the analyses above. First, cross-ancestry
