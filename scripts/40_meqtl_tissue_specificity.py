@@ -553,7 +553,20 @@ def run_chromatin(args, loaded: dict) -> int:
             "ci_low": lo, "ci_high": hi,
             "rank_biserial": float(rb), "mannwhitney_p": float(u.pvalue),
         })
-    chrom = pd.DataFrame(rows).sort_values("rank_biserial", key=abs, ascending=False)
+    # Every feature can be skipped above when a comparison has fewer than 20
+    # probes on either side -- which happens for the smaller tissue pairs. An
+    # empty frame has no columns, so sorting on one raised KeyError and took the
+    # whole stage down rather than reporting that the stage had nothing to say.
+    COLS = ["feature", "n_shared", "n_specific", "median_shared",
+            "median_specific", "median_difference", "ci_low", "ci_high",
+            "rank_biserial", "mannwhitney_p"]
+    if rows:
+        chrom = pd.DataFrame(rows).sort_values("rank_biserial", key=abs,
+                                               ascending=False)
+    else:
+        LOGGER.warning("chromatin stage: no feature had >=20 probes on both "
+                       "sides; writing an empty table rather than failing")
+        chrom = pd.DataFrame(columns=COLS)
     chrom.to_csv(out_dir / "chromatin_by_class.csv", index=False)
 
     # ---- B. regression-adjusted accuracy, no matching ----------------------
@@ -605,6 +618,9 @@ def run_chromatin(args, loaded: dict) -> int:
     print("   Positive rank-biserial = higher in tissue-SHARED meQTLs.")
     print("   This analysis never uses the model's predictions.")
     print(f"{'feature':<34}{'shared':>10}{'specific':>10}{'rank-bis':>10}{'p':>12}")
+    if chrom.empty:
+        print("   (no feature had >= 20 probes on both sides -- this pair is too")
+        print("    small for the chromatin comparison; stage B below is unaffected)")
     for r in chrom.to_dict("records"):
         print(f"{r['feature']:<34}{r['median_shared']:>10.3f}"
               f"{r['median_specific']:>10.3f}{r['rank_biserial']:>+10.3f}"

@@ -1,0 +1,2035 @@
+{
+  "analysis": "model accuracy on tissue-shared vs tissue-specific meQTLs",
+  "both_directions": "every ordered cohort pair is run; a result appearing in only one direction is a cohort artifact, not a tissue effect",
+  "confound_controls": {
+    "matched_on": "|Z| in the discovery cohort, without replacement",
+    "power_screen": "a pair counts as tissue-specific only if the replication cohort could have detected an effect of the observed magnitude, compared in Z units",
+    "why": "shared meQTLs have larger effects and larger effects are easier to predict; without matching the result would be a restatement of effect size"
+  },
+  "generated_utc": "2026-09-09T21:54:11+00:00",
+  "hypothesis": "a sequence-only variant pathway should predict sequence-intrinsic (tissue-shared) meQTLs better than chromatin-mediated (tissue-specific) ones",
+  "parameters": {
+    "cohort": [
+      "BreastMammaryTissue:results/journal/melody/by_tissue/BreastMammaryTissue:5e-8",
+      "ColonTransverse:results/journal/melody/by_tissue/ColonTransverse:5e-8",
+      "KidneyCortex:results/journal/melody/by_tissue/KidneyCortex:5e-8",
+      "Lung:results/journal/melody/by_tissue/Lung:5e-8",
+      "MuscleSkeletal:results/journal/melody/by_tissue/MuscleSkeletal:5e-8",
+      "Ovary:results/journal/melody/by_tissue/Ovary:5e-8",
+      "Prostate:results/journal/melody/by_tissue/Prostate:5e-8",
+      "WholeBlood:results/journal/melody/by_tissue/WholeBlood:5e-8"
+    ],
+    "model": "melody",
+    "n_boot": 1000,
+    "output_dir": null,
+    "random_seed": 42,
+    "replication_p": 0.05,
+    "seeds": [
+      42
+    ],
+    "split_template": "data/datafiles/{split}.csv",
+    "stage": "all",
+    "z_tolerance": 0.5
+  },
+  "results": [
+    {
+      "discovery": "BreastMammaryTissue",
+      "matched": 0,
+      "note": "insufficient pairs for a matched comparison",
+      "replication": "ColonTransverse",
+      "shared": 153,
+      "significant_in_discovery": 154,
+      "specific": 1,
+      "tested_in_both": 45949,
+      "underpowered_dropped": 0
+    },
+    {
+      "discovery": "BreastMammaryTissue",
+      "matched": 0,
+      "note": "insufficient pairs for a matched comparison",
+      "replication": "KidneyCortex",
+      "shared": 144,
+      "significant_in_discovery": 154,
+      "specific": 10,
+      "tested_in_both": 45360,
+      "underpowered_dropped": 0
+    },
+    {
+      "discovery": "BreastMammaryTissue",
+      "matched": 0,
+      "note": "insufficient pairs for a matched comparison",
+      "replication": "Lung",
+      "shared": 152,
+      "significant_in_discovery": 154,
+      "specific": 2,
+      "tested_in_both": 46439,
+      "underpowered_dropped": 0
+    },
+    {
+      "discovery": "BreastMammaryTissue",
+      "matched": 0,
+      "note": "insufficient pairs for a matched comparison",
+      "replication": "MuscleSkeletal",
+      "shared": 138,
+      "significant_in_discovery": 154,
+      "specific": 16,
+      "tested_in_both": 44810,
+      "underpowered_dropped": 0
+    },
+    {
+      "discovery": "BreastMammaryTissue",
+      "matched": 0,
+      "note": "insufficient pairs for a matched comparison",
+      "replication": "Ovary",
+      "shared": 153,
+      "significant_in_discovery": 154,
+      "specific": 1,
+      "tested_in_both": 46383,
+      "underpowered_dropped": 0
+    },
+    {
+      "discovery": "BreastMammaryTissue",
+      "matched": 0,
+      "note": "insufficient pairs for a matched comparison",
+      "replication": "Prostate",
+      "shared": 147,
+      "significant_in_discovery": 154,
+      "specific": 7,
+      "tested_in_both": 42377,
+      "underpowered_dropped": 0
+    },
+    {
+      "direction_agreement_difference": -0.0198776344970743,
+      "direction_agreement_difference_ci": [
+        -0.12340909090909086,
+        0.08620689655172409
+      ],
+      "direction_agreement_shared": 0.5862068965517241,
+      "direction_agreement_shared_ci": [
+        0.5,
+        0.8549999999999955
+      ],
+      "direction_agreement_tissue_specific": 0.6206896551724138,
+      "direction_agreement_tissue_specific_ci": [
+        0.4799318181818182,
+        0.8095982142857142
+      ],
+      "discovery": "BreastMammaryTissue",
+      "matched": 29,
+      "median_absZ_gap": 0.41531699925717813,
+      "median_absZ_shared": 8.086692803884441,
+      "median_absZ_specific": 7.671375804627263,
+      "replication": "WholeBlood",
+      "shared": 125,
+      "signed_rho_difference": -0.05443814025189423,
+      "signed_rho_difference_ci": [
+        -0.3496117118250004,
+        0.26324421359231537
+      ],
+      "signed_rho_shared": 0.27675180094528967,
+      "signed_rho_shared_ci": [
+        -0.3432971111284567,
+        0.4228271954462947
+      ],
+      "signed_rho_tissue_specific": 0.37564969448096636,
+      "signed_rho_tissue_specific_ci": [
+        -0.03536031142277832,
+        0.8568004445983174
+      ],
+      "significant_in_discovery": 154,
+      "specific": 29,
+      "tested_in_both": 45243,
+      "underpowered_dropped": 0,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": 0.018016712626311965,
+      "direction_agreement_difference_ci": [
+        -0.02312143311523079,
+        0.06139659451165846
+      ],
+      "direction_agreement_shared": 0.6214788732394366,
+      "direction_agreement_shared_ci": [
+        0.5890342713917014,
+        0.6614150824674967
+      ],
+      "direction_agreement_tissue_specific": 0.6038732394366197,
+      "direction_agreement_tissue_specific_ci": [
+        0.5611576348718446,
+        0.6392342634379631
+      ],
+      "discovery": "ColonTransverse",
+      "matched": 568,
+      "median_absZ_gap": 0.11720711102056924,
+      "median_absZ_shared": 7.450431459505625,
+      "median_absZ_specific": 7.333224348485055,
+      "replication": "BreastMammaryTissue",
+      "shared": 1370,
+      "signed_rho_difference": 0.016979669613687676,
+      "signed_rho_difference_ci": [
+        -0.08433778634796445,
+        0.11166332039655286
+      ],
+      "signed_rho_shared": 0.2884550844493108,
+      "signed_rho_shared_ci": [
+        0.2015767503595223,
+        0.3703320580379734
+      ],
+      "signed_rho_tissue_specific": 0.27308230786407683,
+      "signed_rho_tissue_specific_ci": [
+        0.19245837698172666,
+        0.3505591594528516
+      ],
+      "significant_in_discovery": 2115,
+      "specific": 568,
+      "tested_in_both": 45949,
+      "underpowered_dropped": 177,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": 0.04238871810893054,
+      "direction_agreement_difference_ci": [
+        -0.005382878300587645,
+        0.08203320913862264
+      ],
+      "direction_agreement_shared": 0.6316831683168317,
+      "direction_agreement_shared_ci": [
+        0.5840976855713095,
+        0.6666666666666666
+      ],
+      "direction_agreement_tissue_specific": 0.5881188118811881,
+      "direction_agreement_tissue_specific_ci": [
+        0.5477523440143057,
+        0.6298039512562168
+      ],
+      "discovery": "ColonTransverse",
+      "matched": 505,
+      "median_absZ_gap": 0.0938087801143519,
+      "median_absZ_shared": 7.197796146873135,
+      "median_absZ_specific": 7.103987366758783,
+      "replication": "KidneyCortex",
+      "shared": 1450,
+      "signed_rho_difference": 0.03688507768876919,
+      "signed_rho_difference_ci": [
+        -0.06828047976733438,
+        0.12717778170759497
+      ],
+      "signed_rho_shared": 0.2942864422054449,
+      "signed_rho_shared_ci": [
+        0.19309030789157827,
+        0.36366376059579925
+      ],
+      "signed_rho_tissue_specific": 0.25309116792371433,
+      "signed_rho_tissue_specific_ci": [
+        0.16636795274042002,
+        0.3419320405226207
+      ],
+      "significant_in_discovery": 2112,
+      "specific": 505,
+      "tested_in_both": 45642,
+      "underpowered_dropped": 157,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": -0.11721446574445198,
+      "direction_agreement_difference_ci": [
+        -0.24369747899159666,
+        -0.03422782037239869
+      ],
+      "direction_agreement_shared": 0.5681818181818182,
+      "direction_agreement_shared_ci": [
+        NaN,
+        NaN
+      ],
+      "direction_agreement_tissue_specific": 0.6742424242424242,
+      "direction_agreement_tissue_specific_ci": [
+        0.5844776995305164,
+        0.7604203345070422
+      ],
+      "discovery": "ColonTransverse",
+      "matched": 132,
+      "median_absZ_gap": 0.18513440684740257,
+      "median_absZ_shared": 6.800871902992192,
+      "median_absZ_specific": 6.986006309839595,
+      "replication": "Lung",
+      "shared": 1983,
+      "signed_rho_difference": -0.24714503112662545,
+      "signed_rho_difference_ci": [
+        -0.4288176101571287,
+        -0.08472092703594401
+      ],
+      "signed_rho_shared": 0.20727790726747514,
+      "signed_rho_shared_ci": [
+        NaN,
+        NaN
+      ],
+      "signed_rho_tissue_specific": 0.4597394370949731,
+      "signed_rho_tissue_specific_ci": [
+        0.2930098225832025,
+        0.6045749564342051
+      ],
+      "significant_in_discovery": 2115,
+      "specific": 132,
+      "tested_in_both": 46925,
+      "underpowered_dropped": 0,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": -0.021820657134580146,
+      "direction_agreement_difference_ci": [
+        -0.05948018519177089,
+        0.01771353205074369
+      ],
+      "direction_agreement_shared": 0.5988023952095808,
+      "direction_agreement_shared_ci": [
+        0.5589666301303129,
+        0.6366958593022422
+      ],
+      "direction_agreement_tissue_specific": 0.6207584830339321,
+      "direction_agreement_tissue_specific_ci": [
+        0.5826362145200399,
+        0.6574437639595441
+      ],
+      "discovery": "ColonTransverse",
+      "matched": 501,
+      "median_absZ_gap": 0.02527559503270904,
+      "median_absZ_shared": 7.741362254057817,
+      "median_absZ_specific": 7.766637849090526,
+      "replication": "MuscleSkeletal",
+      "shared": 1311,
+      "signed_rho_difference": -0.08656138962447113,
+      "signed_rho_difference_ci": [
+        -0.18466604244662624,
+        0.008886113869904351
+      ],
+      "signed_rho_shared": 0.22727787166464666,
+      "signed_rho_shared_ci": [
+        0.13119953998567088,
+        0.3208161091047797
+      ],
+      "signed_rho_tissue_specific": 0.31535041021268173,
+      "signed_rho_tissue_specific_ci": [
+        0.22778797880386614,
+        0.3882431622433228
+      ],
+      "significant_in_discovery": 2109,
+      "specific": 501,
+      "tested_in_both": 45162,
+      "underpowered_dropped": 297,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": -0.05051242428364609,
+      "direction_agreement_difference_ci": [
+        -0.10625174868334426,
+        0.0067619047619046635
+      ],
+      "direction_agreement_shared": 0.5842391304347826,
+      "direction_agreement_shared_ci": [
+        0.5364615266707541,
+        0.6457422458893871
+      ],
+      "direction_agreement_tissue_specific": 0.6358695652173914,
+      "direction_agreement_tissue_specific_ci": [
+        0.5897297297297297,
+        0.6813589260480452
+      ],
+      "discovery": "ColonTransverse",
+      "matched": 368,
+      "median_absZ_gap": 0.051976550373006525,
+      "median_absZ_shared": 7.194220164997843,
+      "median_absZ_specific": 7.246196715370849,
+      "replication": "Ovary",
+      "shared": 1740,
+      "signed_rho_difference": -0.08678448318760841,
+      "signed_rho_difference_ci": [
+        -0.20547129894946756,
+        0.048255072705248814
+      ],
+      "signed_rho_shared": 0.24825133023777973,
+      "signed_rho_shared_ci": [
+        0.14875766174827243,
+        0.355789633474694
+      ],
+      "signed_rho_tissue_specific": 0.33652489555437687,
+      "signed_rho_tissue_specific_ci": [
+        0.23245241195410446,
+        0.4346425807731797
+      ],
+      "significant_in_discovery": 2113,
+      "specific": 368,
+      "tested_in_both": 46205,
+      "underpowered_dropped": 5,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": -0.014472865642616205,
+      "direction_agreement_difference_ci": [
+        -0.06669219367588931,
+        0.02819187607603852
+      ],
+      "direction_agreement_shared": 0.5889967637540453,
+      "direction_agreement_shared_ci": [
+        0.5413380673906989,
+        0.6202640768223483
+      ],
+      "direction_agreement_tissue_specific": 0.6019417475728155,
+      "direction_agreement_tissue_specific_ci": [
+        0.5547004079551249,
+        0.6456748678369878
+      ],
+      "discovery": "ColonTransverse",
+      "matched": 309,
+      "median_absZ_gap": 0.13045247284717654,
+      "median_absZ_shared": 7.100458849946305,
+      "median_absZ_specific": 6.9700063770991285,
+      "replication": "Prostate",
+      "shared": 1791,
+      "signed_rho_difference": -0.06288990829855451,
+      "signed_rho_difference_ci": [
+        -0.22071585628081117,
+        0.06796147336432126
+      ],
+      "signed_rho_shared": 0.2583919468440139,
+      "signed_rho_shared_ci": [
+        0.11385724330662055,
+        0.31668363708077124
+      ],
+      "signed_rho_tissue_specific": 0.30889732504445433,
+      "signed_rho_tissue_specific_ci": [
+        0.18181891293649022,
+        0.4311102247439708
+      ],
+      "significant_in_discovery": 2107,
+      "specific": 309,
+      "tested_in_both": 43089,
+      "underpowered_dropped": 7,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": -0.01961168714141828,
+      "direction_agreement_difference_ci": [
+        -0.05194285275232717,
+        0.01336511640362783
+      ],
+      "direction_agreement_shared": 0.6051873198847262,
+      "direction_agreement_shared_ci": [
+        0.5675263477066558,
+        0.6451813263874975
+      ],
+      "direction_agreement_tissue_specific": 0.6253602305475504,
+      "direction_agreement_tissue_specific_ci": [
+        0.5971073321837583,
+        0.6577259768832698
+      ],
+      "discovery": "ColonTransverse",
+      "matched": 694,
+      "median_absZ_gap": 0.017519438130185527,
+      "median_absZ_shared": 7.589041367183484,
+      "median_absZ_specific": 7.571521929053299,
+      "replication": "WholeBlood",
+      "shared": 1202,
+      "signed_rho_difference": -0.06449209357924747,
+      "signed_rho_difference_ci": [
+        -0.15114862183730784,
+        0.007072413383569421
+      ],
+      "signed_rho_shared": 0.24993388177193532,
+      "signed_rho_shared_ci": [
+        0.17590582753016262,
+        0.31871380643295855
+      ],
+      "signed_rho_tissue_specific": 0.3127800351100596,
+      "signed_rho_tissue_specific_ci": [
+        0.2466615480779427,
+        0.381062418231515
+      ],
+      "significant_in_discovery": 2110,
+      "specific": 694,
+      "tested_in_both": 45495,
+      "underpowered_dropped": 214,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": 0.10388839232990049,
+      "direction_agreement_difference_ci": [
+        -0.016666666666666607,
+        0.23429824561403495
+      ],
+      "direction_agreement_shared": 0.7083333333333334,
+      "direction_agreement_shared_ci": [
+        0.5833333333333334,
+        1.0
+      ],
+      "direction_agreement_tissue_specific": 0.5833333333333334,
+      "direction_agreement_tissue_specific_ci": [
+        0.43478260869565216,
+        0.7619747899159662
+      ],
+      "discovery": "KidneyCortex",
+      "matched": 24,
+      "median_absZ_gap": 0.11163858243867786,
+      "median_absZ_shared": 8.42517583329161,
+      "median_absZ_specific": 8.313537250852931,
+      "replication": "BreastMammaryTissue",
+      "shared": 132,
+      "signed_rho_difference": 0.3785130603204437,
+      "signed_rho_difference_ci": [
+        -0.024753195501054787,
+        0.9128761362896047
+      ],
+      "signed_rho_shared": 0.47998277534362804,
+      "signed_rho_shared_ci": [
+        0.11461291325433876,
+        0.9439252336448598
+      ],
+      "signed_rho_tissue_specific": 0.16117225621956496,
+      "signed_rho_tissue_specific_ci": [
+        -0.4651870923279746,
+        0.7536626747017242
+      ],
+      "significant_in_discovery": 157,
+      "specific": 24,
+      "tested_in_both": 45360,
+      "underpowered_dropped": 1,
+      "z_balance_ok": true
+    },
+    {
+      "discovery": "KidneyCortex",
+      "matched": 0,
+      "note": "insufficient pairs for a matched comparison",
+      "replication": "ColonTransverse",
+      "shared": 145,
+      "significant_in_discovery": 157,
+      "specific": 12,
+      "tested_in_both": 45642,
+      "underpowered_dropped": 0
+    },
+    {
+      "discovery": "KidneyCortex",
+      "matched": 0,
+      "note": "insufficient pairs for a matched comparison",
+      "replication": "Lung",
+      "shared": 139,
+      "significant_in_discovery": 157,
+      "specific": 18,
+      "tested_in_both": 45866,
+      "underpowered_dropped": 0
+    },
+    {
+      "direction_agreement_difference": 0.13522626598648643,
+      "direction_agreement_difference_ci": [
+        -0.015242474916387893,
+        0.28823529411764703
+      ],
+      "direction_agreement_shared": 0.6538461538461539,
+      "direction_agreement_shared_ci": [
+        0.39909090909090916,
+        0.8217261904761902
+      ],
+      "direction_agreement_tissue_specific": 0.5384615384615384,
+      "direction_agreement_tissue_specific_ci": [
+        0.37920258620689656,
+        0.7777777777777778
+      ],
+      "discovery": "KidneyCortex",
+      "matched": 26,
+      "median_absZ_gap": 0.36581192862625755,
+      "median_absZ_shared": 8.62965431574505,
+      "median_absZ_specific": 8.995466244371308,
+      "replication": "MuscleSkeletal",
+      "shared": 129,
+      "signed_rho_difference": 0.277017751704445,
+      "signed_rho_difference_ci": [
+        -0.14270898777738783,
+        0.757166673879973
+      ],
+      "signed_rho_shared": 0.45197793766500155,
+      "signed_rho_shared_ci": [
+        0.04807070063732661,
+        0.7949128669608121
+      ],
+      "signed_rho_tissue_specific": 0.21855594618507973,
+      "signed_rho_tissue_specific_ci": [
+        -0.38902493893564805,
+        0.6465499827047758
+      ],
+      "significant_in_discovery": 157,
+      "specific": 27,
+      "tested_in_both": 44566,
+      "underpowered_dropped": 1,
+      "z_balance_ok": true
+    },
+    {
+      "discovery": "KidneyCortex",
+      "matched": 19,
+      "note": "matching failed; widen --z-tolerance",
+      "replication": "Ovary",
+      "shared": 137,
+      "specific": 20
+    },
+    {
+      "discovery": "KidneyCortex",
+      "matched": 0,
+      "note": "insufficient pairs for a matched comparison",
+      "replication": "Prostate",
+      "shared": 143,
+      "significant_in_discovery": 156,
+      "specific": 13,
+      "tested_in_both": 42775,
+      "underpowered_dropped": 0
+    },
+    {
+      "direction_agreement_difference": 0.1040481860073636,
+      "direction_agreement_difference_ci": [
+        -0.12816597653554165,
+        0.273020993343574
+      ],
+      "direction_agreement_shared": 0.7441860465116279,
+      "direction_agreement_shared_ci": [
+        0.5805521091811415,
+        0.8604812661498707
+      ],
+      "direction_agreement_tissue_specific": 0.627906976744186,
+      "direction_agreement_tissue_specific_ci": [
+        0.4893498817966903,
+        0.7777777777777778
+      ],
+      "discovery": "KidneyCortex",
+      "matched": 43,
+      "median_absZ_gap": 0.26155742409565264,
+      "median_absZ_shared": 8.577897970940281,
+      "median_absZ_specific": 8.316340546844629,
+      "replication": "WholeBlood",
+      "shared": 99,
+      "signed_rho_difference": -0.1430317614335161,
+      "signed_rho_difference_ci": [
+        -0.5873711321046664,
+        0.23439878143648393
+      ],
+      "signed_rho_shared": 0.3190332471880165,
+      "signed_rho_shared_ci": [
+        -0.10583250063492847,
+        0.5566890839840526
+      ],
+      "signed_rho_tissue_specific": 0.45437381914353486,
+      "signed_rho_tissue_specific_ci": [
+        0.10413358533666157,
+        0.7440167082632904
+      ],
+      "significant_in_discovery": 157,
+      "specific": 57,
+      "tested_in_both": 45282,
+      "underpowered_dropped": 1,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": -0.01925479284929727,
+      "direction_agreement_difference_ci": [
+        -0.059294850440407,
+        0.02410788993338201
+      ],
+      "direction_agreement_shared": 0.5741496598639456,
+      "direction_agreement_shared_ci": [
+        0.5407471119698033,
+        0.6142863375716779
+      ],
+      "direction_agreement_tissue_specific": 0.5945578231292517,
+      "direction_agreement_tissue_specific_ci": [
+        0.5597145915823789,
+        0.629049376141205
+      ],
+      "discovery": "Lung",
+      "matched": 735,
+      "median_absZ_gap": 0.10993244039835037,
+      "median_absZ_shared": 7.289347743723703,
+      "median_absZ_specific": 7.179415303325353,
+      "replication": "BreastMammaryTissue",
+      "shared": 1381,
+      "signed_rho_difference": -0.024671852582798883,
+      "signed_rho_difference_ci": [
+        -0.09086530944308184,
+        0.047703595958164854
+      ],
+      "signed_rho_shared": 0.2402427634450958,
+      "signed_rho_shared_ci": [
+        0.16177497619472353,
+        0.3182258141337118
+      ],
+      "signed_rho_tissue_specific": 0.2641200527109443,
+      "signed_rho_tissue_specific_ci": [
+        0.20985098064962796,
+        0.32616000846018395
+      ],
+      "significant_in_discovery": 2238,
+      "specific": 753,
+      "tested_in_both": 46439,
+      "underpowered_dropped": 104,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": -0.09637323659633969,
+      "direction_agreement_difference_ci": [
+        -0.2129175052293084,
+        -0.008415519762861484
+      ],
+      "direction_agreement_shared": 0.5226130653266332,
+      "direction_agreement_shared_ci": [
+        0.40816326530612246,
+        0.5526315789473685
+      ],
+      "direction_agreement_tissue_specific": 0.6030150753768844,
+      "direction_agreement_tissue_specific_ci": [
+        0.5344626585670895,
+        0.677252944188428
+      ],
+      "discovery": "Lung",
+      "matched": 199,
+      "median_absZ_gap": 0.22616732411666796,
+      "median_absZ_shared": 7.088576129008931,
+      "median_absZ_specific": 6.862408804892263,
+      "replication": "ColonTransverse",
+      "shared": 2038,
+      "signed_rho_difference": -0.1310127675251078,
+      "signed_rho_difference_ci": [
+        -0.41074639588629375,
+        0.07835331927550031
+      ],
+      "signed_rho_shared": 0.22757001806786634,
+      "signed_rho_shared_ci": [
+        -0.046014666418177114,
+        0.2850964622569206
+      ],
+      "signed_rho_tissue_specific": 0.30829528527368966,
+      "signed_rho_tissue_specific_ci": [
+        0.1643854932041775,
+        0.4404897713967338
+      ],
+      "significant_in_discovery": 2237,
+      "specific": 199,
+      "tested_in_both": 46925,
+      "underpowered_dropped": 0,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": 0.0007260228667982147,
+      "direction_agreement_difference_ci": [
+        -0.05082512397421776,
+        0.05177510398098631
+      ],
+      "direction_agreement_shared": 0.5662650602409639,
+      "direction_agreement_shared_ci": [
+        0.5274830179626606,
+        0.6048905586621104
+      ],
+      "direction_agreement_tissue_specific": 0.5647590361445783,
+      "direction_agreement_tissue_specific_ci": [
+        0.5246678808038681,
+        0.6068286967159721
+      ],
+      "discovery": "Lung",
+      "matched": 664,
+      "median_absZ_gap": 0.07237381046146041,
+      "median_absZ_shared": 7.293378294979462,
+      "median_absZ_specific": 7.2210044845180015,
+      "replication": "KidneyCortex",
+      "shared": 1459,
+      "signed_rho_difference": -0.02860680967219927,
+      "signed_rho_difference_ci": [
+        -0.1381048149615624,
+        0.05927445612831891
+      ],
+      "signed_rho_shared": 0.20821312053502336,
+      "signed_rho_shared_ci": [
+        0.12115689792549199,
+        0.28362193984486905
+      ],
+      "signed_rho_tissue_specific": 0.23459565771109836,
+      "signed_rho_tissue_specific_ci": [
+        0.1594902975117373,
+        0.30754642577113633
+      ],
+      "significant_in_discovery": 2231,
+      "specific": 665,
+      "tested_in_both": 45866,
+      "underpowered_dropped": 107,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": 0.018569601652291053,
+      "direction_agreement_difference_ci": [
+        -0.0224215538370809,
+        0.06121977573832442
+      ],
+      "direction_agreement_shared": 0.5813295615275813,
+      "direction_agreement_shared_ci": [
+        0.5475854400380338,
+        0.6191344074155815
+      ],
+      "direction_agreement_tissue_specific": 0.562942008486563,
+      "direction_agreement_tissue_specific_ci": [
+        0.5255482684990448,
+        0.5997120123056205
+      ],
+      "discovery": "Lung",
+      "matched": 707,
+      "median_absZ_gap": 0.0338765274876458,
+      "median_absZ_shared": 7.748592675573919,
+      "median_absZ_specific": 7.714716148086273,
+      "replication": "MuscleSkeletal",
+      "shared": 1312,
+      "signed_rho_difference": 0.0033296743798210695,
+      "signed_rho_difference_ci": [
+        -0.07114462442828984,
+        0.09344151122338766
+      ],
+      "signed_rho_shared": 0.24537716075441815,
+      "signed_rho_shared_ci": [
+        0.16875976896803432,
+        0.3226363434204619
+      ],
+      "signed_rho_tissue_specific": 0.24256857305152435,
+      "signed_rho_tissue_specific_ci": [
+        0.1774236418000522,
+        0.3096676272667391
+      ],
+      "significant_in_discovery": 2235,
+      "specific": 707,
+      "tested_in_both": 45371,
+      "underpowered_dropped": 216,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": 0.0028051510163950725,
+      "direction_agreement_difference_ci": [
+        -0.04819861209505888,
+        0.05230687924727141
+      ],
+      "direction_agreement_shared": 0.5676767676767677,
+      "direction_agreement_shared_ci": [
+        0.525503762110905,
+        0.6106342716318072
+      ],
+      "direction_agreement_tissue_specific": 0.5656565656565656,
+      "direction_agreement_tissue_specific_ci": [
+        0.5226715759290981,
+        0.6168622291021671
+      ],
+      "discovery": "Lung",
+      "matched": 495,
+      "median_absZ_gap": 0.08188300918119484,
+      "median_absZ_shared": 7.364808054109707,
+      "median_absZ_specific": 7.282925044928512,
+      "replication": "Ovary",
+      "shared": 1742,
+      "signed_rho_difference": 0.033052185094353856,
+      "signed_rho_difference_ci": [
+        -0.07725334084770563,
+        0.12471261287078025
+      ],
+      "signed_rho_shared": 0.2844375793745867,
+      "signed_rho_shared_ci": [
+        0.20757578690638784,
+        0.3594147914395772
+      ],
+      "signed_rho_tissue_specific": 0.24854856116698054,
+      "signed_rho_tissue_specific_ci": [
+        0.14799071789934926,
+        0.357661310121082
+      ],
+      "significant_in_discovery": 2238,
+      "specific": 495,
+      "tested_in_both": 46628,
+      "underpowered_dropped": 1,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": 0.006055138020603253,
+      "direction_agreement_difference_ci": [
+        -0.04982991995707006,
+        0.05224096042291736
+      ],
+      "direction_agreement_shared": 0.5495049504950495,
+      "direction_agreement_shared_ci": [
+        0.5083310439560439,
+        0.5989552033826356
+      ],
+      "direction_agreement_tissue_specific": 0.5420792079207921,
+      "direction_agreement_tissue_specific_ci": [
+        0.4926041004193121,
+        0.5967763046782638
+      ],
+      "discovery": "Lung",
+      "matched": 404,
+      "median_absZ_gap": 0.16873866540839622,
+      "median_absZ_shared": 7.093199743898769,
+      "median_absZ_specific": 6.924461078490372,
+      "replication": "Prostate",
+      "shared": 1815,
+      "signed_rho_difference": 0.009875748157109647,
+      "signed_rho_difference_ci": [
+        -0.14163925266232305,
+        0.11875942395689833
+      ],
+      "signed_rho_shared": 0.22734958398818006,
+      "signed_rho_shared_ci": [
+        0.09843740708151094,
+        0.29894258158065173
+      ],
+      "signed_rho_tissue_specific": 0.20484272940713769,
+      "signed_rho_tissue_specific_ci": [
+        0.09944701553785461,
+        0.3070138223313201
+      ],
+      "significant_in_discovery": 2219,
+      "specific": 404,
+      "tested_in_both": 43175,
+      "underpowered_dropped": 0,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": -0.005594871463880811,
+      "direction_agreement_difference_ci": [
+        -0.05305664171324703,
+        0.037565851592865615
+      ],
+      "direction_agreement_shared": 0.5751295336787565,
+      "direction_agreement_shared_ci": [
+        0.5409389923009453,
+        0.6109662202196858
+      ],
+      "direction_agreement_tissue_specific": 0.5803108808290155,
+      "direction_agreement_tissue_specific_ci": [
+        0.5364452266804627,
+        0.6308963029662126
+      ],
+      "discovery": "Lung",
+      "matched": 772,
+      "median_absZ_gap": 0.10401819743562779,
+      "median_absZ_shared": 7.54258589326577,
+      "median_absZ_specific": 7.438567695830142,
+      "replication": "WholeBlood",
+      "shared": 1371,
+      "signed_rho_difference": -0.00781430008137172,
+      "signed_rho_difference_ci": [
+        -0.09245715951425001,
+        0.0713819039611978
+      ],
+      "signed_rho_shared": 0.23492340406404347,
+      "signed_rho_shared_ci": [
+        0.1669465089169346,
+        0.30079011892511154
+      ],
+      "signed_rho_tissue_specific": 0.24444707112985492,
+      "signed_rho_tissue_specific_ci": [
+        0.1742405666312676,
+        0.32631813247103925
+      ],
+      "significant_in_discovery": 2232,
+      "specific": 772,
+      "tested_in_both": 45768,
+      "underpowered_dropped": 89,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": -0.1393694570899224,
+      "direction_agreement_difference_ci": [
+        -0.3390151515151515,
+        0.06711538461538455
+      ],
+      "direction_agreement_shared": 0.5757575757575758,
+      "direction_agreement_shared_ci": [
+        0.45159709044908286,
+        0.8148989898989898
+      ],
+      "direction_agreement_tissue_specific": 0.7272727272727273,
+      "direction_agreement_tissue_specific_ci": [
+        0.5356547619047619,
+        0.8857142857142857
+      ],
+      "discovery": "MuscleSkeletal",
+      "matched": 33,
+      "median_absZ_gap": 0.03481388468183333,
+      "median_absZ_shared": 8.167747694567025,
+      "median_absZ_specific": 8.202561579248858,
+      "replication": "BreastMammaryTissue",
+      "shared": 94,
+      "signed_rho_difference": -0.054810968596669236,
+      "signed_rho_difference_ci": [
+        -0.3923832840157582,
+        0.2793488918167364
+      ],
+      "signed_rho_shared": 0.2780239313302679,
+      "signed_rho_shared_ci": [
+        -0.08050956743979949,
+        0.6150053249212812
+      ],
+      "signed_rho_tissue_specific": 0.3422507016518718,
+      "signed_rho_tissue_specific_ci": [
+        -0.03310731057045933,
+        0.5755764420826892
+      ],
+      "significant_in_discovery": 128,
+      "specific": 34,
+      "tested_in_both": 44810,
+      "underpowered_dropped": 0,
+      "z_balance_ok": true
+    },
+    {
+      "discovery": "MuscleSkeletal",
+      "matched": 0,
+      "note": "insufficient pairs for a matched comparison",
+      "replication": "ColonTransverse",
+      "shared": 115,
+      "significant_in_discovery": 128,
+      "specific": 13,
+      "tested_in_both": 45162,
+      "underpowered_dropped": 0
+    },
+    {
+      "direction_agreement_difference": -0.09938616653837153,
+      "direction_agreement_difference_ci": [
+        -0.24013698795763413,
+        0.055220306513409964
+      ],
+      "direction_agreement_shared": 0.6216216216216216,
+      "direction_agreement_shared_ci": [
+        0.5134805537244561,
+        0.8
+      ],
+      "direction_agreement_tissue_specific": 0.7297297297297297,
+      "direction_agreement_tissue_specific_ci": [
+        0.5952220077220077,
+        0.8542410714285713
+      ],
+      "discovery": "MuscleSkeletal",
+      "matched": 37,
+      "median_absZ_gap": 0.029431986653383646,
+      "median_absZ_shared": 8.242612272618524,
+      "median_absZ_specific": 8.272044259271908,
+      "replication": "KidneyCortex",
+      "shared": 90,
+      "signed_rho_difference": -0.11557806408364803,
+      "signed_rho_difference_ci": [
+        -0.4150416024185193,
+        0.22120312170493298
+      ],
+      "signed_rho_shared": 0.2719079977582103,
+      "signed_rho_shared_ci": [
+        -0.04632558105139384,
+        0.5505194028307779
+      ],
+      "signed_rho_tissue_specific": 0.38493203079506333,
+      "signed_rho_tissue_specific_ci": [
+        0.11176073067406012,
+        0.6253706197037826
+      ],
+      "significant_in_discovery": 128,
+      "specific": 38,
+      "tested_in_both": 44566,
+      "underpowered_dropped": 0,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": -0.1463374548417593,
+      "direction_agreement_difference_ci": [
+        -0.30000000000000004,
+        0.006526806526806553
+      ],
+      "direction_agreement_shared": 0.5,
+      "direction_agreement_shared_ci": [
+        0.38461538461538464,
+        0.6923076923076923
+      ],
+      "direction_agreement_tissue_specific": 0.65,
+      "direction_agreement_tissue_specific_ci": [
+        0.47043067226890756,
+        0.875
+      ],
+      "discovery": "MuscleSkeletal",
+      "matched": 20,
+      "median_absZ_gap": 0.025752247619404756,
+      "median_absZ_shared": 8.304811362932902,
+      "median_absZ_specific": 8.330563610552307,
+      "replication": "Lung",
+      "shared": 108,
+      "signed_rho_difference": -0.6050318148968389,
+      "signed_rho_difference_ci": [
+        -1.012714474798461,
+        -0.09847520917870314
+      ],
+      "signed_rho_shared": -0.10462934783757878,
+      "signed_rho_shared_ci": [
+        -0.5560738732265829,
+        0.4295680607523888
+      ],
+      "signed_rho_tissue_specific": 0.4250199256143258,
+      "signed_rho_tissue_specific_ci": [
+        0.06512470071967535,
+        0.7751974084451427
+      ],
+      "significant_in_discovery": 128,
+      "specific": 20,
+      "tested_in_both": 45371,
+      "underpowered_dropped": 0,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": -0.28752341631124223,
+      "direction_agreement_difference_ci": [
+        -0.4006241565452092,
+        -0.1582436294355801
+      ],
+      "direction_agreement_shared": 0.4583333333333333,
+      "direction_agreement_shared_ci": [
+        0.36363636363636365,
+        0.6923076923076923
+      ],
+      "direction_agreement_tissue_specific": 0.75,
+      "direction_agreement_tissue_specific_ci": [
+        0.5882352941176471,
+        0.8695652173913043
+      ],
+      "discovery": "MuscleSkeletal",
+      "matched": 24,
+      "median_absZ_gap": 0.151930725588727,
+      "median_absZ_shared": 8.330563610552307,
+      "median_absZ_specific": 8.482494336141034,
+      "replication": "Ovary",
+      "shared": 104,
+      "signed_rho_difference": -0.3749626896001685,
+      "signed_rho_difference_ci": [
+        -0.6781806840886484,
+        0.11608993551406788
+      ],
+      "signed_rho_shared": -0.035667684974866304,
+      "signed_rho_shared_ci": [
+        -0.4274731907081335,
+        0.5694422233124311
+      ],
+      "signed_rho_tissue_specific": 0.3514848652582949,
+      "signed_rho_tissue_specific_ci": [
+        -0.12162959654283192,
+        0.6112383591963187
+      ],
+      "significant_in_discovery": 128,
+      "specific": 24,
+      "tested_in_both": 45069,
+      "underpowered_dropped": 0,
+      "z_balance_ok": true
+    },
+    {
+      "discovery": "MuscleSkeletal",
+      "matched": 0,
+      "note": "insufficient pairs for a matched comparison",
+      "replication": "Prostate",
+      "shared": 111,
+      "significant_in_discovery": 128,
+      "specific": 17,
+      "tested_in_both": 42158,
+      "underpowered_dropped": 0
+    },
+    {
+      "direction_agreement_difference": -0.14304677324712411,
+      "direction_agreement_difference_ci": [
+        -0.25,
+        -0.03282693551367325
+      ],
+      "direction_agreement_shared": 0.5636363636363636,
+      "direction_agreement_shared_ci": [
+        0.45278394376618575,
+        0.6896756978653531
+      ],
+      "direction_agreement_tissue_specific": 0.7090909090909091,
+      "direction_agreement_tissue_specific_ci": [
+        0.6065573770491803,
+        0.8044314381270903
+      ],
+      "discovery": "MuscleSkeletal",
+      "matched": 55,
+      "median_absZ_gap": 0.017440651393435758,
+      "median_absZ_shared": 8.348004261945743,
+      "median_absZ_specific": 8.330563610552307,
+      "replication": "WholeBlood",
+      "shared": 65,
+      "signed_rho_difference": -0.18763356767857067,
+      "signed_rho_difference_ci": [
+        -0.4255267979393459,
+        0.0529403800111465
+      ],
+      "signed_rho_shared": 0.270168858348321,
+      "signed_rho_shared_ci": [
+        0.00036365993155573095,
+        0.5249304321698726
+      ],
+      "signed_rho_tissue_specific": 0.45223971044902256,
+      "signed_rho_tissue_specific_ci": [
+        0.22785738052197635,
+        0.6180848367895231
+      ],
+      "significant_in_discovery": 128,
+      "specific": 63,
+      "tested_in_both": 44760,
+      "underpowered_dropped": 0,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": 0.04167142182247043,
+      "direction_agreement_difference_ci": [
+        0.00394908426159271,
+        0.0758702422719621
+      ],
+      "direction_agreement_shared": 0.5852601156069365,
+      "direction_agreement_shared_ci": [
+        0.5501501635731925,
+        0.6222064295716212
+      ],
+      "direction_agreement_tissue_specific": 0.5447976878612717,
+      "direction_agreement_tissue_specific_ci": [
+        0.5031247566199377,
+        0.5826526680501449
+      ],
+      "discovery": "Ovary",
+      "matched": 692,
+      "median_absZ_gap": 0.014917398256908854,
+      "median_absZ_shared": 7.426855935490176,
+      "median_absZ_specific": 7.411938537233267,
+      "replication": "BreastMammaryTissue",
+      "shared": 1087,
+      "signed_rho_difference": 0.08622046831428787,
+      "signed_rho_difference_ci": [
+        -0.0015816966345723457,
+        0.16119382265709015
+      ],
+      "signed_rho_shared": 0.2123551702019051,
+      "signed_rho_shared_ci": [
+        0.15114034309668123,
+        0.28432296115268735
+      ],
+      "signed_rho_tissue_specific": 0.12762011231583287,
+      "signed_rho_tissue_specific_ci": [
+        0.03884936082756492,
+        0.21769865712178757
+      ],
+      "significant_in_discovery": 1810,
+      "specific": 698,
+      "tested_in_both": 46383,
+      "underpowered_dropped": 25,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": 0.04855489723191806,
+      "direction_agreement_difference_ci": [
+        -0.011148025101513458,
+        0.10105551143567805
+      ],
+      "direction_agreement_shared": 0.565625,
+      "direction_agreement_shared_ci": [
+        0.5115168098031001,
+        0.6316186194128537
+      ],
+      "direction_agreement_tissue_specific": 0.51875,
+      "direction_agreement_tissue_specific_ci": [
+        0.464642729065806,
+        0.5755931549634982
+      ],
+      "discovery": "Ovary",
+      "matched": 320,
+      "median_absZ_gap": 0.12671190635692042,
+      "median_absZ_shared": 7.525880696319637,
+      "median_absZ_specific": 7.652592602676558,
+      "replication": "ColonTransverse",
+      "shared": 1491,
+      "signed_rho_difference": 0.15094498872486395,
+      "signed_rho_difference_ci": [
+        0.035243715615162534,
+        0.2663315143056613
+      ],
+      "signed_rho_shared": 0.21035958688681353,
+      "signed_rho_shared_ci": [
+        0.09861943537485206,
+        0.37859143647663573
+      ],
+      "signed_rho_tissue_specific": 0.062360127666161905,
+      "signed_rho_tissue_specific_ci": [
+        -0.056287551635542554,
+        0.16943564243115725
+      ],
+      "significant_in_discovery": 1811,
+      "specific": 320,
+      "tested_in_both": 46205,
+      "underpowered_dropped": 0,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": 0.043763271266335835,
+      "direction_agreement_difference_ci": [
+        0.0013003240951658702,
+        0.08493824273111052
+      ],
+      "direction_agreement_shared": 0.5919055649241147,
+      "direction_agreement_shared_ci": [
+        0.5464430550861777,
+        0.6421743697478992
+      ],
+      "direction_agreement_tissue_specific": 0.5480607082630692,
+      "direction_agreement_tissue_specific_ci": [
+        0.5055688463583201,
+        0.5903355648734931
+      ],
+      "discovery": "Ovary",
+      "matched": 593,
+      "median_absZ_gap": 0.04058972442271891,
+      "median_absZ_shared": 7.666595119940931,
+      "median_absZ_specific": 7.626005395518212,
+      "replication": "KidneyCortex",
+      "shared": 1166,
+      "signed_rho_difference": 0.0760404537693138,
+      "signed_rho_difference_ci": [
+        -0.01746577871561172,
+        0.16999206123255392
+      ],
+      "signed_rho_shared": 0.19335734560802562,
+      "signed_rho_shared_ci": [
+        0.09010643399251879,
+        0.2967666901506403
+      ],
+      "signed_rho_tissue_specific": 0.12138974127355602,
+      "signed_rho_tissue_specific_ci": [
+        0.03598702350095203,
+        0.2109652583683562
+      ],
+      "significant_in_discovery": 1809,
+      "specific": 594,
+      "tested_in_both": 45539,
+      "underpowered_dropped": 49,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": 0.04396076720393058,
+      "direction_agreement_difference_ci": [
+        -0.01370264239891832,
+        0.09655519418956099
+      ],
+      "direction_agreement_shared": 0.5583333333333333,
+      "direction_agreement_shared_ci": [
+        0.5113623508844097,
+        0.6086956521739131
+      ],
+      "direction_agreement_tissue_specific": 0.5138888888888888,
+      "direction_agreement_tissue_specific_ci": [
+        0.453844670092724,
+        0.5722901038114723
+      ],
+      "discovery": "Ovary",
+      "matched": 360,
+      "median_absZ_gap": 0.0134633944475393,
+      "median_absZ_shared": 7.520121337037558,
+      "median_absZ_specific": 7.533584731485098,
+      "replication": "Lung",
+      "shared": 1449,
+      "signed_rho_difference": 0.05356637014198187,
+      "signed_rho_difference_ci": [
+        -0.04589653066207838,
+        0.1701761353144977
+      ],
+      "signed_rho_shared": 0.14732463194415055,
+      "signed_rho_shared_ci": [
+        0.03954484686780632,
+        0.2673030775629651
+      ],
+      "signed_rho_tissue_specific": 0.09574427589188148,
+      "signed_rho_tissue_specific_ci": [
+        -0.008333804594167691,
+        0.21324091028778389
+      ],
+      "significant_in_discovery": 1809,
+      "specific": 360,
+      "tested_in_both": 46628,
+      "underpowered_dropped": 0,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": 0.01608552733653444,
+      "direction_agreement_difference_ci": [
+        -0.025637672526188014,
+        0.05531676433039321
+      ],
+      "direction_agreement_shared": 0.5795107033639144,
+      "direction_agreement_shared_ci": [
+        0.5346476359592481,
+        0.6308835576935681
+      ],
+      "direction_agreement_tissue_specific": 0.5642201834862385,
+      "direction_agreement_tissue_specific_ci": [
+        0.5247681524625785,
+        0.5985157031149853
+      ],
+      "discovery": "Ovary",
+      "matched": 654,
+      "median_absZ_gap": 0.042559730117483596,
+      "median_absZ_shared": 7.667324677001865,
+      "median_absZ_specific": 7.6247649468843814,
+      "replication": "MuscleSkeletal",
+      "shared": 1072,
+      "signed_rho_difference": 0.013161866311345314,
+      "signed_rho_difference_ci": [
+        -0.07319131244229278,
+        0.11185984938720021
+      ],
+      "signed_rho_shared": 0.18301650374581746,
+      "signed_rho_shared_ci": [
+        0.0760400950112969,
+        0.28929377889618596
+      ],
+      "signed_rho_tissue_specific": 0.17238510901560344,
+      "signed_rho_tissue_specific_ci": [
+        0.09931047948723397,
+        0.24927684051060173
+      ],
+      "significant_in_discovery": 1805,
+      "specific": 654,
+      "tested_in_both": 45069,
+      "underpowered_dropped": 79,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": 0.015230876633536844,
+      "direction_agreement_difference_ci": [
+        -0.027333026481420043,
+        0.0614716822888844
+      ],
+      "direction_agreement_shared": 0.5610328638497653,
+      "direction_agreement_shared_ci": [
+        0.5264544437451927,
+        0.6032395009129641
+      ],
+      "direction_agreement_tissue_specific": 0.5469483568075117,
+      "direction_agreement_tissue_specific_ci": [
+        0.49331689665516726,
+        0.5980188540285756
+      ],
+      "discovery": "Ovary",
+      "matched": 426,
+      "median_absZ_gap": 0.10267658079023256,
+      "median_absZ_shared": 7.501957233268193,
+      "median_absZ_specific": 7.399280652477961,
+      "replication": "Prostate",
+      "shared": 1368,
+      "signed_rho_difference": 0.03273567403669584,
+      "signed_rho_difference_ci": [
+        -0.051880698334988144,
+        0.12142059543587475
+      ],
+      "signed_rho_shared": 0.1872777218885006,
+      "signed_rho_shared_ci": [
+        0.1149632551953035,
+        0.28746607358884685
+      ],
+      "signed_rho_tissue_specific": 0.15535945513067062,
+      "signed_rho_tissue_specific_ci": [
+        0.052741111690712196,
+        0.2656609902001459
+      ],
+      "significant_in_discovery": 1797,
+      "specific": 426,
+      "tested_in_both": 42545,
+      "underpowered_dropped": 3,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": -0.017603911520573126,
+      "direction_agreement_difference_ci": [
+        -0.05667985962402479,
+        0.01978037714632659
+      ],
+      "direction_agreement_shared": 0.5554089709762533,
+      "direction_agreement_shared_ci": [
+        0.5072010493495498,
+        0.600581804055054
+      ],
+      "direction_agreement_tissue_specific": 0.5725593667546174,
+      "direction_agreement_tissue_specific_ci": [
+        0.5381809512013872,
+        0.6089236163474588
+      ],
+      "discovery": "Ovary",
+      "matched": 758,
+      "median_absZ_gap": 0.06632030407898704,
+      "median_absZ_shared": 8.383619831338004,
+      "median_absZ_specific": 8.317299527259017,
+      "replication": "WholeBlood",
+      "shared": 803,
+      "signed_rho_difference": -0.04376251335689952,
+      "signed_rho_difference_ci": [
+        -0.13612900146073129,
+        0.06060154297605563
+      ],
+      "signed_rho_shared": 0.17032003117140634,
+      "signed_rho_shared_ci": [
+        0.061617662560755994,
+        0.27386348263221033
+      ],
+      "signed_rho_tissue_specific": 0.21437410997845988,
+      "signed_rho_tissue_specific_ci": [
+        0.1465477693161241,
+        0.2900045409274174
+      ],
+      "significant_in_discovery": 1809,
+      "specific": 957,
+      "tested_in_both": 45367,
+      "underpowered_dropped": 49,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": -0.012699829372965356,
+      "direction_agreement_difference_ci": [
+        -0.09472066584731058,
+        0.06125423723920209
+      ],
+      "direction_agreement_shared": 0.6310160427807486,
+      "direction_agreement_shared_ci": [
+        0.5633698487219614,
+        0.6891272165545651
+      ],
+      "direction_agreement_tissue_specific": 0.6417112299465241,
+      "direction_agreement_tissue_specific_ci": [
+        0.5804833817768229,
+        0.7136095700416089
+      ],
+      "discovery": "Prostate",
+      "matched": 187,
+      "median_absZ_gap": 0.09402065050984021,
+      "median_absZ_shared": 7.241052857266168,
+      "median_absZ_specific": 7.147032206756328,
+      "replication": "BreastMammaryTissue",
+      "shared": 632,
+      "signed_rho_difference": -0.030759964941944943,
+      "signed_rho_difference_ci": [
+        -0.1523221047284404,
+        0.08237097969743709
+      ],
+      "signed_rho_shared": 0.2215881131142115,
+      "signed_rho_shared_ci": [
+        0.11874833727956635,
+        0.31106898412719125
+      ],
+      "signed_rho_tissue_specific": 0.25342525782091957,
+      "signed_rho_tissue_specific_ci": [
+        0.13172197366144814,
+        0.38263461782978003
+      ],
+      "significant_in_discovery": 825,
+      "specific": 187,
+      "tested_in_both": 42377,
+      "underpowered_dropped": 6,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": -0.018268736376655766,
+      "direction_agreement_difference_ci": [
+        -0.15689397710303635,
+        0.0802589514066495
+      ],
+      "direction_agreement_shared": 0.6417910447761194,
+      "direction_agreement_shared_ci": [
+        0.4761278195488722,
+        0.7694444444444443
+      ],
+      "direction_agreement_tissue_specific": 0.6567164179104478,
+      "direction_agreement_tissue_specific_ci": [
+        0.5492730577010451,
+        0.7705152224824355
+      ],
+      "discovery": "Prostate",
+      "matched": 67,
+      "median_absZ_gap": 0.04173214302726791,
+      "median_absZ_shared": 7.181246482975132,
+      "median_absZ_specific": 7.2229786260024,
+      "replication": "ColonTransverse",
+      "shared": 757,
+      "signed_rho_difference": -0.19042499018265116,
+      "signed_rho_difference_ci": [
+        -0.5612897781391648,
+        0.06723159709724315
+      ],
+      "signed_rho_shared": 0.18499890848862202,
+      "signed_rho_shared_ci": [
+        -0.24739376445738567,
+        0.3101164000449554
+      ],
+      "signed_rho_tissue_specific": 0.331503955689815,
+      "signed_rho_tissue_specific_ci": [
+        0.08595253045064197,
+        0.56177130851429
+      ],
+      "significant_in_discovery": 824,
+      "specific": 67,
+      "tested_in_both": 43089,
+      "underpowered_dropped": 0,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": 0.03747745601130373,
+      "direction_agreement_difference_ci": [
+        -0.039105387513095356,
+        0.11525067843727864
+      ],
+      "direction_agreement_shared": 0.6684491978609626,
+      "direction_agreement_shared_ci": [
+        0.6049049049049049,
+        0.7398385732412238
+      ],
+      "direction_agreement_tissue_specific": 0.6310160427807486,
+      "direction_agreement_tissue_specific_ci": [
+        0.562491554054054,
+        0.6960871848739495
+      ],
+      "discovery": "Prostate",
+      "matched": 187,
+      "median_absZ_gap": 0.02627955475278121,
+      "median_absZ_shared": 7.171209049452854,
+      "median_absZ_specific": 7.144929494700073,
+      "replication": "KidneyCortex",
+      "shared": 618,
+      "signed_rho_difference": -0.060086790710443407,
+      "signed_rho_difference_ci": [
+        -0.18902530454339747,
+        0.07984199189837575
+      ],
+      "signed_rho_shared": 0.2775238557281544,
+      "signed_rho_shared_ci": [
+        0.16007623771239093,
+        0.41552464879773365
+      ],
+      "signed_rho_tissue_specific": 0.33601775742865236,
+      "signed_rho_tissue_specific_ci": [
+        0.21698852624673495,
+        0.47228770168263534
+      ],
+      "significant_in_discovery": 824,
+      "specific": 187,
+      "tested_in_both": 42775,
+      "underpowered_dropped": 19,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": -0.05667064288386642,
+      "direction_agreement_difference_ci": [
+        -0.22180303030303028,
+        0.05980362838915468
+      ],
+      "direction_agreement_shared": 0.6179775280898876,
+      "direction_agreement_shared_ci": [
+        0.48148148148148145,
+        0.7437499999999999
+      ],
+      "direction_agreement_tissue_specific": 0.6741573033707865,
+      "direction_agreement_tissue_specific_ci": [
+        0.582256402708272,
+        0.7619431643625191
+      ],
+      "discovery": "Prostate",
+      "matched": 89,
+      "median_absZ_gap": 0.0421387103513462,
+      "median_absZ_shared": 7.271877285105687,
+      "median_absZ_specific": 7.229738574754341,
+      "replication": "Lung",
+      "shared": 735,
+      "signed_rho_difference": 0.013471319684746014,
+      "signed_rho_difference_ci": [
+        -0.2861186658373485,
+        0.2651649371914598
+      ],
+      "signed_rho_shared": 0.22125221240365098,
+      "signed_rho_shared_ci": [
+        -0.04169085267638008,
+        0.49317808736075686
+      ],
+      "signed_rho_tissue_specific": 0.20743119039129992,
+      "signed_rho_tissue_specific_ci": [
+        -0.018136375027934377,
+        0.4354344024641966
+      ],
+      "significant_in_discovery": 824,
+      "specific": 89,
+      "tested_in_both": 43175,
+      "underpowered_dropped": 0,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": 0.013937522315233328,
+      "direction_agreement_difference_ci": [
+        -0.07437327764815017,
+        0.08842592276739346
+      ],
+      "direction_agreement_shared": 0.6490384615384616,
+      "direction_agreement_shared_ci": [
+        0.5792119296859569,
+        0.7058948685857322
+      ],
+      "direction_agreement_tissue_specific": 0.6346153846153846,
+      "direction_agreement_tissue_specific_ci": [
+        0.5672991071428571,
+        0.7070107682021325
+      ],
+      "discovery": "Prostate",
+      "matched": 208,
+      "median_absZ_gap": 0.08426901626403005,
+      "median_absZ_shared": 7.26564588611229,
+      "median_absZ_specific": 7.18137686984826,
+      "replication": "MuscleSkeletal",
+      "shared": 588,
+      "signed_rho_difference": -0.06806904028845968,
+      "signed_rho_difference_ci": [
+        -0.23487518851514544,
+        0.09057448228290331
+      ],
+      "signed_rho_shared": 0.2648174173718092,
+      "signed_rho_shared_ci": [
+        0.13201963756172305,
+        0.3738306036958901
+      ],
+      "signed_rho_tissue_specific": 0.33171460309023204,
+      "signed_rho_tissue_specific_ci": [
+        0.2012965537342616,
+        0.468032457933157
+      ],
+      "significant_in_discovery": 821,
+      "specific": 208,
+      "tested_in_both": 42158,
+      "underpowered_dropped": 25,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": -0.12561288169526702,
+      "direction_agreement_difference_ci": [
+        -0.2613894876789075,
+        -0.0329644950426259
+      ],
+      "direction_agreement_shared": 0.5985915492957746,
+      "direction_agreement_shared_ci": [
+        0.4796510119356513,
+        0.6848882896764252
+      ],
+      "direction_agreement_tissue_specific": 0.7183098591549296,
+      "direction_agreement_tissue_specific_ci": [
+        0.6467043356895232,
+        0.7931034482758621
+      ],
+      "discovery": "Prostate",
+      "matched": 142,
+      "median_absZ_gap": 0.09458521838682898,
+      "median_absZ_shared": 7.253503886694039,
+      "median_absZ_specific": 7.15891866830721,
+      "replication": "Ovary",
+      "shared": 682,
+      "signed_rho_difference": -0.15321548686742215,
+      "signed_rho_difference_ci": [
+        -0.3533429628395882,
+        0.035672764341161005
+      ],
+      "signed_rho_shared": 0.21587280811887466,
+      "signed_rho_shared_ci": [
+        0.052584182317014345,
+        0.37956542665741855
+      ],
+      "signed_rho_tissue_specific": 0.3670894580114674,
+      "signed_rho_tissue_specific_ci": [
+        0.17583222576573518,
+        0.531120600146679
+      ],
+      "significant_in_discovery": 824,
+      "specific": 142,
+      "tested_in_both": 42545,
+      "underpowered_dropped": 0,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": -0.08376728275721154,
+      "direction_agreement_difference_ci": [
+        -0.15998214409362177,
+        -0.008457134979564056
+      ],
+      "direction_agreement_shared": 0.5921052631578947,
+      "direction_agreement_shared_ci": [
+        0.5207517220724768,
+        0.6601777674788135
+      ],
+      "direction_agreement_tissue_specific": 0.6743421052631579,
+      "direction_agreement_tissue_specific_ci": [
+        0.6227551861817551,
+        0.7362258133430996
+      ],
+      "discovery": "Prostate",
+      "matched": 304,
+      "median_absZ_gap": 0.10501979530502403,
+      "median_absZ_shared": 7.374721183426065,
+      "median_absZ_specific": 7.269701388121041,
+      "replication": "WholeBlood",
+      "shared": 499,
+      "signed_rho_difference": -0.23337386113630726,
+      "signed_rho_difference_ci": [
+        -0.39199174410352244,
+        -0.07088514559078006
+      ],
+      "signed_rho_shared": 0.18634456232182584,
+      "signed_rho_shared_ci": [
+        0.0226353182037836,
+        0.3377549794412111
+      ],
+      "signed_rho_tissue_specific": 0.41938901695953146,
+      "signed_rho_tissue_specific_ci": [
+        0.30912268974963114,
+        0.5387411676510827
+      ],
+      "significant_in_discovery": 823,
+      "specific": 304,
+      "tested_in_both": 42731,
+      "underpowered_dropped": 20,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": -0.0884505762472422,
+      "direction_agreement_difference_ci": [
+        -0.27174805854241335,
+        0.11599802371541504
+      ],
+      "direction_agreement_shared": 0.6744186046511628,
+      "direction_agreement_shared_ci": [
+        0.5102040816326531,
+        0.8500265957446808
+      ],
+      "direction_agreement_tissue_specific": 0.7674418604651163,
+      "direction_agreement_tissue_specific_ci": [
+        0.574468085106383,
+        0.9210526315789473
+      ],
+      "discovery": "WholeBlood",
+      "matched": 43,
+      "median_absZ_gap": 0.26288634287442747,
+      "median_absZ_shared": 7.853623772193474,
+      "median_absZ_specific": 7.590737429319047,
+      "replication": "BreastMammaryTissue",
+      "shared": 139,
+      "signed_rho_difference": -0.24971744905536877,
+      "signed_rho_difference_ci": [
+        -0.5482431618035536,
+        0.07594828996801713
+      ],
+      "signed_rho_shared": 0.3586936024521326,
+      "signed_rho_shared_ci": [
+        0.061561511552672164,
+        0.6333561174290497
+      ],
+      "signed_rho_tissue_specific": 0.6319647446683675,
+      "signed_rho_tissue_specific_ci": [
+        0.33448544871153035,
+        0.7990600528882104
+      ],
+      "significant_in_discovery": 183,
+      "specific": 44,
+      "tested_in_both": 45243,
+      "underpowered_dropped": 0,
+      "z_balance_ok": true
+    },
+    {
+      "discovery": "WholeBlood",
+      "matched": 0,
+      "note": "insufficient pairs for a matched comparison",
+      "replication": "ColonTransverse",
+      "shared": 169,
+      "significant_in_discovery": 183,
+      "specific": 14,
+      "tested_in_both": 45495,
+      "underpowered_dropped": 0
+    },
+    {
+      "direction_agreement_difference": 0.04116016524544082,
+      "direction_agreement_difference_ci": [
+        -0.16670892494929013,
+        0.2561983805668016
+      ],
+      "direction_agreement_shared": 0.7142857142857143,
+      "direction_agreement_shared_ci": [
+        0.5404885654885655,
+        0.8648778586278587
+      ],
+      "direction_agreement_tissue_specific": 0.6666666666666666,
+      "direction_agreement_tissue_specific_ci": [
+        0.45093037214885956,
+        0.8667105263157895
+      ],
+      "discovery": "WholeBlood",
+      "matched": 42,
+      "median_absZ_gap": 0.24928701777546447,
+      "median_absZ_shared": 7.800978813835987,
+      "median_absZ_specific": 7.551691796060522,
+      "replication": "KidneyCortex",
+      "shared": 141,
+      "signed_rho_difference": -0.13856735036901952,
+      "signed_rho_difference_ci": [
+        -0.46688113566238526,
+        0.16586192596864066
+      ],
+      "signed_rho_shared": 0.46693679245702135,
+      "signed_rho_shared_ci": [
+        0.10043637180196853,
+        0.70768710098839
+      ],
+      "signed_rho_tissue_specific": 0.6165512919080062,
+      "signed_rho_tissue_specific_ci": [
+        0.26913924990929344,
+        0.7634625982140587
+      ],
+      "significant_in_discovery": 183,
+      "specific": 42,
+      "tested_in_both": 45282,
+      "underpowered_dropped": 0,
+      "z_balance_ok": true
+    },
+    {
+      "discovery": "WholeBlood",
+      "matched": 0,
+      "note": "insufficient pairs for a matched comparison",
+      "replication": "Lung",
+      "shared": 175,
+      "significant_in_discovery": 183,
+      "specific": 8,
+      "tested_in_both": 45768,
+      "underpowered_dropped": 0
+    },
+    {
+      "direction_agreement_difference": -0.004957112391260694,
+      "direction_agreement_difference_ci": [
+        -0.19952822851429655,
+        0.19005497251374315
+      ],
+      "direction_agreement_shared": 0.68,
+      "direction_agreement_shared_ci": [
+        0.55,
+        0.8269396551724137
+      ],
+      "direction_agreement_tissue_specific": 0.68,
+      "direction_agreement_tissue_specific_ci": [
+        0.48717948717948717,
+        0.836384778012685
+      ],
+      "discovery": "WholeBlood",
+      "matched": 50,
+      "median_absZ_gap": 0.2548474872319204,
+      "median_absZ_shared": 8.020936850576849,
+      "median_absZ_specific": 7.766089363344928,
+      "replication": "MuscleSkeletal",
+      "shared": 131,
+      "signed_rho_difference": -0.1726224802661856,
+      "signed_rho_difference_ci": [
+        -0.44573052967012194,
+        0.12300287505521826
+      ],
+      "signed_rho_shared": 0.37348652298742524,
+      "signed_rho_shared_ci": [
+        0.08714644009404095,
+        0.6098130580684402
+      ],
+      "signed_rho_tissue_specific": 0.5744824366189846,
+      "signed_rho_tissue_specific_ci": [
+        0.24693165564193464,
+        0.731748346258655
+      ],
+      "significant_in_discovery": 183,
+      "specific": 52,
+      "tested_in_both": 44760,
+      "underpowered_dropped": 0,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": -0.08199757806788364,
+      "direction_agreement_difference_ci": [
+        -0.3059090909090908,
+        0.14145962732919254
+      ],
+      "direction_agreement_shared": 0.6388888888888888,
+      "direction_agreement_shared_ci": [
+        0.47823616600790514,
+        0.8181818181818182
+      ],
+      "direction_agreement_tissue_specific": 0.7222222222222222,
+      "direction_agreement_tissue_specific_ci": [
+        0.48717948717948717,
+        0.9411764705882353
+      ],
+      "discovery": "WholeBlood",
+      "matched": 36,
+      "median_absZ_gap": 0.07346486479855763,
+      "median_absZ_shared": 7.862858125396757,
+      "median_absZ_specific": 7.7893932605981995,
+      "replication": "Ovary",
+      "shared": 145,
+      "signed_rho_difference": -0.4662428487053017,
+      "signed_rho_difference_ci": [
+        -0.9120972791078465,
+        -0.10336242911982033
+      ],
+      "signed_rho_shared": 0.15874856340605606,
+      "signed_rho_shared_ci": [
+        -0.2947038666882199,
+        0.5244746243497621
+      ],
+      "signed_rho_tissue_specific": 0.6367032871805672,
+      "signed_rho_tissue_specific_ci": [
+        0.35385874160187275,
+        0.7887993545758577
+      ],
+      "significant_in_discovery": 183,
+      "specific": 38,
+      "tested_in_both": 45367,
+      "underpowered_dropped": 0,
+      "z_balance_ok": true
+    },
+    {
+      "direction_agreement_difference": 0.07717987003795339,
+      "direction_agreement_difference_ci": [
+        -0.15421153846153846,
+        0.32164438874965195
+      ],
+      "direction_agreement_shared": 0.7297297297297297,
+      "direction_agreement_shared_ci": [
+        0.5681664619164619,
+        0.9
+      ],
+      "direction_agreement_tissue_specific": 0.6486486486486487,
+      "direction_agreement_tissue_specific_ci": [
+        0.42105263157894735,
+        0.8918918918918919
+      ],
+      "discovery": "WholeBlood",
+      "matched": 37,
+      "median_absZ_gap": 0.19610439662739054,
+      "median_absZ_shared": 7.717671432048074,
+      "median_absZ_specific": 7.521567035420683,
+      "replication": "Prostate",
+      "shared": 146,
+      "signed_rho_difference": -0.08278952655140742,
+      "signed_rho_difference_ci": [
+        -0.4620952516133405,
+        0.2539643296536455
+      ],
+      "signed_rho_shared": 0.4220760040662538,
+      "signed_rho_shared_ci": [
+        -0.001815265508912625,
+        0.7279137215802788
+      ],
+      "signed_rho_tissue_specific": 0.5316564228434081,
+      "signed_rho_tissue_specific_ci": [
+        0.1722562725924579,
+        0.6989346075359886
+      ],
+      "significant_in_discovery": 183,
+      "specific": 37,
+      "tested_in_both": 42731,
+      "underpowered_dropped": 0,
+      "z_balance_ok": true
+    }
+  ]
+}

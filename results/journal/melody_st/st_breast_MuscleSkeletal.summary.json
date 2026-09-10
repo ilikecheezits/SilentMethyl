@@ -1,0 +1,23 @@
+{
+  "checkpoint": "data/external/melody/Melody_repo/drive/Melody-ST-Breast-Luminal.pth",
+  "counters": {
+    "chrom_not_in_genome": 0,
+    "cpg_window_out_of_bounds": 0,
+    "not_single_base": 0,
+    "reference_base_mismatch": 0,
+    "scoreable": 74864,
+    "short_window": 0,
+    "snp_start_ne_end": 0,
+    "variant_outside_window": 0
+  },
+  "format": "ours",
+  "generated_utc": "2026-09-06T01:12:49+00:00",
+  "input_csv": "data/external/egtex_multitissue/scoring/MuscleSkeletal/egtex_scoring_input_heldout.csv",
+  "margin": 1,
+  "mirrors": "eqtl_pure_util.SNPEffectDataset and check_meqtl_batched_multi_margin_multi_distance_multi_track_model",
+  "reference_base_mismatch_rate": 0.0,
+  "rows_scored": 74864,
+  "tracks": [
+    "GSM5652347_Breast-Luminal-Epithelial-Z000000V2"
+  ]
+}

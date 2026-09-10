@@ -88,10 +88,27 @@ def power_diagnostic(frame, results, metric):
 
     The mechanism is winner's curse. In a discovery cohort with ~130 significant
     pairs, a pair that clears p<5e-8 and then fails to replicate anywhere is
-    more likely a false positive than a tissue-specific meQTL -- and the model
-    ANTI-predicts noise, so the specific arm goes negative. Reporting the
-    per-arm sign alongside n makes that visible instead of leaving it to be
-    discovered by a reviewer.
+    more likely a false positive than a real meQTL of that class -- and the
+    model ANTI-predicts noise, so that arm goes negative. Reporting the per-arm
+    sign alongside n makes that visible instead of leaving it to be discovered
+    by a reviewer.
+
+    TWO-SIDED, and deliberately so
+    ------------------------------
+    The first version of this function tested only
+
+        calls['shared'].max_n < calls['specific'].min_n
+
+    i.e. it could only detect the confound when the `shared` calls were the
+    underpowered ones. That is the shape SilentMethyl happens to produce. Run
+    against Melody, whose R4 failure runs the OTHER way (it calls `specific`),
+    the test stayed silent -- and silence was then read as "Melody has no power
+    confound", which the test never checked. Melody in fact separates just as
+    cleanly in reverse.
+
+    A one-sided diagnostic applied to two models is not a comparison, so both
+    the n-separation test and the anti-prediction test below now examine both
+    arms and report WHICH call is the underpowered one.
     """
     calls = {}
     for call in ("shared", "specific"):
@@ -102,21 +119,38 @@ def power_diagnostic(frame, results, metric):
                        "min_n_per_arm": int(sub["matched"].min()),
                        "max_n_per_arm": int(sub["matched"].max()),
                        "median_n_per_arm": float(sub["matched"].median())}
-    separated = (len(calls) == 2
-                 and calls["shared"]["max_n_per_arm"] < calls["specific"]["min_n_per_arm"])
 
-    # Sign of the tissue-specific arm itself. Negative means anti-predicted,
+    # Non-overlapping n ranges in EITHER order mean the call is set by power.
+    separated, low_power_call = False, None
+    if len(calls) == 2:
+        s, p = calls["shared"], calls["specific"]
+        if s["max_n_per_arm"] < p["min_n_per_arm"]:
+            separated, low_power_call = True, "shared"
+        elif p["max_n_per_arm"] < s["min_n_per_arm"]:
+            separated, low_power_call = True, "specific"
+
+    # Sign of each arm. Negative means the model anti-predicts that class,
     # which is the false-positive signature rather than a mechanism difference.
+    # Checked for BOTH arms: which one goes negative depends on which cohorts
+    # were underpowered, and that differs between models.
     lookup = {(r["discovery"], r["replication"]): r for r in results}
-    neg = []
+    arm_key = {"shared": f"{metric}_shared",
+               "specific": f"{metric}_tissue_specific"}
+    negative = {"shared": [], "specific": []}
     for _, row in frame.iterrows():
         r = lookup.get((row["discovery"], row["replication"]), {})
-        v = r.get(f"{metric}_tissue_specific")
-        if v is not None and not pd.isna(v) and v < 0:
-            neg.append({"direction": f"{row['discovery']}->{row['replication']}",
-                        "n": row["matched"], "specific_arm": float(v)})
-    return {"by_call": calls, "cleanly_separated_by_n": bool(separated),
-            "directions_with_negative_specific_arm": neg}
+        for arm, key in arm_key.items():
+            v = r.get(key)
+            if v is not None and not pd.isna(v) and v < 0:
+                negative[arm].append({
+                    "direction": f"{row['discovery']}->{row['replication']}",
+                    "n": row["matched"], "arm_value": float(v)})
+    return {"by_call": calls,
+            "cleanly_separated_by_n": bool(separated),
+            "low_power_call": low_power_call,
+            "directions_with_negative_arm": negative,
+            # retained so existing decision.json readers keep working
+            "directions_with_negative_specific_arm": negative["specific"]}
 
 
 def pair_concordance(frame):
@@ -142,6 +176,10 @@ def main(argv=None) -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--results", type=Path, default=DEFAULT)
     ap.add_argument("--out", type=Path, default=None)
+    ap.add_argument("--label", default="The scored model",
+                    help="Name of the model these results came from, so two "
+                         "runs are distinguishable in a scrollback "
+                         "(e.g. --label 'SilentMethyl fusion' / 'Melody-MT').")
     args = ap.parse_args(argv)
 
     summary = args.results / "run_summary.json"
@@ -156,8 +194,9 @@ def main(argv=None) -> int:
     skipped = [r for r in results if r.get("note")]
     print()
     print("=" * 92)
-    print("R4  SHARED vs TISSUE-SPECIFIC meQTLs")
+    print(f"R4  SHARED vs TISSUE-SPECIFIC meQTLs   [{args.label}]")
     print("=" * 92)
+    print(f"results                     {args.results}")
     print(f"directions attempted        {len(results)}")
     print(f"informative                 {len(results) - len(skipped)}")
     print(f"skipped (too few in a class){len(skipped):>4}")
@@ -202,18 +241,24 @@ def main(argv=None) -> int:
                       f"n per arm {s['min_n_per_arm']}-{s['max_n_per_arm']} "
                       f"(median {s['median_n_per_arm']:.0f})")
             if diag["cleanly_separated_by_n"]:
-                print("    -> the two calls do NOT overlap in n. The SIGN is "
-                      "determined by discovery-cohort power,")
-                print("       not by biology. Do not report either as a "
-                      "mechanism difference.")
-        neg = diag["directions_with_negative_specific_arm"]
-        if neg:
-            print(f"\n  tissue-specific arm is NEGATIVE in {len(neg)} direction(s) "
+                lp = diag["low_power_call"]
+                print(f"    -> the two calls do NOT overlap in n, and '{lp}' is "
+                      f"the LOW-power side.")
+                print("       The SIGN is determined by discovery-cohort power, "
+                      "not by biology.")
+                print("       Do not report either as a mechanism difference.")
+            elif len(diag["by_call"]) == 2:
+                print("    -> the n ranges overlap; the call is not explained "
+                      "by power alone.")
+        for arm, neg in diag["directions_with_negative_arm"].items():
+            if not neg:
+                continue
+            print(f"\n  {arm} arm is NEGATIVE in {len(neg)} direction(s) "
                   f"-- the model anti-predicts them,")
             print("  which is the winner's-curse signature, not chromatin mediation:")
-            for x in sorted(neg, key=lambda d: d["specific_arm"])[:6]:
+            for x in sorted(neg, key=lambda d: d["arm_value"])[:6]:
                 print(f"    {x['direction']:<44} n={x['n']:>4}  "
-                      f"specific arm {x['specific_arm']:+.4f}")
+                      f"{arm} arm {x['arm_value']:+.4f}")
 
         conc = pair_concordance(frame)
         n_support = int(conc["both_directions_agree"].sum()) if len(conc) else 0
@@ -241,10 +286,10 @@ def main(argv=None) -> int:
     print("=" * 92)
     passes = [m for m, d in decision.items() if d["pairs_meeting_rule"] > 0]
     if not passes:
-        print("VERDICT: no tissue pair meets the pre-specified rule on either")
-        print("metric. The sequence-only pathway does NOT separate meQTLs by")
-        print("mechanism. This is a real answer -- report it as one, and do not")
-        print("promote individual directions that happened to exclude zero.")
+        print(f"VERDICT: no tissue pair meets the pre-specified rule on either")
+        print(f"metric. {args.label} does NOT separate meQTLs by mechanism.")
+        print("This is a real answer -- report it as one, and do not promote")
+        print("individual directions that happened to exclude zero.")
     else:
         for m in passes:
             d = decision[m]
@@ -252,15 +297,17 @@ def main(argv=None) -> int:
                   f"favouring {', '.join(d['classes_favoured'])}.")
         print("Check that the favoured class is the SAME across metrics and pairs")
         print("before calling this a finding.")
-        if any(decision[m]["power_diagnostic"]["cleanly_separated_by_n"]
-               for m in passes):
+        lp = {decision[m]["power_diagnostic"]["low_power_call"] for m in passes
+              if decision[m]["power_diagnostic"]["cleanly_separated_by_n"]}
+        if lp:
+            side = ", ".join(sorted(x for x in lp if x))
             print()
             print("BUT: the sign of the difference separates cleanly by cohort")
-            print("power (see above). A pair meeting the rule only among the")
-            print("least-powered cohorts, whose tissue-specific arm is")
-            print("anti-predicted, is a winner's-curse artifact -- not evidence")
-            print("that the model separates meQTLs by mechanism. Treat the")
-            print("overall answer as NO and report the artifact explicitly.")
+            print(f"power (see above), with '{side}' on the low-power side. A pair")
+            print("meeting the rule only among the least-powered cohorts, whose")
+            print("arm is anti-predicted, is a winner's-curse artifact -- not")
+            print("evidence that the model separates meQTLs by mechanism. Treat")
+            print("the overall answer as NO and report the artifact explicitly.")
     print("=" * 92)
 
     out_dir = args.out or args.results
@@ -269,6 +316,8 @@ def main(argv=None) -> int:
         frame.to_csv(out_dir / f"summary_{metric}.csv", index=False)
     with (out_dir / "decision.json").open("w") as fh:
         json.dump({
+            "label": args.label,
+            "results_dir": str(args.results),
             "rule": ("a tissue PAIR counts as support only when both ordered "
                      "directions show a same-signed difference whose 95% "
                      "block-bootstrap interval excludes zero; fixed before the "

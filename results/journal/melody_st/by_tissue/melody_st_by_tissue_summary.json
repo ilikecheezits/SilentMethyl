@@ -1,0 +1,93 @@
+{
+  "arms": {
+    "melody_st_breast": "single-tissue breast model applied to every tissue; the architecture-matched analogue of SilentMethyl's zero-shot transfer",
+    "melody_st_lung": "tissue-matched single-tissue model, Lung only; the comparison arm that isolates what tissue-matching buys"
+  },
+  "files_written": 10,
+  "generated_utc": "2026-09-06T04:05:57+00:00",
+  "method": "SilentMethyl's per-tissue pair_scores.csv is the template; only Predicted_Delta_M and Absolute_Delta_M are replaced, so both models are evaluated on identical rows",
+  "missing_inputs": [],
+  "per_cohort": [
+    {
+      "arm": "melody_st_breast",
+      "path": "results/journal/melody_st/by_tissue/BreastMammaryTissue/heldout/melody_st_breast/seed42/pair_scores.csv",
+      "rows": 76893,
+      "significant_5e8": 295,
+      "source": "results/journal/melody_st/st_breast_BreastMammaryTissue.csv",
+      "tissue": "BreastMammaryTissue"
+    },
+    {
+      "arm": "melody_st_breast",
+      "path": "results/journal/melody_st/by_tissue/ColonTransverse/heldout/melody_st_breast/seed42/pair_scores.csv",
+      "rows": 76453,
+      "significant_5e8": 3765,
+      "source": "results/journal/melody_st/st_breast_ColonTransverse.csv",
+      "tissue": "ColonTransverse"
+    },
+    {
+      "arm": "melody_st_breast",
+      "path": "results/journal/melody_st/by_tissue/KidneyCortex/heldout/melody_st_breast/seed42/pair_scores.csv",
+      "rows": 75873,
+      "significant_5e8": 317,
+      "source": "results/journal/melody_st/st_breast_KidneyCortex.csv",
+      "tissue": "KidneyCortex"
+    },
+    {
+      "arm": "melody_st_breast",
+      "path": "results/journal/melody_st/by_tissue/Lung/heldout/melody_st_breast/seed42/pair_scores.csv",
+      "rows": 77421,
+      "significant_5e8": 3909,
+      "source": "results/journal/melody_st/st_breast_Lung.csv",
+      "tissue": "Lung"
+    },
+    {
+      "arm": "melody_st_breast",
+      "path": "results/journal/melody_st/by_tissue/MuscleSkeletal/heldout/melody_st_breast/seed42/pair_scores.csv",
+      "rows": 74864,
+      "significant_5e8": 240,
+      "source": "results/journal/melody_st/st_breast_MuscleSkeletal.csv",
+      "tissue": "MuscleSkeletal"
+    },
+    {
+      "arm": "melody_st_breast",
+      "path": "results/journal/melody_st/by_tissue/Ovary/heldout/melody_st_breast/seed42/pair_scores.csv",
+      "rows": 76985,
+      "significant_5e8": 3190,
+      "source": "results/journal/melody_st/st_breast_Ovary.csv",
+      "tissue": "Ovary"
+    },
+    {
+      "arm": "melody_st_breast",
+      "path": "results/journal/melody_st/by_tissue/Prostate/heldout/melody_st_breast/seed42/pair_scores.csv",
+      "rows": 70218,
+      "significant_5e8": 1488,
+      "source": "results/journal/melody_st/st_breast_Prostate.csv",
+      "tissue": "Prostate"
+    },
+    {
+      "arm": "melody_st_breast",
+      "path": "results/journal/melody_st/by_tissue/Testis/heldout/melody_st_breast/seed42/pair_scores.csv",
+      "rows": 73524,
+      "significant_5e8": 193,
+      "source": "results/journal/melody_st/st_breast_Testis.csv",
+      "tissue": "Testis"
+    },
+    {
+      "arm": "melody_st_breast",
+      "path": "results/journal/melody_st/by_tissue/WholeBlood/heldout/melody_st_breast/seed42/pair_scores.csv",
+      "rows": 75517,
+      "significant_5e8": 347,
+      "source": "results/journal/melody_st/st_breast_WholeBlood.csv",
+      "tissue": "WholeBlood"
+    },
+    {
+      "arm": "melody_st_lung",
+      "path": "results/journal/melody_st/by_tissue/Lung/heldout/melody_st_lung/seed42/pair_scores.csv",
+      "rows": 77421,
+      "significant_5e8": 3909,
+      "source": "results/journal/melody_st/st_lung_Lung.csv",
+      "tissue": "Lung"
+    }
+  ],
+  "template": "results/journal/egtex_multitissue_scoring/by_tissue/<Tissue>/heldout/fusion/seed42"
+}

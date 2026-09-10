@@ -213,6 +213,12 @@ def main(argv=None) -> int:
                          ">=1 because CpG_start == CpG_end in these cohorts")
     ap.add_argument("--batch-size", type=int, default=32)
     ap.add_argument("--limit", type=int, default=0, help="smoke test only")
+    ap.add_argument("--random-init", action="store_true",
+                    help="NEGATIVE CONTROL: build the architecture but do NOT "
+                         "load the checkpoint. A correctly wired scorer must "
+                         "collapse to ~0 correlation here. If it does not, the "
+                         "reported signal is coming from the pipeline rather "
+                         "than from Melody's trained weights.")
     ap.add_argument("--report-correlation", action="store_true",
                     help="print Pearson r against effect_size, for validating "
                          "against their published numbers")
@@ -284,9 +290,29 @@ def main(argv=None) -> int:
     ckpt = args.checkpoint or (args.repo / "drive" / "Melody-MT-39.pth")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = Melody(n_track=args.n_track)
-    load_ckpt(model, str(ckpt))
+    if args.random_init:
+        ckpt_sha = None
+        LOGGER.warning("=" * 70)
+        LOGGER.warning("RANDOM INIT -- the checkpoint was NOT loaded.")
+        LOGGER.warning("This is the negative control. Any correlation reported "
+                       "below is produced by the scoring pipeline alone and "
+                       "should be near zero.")
+        LOGGER.warning("=" * 70)
+    else:
+        load_ckpt(model, str(ckpt))
+        # Record what was actually loaded. A path in a log proves nothing if the
+        # file behind it changed; the digest is what a reader can verify against
+        # the released Zenodo record.
+        import hashlib
+        h = hashlib.sha256()
+        with open(ckpt, "rb") as fh:
+            for chunk in iter(lambda: fh.read(1 << 20), b""):
+                h.update(chunk)
+        ckpt_sha = h.hexdigest()
+        LOGGER.info("checkpoint sha256 %s", ckpt_sha)
     model = model.to(device).eval()
-    LOGGER.info("device=%s checkpoint=%s", device, ckpt)
+    LOGGER.info("device=%s checkpoint=%s", device,
+                "RANDOM INIT" if args.random_init else ckpt)
 
     counters = {k: 0 for k in (
         "scoreable", "not_single_base", "snp_start_ne_end", "short_window",
@@ -353,7 +379,10 @@ def main(argv=None) -> int:
     summary = {
         "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "input_csv": str(args.input_csv), "format": args.format,
-        "checkpoint": str(ckpt), "tracks": tracks, "margin": args.margin,
+        "checkpoint": "RANDOM INIT (negative control)" if args.random_init else str(ckpt),
+        "checkpoint_sha256": ckpt_sha,
+        "random_init": bool(args.random_init),
+        "tracks": tracks, "margin": args.margin,
         "counters": counters,
         "reference_base_mismatch_rate": mismatch_rate,
         "rows_scored": int(len(out)),

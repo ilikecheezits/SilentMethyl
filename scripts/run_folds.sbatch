@@ -24,6 +24,17 @@
 set -eo pipefail
 
 PY=/jet/home/szhang37/.conda/envs/silentmethyl/bin/python
+
+# Fail fast if the allocated node cannot actually do CUDA. Node v005 returned
+# CUDA error 803 more than once; torch then falls back to CPU *silently* and the
+# job runs at 13.3 s/it instead of 3.66 it/s -- a 49x slowdown that only becomes
+# visible hours into the log, after the walltime is already spent.
+if ! "$PY" -c "import torch, sys; sys.exit(0 if torch.cuda.is_available() else 1)"; then
+  echo "STOP: CUDA is not available on $(hostname). Nothing was run." >&2
+  echo "Requeue with:  sbatch --exclude=$(hostname) <this script>" >&2
+  exit 4
+fi
+
 FOLD=${SLURM_ARRAY_TASK_ID}
 SEED=42
 
@@ -63,10 +74,17 @@ $PY -u scripts/11_train_epi.py \
     --save_dir "${OUT}/epi_seed${SEED}" --seed ${SEED}
 
 echo "--- 3/3 gated fusion ---"
+# 12_train_fusion.py takes the .pth FILE, not the save directory -- it sha256's
+# the path. Passing the directory cost three folds 32 h each before failing with
+# IsADirectoryError, so check before spending the fusion stage.
+for w in "${OUT}/sequence_seed${SEED}/best_weights.pth" \
+         "${OUT}/epi_seed${SEED}/best_weights.pth"; do
+  [ -s "$w" ] || { echo "STOP: missing tower weights ${w}" >&2; exit 1; }
+done
 $PY -u scripts/12_train_fusion.py \
     --train_path "${TRAIN}" --val_path "${VAL}" \
-    --sequence_weights "${OUT}/sequence_seed${SEED}" \
-    --epi_weights "${OUT}/epi_seed${SEED}" \
+    --sequence_weights "${OUT}/sequence_seed${SEED}/best_weights.pth" \
+    --epi_weights "${OUT}/epi_seed${SEED}/best_weights.pth" \
     --save_dir "${OUT}/fusion_seed${SEED}" --seed ${SEED}
 
 echo "--- provenance check ---"
