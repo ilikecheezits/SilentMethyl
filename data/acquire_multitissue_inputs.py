@@ -122,6 +122,27 @@ TISSUES = {
 }
 
 
+# Friendly names accepted in a picks file, mapped to the feature the model uses.
+# Anything not listed here is not part of the context vector: TABULAR_FEATURES in
+# scripts/training_common.py fixes it at seven tissue-specific inputs, so an
+# eighth mark would change the epigenomic tower's input dimension and stop being
+# the published architecture. H3K9ac is the usual near-miss -- ENCODE has it for
+# many tissues and it looks like it belongs, but the model was never built with
+# it.
+MARK_ALIASES = {
+    "atac": "Ref_ATAC_Signal", "atac-seq": "Ref_ATAC_Signal",
+    "atac_seq": "Ref_ATAC_Signal", "dnase": None,
+    "h3k4me3": "Ref_H3K4me3_Signal",
+    "h3k27ac": "Ref_H3K27ac_Signal",
+    "h3k27me3": "Ref_H3K27me3_Signal",
+    "h3k9me3": "Ref_H3K9me3_Signal",
+    "h3k36me3": "Ref_H3K36me3_Signal",
+    "h3k4me1": "Ref_H3K4me1_Signal",
+}
+MARK_TARGET = {feature: target for feature, _, target, _ in MARKS}
+MARK_FILENAME = {feature: filename for feature, _, _, filename in MARKS}
+
+
 class Unreachable(RuntimeError):
     pass
 
@@ -222,6 +243,108 @@ def resolve_context(tissue: str, terms: list[str], verbose: bool = True) -> dict
 # Targets
 # ---------------------------------------------------------------------------
 
+def read_picks(path: Path) -> dict[str, dict[str, str]]:
+    """Parse a hand-written picks file into {tissue: {feature: accession}}.
+
+    Format is deliberately forgiving, because these get pasted together from
+    portal searches. One record per line, blank lines and # comments ignored:
+
+        # tissue        mark        accession-or-url
+        Lung            atac        ENCFF260QGF
+        Lung            h3k4me1     https://www.encodeproject.org/files/ENCFF325EMH/@@download/ENCFF325EMH.bigWig
+
+    A bare `Tissue:` line also opens a block, so a list can be written per
+    tissue without repeating the name on every row.
+    """
+    picks: dict[str, dict[str, str]] = {}
+    current = None
+    for lineno, raw in enumerate(path.read_text().splitlines(), 1):
+        line = raw.split("#", 1)[0].strip()
+        if not line:
+            continue
+        if line.endswith(":") and " " not in line.rstrip(":"):
+            current = line.rstrip(":")
+            picks.setdefault(current, {})
+            continue
+        parts = line.replace(",", " ").replace("\t", " ").split()
+        parts = [p for p in parts if p not in ("-", "=")]
+        if len(parts) >= 3:
+            tissue, mark, token = parts[0], parts[1], parts[2]
+        elif len(parts) == 2 and current:
+            tissue, mark, token = current, parts[0], parts[1]
+        else:
+            raise SystemExit(f"STOP: {path}:{lineno}: cannot parse {raw!r}")
+
+        key = mark.strip().lower().rstrip(":-")
+        if key not in MARK_ALIASES:
+            raise SystemExit(
+                f"STOP: {path}:{lineno}: {mark!r} is not one of the model's "
+                f"context features.\nThe seven are: "
+                f"{', '.join(sorted(k for k, v in MARK_ALIASES.items() if v))}.\n"
+                f"H3K9ac and DNase are NOT used -- adding one would change the "
+                f"epigenomic tower's input dimension.")
+        feature = MARK_ALIASES[key]
+        if feature is None:
+            raise SystemExit(f"STOP: {path}:{lineno}: {mark!r} is not a model input")
+
+        acc = token.strip()
+        if "/files/" in acc:                     # a full download URL
+            acc = acc.split("/files/")[1].split("/")[0]
+        if not acc.startswith("ENCFF"):
+            raise SystemExit(f"STOP: {path}:{lineno}: {token!r} is not an ENCFF accession")
+        picks.setdefault(tissue, {})[feature] = acc
+    return picks
+
+
+def verify_pick(feature: str, accession: str) -> dict:
+    """Fetch a hand-picked file's metadata and check it is what it claims."""
+    f = _json(f"{ENCODE}/files/{accession}/?format=json")
+    if not f:
+        return {"accession": accession, "feature": feature, "ok": False,
+                "problems": ["no such file on ENCODE"]}
+
+    rec = {
+        "accession": accession, "filename": MARK_FILENAME[feature],
+        "file_format": f.get("file_format"), "output_type": f.get("output_type"),
+        "assembly": f.get("assembly"), "encode_status": f.get("status"),
+        "md5": f.get("md5sum"), "bytes": f.get("file_size"),
+        "biological_replicates": f.get("biological_replicates"),
+        "url": f"{ENCODE}{f['href']}" if f.get("href") else None,
+        "dataset": f.get("dataset"),
+    }
+    exp = _json(f"{ENCODE}{rec['dataset']}?format=json") if rec["dataset"] else None
+    if exp:
+        rec.update({
+            "experiment": exp.get("accession"),
+            "assay_title": exp.get("assay_title"),
+            "target": (exp.get("target") or {}).get("label"),
+            "biosample": (exp.get("biosample_ontology") or {}).get("term_name"),
+            "replication_type": exp.get("replication_type"),
+            "lab": (exp.get("lab") or {}).get("title"),
+        })
+
+    problems = []
+    if rec["file_format"] != "bigWig":
+        problems.append(f"file_format is {rec['file_format']}, not bigWig")
+    if rec["output_type"] != OUTPUT_TYPE:
+        problems.append(f"output_type is {rec['output_type']!r}, not {OUTPUT_TYPE!r}")
+    if rec["assembly"] != "GRCh38":
+        problems.append(f"assembly is {rec['assembly']}, not GRCh38")
+    if rec["encode_status"] != "released":
+        problems.append(f"status is {rec['encode_status']}, not released")
+    want = MARK_TARGET[feature]
+    if want and rec.get("target") != want:
+        problems.append(f"target is {rec.get('target')!r}, expected {want!r}")
+    if not want and "ATAC" not in (rec.get("assay_title") or ""):
+        problems.append(f"assay is {rec.get('assay_title')!r}, expected ATAC-seq")
+    if "single-nucleus" in (rec.get("assay_title") or "").lower() or \
+       "snATAC" in (rec.get("assay_title") or ""):
+        problems.append("single-nucleus assay; the other tissues are bulk")
+    rec["problems"] = problems
+    rec["ok"] = not problems
+    return rec
+
+
 def check_xena(project: str) -> dict:
     """Confirm the matrix exists and how big it is, without downloading it."""
     url = XENA.format(project=project)
@@ -243,17 +366,58 @@ def check_xena(project: str) -> dict:
 # Download
 # ---------------------------------------------------------------------------
 
-def download(url: str, dest: Path, expect_md5: str | None = None) -> dict:
+def download(url: str, dest: Path, expect_md5: str | None = None,
+             retries: int = 4) -> dict:
+    """Fetch one file, resuming a partial transfer rather than restarting it.
+
+    This pulls tens of GB in one pass. A login node can kill a long-running
+    process, a compute job can hit its walltime, and a network hiccup should not
+    cost the whole file -- so an interrupted transfer leaves a .partial and the
+    next run continues from that byte offset with an HTTP Range request. The md5
+    is streamed over the resumed bytes as well as the new ones, so verification
+    still covers the whole file.
+
+    A server that ignores Range and replies 200 restarts cleanly rather than
+    appending to a partial file and producing a corrupt one that happens to be
+    the right length.
+    """
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_suffix(dest.suffix + ".partial")
+
+    for attempt in range(1, retries + 1):
+        have = tmp.stat().st_size if tmp.exists() else 0
+        headers = {"User-Agent": UA["User-Agent"]}
+        if have:
+            headers["Range"] = f"bytes={have}-"
+        req = urllib.request.Request(url, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=300) as src:
+                resuming = src.status == 206
+                if have and not resuming:
+                    tmp.unlink(missing_ok=True)   # server ignored Range
+                    have = 0
+                if have:
+                    print(f"      resuming at {have / 1e6:.0f} MB")
+                mode = "ab" if have else "wb"
+                with tmp.open(mode) as out:
+                    while True:
+                        block = src.read(1 << 20)
+                        if not block:
+                            break
+                        out.write(block)
+            break
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
+            if attempt == retries:
+                raise SystemExit(
+                    f"STOP: {dest.name} failed after {retries} attempts ({exc}).\n"
+                    f"The partial file was kept; re-run to resume from it.")
+            wait = 5 * attempt
+            print(f"      attempt {attempt} failed ({exc}); retrying in {wait}s")
+            time.sleep(wait)
+
     h = hashlib.md5()
-    req = urllib.request.Request(url, headers={"User-Agent": UA["User-Agent"]})
-    with urllib.request.urlopen(req, timeout=300) as src, tmp.open("wb") as out:
-        while True:
-            block = src.read(1 << 20)
-            if not block:
-                break
-            out.write(block)
+    with tmp.open("rb") as fh:
+        for block in iter(lambda: fh.read(1 << 20), b""):
             h.update(block)
     got = h.hexdigest()
     if expect_md5 and got != expect_md5:
@@ -265,6 +429,23 @@ def download(url: str, dest: Path, expect_md5: str | None = None) -> dict:
     tmp.replace(dest)
     return {"path": str(dest), "bytes": dest.stat().st_size, "md5": got,
             "verified": bool(expect_md5)}
+
+
+def network_check() -> bool:
+    """Can this host reach the two hosts we need? Prints what it finds."""
+    ok = True
+    for name, url in (("ENCODE", f"{ENCODE}/search/?type=File&limit=1&format=json"),
+                      ("Xena GDC hub", XENA.format(project="TCGA-BRCA"))):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": UA["User-Agent"]})
+            if "amazonaws" in url:
+                req.get_method = lambda: "HEAD"
+            with urllib.request.urlopen(req, timeout=30):
+                print(f"  {name:<16} reachable")
+        except Exception as exc:  # noqa: BLE001 - any failure means unusable
+            print(f"  {name:<16} UNREACHABLE ({exc})")
+            ok = False
+    return ok
 
 
 def main(argv=None) -> int:
@@ -282,10 +463,37 @@ def main(argv=None) -> int:
                     help="Download. Without this, only resolve and write the plan.")
     ap.add_argument("--context-only", action="store_true")
     ap.add_argument("--targets-only", action="store_true")
+    ap.add_argument("--picks", type=Path, default=None,
+                    help="A file of hand-chosen ENCODE accessions to verify and "
+                         "use INSTEAD of automatic resolution. Lines are "
+                         "'<tissue> <mark> <accession-or-url>'; see read_picks(). "
+                         "Every file is checked for format, output type, "
+                         "assembly, released status and target before use.")
+    ap.add_argument("--force", action="store_true",
+                    help="Download even when the resolved set is inconsistent "
+                         "across tissues. Only with a recorded reason.")
+    ap.add_argument("--network-check", action="store_true",
+                    help="Just test whether this host can reach ENCODE and the "
+                         "Xena hub, then exit. Run this inside a compute job to "
+                         "find out whether the download can be submitted there.")
     args = ap.parse_args(argv)
+
+    if args.network_check:
+        import socket
+        print(f"host {socket.gethostname()}")
+        return 0 if network_check() else 1
+
+    picks = read_picks(args.picks) if args.picks else None
+    if picks is not None:
+        unknown = [t for t in picks if t not in TISSUES]
+        if unknown:
+            raise SystemExit(f"STOP: unknown tissue(s) in {args.picks}: {unknown}\n"
+                             f"Known: {', '.join(TISSUES)}")
+        args.tissues = [t for t in args.tissues if t in picks] or list(picks)
 
     plan: dict = {
         "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "selection": "hand-picked accessions" if picks else "resolved automatically",
         "output_type": OUTPUT_TYPE,
         "assembly": "GRCh38",
         "note": ("bulk ATAC-seq for every tissue including breast, so that "
@@ -301,16 +509,53 @@ def main(argv=None) -> int:
             print(f"\n{tissue}")
             entry: dict = {"note": spec["note"]}
 
-            if not args.targets_only:
+            if not args.targets_only and picks is not None:
+                chosen = picks.get(tissue, {})
+                print(f"  context (your picks, {len(chosen)} file(s)):")
+                files, bad = {}, []
+                for feature, acc in chosen.items():
+                    rec = verify_pick(feature, acc)
+                    time.sleep(0.15)
+                    mark = MARK_TARGET[feature] or "ATAC"
+                    if rec["ok"]:
+                        print(f"    {mark:<10}{acc:<14}{rec.get('biosample',''):<24}"
+                              f"{(rec.get('bytes') or 0)/1e6:>7.0f} MB")
+                        files[feature] = rec
+                    else:
+                        bad.append((mark, acc, rec["problems"]))
+                        print(f"    {mark:<10}{acc:<14}REJECTED")
+                        for p in rec["problems"]:
+                            print(f"      - {p}")
+                missing = [MARK_TARGET[f] or "ATAC" for f, _, _, _ in MARKS
+                           if f not in files]
+                if missing:
+                    print(f"    !! missing {', '.join(missing)}")
+                entry["context"] = {
+                    "term": sorted({r.get("biosample") for r in files.values()
+                                    if r.get("biosample")}) or None,
+                    "files": files, "complete": not missing and not bad,
+                    "missing": missing,
+                    "histone_assays": sorted({r.get("assay_title") for r in files.values()
+                                              if "ChIP" in (r.get("assay_title") or "")}),
+                    "rejected": [{"mark": m, "accession": a, "problems": p}
+                                 for m, a, p in bad],
+                }
+                bios = entry["context"]["term"] or []
+                if len(bios) > 1:
+                    print(f"    !! more than one biosample in this tissue: {bios}")
+
+            elif not args.targets_only:
                 print("  context (ENCODE):")
                 ctx = resolve_context(tissue, spec["encode"])
                 entry["context"] = ctx
                 if not ctx["complete"]:
                     print(f"    !! missing {', '.join(ctx['missing'])} "
                           f"for every candidate biosample")
-                if len(ctx["histone_assays"]) > 1:
-                    print(f"    !! histone marks mix assays: "
-                          f"{ctx['histone_assays']} -- pick one before building")
+
+            ctx = entry.get("context")
+            if ctx and len(ctx.get("histone_assays") or []) > 1:
+                print(f"    !! histone marks mix assays within this tissue: "
+                      f"{ctx['histone_assays']} -- pick one before building")
 
             if not args.context_only:
                 print("  targets (Xena GDC hub):")
@@ -326,6 +571,42 @@ def main(argv=None) -> int:
         raise SystemExit(
             f"STOP: {exc}.\nCompute nodes have no outbound HTTPS -- run this on "
             f"a login node or your laptop.") from exc
+
+    # Cross-tissue consistency. Checking each tissue on its own is not enough:
+    # if breast resolves to Mint-ChIP and lung to Histone ChIP-seq, the context
+    # differs between tissues by ASSAY rather than by biology, and a joint model
+    # can learn that difference as tissue identity. Same for output type. This
+    # is the failure the whole rebuild exists to avoid, so it is checked before
+    # anything is downloaded.
+    per_feature: dict[str, dict[str, set]] = {}
+    for tissue, entry in plan["tissues"].items():
+        for feature, f in entry.get("context", {}).get("files", {}).items():
+            slot = per_feature.setdefault(feature, {"assay": set(), "output": set()})
+            slot["assay"].add(f.get("assay_title"))
+            slot["output"].add(f.get("output_type"))
+    inconsistent = {f: s for f, s in per_feature.items()
+                    if len(s["assay"]) > 1 or len(s["output"]) > 1}
+    plan["cross_tissue_consistent"] = not inconsistent
+    if inconsistent:
+        print()
+        print("!! CROSS-TISSUE INCONSISTENCY -- do not download yet")
+        for feature, s in inconsistent.items():
+            if len(s["assay"]) > 1:
+                print(f"   {feature}: assays differ between tissues "
+                      f"{sorted(a for a in s['assay'] if a)}")
+            if len(s["output"]) > 1:
+                print(f"   {feature}: output types differ "
+                      f"{sorted(o for o in s['output'] if o)}")
+        print("   A feature measured by a different assay in different tissues")
+        print("   encodes the assay as well as the biology, and a joint model")
+        print("   can use that to identify the tissue. Pin one assay per feature")
+        print("   (edit HISTONE_ASSAYS, or drop a tissue) and re-resolve.")
+    elif per_feature:
+        assays = sorted({a for s in per_feature.values() for a in s["assay"] if a})
+        print()
+        print(f"Cross-tissue consistent: every feature uses the same assay and "
+              f"output type in all tissues.")
+        print(f"  assays in use: {assays}")
 
     args.plan.parent.mkdir(parents=True, exist_ok=True)
     with args.plan.open("w") as fh:
@@ -345,6 +626,12 @@ def main(argv=None) -> int:
     print(f"  targets  {sum(len(t.get('targets', [])) for t in plan['tissues'].values())} "
           f"matrices, {tgt_bytes / 1e9:.1f} GB")
     print("=" * 78)
+
+    if args.apply and inconsistent and not args.force:
+        raise SystemExit(
+            "STOP: refusing to download a cross-tissue inconsistent set.\n"
+            "Fix it, or pass --force if you have decided the difference is "
+            "acceptable and recorded why.")
 
     if not args.apply:
         print("\nResolve-only. Read the plan, then re-run with --apply to download.")
