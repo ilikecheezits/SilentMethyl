@@ -124,6 +124,35 @@ def _encode_json(path_or_query: str, timeout: int = 60):
         raise RuntimeError(f"could not reach ENCODE ({exc.reason})") from exc
 
 
+def _describe_file(f: dict, timeout: int) -> dict:
+    """Flatten an ENCODE File object plus the biology of its experiment."""
+    out = {
+        "accession": f.get("accession"),
+        "file_format": f.get("file_format"),
+        "output_type": f.get("output_type"),
+        "assembly": f.get("assembly"),
+        "encode_status": f.get("status"),
+        "dataset": f.get("dataset"),
+        "file_url": f"{ENCODE}{f['href']}" if f.get("href") else None,
+    }
+    if out["dataset"]:
+        exp = _encode_json(f"{out['dataset']}?format=json", timeout)
+        if exp:
+            out["experiment"] = exp.get("accession")
+            out["assay_title"] = exp.get("assay_title")
+            out["biosample"] = (exp.get("biosample_ontology") or {}).get("term_name")
+            out["target"] = (exp.get("target") or {}).get("label")
+            out["lab"] = (exp.get("lab") or {}).get("title")
+            out["replication_type"] = exp.get("replication_type")
+    return out
+
+
+def encode_by_accession(accession: str, timeout: int = 60) -> dict | None:
+    """Metadata for a named ENCODE file, for tracks we built ourselves."""
+    f = _encode_json(f"/files/{accession}/?format=json", timeout)
+    return None if not f else _describe_file(f, timeout)
+
+
 def encode_lookup(md5: str, timeout: int = 60) -> dict | None:
     """Recover a track's provenance from its checksum.
 
@@ -142,31 +171,7 @@ def encode_lookup(md5: str, timeout: int = 60) -> dict | None:
     hit = _encode_json(f"/search/?{query}", timeout)
     if not hit or not hit.get("@graph"):
         return None
-    f = hit["@graph"][0]
-
-    out = {
-        "accession": f.get("accession"),
-        "file_format": f.get("file_format"),
-        "output_type": f.get("output_type"),
-        "assembly": f.get("assembly"),
-        "encode_status": f.get("status"),
-        "dataset": f.get("dataset"),
-        "file_url": f"{ENCODE}{f['href']}" if f.get("href") else None,
-    }
-
-    # The File object names its experiment but not the biology; fetch that too,
-    # because "which biosample and which assay" is the part the multi-tissue
-    # build has to reproduce for four more tissues.
-    if out["dataset"]:
-        exp = _encode_json(f"{out['dataset']}?format=json", timeout)
-        if exp:
-            out["experiment"] = exp.get("accession")
-            out["assay_title"] = exp.get("assay_title")
-            out["biosample"] = (exp.get("biosample_ontology") or {}).get("term_name")
-            target = exp.get("target") or {}
-            out["target"] = target.get("label")
-            out["lab"] = (exp.get("lab") or {}).get("title")
-    return out
+    return _describe_file(hit["@graph"][0], timeout)
 
 
 def fingerprint(path: Path) -> dict:
@@ -231,7 +236,25 @@ def main(argv=None) -> int:
                          "'reference_tracks'. Without this the script only reports.")
     ap.add_argument("--no-encode", action="store_true",
                     help="Skip the md5 lookup against the ENCODE portal.")
+    ap.add_argument("--derived-from", action="append", default=[],
+                    metavar="FEATURE=ENCFFxxxxxx",
+                    help="Record that a track was produced locally FROM an "
+                         "ENCODE file rather than downloaded as-is, e.g. "
+                         "--derived-from Ref_ATAC_Signal=ENCFF021PIS. The "
+                         "source file's real assay and output type are then "
+                         "fetched and compared against the other tracks. "
+                         "Repeatable; stored in the manifest.")
     args = ap.parse_args(argv)
+
+    derived = {}
+    for item in args.derived_from:
+        if "=" not in item:
+            raise SystemExit(f"STOP: --derived-from wants FEATURE=ACCESSION, got {item!r}")
+        feat, acc = item.split("=", 1)
+        if feat not in TRACKS:
+            raise SystemExit(f"STOP: unknown feature {feat!r}. One of: "
+                             f"{', '.join(TRACKS)}")
+        derived[feat] = acc.strip()
 
     records = {feature: fingerprint(args.reference_dir / name)
                for feature, name in TRACKS.items()}
@@ -247,6 +270,15 @@ def main(argv=None) -> int:
                 continue
             try:
                 r["encode"] = encode_lookup(r["md5"])
+                # A locally produced track has no matching checksum, but if we
+                # are told which ENCODE file it was made FROM, that file's real
+                # assay and output type can still be recovered -- and those are
+                # what decide whether the other tissues can be matched.
+                if not r["encode"] and feature in derived:
+                    r["encode"] = encode_by_accession(derived[feature])
+                    if r["encode"]:
+                        r["encode"]["derived"] = True
+                        r["encode"]["derived_from_accession"] = derived[feature]
             except RuntimeError as exc:
                 encode_error = str(exc)
                 print(f"  lookup unavailable ({encode_error}); "
@@ -313,6 +345,8 @@ def main(argv=None) -> int:
                           if r["encode"].get("biosample")}
             outputs = {r["encode"].get("output_type") for r in matched.values()
                        if r["encode"].get("output_type")}
+            assays = {r["encode"].get("assay_title") for r in matched.values()
+                      if r["encode"].get("assay_title")}
             print()
             if len(biosamples) > 1:
                 print(f"!! Tracks come from MORE THAN ONE biosample: "
@@ -320,13 +354,60 @@ def main(argv=None) -> int:
                 print("   The context vector is supposed to describe one tissue.")
             if len(outputs) > 1:
                 print(f"!! Mixed processing types: {sorted(outputs)}")
-                print("   'fold change over control' and 'signal p-value' are on")
-                print("   different scales; mixing them makes the feature vector")
-                print("   inconsistent between marks.")
-            if len(biosamples) == 1 and len(outputs) == 1:
-                print(f"Consistent: one biosample ({next(iter(biosamples))}), "
-                      f"one processing type ({next(iter(outputs))}).")
-                print("That is the recipe to reproduce for the other tissues.")
+                print("   'fold change over control', 'signal p-value' and raw")
+                print("   coverage are on different scales. The epigenomic tower")
+                print("   feeds these values straight into its first Linear layer")
+                print("   with no per-feature standardisation, so the scales do")
+                print("   not wash out -- see scripts/training_common.py.")
+            if len({a for a in assays if "ChIP" not in (a or "")}) and len(assays) > 1:
+                print(f"!! Mixed assay modalities: {sorted(assays)}")
+                print("   Bulk ChIP-seq and single-nucleus ATAC differ in depth,")
+                print("   sparsity and noise structure, not only in scale.")
+            if len(biosamples) == 1 and len(outputs) == 1 and len(assays) <= 2:
+                print(f"Histone marks are consistent: one biosample "
+                      f"({next(iter(biosamples))}), one processing type "
+                      f"({next(iter(outputs))}).")
+
+            derived_rows = {f: r for f, r in matched.items()
+                            if r["encode"].get("derived")}
+            if derived_rows:
+                print()
+                print("PRODUCED LOCALLY, not downloaded as-is:")
+                for feature, r in derived_rows.items():
+                    e = r["encode"]
+                    print(f"  {feature}")
+                    print(f"    built from   {e.get('derived_from_accession')} "
+                          f"({e.get('file_format')}, {e.get('output_type')})")
+                    print(f"    experiment   {e.get('experiment')}  "
+                          f"{e.get('assay_title')}")
+                    print(f"    biosample    {e.get('biosample')}  "
+                          f"[{e.get('replication_type')}]")
+                print("  The conversion itself is not recorded anywhere. Whatever")
+                print("  tool and flags produced the bigWig determine its scale,")
+                print("  and the same choice has to be repeated for every tissue")
+                print("  added later, or the feature is not comparable across them.")
+
+        # Value scales, side by side. This is what actually reaches the model.
+        scaled = {f: r for f, r in records.items()
+                  if r.get("header", {}).get("maxVal") is not None}
+        if scaled:
+            print()
+            print("VALUE SCALE AS THE MODEL SEES IT")
+            print(f"{'feature':<28}{'min':>10}{'max':>12}{'mean@probe':>12}")
+            for feature, r in scaled.items():
+                h, p = r["header"], r.get("probe_region") or {}
+                mean = p.get("mean")
+                mean_s = "--" if mean is None else f"{mean:.3f}"
+                print(f"{feature:<28}{h['minVal']:>10.3f}{h['maxVal']:>12.3f}"
+                      f"{mean_s:>12}")
+            maxima = [r["header"]["maxVal"] for r in scaled.values()
+                      if r["header"]["maxVal"]]
+            if maxima and max(maxima) > 20 * min(m for m in maxima if m > 0):
+                print()
+                print("!! Track maxima span more than an order of magnitude.")
+                print("   With no input standardisation, the largest-scale feature")
+                print("   dominates the first layer's gradients. Worth checking")
+                print("   before four more tissues are built the same way.")
         if unmatched:
             print()
             print(f"NO ENCODE MATCH for {len(unmatched)} track(s): "
@@ -364,18 +445,34 @@ def main(argv=None) -> int:
                                      ("url", "file_url"),
                                      ("encode_file_type", "output_type"),
                                      ("encode_experiment", "experiment"),
+                                     ("encode_assay", "assay_title"),
                                      ("encode_assembly", "assembly")):
                 entry[key] = enc.get(from_encode) or prior.get(key)
             entry["source"] = ("encode" if enc.get("accession")
                                else prior.get("source"))
             entry["liftover_chain"] = prior.get("liftover_chain")
+            entry["derived_from_accession"] = (
+                enc.get("derived_from_accession")
+                or prior.get("derived_from_accession"))
+            # Only a human can say what tool and flags made the file; keep any
+            # note already there and leave the field visible when it is absent.
+            entry["derivation_command"] = prior.get("derivation_command")
             entry["fingerprinted_utc"] = datetime.now(timezone.utc).isoformat(
                 timespec="seconds")
-            entry["provenance_status"] = (
-                "recovered from md5 against the ENCODE portal"
-                if enc.get("accession") else
-                "recorded by hand" if entry.get("source") else
-                "UNKNOWN -- no ENCODE match; file is not a pristine download")
+            if enc.get("derived"):
+                entry["provenance_status"] = (
+                    "produced locally from "
+                    f"{enc.get('derived_from_accession')}; "
+                    + ("conversion command recorded"
+                       if entry["derivation_command"] else
+                       "CONVERSION COMMAND NOT RECORDED"))
+            elif enc.get("accession"):
+                entry["provenance_status"] = "recovered from md5 against the ENCODE portal"
+            elif entry.get("source"):
+                entry["provenance_status"] = "recorded by hand"
+            else:
+                entry["provenance_status"] = (
+                    "UNKNOWN -- no ENCODE match; file is not a pristine download")
             block[feature] = entry
 
         with args.manifest.open("w") as fh:
