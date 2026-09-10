@@ -20,7 +20,7 @@
 Lung:
   atac      ENCFF260QGF
   h3k4me1   ENCFF325EMH
-  h3k4me3   ENCFF113XMQ
+  h3k4me3   ENCFF910JMH   # ENCFF113XMQ was hg19 and rejected
   h3k36me3  ENCFF345TBP
   h3k9me3   ENCFF943PCH
   h3k27me3  ENCFF856MGM

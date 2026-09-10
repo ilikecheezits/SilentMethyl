@@ -522,10 +522,20 @@ def main(argv=None) -> int:
                               f"{(rec.get('bytes') or 0)/1e6:>7.0f} MB")
                         files[feature] = rec
                     else:
-                        bad.append((mark, acc, rec["problems"]))
+                        bad.append((mark, acc, rec["problems"], rec.get("experiment")))
                         print(f"    {mark:<10}{acc:<14}REJECTED")
                         for p in rec["problems"]:
                             print(f"      - {p}")
+                        # A rejected file usually has an acceptable sibling in
+                        # the same experiment -- an hg19 file almost always does,
+                        # because ENCODE reprocessed against GRCh38 later. Say
+                        # where to look rather than leaving a portal search.
+                        if rec.get("experiment"):
+                            print(f"      the same experiment {rec['experiment']} "
+                                  f"({rec.get('biosample')}) may have a usable file:")
+                            print(f"      {ENCODE}/experiments/{rec['experiment']}/"
+                                  f" -> filter GRCh38, bigWig, "
+                                  f"'{OUTPUT_TYPE}'")
                 missing = [MARK_TARGET[f] or "ATAC" for f, _, _, _ in MARKS
                            if f not in files]
                 if missing:
@@ -537,8 +547,8 @@ def main(argv=None) -> int:
                     "missing": missing,
                     "histone_assays": sorted({r.get("assay_title") for r in files.values()
                                               if "ChIP" in (r.get("assay_title") or "")}),
-                    "rejected": [{"mark": m, "accession": a, "problems": p}
-                                 for m, a, p in bad],
+                    "rejected": [{"mark": m, "accession": a, "problems": p,
+                                  "experiment": e} for m, a, p, e in bad],
                 }
                 bios = entry["context"]["term"] or []
                 if len(bios) > 1:
