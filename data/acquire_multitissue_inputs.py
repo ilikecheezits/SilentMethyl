@@ -806,9 +806,30 @@ def main(argv=None) -> int:
     for tissue, entry in plan["tissues"].items():
         for feature, f in entry.get("context", {}).get("files", {}).items():
             dest = args.reference_root / tissue / f["filename"]
+
+            # "It exists" is not "it is the right file". Lung/ATAC_seq.bw once
+            # survived a switch from bulk ATAC to snATAC purely because the name
+            # was unchanged, leaving the plan and the marker file claiming a
+            # source the bytes did not come from. Check identity, not presence.
             if dest.exists():
-                print(f"  skip {dest} (exists)")
-                continue
+                if f.get("convert_from_bam"):
+                    side = dest.with_suffix(dest.suffix + ".source.json")
+                    have = (json.loads(side.read_text()).get("accession")
+                            if side.is_file() else None)
+                    if have == f["accession"]:
+                        print(f"  skip {dest} (converted from {have})")
+                        continue
+                    print(f"  REPLACING {dest}: converted from "
+                          f"{have or 'an unrecorded source'}, want {f['accession']}")
+                    dest.unlink()
+                else:
+                    got = hashlib.md5(dest.read_bytes()).hexdigest()
+                    if f.get("md5") and got == f["md5"]:
+                        print(f"  skip {dest} (md5 matches {f['accession']})")
+                        continue
+                    print(f"  REPLACING {dest}: md5 {got[:10]} does not match "
+                          f"{f['accession']} ({(f.get('md5') or '?')[:10]})")
+                    dest.unlink()
 
             if f.get("convert_from_bam"):
                 bam = args.reference_root / tissue / f"{f['accession']}.bam"
@@ -818,6 +839,18 @@ def main(argv=None) -> int:
                     f["downloaded"] = download(f["url"], bam, f.get("md5"))
                 print(f"  converting {bam.name} -> {dest.name}")
                 f["conversion"] = convert_bam(bam, dest, blacklist)
+                # A converted track has no upstream md5 to check it against, so
+                # record what it came from next to it. This sidecar is what the
+                # skip check above reads on a later run.
+                dest.with_suffix(dest.suffix + ".source.json").write_text(
+                    json.dumps({"accession": f["accession"],
+                                "experiment": f.get("experiment"),
+                                "assay_title": f.get("assay_title"),
+                                "biosample": f.get("biosample"),
+                                "command": f["conversion"]["command"],
+                                "converted_utc": datetime.now(timezone.utc)
+                                .isoformat(timespec="seconds")},
+                               indent=2, sort_keys=True) + "\n")
                 if not args.keep_bams:
                     bam.unlink(missing_ok=True)
                     f["conversion"]["bam_removed"] = True
