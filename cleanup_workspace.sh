@@ -158,6 +158,28 @@ drop ".DS_Store" "macOS turd"
 while IFS= read -r f; do drop "$f" "macOS turd"; done < <(
     find . -name .DS_Store -not -path './.git/*' 2>/dev/null)
 
+# Shell accidents. A mistyped redirect or an unquoted flag creates a file or
+# directory named after the command or the flag; they then sit in the tree
+# looking like they mean something. Four of them (done/echo/grep/tail) reached
+# a commit on 10 Sep 2026 before GitHub rejected the push for unrelated
+# reasons, which is how they were noticed at all.
+for junk in done echo grep tail head cat nohup true false null; do
+    [[ -f "$junk" ]] && drop "$junk" "shell accident, not a real file"
+done
+for flag in data/external/melody/Melody_repo/--input-csv \
+            data/external/melody/Melody_repo/--limit \
+            data/external/melody/Melody_repo/--output \
+            data/external/melody/Melody_repo/--tracks; do
+    drop "$flag" "directory named after a CLI flag; unquoted argument"
+done
+
+# Misspelling of data/external. Contains only an empty Melody_repo/scripts
+# skeleton -- a mkdir -p that went to the wrong path.
+drop "data/exteral" "typo for data/external; empty skeleton"
+
+# Tree dumps generated to inspect the repo. Regenerate with `tree` on demand.
+drop "a.md" "scratch tree dump"
+
 # ---------------------------------------------------------------------------
 banner "2. Re-clonable third-party source trees"
 # ---------------------------------------------------------------------------
@@ -270,6 +292,40 @@ stow_glob "results/journal/melody/union_*.summary.json" \
 stow "results/journal/tissue_specificity_smoke" "tissue_specificity_smoke" \
      "smoke run; real results in tissue_shared_meqtls{,_melody}/"
 
+# The 15-track scores themselves. Their summary was archived above; this is the
+# bulk. Superseded by the full 39-track run, and regenerable from the released
+# checkpoint with one documented scripts/33 invocation.
+drop "results/journal/melody/union_pair_scores_15track.csv" \
+     "15-track run superseded by the 39-track by_tissue/ scores"
+
+# ---------------------------------------------------------------------------
+banner "4d. Fold checkpoints: same treatment checkpoints_journal already got"
+# ---------------------------------------------------------------------------
+
+# checkpoints_journal/ is already down to best_weights.pth + run_config.json
+# per model. checkpoints_folds/ was never given the same pass and still carries
+# both resume state and training telemetry.
+#
+# THIS IS THE ONE EXCEPTION to "anything produced by a GPU is kept", so it is
+# in its own section and easy to skip. latest_checkpoint.pt is optimiser state
+# for resuming an interrupted run. All four folds finished, were tested, and
+# their metrics are committed; scripts/13_test_model.py loads best_weights.pth,
+# never this. The only capability lost is resuming to more epochs, which would
+# invalidate the reported numbers anyway. Nine files, several GB each.
+for f in checkpoints_folds/*/*/latest_checkpoint.pt; do
+    drop "$f" "resume state; folds finished, best_weights.pth is the artifact"
+done
+
+if compgen -G "checkpoints_folds/*/*/tensorboard" > /dev/null; then
+    printf '  archive  %-58s %8s  %s\n' "checkpoints_folds/*/*/tensorboard" \
+        "12 dirs" "training curves; weights and run_config.json stay put"
+    if [[ $APPLY -eq 1 ]]; then
+        mkdir -p "$ARCHIVE"
+        tar -czf "$ARCHIVE/tensorboard_events_folds.tar.gz" checkpoints_folds/*/*/tensorboard
+        rm -rf checkpoints_folds/*/*/tensorboard
+    fi
+fi
+
 # ---------------------------------------------------------------------------
 banner "4c. Logs from finished or dead jobs  (added 10 Sep 2026)"
 # ---------------------------------------------------------------------------
@@ -282,6 +338,22 @@ banner "4c. Logs from finished or dead jobs  (added 10 Sep 2026)"
 # and guarded against in scripts/run_folds.sbatch.
 stow_glob "logs/folds/45290715_*" "logs_folds_dead_fusion_run" \
           "died at fusion; towers survived and were reused by run_fusion_only"
+
+# The successful fusion rerun and the fold test-set scoring. Same story: the
+# .err files are tqdm output, ~120 MB each, and the products (fusion
+# best_weights.pth, results/journal/folds/*/metrics.json) are all tracked. The
+# provenance lines that matter -- "split files and tower weights unchanged for
+# the whole run" -- are quoted in LAB_NOTES.md 7.D.
+stow_glob "logs/folds/fusion_45427618_*" "logs_folds_fusion_rerun" \
+          "fusion rerun finished and passed its provenance check"
+stow_glob "logs/folds/test_*" "logs_folds_test" \
+          "fold test scoring finished; metrics.json per fold is the product"
+
+# Interactive run logs at the logs/ root: transfer_*, h2h_*, st_h2h_*,
+# harmonize_*, r4_*, fetch_*. All small, all from finished work whose outputs
+# are under results/journal/ or data/external/.
+stow_glob "logs/*.log" "logs_interactive_runs" \
+          "finished interactive runs; outputs are tracked"
 
 stow_glob "logs/egtex_mt_scoring/*" "logs_egtex_mt_scoring" \
           "scoring finished; pair_scores.csv per tissue is the product"
@@ -375,6 +447,15 @@ cat <<'NOTE'
 
     logs/r41_melody.txt, logs/r41_silentmethyl.txt
       The two-model R4 comparison, read directly in LAB_NOTES.md 7.A2.
+      (.txt, so the logs/*.log archive step above does not match them.)
+
+    checkpoints_folds/*/*/best_weights.pth, run_config.json,
+    split_checksums*.txt, splits_summary_at_launch.json
+      The fold models and the provenance that ties each to its split.
+
+    data/external/melody/Melody_repo/ and dnabert2_local/
+      Both are needed to score: Melody's released checkpoints live under
+      Melody_repo/drive/, and dnabert2_local/ is the frozen encoder.
 
   Already gone, recorded rather than deleted silently:
     data/external/egtex_breast/BreastMammaryTissue.mQTLs.regular.txt.gz  (45 GB)
