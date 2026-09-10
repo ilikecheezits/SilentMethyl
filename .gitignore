@@ -126,6 +126,14 @@ training_log*
 !requirements.txt
 cache
 
+# Multi-tissue acquisition inputs and records. Small, hand-curated, and the only
+# statement of which ENCODE files the joint model's context is built from --
+# exactly the provenance that was missing for the breast tracks, so it is
+# tracked rather than left on one machine.
+!data/multitissue_picks.tsv
+!data/multitissue_acquisition_plan.json
+!data/tcga_normal_cohort_survey.json
+
 # Small reproducibility and final-result artifacts intentionally tracked
 !reproducibility/environment_snapshot.txt
 !reproducibility/analysis_audit.txt
@@ -155,8 +163,3 @@ __pycache__/
 main_revised.log
 !data/*.sh
 !data/*.sbatch
-
-# Slurm job logs. Progress-bar output runs past 100 MB per fold, over GitHub's
-# file size limit. The products are tracked instead; cleanup_workspace.sh
-# archives the logs into _archive/.
-logs/
