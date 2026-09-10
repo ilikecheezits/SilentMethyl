@@ -86,7 +86,10 @@ REQUIRED_TRACKS = [
 TISSUES = {
     "BreastMammaryTissue": {
         "tcga": ("TCGA-BRCA",),
-        "encode": ["MCF-10A", "breast epithelium", "luminal epithelial cell of mammary gland"],
+        # ENCODE spells the cell line "MCF 10A"; the hyphenated form is how it
+        # appears everywhere else, so both are tried.
+        "encode": ["MCF 10A", "MCF-10A", "breast epithelium",
+                   "luminal epithelial cell of mammary gland"],
     },
     "ColonTransverse": {
         "tcga": ("TCGA-COAD", "TCGA-READ"),
@@ -123,18 +126,37 @@ TISSUES = {
 }
 
 
-def _get_json(url: str, timeout: int, what: str):
+class Unreachable(RuntimeError):
+    """The host could not be reached, as opposed to answering 'nothing found'."""
+
+
+def _get_json(url: str, timeout: int, what: str, empty_is_404: bool = False):
+    """Fetch JSON. Returns None for a 404 when the caller says 404 means empty.
+
+    The ENCODE portal answers a search with no matches with HTTP 404 rather than
+    a 200 carrying total=0. Treating that as a transport failure aborted the
+    whole survey on the first tissue that happened to be missing a mark, and
+    discarded the GDC half that had already been paid for.
+    """
     req = urllib.request.Request(url, headers=UA)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as fh:
             return json.load(fh)
+    except urllib.error.HTTPError as exc:
+        if empty_is_404 and exc.code == 404:
+            return None
+        raise Unreachable(f"{what} returned HTTP {exc.code}") from exc
     except urllib.error.URLError as exc:
-        raise SystemExit(
-            f"STOP: could not reach {what} ({exc}).\n"
-            f"Compute nodes and some login nodes have no outbound HTTPS. Run this\n"
-            f"from a machine with network access, or read the same facets by hand\n"
-            f"at https://portal.gdc.cancer.gov/ and https://www.encodeproject.org/."
-        ) from exc
+        raise Unreachable(f"could not reach {what} ({exc.reason})") from exc
+
+
+def _fatal_network(msg: str) -> "SystemExit":
+    return SystemExit(
+        f"STOP: {msg}.\n"
+        f"Compute nodes and some login nodes have no outbound HTTPS. Run this\n"
+        f"from a machine with network access, or read the same facets by hand\n"
+        f"at https://portal.gdc.cancer.gov/ and https://www.encodeproject.org/."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -204,7 +226,11 @@ def gdc_normal_donors(platform: str, sample_type: str, timeout: int = 90,
 
 def encode_has_track(term: str, assay: str, target: str | None,
                      timeout: int = 60) -> int:
-    """Released GRCh38 experiments for one biosample/assay pair."""
+    """Released GRCh38 experiments for one biosample/assay pair.
+
+    A 404 from the portal means the search matched nothing, so it is a real
+    answer -- zero -- not a failure. Only a transport error raises.
+    """
     params = [
         ("type", "Experiment"),
         ("status", "released"),
@@ -212,21 +238,21 @@ def encode_has_track(term: str, assay: str, target: str | None,
         ("biosample_ontology.term_name", term),
         ("assay_title", assay),
         ("format", "json"),
-        ("limit", "0"),
+        ("limit", "1"),
     ]
     if target:
         params.append(("target.label", target))
     url = f"{ENCODE_SEARCH}?{urllib.parse.urlencode(params)}"
-    try:
-        payload = _get_json(url, timeout, "the ENCODE portal")
-    except SystemExit:
-        raise
+    payload = _get_json(url, timeout, "the ENCODE portal", empty_is_404=True)
+    if payload is None:
+        return 0
     return int(payload.get("total", 0))
 
 
 def encode_coverage(terms: list[str], timeout: int = 60) -> dict:
     """Best-covered biosample term for a tissue, and what it is missing."""
-    best = {"term": None, "have": [], "missing": [t for _, t in REQUIRED_TRACKS]}
+    labels = [t or a for a, t in REQUIRED_TRACKS]
+    best = {"term": None, "have": [], "missing": list(labels)}
     for term in terms:
         have, missing = [], []
         for assay, target in REQUIRED_TRACKS:
@@ -260,7 +286,15 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     print("querying GDC ...")
-    donors = gdc_normal_donors(args.platform, "Solid Tissue Normal")
+    try:
+        donors = gdc_normal_donors(args.platform, "Solid Tissue Normal")
+    except Unreachable as exc:
+        raise _fatal_network(str(exc)) from exc
+
+    # ENCODE is the optional half. If the portal is unreachable, still print the
+    # donor table -- walking the GDC takes a while and throwing that away
+    # because a second host was down is how the first version of this failed.
+    encode_down = None
 
     rows = []
     for tissue, spec in TISSUES.items():
@@ -271,9 +305,14 @@ def main(argv=None) -> int:
         n = len(ids)
 
         enc = None
-        if not args.skip_encode and spec["encode"]:
+        if not args.skip_encode and spec["encode"] and encode_down is None:
             print(f"querying ENCODE for {tissue} ...")
-            enc = encode_coverage(spec["encode"])
+            try:
+                enc = encode_coverage(spec["encode"])
+            except Unreachable as exc:
+                encode_down = str(exc)
+                print(f"  ENCODE unavailable ({encode_down}); "
+                      f"reporting donor counts only")
 
         targets_ok = bool(projects) and n >= args.min_normals
         context_ok = None if enc is None else enc["complete"]
@@ -317,6 +356,11 @@ def main(argv=None) -> int:
             print(f"{'':<22}  - {why}")
 
     usable = [r for r in rows if r["usable"]]
+    if encode_down:
+        print()
+        print(f"ENCODE half incomplete: {encode_down}")
+        print("Donor counts above are final; the context column is not. Re-run")
+        print("with network to the portal before fixing the tissue list.")
     print()
     print(f"usable: {len(usable)}  ({', '.join(r['egtex_tissue'] for r in usable) or 'none'})")
     print(f"dropped: {len(rows) - len(usable)}  "
