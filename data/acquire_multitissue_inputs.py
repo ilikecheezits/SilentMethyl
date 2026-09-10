@@ -116,6 +116,16 @@ SNATAC_BAMCOVERAGE = [
     "--extendReads",
     "--numberOfProcessors", "max",
 ]
+
+# deeptools renames and drops options between releases -- --ignoreDuplicates is
+# absent from recent builds, for instance. Silently dropping a filter would
+# change the output while the recorded command still claimed it, so any flag the
+# installed binary does not accept is swapped for a documented equivalent, or
+# the run stops. SAM flag 1024 is the PCR/optical duplicate bit, so excluding it
+# is exactly what --ignoreDuplicates did.
+FLAG_FALLBACKS = {
+    "--ignoreDuplicates": ["--samFlagExclude", "1024"],
+}
 # ENCODE GRCh38 exclusion list (Amemiya et al. 2019), fetched if absent.
 BLACKLIST_ACCESSION = "ENCFF356LFX"
 
@@ -434,17 +444,68 @@ def verify_bam_pick(feature: str, accession: str) -> dict:
     return rec
 
 
+_RESOLVED_FLAGS: list[str] | None = None
+
+
+def resolve_bamcoverage_flags() -> list[str]:
+    """Adapt the fixed command to the installed bamCoverage, or refuse.
+
+    Resolved once and cached, so every tissue in a run gets the identical
+    command -- and because the result is written into the manifest and the
+    sidecar, a later tissue converted under a different deeptools build is
+    visible rather than silently different.
+    """
+    global _RESOLVED_FLAGS
+    if _RESOLVED_FLAGS is not None:
+        return _RESOLVED_FLAGS
+
+    import subprocess
+    try:
+        helptext = subprocess.run(["bamCoverage", "--help"], capture_output=True,
+                                  text=True, timeout=120).stdout
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise SystemExit(f"STOP: could not run 'bamCoverage --help' ({exc})") from exc
+
+    out, notes = [], []
+    i = 0
+    while i < len(SNATAC_BAMCOVERAGE):
+        tok = SNATAC_BAMCOVERAGE[i]
+        if not tok.startswith("--"):
+            out.append(tok)
+            i += 1
+            continue
+        takes_value = (i + 1 < len(SNATAC_BAMCOVERAGE)
+                       and not SNATAC_BAMCOVERAGE[i + 1].startswith("--"))
+        if tok in helptext:
+            out.append(tok)
+            if takes_value:
+                out.append(SNATAC_BAMCOVERAGE[i + 1])
+        elif tok in FLAG_FALLBACKS and FLAG_FALLBACKS[tok][0] in helptext:
+            sub = FLAG_FALLBACKS[tok]
+            out.extend(sub)
+            notes.append(f"{tok} -> {' '.join(sub)}")
+        else:
+            raise SystemExit(
+                f"STOP: this bamCoverage does not accept {tok}, and no "
+                f"documented equivalent is available.\n"
+                f"Dropping it would change the output while the recorded "
+                f"command still claimed the filter was applied.\n"
+                f"Pin a deeptools version that supports it, or add an "
+                f"equivalent to FLAG_FALLBACKS with a comment saying why it "
+                f"is equivalent.")
+        i += 2 if takes_value else 1
+
+    if notes:
+        print(f"      adapted to the installed deeptools: {'; '.join(notes)}")
+    _RESOLVED_FLAGS = out
+    return out
+
+
 def convert_bam(bam: Path, dest: Path, blacklist: Path | None) -> dict:
     """BAM -> bigWig with the one fixed command, recorded alongside the output."""
-    import shutil as _shutil
     import subprocess
-    if _shutil.which("bamCoverage") is None:
-        raise SystemExit(
-            "STOP: bamCoverage not found. It ships with deeptools:\n"
-            "  conda install -c bioconda deeptools\n"
-            "The conversion must be the same for every tissue, so run them all "
-            "in the same environment.")
-    cmd = list(SNATAC_BAMCOVERAGE) + ["--bam", str(bam), "--outFileName", str(dest)]
+    cmd = list(resolve_bamcoverage_flags()) + ["--bam", str(bam),
+                                               "--outFileName", str(dest)]
     if blacklist and blacklist.is_file():
         cmd += ["--blackListFileName", str(blacklist)]
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -507,13 +568,34 @@ def download(url: str, dest: Path, expect_md5: str | None = None,
                     have = 0
                 if have:
                     print(f"      resuming at {have / 1e6:.0f} MB")
+                # Content-Length is what remains, not the whole file, on a 206.
+                remaining = int(src.headers.get("Content-Length") or 0)
+                total = have + remaining if remaining else 0
                 mode = "ab" if have else "wb"
+                done, started, last = have, time.time(), time.time()
                 with tmp.open(mode) as out:
                     while True:
                         block = src.read(1 << 20)
                         if not block:
                             break
                         out.write(block)
+                        done += len(block)
+                        # A 20 GB BAM with no output is indistinguishable from a
+                        # hang. Report every 15 s -- often enough to see life,
+                        # rare enough not to flood a nohup log.
+                        now = time.time()
+                        if now - last >= 15:
+                            rate = (done - have) / max(now - started, 1e-9) / 1e6
+                            if total:
+                                pct = 100 * done / total
+                                eta = (total - done) / max(rate * 1e6, 1e-9)
+                                print(f"      {done/1e9:.2f}/{total/1e9:.2f} GB "
+                                      f"({pct:.1f}%)  {rate:.0f} MB/s  "
+                                      f"eta {eta/60:.0f} min", flush=True)
+                            else:
+                                print(f"      {done/1e9:.2f} GB  {rate:.0f} MB/s",
+                                      flush=True)
+                            last = now
             break
         except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
             if attempt == retries:
@@ -778,13 +860,33 @@ def main(argv=None) -> int:
                 f"itself.\nThat directory holds the PUBLISHED single-tissue "
                 f"context and must not be overwritten.")
 
+    # Check the conversion tool BEFORE transferring anything. bamCoverage was
+    # previously checked at conversion time, which meant discovering it was
+    # missing after a 19.6 GB download had already finished.
+    needs_conversion = any(
+        f.get("convert_from_bam")
+        for t in plan["tissues"].values()
+        for f in t.get("context", {}).get("files", {}).values())
+    if needs_conversion:
+        import shutil as _shutil
+        if _shutil.which("bamCoverage") is None:
+            raise SystemExit(
+                "STOP: bamCoverage not found, and this plan needs it to convert "
+                "snATAC BAMs.\nNothing has been downloaded.\n\n"
+                "Install it in its OWN environment -- deeptools pins numpy, "
+                "scipy and pysam,\nand installing it alongside the training "
+                "environment can downgrade them:\n\n"
+                "    conda create -n deeptools -c bioconda -c conda-forge "
+                "deeptools -y\n    conda activate deeptools\n\n"
+                "Then re-run this. Use the same environment for every tissue, "
+                "or the\naccessibility feature stops being comparable between "
+                "them.")
+
     print("\ndownloading ...")
 
     # One shared exclusion list, fetched once, used by every conversion.
     blacklist = None
-    if any(f.get("convert_from_bam")
-           for t in plan["tissues"].values()
-           for f in t.get("context", {}).get("files", {}).values()):
+    if needs_conversion:
         blacklist = args.reference_root / f"{BLACKLIST_ACCESSION}.bed.gz"
         if not blacklist.is_file():
             meta = _json(f"{ENCODE}/files/{BLACKLIST_ACCESSION}/?format=json")
