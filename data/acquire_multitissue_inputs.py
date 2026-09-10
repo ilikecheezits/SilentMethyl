@@ -83,6 +83,42 @@ HISTONE_ASSAYS = ["Histone ChIP-seq", "Mint-ChIP-seq"]
 
 OUTPUT_TYPE = "fold change over control"
 
+# ---------------------------------------------------------------------------
+# snATAC -> bigWig conversion
+# ---------------------------------------------------------------------------
+# ENCODE publishes no fold-change bigWig for single-nucleus ATAC, so keeping
+# MCF-10A as the breast context means converting a BAM per tissue. The command
+# below is applied IDENTICALLY to every tissue, MCF-10A included, and is written
+# into the manifest with each track. That last part is the whole point: the
+# existing data/reference/ATAC_seq.bw was converted with parameters nobody
+# recorded, which is why it cannot be matched and has to be redone.
+#
+# Why each flag:
+#   --normalizeUsing CPM   depth differs between experiments, and without
+#                          normalisation a deeper-sequenced tissue simply gets
+#                          larger numbers -- a scale offset perfectly correlated
+#                          with tissue, which is the artifact this route exists
+#                          to avoid. CPM is the standard choice and needs no
+#                          input control, which snATAC does not have.
+#   --binSize 10           near the resolution of the ENCODE histone signal the
+#                          other six features come from. Larger bins blur the
+#                          accessibility peaks that matter at a 1 kb window.
+#   --ignoreDuplicates     10x libraries carry PCR duplicates.
+#   --minMappingQuality 30 drops multi-mapping reads, standard for ATAC.
+#   --blacklist            ENCODE GRCh38 exclusion list; ATAC is especially
+#                          prone to artifact pileups in these regions.
+SNATAC_BAMCOVERAGE = [
+    "bamCoverage",
+    "--normalizeUsing", "CPM",
+    "--binSize", "10",
+    "--ignoreDuplicates",
+    "--minMappingQuality", "30",
+    "--extendReads",
+    "--numberOfProcessors", "max",
+]
+# ENCODE GRCh38 exclusion list (Amemiya et al. 2019), fetched if absent.
+BLACKLIST_ACCESSION = "ENCFF356LFX"
+
 # TCGA projects supply the targets; ENCODE biosample terms supply the context.
 # Donor counts from data/survey_tcga_normal_cohorts.py, 10 Sep 2026.
 #
@@ -131,7 +167,13 @@ TISSUES = {
 # it.
 MARK_ALIASES = {
     "atac": "Ref_ATAC_Signal", "atac-seq": "Ref_ATAC_Signal",
-    "atac_seq": "Ref_ATAC_Signal", "dnase": None,
+    "atac_seq": "Ref_ATAC_Signal",
+    # snATAC accessibility, supplied as a BAM to convert locally. ENCODE
+    # publishes no fold-change bigWig for single-nucleus experiments, so every
+    # tissue on this route goes through the same conversion below.
+    "atac_bam": "Ref_ATAC_Signal", "snatac": "Ref_ATAC_Signal",
+    "snatac_bam": "Ref_ATAC_Signal",
+    "dnase": None,
     "h3k4me3": "Ref_H3K4me3_Signal",
     "h3k27ac": "Ref_H3K27ac_Signal",
     "h3k27me3": "Ref_H3K27me3_Signal",
@@ -291,11 +333,12 @@ def read_picks(path: Path) -> dict[str, dict[str, str]]:
             raise SystemExit(f"STOP: {path}:{lineno}: {mark!r} is not a model input")
 
         acc = token.strip()
+        as_bam = key in ("atac_bam", "snatac", "snatac_bam") or acc.endswith(".bam")
         if "/files/" in acc:                     # a full download URL
             acc = acc.split("/files/")[1].split("/")[0]
         if not acc.startswith("ENCFF"):
             raise SystemExit(f"STOP: {path}:{lineno}: {token!r} is not an ENCFF accession")
-        picks.setdefault(tissue, {})[feature] = acc
+        picks.setdefault(tissue, {})[feature] = {"accession": acc, "as_bam": as_bam}
     return picks
 
 
@@ -338,14 +381,77 @@ def verify_pick(feature: str, accession: str) -> dict:
     want = MARK_TARGET[feature]
     if want and rec.get("target") != want:
         problems.append(f"target is {rec.get('target')!r}, expected {want!r}")
-    if not want and "ATAC" not in (rec.get("assay_title") or ""):
-        problems.append(f"assay is {rec.get('assay_title')!r}, expected ATAC-seq")
-    if "single-nucleus" in (rec.get("assay_title") or "").lower() or \
-       "snATAC" in (rec.get("assay_title") or ""):
-        problems.append("single-nucleus assay; the other tissues are bulk")
+    if not want and "ATAC" not in (rec.get("assay_title") or "").upper():
+        problems.append(f"assay is {rec.get('assay_title')!r}, expected ATAC")
     rec["problems"] = problems
     rec["ok"] = not problems
     return rec
+
+
+def verify_bam_pick(feature: str, accession: str) -> dict:
+    """Same as verify_pick, but for an alignment file we will convert ourselves.
+
+    A BAM is judged by different rules than a signal track: there is no output
+    type to match, and 'alignments' rather than 'unfiltered alignments' is the
+    one to take -- the unfiltered file still contains the reads the ENCODE
+    pipeline rejected.
+    """
+    f = _json(f"{ENCODE}/files/{accession}/?format=json")
+    if not f:
+        return {"accession": accession, "feature": feature, "ok": False,
+                "problems": ["no such file on ENCODE"]}
+    rec = {
+        "accession": accession, "filename": MARK_FILENAME[feature],
+        "file_format": f.get("file_format"), "output_type": f.get("output_type"),
+        "assembly": f.get("assembly"), "encode_status": f.get("status"),
+        "md5": f.get("md5sum"), "bytes": f.get("file_size"),
+        "url": f"{ENCODE}{f['href']}" if f.get("href") else None,
+        "dataset": f.get("dataset"), "convert_from_bam": True,
+    }
+    exp = _json(f"{ENCODE}{rec['dataset']}?format=json") if rec["dataset"] else None
+    if exp:
+        rec.update({
+            "experiment": exp.get("accession"),
+            "assay_title": exp.get("assay_title"),
+            "biosample": (exp.get("biosample_ontology") or {}).get("term_name"),
+            "replication_type": exp.get("replication_type"),
+            "lab": (exp.get("lab") or {}).get("title"),
+        })
+    problems = []
+    if rec["file_format"] != "bam":
+        problems.append(f"file_format is {rec['file_format']}, not bam")
+    if rec["assembly"] != "GRCh38":
+        problems.append(f"assembly is {rec['assembly']}, not GRCh38")
+    if rec["encode_status"] != "released":
+        problems.append(f"status is {rec['encode_status']}, not released")
+    if rec.get("output_type") == "unfiltered alignments":
+        problems.append("this is the UNFILTERED alignment; take the filtered "
+                        "'alignments' file from the same experiment")
+    if "ATAC" not in (rec.get("assay_title") or "").upper():
+        problems.append(f"assay is {rec.get('assay_title')!r}, expected an ATAC assay")
+    rec["problems"] = problems
+    rec["ok"] = not problems
+    return rec
+
+
+def convert_bam(bam: Path, dest: Path, blacklist: Path | None) -> dict:
+    """BAM -> bigWig with the one fixed command, recorded alongside the output."""
+    import shutil as _shutil
+    import subprocess
+    if _shutil.which("bamCoverage") is None:
+        raise SystemExit(
+            "STOP: bamCoverage not found. It ships with deeptools:\n"
+            "  conda install -c bioconda deeptools\n"
+            "The conversion must be the same for every tissue, so run them all "
+            "in the same environment.")
+    cmd = list(SNATAC_BAMCOVERAGE) + ["--bam", str(bam), "--outFileName", str(dest)]
+    if blacklist and blacklist.is_file():
+        cmd += ["--blackListFileName", str(blacklist)]
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    print(f"      {' '.join(cmd)}")
+    subprocess.run(cmd, check=True)
+    return {"command": " ".join(cmd), "path": str(dest),
+            "bytes": dest.stat().st_size, "sha256": None}
 
 
 def check_xena(project: str) -> dict:
@@ -472,6 +578,10 @@ def main(argv=None) -> int:
                          "'<tissue> <mark> <accession-or-url>'; see read_picks(). "
                          "Every file is checked for format, output type, "
                          "assembly, released status and target before use.")
+    ap.add_argument("--keep-bams", action="store_true",
+                    help="Keep the downloaded BAMs after conversion. They are "
+                         "13-30 GB each and the bigWig is what the model reads, "
+                         "so they are deleted by default.")
     ap.add_argument("--force", action="store_true",
                     help="Download even when the resolved set is inconsistent "
                          "across tissues. Only with a recorded reason.")
@@ -516,13 +626,16 @@ def main(argv=None) -> int:
                 chosen = picks.get(tissue, {})
                 print(f"  context (your picks, {len(chosen)} file(s)):")
                 files, bad = {}, []
-                for feature, acc in chosen.items():
-                    rec = verify_pick(feature, acc)
+                for feature, pick in chosen.items():
+                    acc, as_bam = pick["accession"], pick["as_bam"]
+                    rec = (verify_bam_pick(feature, acc) if as_bam
+                           else verify_pick(feature, acc))
                     time.sleep(0.15)
                     mark = MARK_TARGET[feature] or "ATAC"
                     if rec["ok"]:
+                        tag = " (BAM->bigWig)" if as_bam else ""
                         print(f"    {mark:<10}{acc:<14}{rec.get('biosample',''):<24}"
-                              f"{(rec.get('bytes') or 0)/1e6:>7.0f} MB")
+                              f"{(rec.get('bytes') or 0)/1e6:>7.0f} MB{tag}")
                         files[feature] = rec
                     else:
                         bad.append((mark, acc, rec["problems"], rec.get("experiment")))
@@ -652,13 +765,64 @@ def main(argv=None) -> int:
         print("mismatch aborts rather than leaving an unverified track in place.")
         return 0
 
+    # The joint model's breast tracks and the published model's breast tracks
+    # are both MCF-10A, carry the same filenames, and share six of seven
+    # accessions -- only the locally converted ATAC differs. Writing either into
+    # the other's directory would silently swap one model's context for the
+    # other's, and nothing downstream would notice.
+    for tissue in plan["tissues"]:
+        target_dir = (args.reference_root / tissue).resolve()
+        if target_dir == args.reference_root.resolve():
+            raise SystemExit(
+                f"STOP: {tissue} would be written into {args.reference_root} "
+                f"itself.\nThat directory holds the PUBLISHED single-tissue "
+                f"context and must not be overwritten.")
+
     print("\ndownloading ...")
+
+    # One shared exclusion list, fetched once, used by every conversion.
+    blacklist = None
+    if any(f.get("convert_from_bam")
+           for t in plan["tissues"].values()
+           for f in t.get("context", {}).get("files", {}).values()):
+        blacklist = args.reference_root / f"{BLACKLIST_ACCESSION}.bed.gz"
+        if not blacklist.is_file():
+            meta = _json(f"{ENCODE}/files/{BLACKLIST_ACCESSION}/?format=json")
+            if meta and meta.get("href"):
+                print(f"  exclusion list {BLACKLIST_ACCESSION} -> {blacklist}")
+                download(f"{ENCODE}{meta['href']}", blacklist, meta.get("md5sum"))
+            else:
+                print(f"  WARNING: could not fetch {BLACKLIST_ACCESSION}; "
+                      f"converting without an exclusion list")
+                blacklist = None
+        plan["snatac_conversion"] = {
+            "command_template": " ".join(SNATAC_BAMCOVERAGE),
+            "blacklist": str(blacklist) if blacklist else None,
+            "note": ("applied identically to every tissue on this route, "
+                     "including MCF-10A, so the accessibility feature is "
+                     "comparable across tissues by construction"),
+        }
+
     for tissue, entry in plan["tissues"].items():
         for feature, f in entry.get("context", {}).get("files", {}).items():
             dest = args.reference_root / tissue / f["filename"]
             if dest.exists():
                 print(f"  skip {dest} (exists)")
                 continue
+
+            if f.get("convert_from_bam"):
+                bam = args.reference_root / tissue / f"{f['accession']}.bam"
+                if not bam.exists():
+                    print(f"  {f['accession']}  ->  {bam}  "
+                          f"({(f.get('bytes') or 0)/1e9:.1f} GB)")
+                    f["downloaded"] = download(f["url"], bam, f.get("md5"))
+                print(f"  converting {bam.name} -> {dest.name}")
+                f["conversion"] = convert_bam(bam, dest, blacklist)
+                if not args.keep_bams:
+                    bam.unlink(missing_ok=True)
+                    f["conversion"]["bam_removed"] = True
+                continue
+
             print(f"  {f['accession']}  ->  {dest}")
             f["downloaded"] = download(f["url"], dest, f.get("md5"))
         for m in entry.get("targets", []):
@@ -671,10 +835,46 @@ def main(argv=None) -> int:
             print(f"  {m['project']}  ->  {dest}")
             m["downloaded"] = download(m["url"], dest, None)
 
+    # A marker in each directory, so the two breast track sets can be told
+    # apart by looking rather than by remembering.
+    for tissue, entry in plan["tissues"].items():
+        files = entry.get("context", {}).get("files", {})
+        if not files:
+            continue
+        d = args.reference_root / tissue
+        lines = [
+            f"# {tissue} context tracks -- JOINT MULTI-TISSUE MODEL",
+            "",
+            "These belong to the multi-tissue model ONLY.",
+            "",
+            f"The published single-tissue model reads {args.reference_root}/*.bw",
+            "directly -- the files one level up from here. Those are a different",
+            "track set and must not be swapped with these, even for breast,",
+            "where both are MCF-10A and the filenames are identical.",
+            "",
+            f"generated {plan['generated_utc']}",
+            "",
+            "| feature | accession | biosample | source |",
+            "|---|---|---|---|",
+        ]
+        for feature, f in files.items():
+            how = ("BAM converted locally" if f.get("convert_from_bam")
+                   else f.get("output_type", "?"))
+            lines.append(f"| {MARK_TARGET[feature] or 'ATAC'} | "
+                         f"{f.get('accession')} | {f.get('biosample')} | {how} |")
+        if plan.get("snatac_conversion"):
+            lines += ["", "Accessibility conversion, identical for every tissue:",
+                      "", "```", plan["snatac_conversion"]["command_template"], "```"]
+        lines += ["", "PhyloP is genome conservation, identical in every tissue,",
+                  f"and is read from {args.reference_root}/hg38.phyloP100way.bw.", ""]
+        (d / "TRACK_SET.md").write_text("\n".join(lines))
+
     with args.plan.open("w") as fh:
         json.dump(plan, fh, indent=2, sort_keys=True)
         fh.write("\n")
     print(f"\ndone; {args.plan} updated with what was written")
+    print("each tissue directory carries a TRACK_SET.md naming which model it "
+          "belongs to")
     print("Next: data/audit_reference_tracks.py --write-manifest on each new")
     print("tissue directory, so the manifest records these the same way.")
     return 0

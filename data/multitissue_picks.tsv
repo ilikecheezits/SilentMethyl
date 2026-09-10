@@ -3,8 +3,15 @@
 # H3K9ac and DNase are not model inputs.
 # Notes must start with '#' or they are parsed as picks.
 
+# ROUTE B: accessibility comes from snATAC BAMs, converted locally with one
+# fixed command, so MCF-10A can stay as the breast context. Use mark 'atac_bam'
+# for those; 'atac' still means a ready-made fold-change bigWig.
+# MCF-10A must be re-converted with the SAME command as the others -- the
+# existing data/reference/ATAC_seq.bw used unrecorded parameters and cannot be
+# matched, so it is not reused here.
+
 Lung:
-  atac      ENCFF260QGF
+  atac_bam  ENCFF673RWI
   h3k4me1   ENCFF325EMH
   h3k4me3   ENCFF910JMH
   h3k36me3  ENCFF345TBP
@@ -14,7 +21,15 @@ Lung:
 # h3k9ac    ENCFF110TAI    not a model input
 # ENCFF113XMQ was the original H3K4me3 pick, rejected as hg19
 
+# BreastMammaryTissue:
+#   atac_bam  ENCFF021PIS    MCF 10A snATAC, re-converted with the same command
+#   h3k4me3   ENCFF548SFG
+#   h3k27ac   ENCFF282YCX
+#   h3k27me3  ENCFF274LWG
+#   h3k9me3   ENCFF423DKY
+#   h3k36me3  ENCFF634LDP
+#   h3k4me1   ENCFF714NIL
+
 # KidneyCortex:
 # Prostate:
 # ColonTransverse:
-# BreastMammaryTissue:
