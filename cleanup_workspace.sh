@@ -39,7 +39,10 @@ for arg in "$@"; do
 done
 
 # --- refuse to run anywhere but the project root ---------------------------
-for marker in scripts/12_train_fusion.py data/datafiles/train.csv REQUIREMENTS.md; do
+# Markers must exist in BOTH checkouts. data/datafiles/ is gitignored and lives
+# only on the cluster, and REQUIREMENTS.md was folded into LAB_NOTES.md on
+# 9 Sep 2026 -- requiring either made this script refuse to run on the laptop.
+for marker in scripts/12_train_fusion.py LAB_NOTES.md; do
     if [[ ! -e "$marker" ]]; then
         echo "ERROR: $marker not found. Run this from the SilentMethyl root." >&2
         exit 1
@@ -51,9 +54,26 @@ FREED=0
 
 human () { numfmt --to=iec --suffix=B "${1:-0}" 2>/dev/null || echo "${1:-0} bytes"; }
 
+# BSD du (macOS) has no -b. Fall back to -k so this runs on the laptop as well
+# as on Bridges-2; always echo a number, because `set -u` plus an empty string
+# turns the FREED arithmetic below into a fatal error.
 size_of () {
     [[ -e "$1" ]] || { echo 0; return; }
-    du -sb "$1" 2>/dev/null | cut -f1
+    local b
+    b=$(du -sb "$1" 2>/dev/null | cut -f1) \
+        || b=$(( $(du -sk "$1" 2>/dev/null | cut -f1 || echo 0) * 1024 ))
+    [[ -n "${b:-}" ]] || b=$(( $(du -sk "$1" 2>/dev/null | cut -f1 || echo 0) * 1024 ))
+    echo "${b:-0}"
+}
+
+# Same idea for a glob: sum the matches without relying on `du -c -b`.
+size_of_glob () {
+    local total=0 f
+    for f in $1; do
+        [[ -e "$f" ]] || continue
+        total=$(( total + $(size_of "$f") ))
+    done
+    echo "$total"
 }
 
 banner () { printf '\n\033[1m%s\033[0m\n' "$1"; }
@@ -78,6 +98,26 @@ stow () {
         mkdir -p "$ARCHIVE"
         tar -czf "$ARCHIVE/${name}.tar.gz" -- "$path"
         rm -rf -- "$path"
+    fi
+}
+
+# Archive files matching a glob but KEEP the directory. Slurm opens its
+# --output/--error paths before the job body runs, so removing a log directory
+# breaks any queued job that writes into it. Use this for log trees, and `stow`
+# only for directories nothing will write to again.
+stow_glob () {
+    local pattern="$1" name="$2" why="$3"
+    compgen -G "$pattern" > /dev/null 2>&1 || return 0
+    local n bytes
+    n=$(compgen -G "$pattern" | wc -l | tr -d ' ')
+    bytes=$(size_of_glob "$pattern")
+    FREED=$((FREED + ${bytes:-0}))
+    printf '  archive  %-58s %8s  %s\n' "$pattern" "$(human "${bytes:-0}")" "$why"
+    printf '           %s file(s) -> %s/%s.tar.gz, directory kept\n' "$n" "$ARCHIVE" "$name"
+    if [[ $APPLY -eq 1 ]]; then
+        mkdir -p "$ARCHIVE"
+        tar -czf "$ARCHIVE/${name}.tar.gz" $pattern
+        rm -f -- $pattern
     fi
 }
 
@@ -202,6 +242,61 @@ stow "results/journal/rc_uncertainty_conditional_s50" "rc_uncertainty_s50" \
      "sensitivity variant; main run kept (cited in scripts/19)"
 
 # ---------------------------------------------------------------------------
+banner "4b. Melody tuning sweeps and superseded runs  (added 10 Sep 2026)"
+# ---------------------------------------------------------------------------
+
+# The whole-blood margin sweep. Its pair_scores were archived already
+# (_archive/melody_margin_sweep.tar.gz) but the 14 loose .summary.json files
+# were left behind, which is most of what makes results/journal/melody/ look
+# busy. The sweep settled the scoring parameters -- margin >= 1, sigmoid_first,
+# midpoint window -- and those are now fixed in scripts/33_melody_scoring.py,
+# so the summaries are a record of how we got there, not an input to anything.
+stow_glob "results/journal/melody/wb_*.summary.json" "melody_margin_sweep_summaries" \
+          "margin/threshold sweep; settled parameters live in scripts/33"
+
+stow_glob "results/journal/melody/smoke_wholeblood.summary.json" "melody_smoke" \
+          "smoke test for the scoring harness"
+
+# Two intermediate union runs from before the full 39-track scoring existed.
+# The 15-track run and the breast-luminal-only run are both superseded by
+# by_tissue/melody_by_tissue_summary.json, which is what the manuscript cites.
+stow_glob "results/journal/melody/union_*.summary.json" \
+          "melody_partial_track_runs" \
+          "15-track and breast-luminal runs, superseded by the 39-track by_tissue/"
+
+# Smoke run of scripts/40. The real nine-tissue result is in
+# results/journal/tissue_shared_meqtls/, and the Melody arm in
+# tissue_shared_meqtls_melody/. Both are cited; this is neither.
+stow "results/journal/tissue_specificity_smoke" "tissue_specificity_smoke" \
+     "smoke run; real results in tissue_shared_meqtls{,_melody}/"
+
+# ---------------------------------------------------------------------------
+banner "4c. Logs from finished or dead jobs  (added 10 Sep 2026)"
+# ---------------------------------------------------------------------------
+
+# Job 45290715 is the fold array that trained both towers and then died at the
+# fusion stage with IsADirectoryError (--sequence_weights got the save DIRECTORY
+# rather than the .pth file). The towers it produced were reused by the
+# fusion-only rerun, so the run mattered -- but its logs are ~240 MB of tqdm
+# progress bars for a job whose ending is already documented in LAB_NOTES.md
+# and guarded against in scripts/run_folds.sbatch.
+stow_glob "logs/folds/45290715_*" "logs_folds_dead_fusion_run" \
+          "died at fusion; towers survived and were reused by run_fusion_only"
+
+stow_glob "logs/egtex_mt_scoring/*" "logs_egtex_mt_scoring" \
+          "scoring finished; pair_scores.csv per tissue is the product"
+stow_glob "logs/ctxperm/*" "logs_ctxperm" \
+          "finished; results/journal/context_permutation/ is the product"
+stow_glob "logs/melody/*" "logs_melody_union" \
+          "finished; results/journal/melody/by_tissue/ is the product"
+stow_glob "logs/melody_st/*" "logs_melody_st" \
+          "finished; results/journal/melody_st/ is the product"
+
+# NOT touched: logs/r41_*.txt if present. Those are the two-model R4 summaries
+# read directly in LAB_NOTES.md 7.A2, small, and the only human-readable copy
+# of that comparison outside decision.json.
+
+# ---------------------------------------------------------------------------
 banner "5. Misfiled"
 # ---------------------------------------------------------------------------
 
@@ -264,13 +359,26 @@ fi
 cat <<'NOTE'
 
   NOT touched, and deliberately so:
-    data/external/egtex_breast/BreastMammaryTissue.mQTLs.regular.txt.gz  (45 GB)
-      Still needed -- the harmonize job was killed before it produced the
-      prefiltered file. Delete it ONLY after egtex_breast_within600.tsv.gz
-      exists and egtex_scoring_summary.json looks right.
-
     results/journal/genoa_variant_scoring/  and  results/journal/seed*/
       Every pair_scores.csv and predictions.csv is GPU output. Retraining will
       supersede them, but until the new checkpoints exist they are the only
       copy of ~6 GPU-hours of scoring.
+
+    checkpoints_folds/fold{1,2,3}/
+      Four folds x three stages of retraining. The fold table in
+      main_revised.tex is the only published summary of them.
+
+    scripts/70_mqtl_positive_control.py, scripts/71_mqtl_matched_negative.py
+      Superseded by scripts/20-21, but still cited by Supplementary S2/S3.
+      Removing them means editing the supplement in the same commit; do the two
+      together or not at all.
+
+    logs/r41_melody.txt, logs/r41_silentmethyl.txt
+      The two-model R4 comparison, read directly in LAB_NOTES.md 7.A2.
+
+  Already gone, recorded rather than deleted silently:
+    data/external/egtex_breast/BreastMammaryTissue.mQTLs.regular.txt.gz  (45 GB)
+      Removed 9 Sep 2026 after the harmonized within-600bp file was produced.
+      URL, byte count and sha256 are in data/external/external_manifest.json,
+      so it is one documented download away.
 NOTE

@@ -530,15 +530,16 @@ comparable to one another; the three-seed figures quoted elsewhere for the
 published split ($\beta$ MAE $0.0993\pm0.0025$, AUC $0.9680\pm0.0021$) average
 over seeds and are a different estimator, not used here.}
 \label{tab:folds}
+\setlength{\tabcolsep}{4pt}
 \begin{tabular}{llrrrrr}
 \hline
-Fold & Test chromosomes & $n$ & \multicolumn{2}{c}{$\beta$ MAE} & \multicolumn{2}{c}{AUC} \\
+Fold & Test chr. & $n$ & \multicolumn{2}{c}{$\beta$ MAE} & \multicolumn{2}{c}{AUC} \\
  & & & fusion & seq. & fusion & seq. \\
 \hline
-0 & chr8, chr9 & 26,570 & 0.0971 & 0.1090 & 0.9699 & 0.9576 \\
-1 & chr12, chr18 & 26,748 & 0.0942 & 0.1040 & 0.9719 & 0.9619 \\
-2 & chr20, chr4 & 26,783 & 0.0990 & 0.1064 & 0.9664 & 0.9571 \\
-3 & chr13, chr15, chr21 & 26,806 & 0.0938 & 0.1049 & 0.9724 & 0.9614 \\
+0 & 8, 9 & 26,570 & 0.0971 & 0.1090 & 0.9699 & 0.9576 \\
+1 & 12, 18 & 26,748 & 0.0942 & 0.1040 & 0.9719 & 0.9619 \\
+2 & 4, 20 & 26,783 & 0.0990 & 0.1064 & 0.9664 & 0.9571 \\
+3 & 13, 15, 21 & 26,806 & 0.0938 & 0.1049 & 0.9724 & 0.9614 \\
 \hline
 \end{tabular}
 \end{table}
@@ -751,9 +752,10 @@ Normalised error is mean absolute deviation divided by the standard deviation of
 the unperturbed quantity, so levels and effects are comparable despite differing
 scales.}
 \label{tab:ctxperm}
+\setlength{\tabcolsep}{4pt}
 \begin{tabular}{llcccc}
 \hline
-Scheme & Quantity & MAE/SD & Spearman & Sign agr. & Pearson \\
+Scheme & Quantity & MAE/SD & Spear. & Sign & Pears. \\
 \hline
 shuffle & levels  & 0.3045 & 0.8610 & 0.8593 & 0.9015 \\
 shuffle & effects & 0.1123 & 0.9530 & 0.9499 & 0.9276 \\
