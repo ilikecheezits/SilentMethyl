@@ -444,6 +444,43 @@ def verify_bam_pick(feature: str, accession: str) -> dict:
     return rec
 
 
+def ensure_bam_index(bam: Path) -> None:
+    """bamCoverage needs a .bai; ENCODE ships alignments without one.
+
+    samtools is not guaranteed in a deeptools environment, but pysam is -- it is
+    a hard dependency -- so fall back to it rather than making the user install
+    another package. Indexing a 20 GB BAM takes a few minutes.
+    """
+    import subprocess
+    import shutil as _shutil
+    idx = Path(str(bam) + ".bai")
+    if idx.is_file() or bam.with_suffix(".bai").is_file():
+        return
+
+    print(f"      indexing {bam.name} (no .bai alongside it; a few minutes)",
+          flush=True)
+    if _shutil.which("samtools"):
+        subprocess.run(["samtools", "index", "-@", "4", str(bam)], check=True)
+        return
+    try:
+        import pysam
+    except ImportError as exc:
+        raise SystemExit(
+            f"STOP: {bam.name} has no index and neither samtools nor pysam is "
+            f"available to build one.\n  conda install -n deeptools -c bioconda "
+            f"samtools") from exc
+    try:
+        pysam.index(str(bam))
+    except Exception as exc:                       # noqa: BLE001
+        raise SystemExit(
+            f"STOP: could not index {bam.name} ({exc}).\n"
+            f"If it reports the file is not coordinate-sorted, sort it first:\n"
+            f"  samtools sort -@ 4 -o {bam.with_suffix('.sorted.bam')} {bam}\n"
+            f"ENCODE 'alignments' files are normally sorted already, so an "
+            f"unsorted one suggests the wrong file was picked -- check it is "
+            f"not the 'unfiltered alignments'.") from exc
+
+
 _RESOLVED_FLAGS: list[str] | None = None
 
 
@@ -504,6 +541,7 @@ def resolve_bamcoverage_flags() -> list[str]:
 def convert_bam(bam: Path, dest: Path, blacklist: Path | None) -> dict:
     """BAM -> bigWig with the one fixed command, recorded alongside the output."""
     import subprocess
+    ensure_bam_index(bam)
     cmd = list(resolve_bamcoverage_flags()) + ["--bam", str(bam),
                                                "--outFileName", str(dest)]
     if blacklist and blacklist.is_file():
@@ -955,6 +993,7 @@ def main(argv=None) -> int:
                                indent=2, sort_keys=True) + "\n")
                 if not args.keep_bams:
                     bam.unlink(missing_ok=True)
+                    Path(str(bam) + ".bai").unlink(missing_ok=True)
                     f["conversion"]["bam_removed"] = True
                 continue
 
