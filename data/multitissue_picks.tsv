@@ -1,36 +1,20 @@
-# Hand-chosen ENCODE files for the joint multi-tissue context.
-#
-#   <tissue>  <mark>  <ENCFF accession or full download URL>
-#
-# or open a block with "<Tissue>:" and then give two columns per line.
-#
-# The seven marks are fixed by TABULAR_FEATURES in scripts/training_common.py:
-#   atac  h3k4me3  h3k27ac  h3k27me3  h3k9me3  h3k36me3  h3k4me1
-#
-# H3K9ac and DNase are NOT model inputs. The epigenomic tower takes exactly
-# seven tissue-specific features; an eighth changes its input dimension and it
-# stops being the published architecture. A pick using one is rejected rather
-# than silently dropped.
-#
-# Verify without downloading:
-#   python -u data/acquire_multitissue_inputs.py --picks data/multitissue_picks.tsv
-# then, once every line passes and the set is consistent across tissues:
-#   python -u data/acquire_multitissue_inputs.py --picks data/multitissue_picks.tsv --apply
+# <tissue> <mark> <ENCFF accession or download URL>
+# Seven marks only: atac h3k4me3 h3k27ac h3k27me3 h3k9me3 h3k36me3 h3k4me1
+# H3K9ac and DNase are not model inputs.
+# Notes must start with '#' or they are parsed as picks.
 
 Lung:
   atac      ENCFF260QGF
   h3k4me1   ENCFF325EMH
-  h3k4me3   ENCFF910JMH   # ENCFF113XMQ was hg19 and rejected
+  h3k4me3   ENCFF910JMH
   h3k36me3  ENCFF345TBP
   h3k9me3   ENCFF943PCH
   h3k27me3  ENCFF856MGM
   h3k27ac   ENCFF105RLH
-# h3k9ac    ENCFF110TAI   <- not a model input; left commented out deliberately
+# h3k9ac    ENCFF110TAI    not a model input
+# ENCFF113XMQ was the original H3K4me3 pick, rejected as hg19
 
 # KidneyCortex:
-#   atac      ENCFF...
-#   ...
-
 # Prostate:
 # ColonTransverse:
 # BreastMammaryTissue:

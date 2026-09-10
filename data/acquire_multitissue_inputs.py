@@ -279,10 +279,13 @@ def read_picks(path: Path) -> dict[str, dict[str, str]]:
         if key not in MARK_ALIASES:
             raise SystemExit(
                 f"STOP: {path}:{lineno}: {mark!r} is not one of the model's "
-                f"context features.\nThe seven are: "
+                f"context features.\n"
+                f"  the line reads: {raw.rstrip()!r}\n"
+                f"The seven are: "
                 f"{', '.join(sorted(k for k, v in MARK_ALIASES.items() if v))}.\n"
                 f"H3K9ac and DNase are NOT used -- adding one would change the "
-                f"epigenomic tower's input dimension.")
+                f"epigenomic tower's input dimension.\n"
+                f"If this line is a note rather than a pick, start it with '#'.")
         feature = MARK_ALIASES[key]
         if feature is None:
             raise SystemExit(f"STOP: {path}:{lineno}: {mark!r} is not a model input")
