@@ -568,6 +568,118 @@ r=+0.323 (p=0.44) — i.e. not at all — while distance predicts at −0.946. T
 data support the distance story; the power story is an interpretation and must
 be worded as one.
 
+### 8. Reference-track provenance, recovered 10 Sep 2026
+
+`data/reference/*.bw` had **no recorded provenance at all** — `build_data.sh`
+neither fetches them nor lists them among required inputs, `build_training_data.py`
+opens them by hard-coded filename, and `external_manifest.json` (which records
+URL, bytes and sha256 for the ClinVar VCF) had no entry for them. They were
+downloaded by hand from the ENCODE portal and renamed, which loses the accession
+from the filename but not from the bytes. `data/audit_reference_tracks.py`
+recovers it by matching each file's md5 against the portal. All eight are hg38
+natively; nothing was lifted despite the chain file in that directory.
+
+| feature | accession | assay | output type |
+|---|---|---|---|
+| H3K4me3 | ENCFF548SFG | Mint-ChIP-seq | fold change over control |
+| H3K27ac | ENCFF282YCX | Mint-ChIP-seq | fold change over control |
+| H3K27me3 | ENCFF274LWG | Mint-ChIP-seq | fold change over control |
+| H3K9me3 | ENCFF423DKY | Mint-ChIP-seq | fold change over control |
+| H3K36me3 | ENCFF634LDP | Mint-ChIP-seq | fold change over control |
+| H3K4me1 | ENCFF714NIL | Mint-ChIP-seq | fold change over control |
+| ATAC | ENCFF021PIS (ENCSR037XNN) | **snATAC-seq** | **BAM, converted locally** |
+| PhyloP | — | UCSC hg38.phyloP100way | not ENCODE |
+
+All MCF 10A. Two things follow.
+
+**The Methods sentence is currently wrong in two details.** The histone marks are
+**Mint-ChIP-seq**, not conventional ChIP-seq. And accessibility is not "ATAC-seq
+signal from ENCODE": it is a coverage track we generated ourselves from an
+unreplicated single-nucleus ATAC BAM produced by a lab-custom pipeline
+(ENCAN638MKH). Both are fair to use; neither is what the draft says. Fix before
+submission — a reviewer who clicks the accession sees it immediately.
+
+**The scale worry was overblown — checked and mostly dismissed.** The epi tower
+feeds raw values into its first `nn.Linear` with no per-feature standardisation
+(only median imputation), so scale differences do reach the model. But the
+measured ranges do not single ATAC out:
+
+    ATAC      max  90   mean@probe 0.151
+    H3K4me3   max 584   mean@probe 2.735
+    H3K27ac   max 245   mean@probe 0.768
+    H3K36me3  max 233   mean@probe 1.378
+    H3K27me3  max  49   mean@probe 0.099
+    H3K9me3   max  27   mean@probe 0.143
+    H3K4me1   max  31   mean@probe 0.760
+    PhyloP    -20..10   mean@probe -0.243
+
+ATAC sits in the middle of the pack on typical values and is *below* three of the
+histone marks on maxima. The spread is mostly within the fold-change tracks,
+which is what fold-change signal looks like. So this is a disclosure issue, not
+a numerical one. Do not rebuild anything over it.
+
+**Still not recorded:** the `bamCoverage` (or equivalent) command that produced
+`ATAC_seq.bw`, and the phyloP download URL. The manifest marks the first
+`CONVERSION COMMAND NOT RECORDED`. No API can recover it, and it must be
+repeated identically for any tissue added later.
+
+### 9. Joint multi-tissue model — the standing plan
+
+Assume the mentor asks for this. Design is settled; nothing has been built.
+
+**Source: TCGA solid-tissue-normal, not eGTEx.** GSE213478 (eGTEx methylation,
+987 samples, 9 tissues, EPIC, normal donors, beta matrix public — only IDATs are
+dbGaP-restricted) is the obvious alternative and is genuinely better data. It is
+rejected because switching platform and source would invalidate every published
+number: R1, the four folds, three seeds, CpGenie/DeepCpG, all variant scoring.
+Staying on TCGA HM450 means the existing breast model **is** the single-tissue
+control at zero retraining cost. Mention eGTEx to the mentor as
+considered-and-rejected so it does not look unexamined.
+
+**Tissue list**, from `data/survey_tcga_normal_cohorts.py` (10 Sep 2026). BRCA
+came back at exactly 97 donors, matching the published cohort, which validates
+the query:
+
+| tissue | TCGA | donors | ENCODE |
+|---|---|---|---|
+| Kidney cortex | KIRC/KIRP/KICH | 205 | 7/7 |
+| Breast | BRCA | 97 | 7/7 |
+| Lung | LUAD+LUSC | 74 | 7/7 |
+| Prostate | PRAD | 50 | 7/7 |
+| Colon transverse | COAD+READ | 45 | 7/7 |
+| Muscle, ovary, testis, whole blood | — | 0 | context exists, no targets |
+
+Restrict kidney to KIRC (± KIRP): KICH is chromophobe, from the distal nephron
+rather than the cortex, and the eGTEx tissue is Kidney Cortex specifically.
+
+**The best property of this design:** the four dropped tissues all have eGTEx
+mQTLs *and* ENCODE context, so they can be scored even though they cannot be
+trained on. They become a genuine unseen-tissue benchmark — held out because the
+data does not exist, not because we chose them. That is the Melody-G comparison
+the mentor asked about, and it falls out for free.
+
+**Budget and merging.** Training rows are probes x tissues, ceiling one cohort's
+worth (418,486) to keep a run near the current ~46 h. Five tissues gives ~84k
+probes each. Subsample **training only**, by cross-tissue variance — most HM450
+probes are constitutively methylated everywhere and carry no tissue information.
+Keep val/test at the full probe set or the numbers stop being comparable to the
+published model. Hold out the **same chromosomes in every tissue**, or a probe
+held out in breast re-enters through lung. Consider weighting rather than an even
+split: a target median over 45 donors is a noisier label than one over 205.
+
+**Context must be rebuilt for all five, including breast.** Section 8 shows
+breast accessibility is snATAC; the other tissues have bulk ATAC-seq, which is
+what the survey matched on. Repeating the current recipe would require snATAC in
+kidney/lung/prostate/colon, which likely does not exist. So move all five to bulk
+ATAC + the same six marks at the same output type — which changes breast's
+context, and therefore requires one extra single-tissue breast run as the matched
+control. One training run buys an interpretable comparison.
+
+**Scope it to methylation levels.** Allele invariance does not change when
+tissues are added; context is still identical for REF and ALT. If this is sold as
+improving tissue-specific *variant* effects it will fail again for the reason
+already documented in R2.
+
 ---
 
 ## 2. Melody — positioning, reanalysis, and head-to-head
