@@ -155,3 +155,8 @@ __pycache__/
 main_revised.log
 !data/*.sh
 !data/*.sbatch
+
+# Slurm job logs. Progress-bar output runs past 100 MB per fold, over GitHub's
+# file size limit. The products are tracked instead; cleanup_workspace.sh
+# archives the logs into _archive/.
+logs/
