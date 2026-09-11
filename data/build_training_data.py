@@ -46,6 +46,23 @@ RC_TABLE = str.maketrans(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
+    # The context directory and the output directory were both derived from
+    # --data-dir, so building against a different context would have meant
+    # overwriting the published tracks in data/reference/ and the published
+    # splits in data/datafiles/. Both are separable now, so an alternative
+    # context can be built and compared without touching either.
+    parser.add_argument(
+        "--reference-dir", type=Path, default=None,
+        help="Directory holding the seven context bigWigs. Defaults to "
+             "<data-dir>/reference, the published MCF-10A tracks. Point it at "
+             "e.g. data/reference/BreastEpithelium to build an alternative "
+             "context. phyloP is always read from <data-dir>/reference, since "
+             "conservation is not tissue-specific.")
+    parser.add_argument(
+        "--out-dir", type=Path, default=None,
+        help="Where train/val/test are written. Defaults to "
+             "<data-dir>/datafiles. Set it when building an alternative context "
+             "so the published splits are left intact.")
     parser.add_argument("--val-chroms", nargs="+", default=list(DEFAULT_VAL_CHROMS))
     parser.add_argument("--test-chroms", nargs="+", default=list(DEFAULT_TEST_CHROMS))
     parser.add_argument(
@@ -185,13 +202,16 @@ def summarize_split(df: pd.DataFrame) -> dict:
 def main() -> None:
     args = parse_args()
     data_dir = args.data_dir.resolve()
-    datafiles_dir = data_dir / "datafiles"
+    datafiles_dir = (args.out_dir.resolve() if args.out_dir
+                     else data_dir / "datafiles")
     datafiles_dir.mkdir(parents=True, exist_ok=True)
 
     fasta_path = data_dir / "hg38.fa"
     manifest_path = data_dir / "HM450.hg38.manifest.tsv.gz"
     meth_path = data_dir / "TCGA-BRCA.methylation450.tsv.gz"
-    base_ref = data_dir / "reference"
+    published_ref = data_dir / "reference"
+    base_ref = (args.reference_dir.resolve() if args.reference_dir
+                else published_ref)
     bw_paths = {
         "Ref_ATAC_Signal": base_ref / "ATAC_seq.bw",
         "Ref_H3K4me3_Signal": base_ref / "H3K4me3.bw",
@@ -200,9 +220,21 @@ def main() -> None:
         "Ref_H3K9me3_Signal": base_ref / "H3K9me3.bw",
         "Ref_H3K36me3_Signal": base_ref / "H3K36me3.bw",
         "Ref_H3K4me1_Signal": base_ref / "H3K4me1.bw",
-        "Target_Base_PhyloP_100way_1": base_ref / "hg38.phyloP100way.bw",
-        "Target_Base_PhyloP_100way_2": base_ref / "hg38.phyloP100way.bw",
+        # Conservation is a property of the genome, not of the tissue, so it is
+        # always read from the published reference directory even when the
+        # context tracks come from elsewhere.
+        "Target_Base_PhyloP_100way_1": published_ref / "hg38.phyloP100way.bw",
+        "Target_Base_PhyloP_100way_2": published_ref / "hg38.phyloP100way.bw",
     }
+    if base_ref != published_ref:
+        print(f"[*] ALTERNATIVE CONTEXT: {base_ref}")
+        print(f"[*] outputs -> {datafiles_dir}")
+        if datafiles_dir == data_dir / "datafiles":
+            raise SystemExit(
+                "STOP: building an alternative context into data/datafiles/ "
+                "would overwrite the published splits every result in the paper "
+                "is built on.\nPass --out-dir, e.g. "
+                "--out-dir data/datafiles_breast_epithelium")
 
     required_paths = [fasta_path, manifest_path, meth_path, *bw_paths.values()]
     missing_paths = [str(path) for path in required_paths if not path.exists()]

@@ -256,8 +256,18 @@ def main(argv=None) -> int:
                              f"{', '.join(TRACKS)}")
         derived[feat] = acc.strip()
 
-    records = {feature: fingerprint(args.reference_dir / name)
-               for feature, name in TRACKS.items()}
+    records = {}
+    for feature, name in TRACKS.items():
+        rec = fingerprint(args.reference_dir / name)
+        # PhyloP is genome conservation, identical in every tissue, so it lives
+        # once at data/reference/ and is not copied into each tissue directory.
+        # Reporting it MISSING for a tissue is noise, not a finding.
+        if not rec["present"] and "phyloP" in name:
+            shared = Path("data/reference") / name
+            if shared.is_file() and shared != args.reference_dir / name:
+                rec = fingerprint(shared)
+                rec["shared_across_tissues"] = True
+        records[feature] = rec
 
     # Recover provenance from the checksums. These were downloaded by hand from
     # the ENCODE portal and renamed, so the accession is gone from the filename
@@ -287,7 +297,7 @@ def main(argv=None) -> int:
 
     print()
     print("=" * 96)
-    print("REFERENCE TRACK AUDIT   data/reference/")
+    print(f"REFERENCE TRACK AUDIT   {args.reference_dir}/")
     print("=" * 96)
     print(f"{'feature':<28}{'file':<24}{'assembly':<16}{'covered':>9}{'sha256':>12}")
     for feature, r in records.items():
@@ -359,10 +369,27 @@ def main(argv=None) -> int:
                 print("   feeds these values straight into its first Linear layer")
                 print("   with no per-feature standardisation, so the scales do")
                 print("   not wash out -- see scripts/training_common.py.")
-            if len({a for a in assays if "ChIP" not in (a or "")}) and len(assays) > 1:
-                print(f"!! Mixed assay modalities: {sorted(assays)}")
-                print("   Bulk ChIP-seq and single-nucleus ATAC differ in depth,")
-                print("   sparsity and noise structure, not only in scale.")
+            # ATAC and histone ChIP are different assays by necessity -- one
+            # measures accessibility, the others measure marks -- so their
+            # co-occurrence is correct and must not be flagged. What matters is
+            # whether any track is SINGLE-CELL/NUCLEUS while the rest are bulk,
+            # which is how the breast context went wrong.
+            single_cell = sorted(a for a in assays if a and
+                                 ("single-nucleus" in a.lower()
+                                  or "single-cell" in a.lower()
+                                  or a.lower().startswith("sn")
+                                  or a.lower().startswith("sc")))
+            if single_cell and len(assays) > len(single_cell):
+                print(f"!! Single-cell assay mixed with bulk: {single_cell}")
+                print(f"   the rest are {sorted(assays - set(single_cell))}.")
+                print("   These differ in depth, sparsity and noise structure,")
+                print("   not only in scale.")
+            histone_assays = sorted(a for a in assays if a and "ChIP" in a)
+            if len(histone_assays) > 1:
+                print(f"!! Histone marks span more than one ChIP protocol: "
+                      f"{histone_assays}")
+                print("   Pick one; Mint-ChIP and standard ChIP are not "
+                      "interchangeable within a context vector.")
             if len(biosamples) == 1 and len(outputs) == 1 and len(assays) <= 2:
                 print(f"Histone marks are consistent: one biosample "
                       f"({next(iter(biosamples))}), one processing type "
@@ -433,7 +460,31 @@ def main(argv=None) -> int:
         with args.manifest.open() as fh:
             manifest = json.load(fh)
 
-        block = manifest.setdefault("reference_tracks", {})
+        # Keyed by TISSUE then feature. Keying by feature alone meant auditing
+        # data/reference/Lung silently overwrote the breast entries, because
+        # both directories hold a file called H3K27ac.bw. That destroyed the
+        # provenance recovered for the published model, which is the exact
+        # failure this script exists to prevent.
+        root = manifest.setdefault("reference_tracks", {})
+
+        def tissue_of(path: str) -> str:
+            parent = Path(path).parent.name
+            return "root" if parent == "reference" else parent
+
+        # Migrate any flat entries left by the earlier version. Each carries the
+        # path it was fingerprinted from, so it can be filed under the right
+        # tissue rather than guessed at or dropped.
+        flat = {f: e for f, e in root.items()
+                if isinstance(e, dict) and "path" in e}
+        if flat:
+            for feature, entry in flat.items():
+                root.setdefault(tissue_of(entry["path"]), {})[feature] = entry
+                del root[feature]
+            print(f"\nmigrated {len(flat)} flat entries into per-tissue keys: "
+                  f"{sorted({tissue_of(e['path']) for e in flat.values()})}")
+
+        this_tissue = tissue_of(str(args.reference_dir / "x"))
+        block = root.setdefault(this_tissue, {})
         for feature, r in records.items():
             prior = block.get(feature, {})
             entry = dict(r)
@@ -481,7 +532,11 @@ def main(argv=None) -> int:
         unknown = sum(1 for e in block.values()
                       if e.get("provenance_status", "").startswith("UNKNOWN"))
         print(f"\nwrote {args.manifest}  "
-              f"({len(block)} tracks, {unknown} still without a recorded source)")
+              f"[{this_tissue}] {len(block)} tracks, "
+              f"{unknown} without a recorded source")
+        others = [t for t in root if t != this_tissue]
+        if others:
+            print(f"  other tissues on record: {', '.join(sorted(others))}")
     else:
         print("\n(report only -- pass --write-manifest to record this in "
               f"{args.manifest})")

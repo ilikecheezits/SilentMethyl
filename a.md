@@ -1,5 +1,7 @@
 .
+├── EOF
 ├── LAB_NOTES.md
+├── Lung:
 ├── README.md
 ├── _archive
 │   ├── logs_ctxperm.tar.gz
@@ -27,7 +29,24 @@
 │   ├── tensorboard_events_folds.tar.gz
 │   └── tissue_specificity_smoke.tar.gz
 ├── a.md
+├── atac
 ├── build_data.sh
+├── checkpoints_ablation
+│   └── breast_epithelium
+│       ├── epi_seed42
+│       │   ├── best_weights.pth
+│       │   ├── latest_checkpoint.pt
+│       │   ├── run_config.json
+│       │   └── tensorboard
+│       │       └── events.out.tfevents.1789098545.v022.ib.bridges2.psc.edu.4330.0
+│       ├── fusion_seed42
+│       │   ├── best_validation_gates.csv
+│       │   ├── best_weights.pth
+│       │   ├── latest_checkpoint.pt
+│       │   ├── run_config.json
+│       │   └── tensorboard
+│       │       └── events.out.tfevents.1789100045.v022.ib.bridges2.psc.edu.13501.0
+│       └── input_checksums.txt
 ├── checkpoints_folds
 │   ├── fold1
 │   │   ├── epi_seed42
@@ -113,7 +132,10 @@
 │   ├── _test_egtex_harmonizer.py
 │   ├── acquire_external_cohorts.py
 │   ├── acquire_healthy_breast_cohort.py
+│   ├── acquire_multitissue.sbatch
+│   ├── acquire_multitissue_inputs.py
 │   ├── audit_data_purity.py
+│   ├── audit_reference_tracks.py
 │   ├── audit_training_data.py
 │   ├── build_genoa_scoring_input.py
 │   ├── build_tcga_ancestry_labels.py
@@ -154,6 +176,20 @@
 │   │   ├── test_mutated_100bp_rc.fasta
 │   │   ├── testing_data.csv
 │   │   ├── testing_data_test_only.csv
+│   │   ├── train.csv
+│   │   ├── train_100bp.fasta
+│   │   ├── train_100bp_rc.fasta
+│   │   ├── training_data_manifest.json
+│   │   ├── val.csv
+│   │   ├── val_100bp.fasta
+│   │   └── val_100bp_rc.fasta
+│   ├── datafiles_breast_epithelium
+│   │   ├── feature_imputation.json
+│   │   ├── split_manifest.json
+│   │   ├── tcga_normal_sample_ids.json
+│   │   ├── test.csv
+│   │   ├── test_100bp.fasta
+│   │   ├── test_100bp_rc.fasta
 │   │   ├── train.csv
 │   │   ├── train_100bp.fasta
 │   │   ├── train_100bp_rc.fasta
@@ -424,8 +460,20 @@
 │   │   ├── curated_seed_grch38_preview.csv
 │   │   └── literature_breast_variant_seeds.csv
 │   ├── merge_genoa_harmonized.py
+│   ├── multitissue_picks.tsv
+│   ├── profile_bigwig.py
 │   ├── reference
 │   │   ├── ATAC_seq.bw
+│   │   ├── BreastEpithelium
+│   │   │   ├── ATAC_seq.bw
+│   │   │   ├── H3K27ac.bw
+│   │   │   ├── H3K27me3.bw
+│   │   │   ├── H3K36me3.bw
+│   │   │   ├── H3K4me1.bw
+│   │   │   ├── H3K4me3.bw
+│   │   │   ├── H3K9me3.bw
+│   │   │   └── TRACK_SET.md
+│   │   ├── ENCFF356LFX.bed.gz
 │   │   ├── H3K27ac.bw
 │   │   ├── H3K27me3.bw
 │   │   ├── H3K36me3.bw
@@ -436,7 +484,13 @@
 │   │   ├── hg19ToHg38.over.chain.gz
 │   │   └── hg38.phyloP100way.bw
 │   ├── run_harmonize_genoa.sh
-│   └── split_predictions_by_tissue.py
+│   ├── split_predictions_by_tissue.py
+│   ├── survey_tcga_normal_cohorts.py
+│   ├── targets
+│   │   ├── TCGA-BRCA.methylation450.tsv.gz
+│   │   ├── TCGA-LUAD.methylation450.tsv.gz
+│   │   └── TCGA-LUSC.methylation450.tsv.gz
+│   └── tcga_normal_cohort_survey.json
 ├── dnabert2_local
 │   ├── LICENSE
 │   ├── README.md
@@ -449,10 +503,20 @@
 │   ├── pytorch_model.bin
 │   ├── tokenizer.json
 │   └── tokenizer_config.json
+├── h3k27ac
+├── h3k27me3
+├── h3k36me3
+├── h3k4me1
+├── h3k4me3
+├── h3k9me3
 ├── logs
+│   ├── ablation
+│   │   ├── ctxabl_45740496.err
+│   │   └── ctxabl_45740496.out
 │   ├── data_build
 │   │   ├── acquire_clinvar.log
-│   │   └── acquire_genoa.log
+│   │   ├── acquire_genoa.log
+│   │   └── acquire_lung.log
 │   ├── experiments
 │   │   ├── 04_mqtl_probe_sensitivity.log
 │   │   ├── 07_candidate_model_comparison.log
@@ -499,6 +563,27 @@
 ├── requirements.txt
 ├── results
 │   └── journal
+│       ├── ablation_breast_epithelium
+│       │   ├── epi
+│       │   │   ├── fig_1_density_scatter.png
+│       │   │   ├── fig_2a_signed_error.png
+│       │   │   ├── fig_2b_absolute_error.png
+│       │   │   ├── fig_3_beta_distribution.png
+│       │   │   ├── fig_4_roc.png
+│       │   │   ├── fig_5_calibration.png
+│       │   │   ├── metrics.json
+│       │   │   └── predictions.csv
+│       │   └── fusion
+│       │       ├── fig_1_density_scatter.png
+│       │       ├── fig_2a_signed_error.png
+│       │       ├── fig_2b_absolute_error.png
+│       │       ├── fig_3_beta_distribution.png
+│       │       ├── fig_4_roc.png
+│       │       ├── fig_5_calibration.png
+│       │       ├── fig_6_gate_share_distribution.png
+│       │       ├── fig_7_gate_rc_consistency.png
+│       │       ├── metrics.json
+│       │       └── predictions.csv
 │       ├── baseline_variant_evaluation
 │       │   ├── distance_bins.csv
 │       │   ├── fusion_vs_sequence_paired.csv
@@ -1607,11 +1692,15 @@
     ├── 71_mqtl_matched_negative.py
     ├── 90_build_supplement_package.py
     ├── 91_build_manuscript_figures.py
+    ├── __pycache__
+    │   ├── testing_common.cpython-310.pyc
+    │   └── training_common.cpython-310.pyc
     ├── _test_sequence_baselines.py
     ├── literature_breast_variant_seeds.csv
     ├── matched_background_utils.py
     ├── run_baseline_grid.sh
     ├── run_baseline_seeds.sh
+    ├── run_context_ablation.sbatch
     ├── run_ctxperm.sbatch
     ├── run_egtex_multitissue_scoring.sh
     ├── run_egtex_scoring.sh
@@ -1625,4 +1714,4 @@
     ├── testing_common.py
     └── training_common.py
 
-453 directories, 1172 files
+467 directories, 1247 files

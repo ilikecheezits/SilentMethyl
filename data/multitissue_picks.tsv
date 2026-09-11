@@ -1,0 +1,75 @@
+# <tissue> <mark> <ENCFF accession or download URL>
+# Seven marks only: atac h3k4me3 h3k27ac h3k27me3 h3k9me3 h3k36me3 h3k4me1
+# H3K9ac and DNase are not model inputs.
+# Notes must start with '#' or they are parsed as picks.
+#
+# ROUTE B: accessibility comes from snATAC BAMs, converted locally with one
+# fixed command, so MCF-10A can stay as the breast context. Use mark 'atac_bam'
+# for those; 'atac' still means a ready-made fold-change bigWig.
+#
+# Prostate was dropped: ENCODE has no snATAC for it, only bulk ATAC, and mixing
+# assays for one tissue reintroduces the confound this route exists to remove.
+#
+# Verify without downloading:
+#   python -u data/acquire_multitissue_inputs.py --picks data/multitissue_picks.tsv
+# then, once every line passes and the set is consistent across tissues:
+#   python -u data/acquire_multitissue_inputs.py --picks data/multitissue_picks.tsv --apply
+
+Lung:
+  atac_bam  ENCFF673RWI
+  h3k4me1   ENCFF325EMH
+  h3k4me3   ENCFF910JMH
+  h3k36me3  ENCFF345TBP
+  h3k9me3   ENCFF943PCH
+  h3k27me3  ENCFF856MGM
+  h3k27ac   ENCFF105RLH
+# h3k9ac    ENCFF110TAI    not a model input
+# ENCFF113XMQ was the original H3K4me3 pick, rejected as hg19
+
+KidneyCortex:
+  atac_bam  ENCFF482GRX
+  h3k36me3  ENCFF285VAE
+  h3k4me1   ENCFF992BPB
+  h3k4me3   ENCFF438RHT
+  h3k27ac   ENCFF722YGU
+  h3k9me3   ENCFF344RCN
+  h3k27me3  ENCFF803HAQ
+
+ColonTransverse:
+  atac_bam  ENCFF354SCV
+  h3k27ac   ENCFF826GOW
+  h3k36me3  ENCFF762PUM
+  h3k4me1   ENCFF095NPI
+  h3k4me3   ENCFF451EGE
+  h3k27me3  ENCFF865CYJ
+  h3k9me3   ENCFF834GGD
+
+# The joint model's breast context. Same MCF-10A accessions the checksum audit
+# recovered for the published model, but the ATAC is RE-CONVERTED from the BAM
+# with this route's command -- the published data/reference/ATAC_seq.bw used
+# unrecorded parameters and so cannot be matched by anything else.
+# The breast-epithelium context, for the single-tissue ablation that decides
+# whether MCF-10A is replaced everywhere. Primary tissue, bulk ATAC, all
+# fold-change bigWigs -- nothing to convert. Lands in
+# data/reference/BreastEpithelium/ and touches neither the published tracks nor
+# the joint-model directories.
+BreastEpithelium:
+  atac      ENCFF665NGK   # ENCFF720WSA was a Histone ChIP file, rejected
+  h3k4me3   ENCFF653CLL
+  h3k4me1   ENCFF234JZW
+  h3k27me3  ENCFF212ZFW
+  h3k36me3  ENCFF714QJF
+  h3k9me3   ENCFF481QEK
+  h3k27ac   ENCFF085IYD
+
+BreastMammaryTissue:
+# REUSED, not converted. The published track's duplicate/MAPQ/extension settings
+# are not recoverable from the bigWig, so a re-conversion could not reproduce it.
+# Copying it in is the only way both models read the SAME breast ATAC file.
+  atac_file  data/reference/ATAC_seq.bw
+  h3k4me3   ENCFF548SFG
+  h3k27ac   ENCFF282YCX
+  h3k27me3  ENCFF274LWG
+  h3k9me3   ENCFF423DKY
+  h3k36me3  ENCFF634LDP
+  h3k4me1   ENCFF714NIL
