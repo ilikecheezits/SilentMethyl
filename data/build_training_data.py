@@ -63,6 +63,21 @@ def parse_args() -> argparse.Namespace:
         help="Where train/val/test are written. Defaults to "
              "<data-dir>/datafiles. Set it when building an alternative context "
              "so the published splits are left intact.")
+    # The methylation matrix was hardcoded to TCGA-BRCA. The joint multi-tissue
+    # model needs one build per tissue, and two of the four tissues pool two
+    # cohorts each (lung = LUAD + LUSC, colon = COAD + READ), so this takes a
+    # list. Pooling happens at the SAMPLE level, not by averaging two cohort
+    # medians: every solid-tissue-normal column from every listed matrix goes
+    # into one pool and a single median is taken across all of them, so a cohort
+    # with more donors carries proportionally more weight, which is what you
+    # want when one arm has 30 donors and the other 44.
+    parser.add_argument(
+        "--methylation", type=Path, nargs="+", default=None,
+        help="One or more TCGA methylation450 matrices. Defaults to "
+             "<data-dir>/TCGA-BRCA.methylation450.tsv.gz, the published "
+             "single-tissue targets. Give several to pool cohorts, e.g. "
+             "--methylation data/targets/TCGA-LUAD.methylation450.tsv.gz "
+             "data/targets/TCGA-LUSC.methylation450.tsv.gz")
     parser.add_argument("--val-chroms", nargs="+", default=list(DEFAULT_VAL_CHROMS))
     parser.add_argument("--test-chroms", nargs="+", default=list(DEFAULT_TEST_CHROMS))
     parser.add_argument(
@@ -116,6 +131,100 @@ def sort_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
 def is_normal_sample_column(column: str) -> bool:
     return bool(NORMAL_SAMPLE_RE.search(str(column)))
+
+
+def pooled_normal_targets(meth_paths: list[Path],
+                          relevant_probes: set) -> tuple[pd.DataFrame, dict]:
+    """Median beta per probe over solid-tissue-normal samples, pooled.
+
+    One matrix reproduces the published single-tissue behaviour exactly. Several
+    are pooled sample-wise: the columns are concatenated and ONE median is taken
+    across the union, rather than averaging per-cohort medians, which would give
+    a 30-donor cohort the same weight as a 44-donor one.
+
+    Probes present in only some of the matrices are kept, with the median taken
+    over whatever samples do cover them -- an outer join, not an inner one.
+    Dropping them would silently shrink the probe set for pooled tissues only,
+    making their splits incomparable to the single-cohort tissues'.
+    """
+    frames: list[pd.DataFrame] = []
+    records: list[dict] = []
+    seen_columns: set[str] = set()
+
+    for path in meth_paths:
+        with gzip.open(path, "rt") as handle:
+            header = handle.readline().rstrip("\n").split("\t")
+        probe_column = header[0]
+        normals = [c for c in header[1:] if is_normal_sample_column(c)]
+        if not normals:
+            raise RuntimeError(
+                f"No TCGA sample-type-11 (solid tissue normal) columns in "
+                f"{path.name}. That cohort has no normals to build targets from.")
+        clash = seen_columns.intersection(normals)
+        if clash:
+            raise RuntimeError(
+                f"{path.name} repeats sample column(s) already seen in an "
+                f"earlier matrix: {sorted(clash)[:3]}. The same donor would be "
+                f"counted twice in the median.")
+        seen_columns.update(normals)
+        print(f"  {path.name}: {len(normals)} solid-tissue-normal of "
+              f"{len(header) - 1} sample columns")
+        records.append({"path": str(path), "normal_sample_count": len(normals),
+                        "normal_columns": normals})
+
+        chunks = []
+        reader = pd.read_csv(path, sep="\t", usecols=[probe_column, *normals],
+                             chunksize=50_000,
+                             dtype={c: "float32" for c in normals})
+        for chunk in tqdm(reader, desc=f"Reading {path.name}"):
+            chunk = chunk.rename(columns={probe_column: "probeID"})
+            chunk = chunk[chunk["probeID"].astype(str).isin(relevant_probes)]
+            if not chunk.empty:
+                chunks.append(chunk)
+        if not chunks:
+            raise RuntimeError(
+                f"No sequence-valid HM450 probes matched {path.name}.")
+        frame = pd.concat(chunks, ignore_index=True)
+        if frame["probeID"].duplicated().any():
+            n = int(frame["probeID"].duplicated(keep=False).sum())
+            raise RuntimeError(
+                f"{path.name} contains duplicated probe rows ({n} records).")
+        frames.append(frame.set_index("probeID"))
+        del chunks, frame
+        gc.collect()
+
+    pooled = frames[0] if len(frames) == 1 else frames[0].join(frames[1:], how="outer")
+    del frames
+    gc.collect()
+
+    values = pooled.to_numpy(dtype=np.float32)
+    covered = ~np.isnan(values).all(axis=1)
+    if not covered.any():
+        raise RuntimeError("Every probe is missing in every normal sample.")
+    probes = pooled.index.to_numpy()[covered]
+    values = values[covered]
+
+    median = np.nanmedian(values, axis=1)
+    clipped = np.clip(median.astype(float), 0.0001, 0.9999)
+    targets = pd.DataFrame({
+        "probeID": probes,
+        "Median_Beta": median.astype(np.float32),
+        "M_Value_Target": np.log2(clipped / (1.0 - clipped)).astype(np.float32),
+        "Binary_State_Target": (median > 0.5).astype(np.int8),
+    })
+
+    per_probe = np.count_nonzero(~np.isnan(values), axis=1)
+    summary = {
+        "matrices": records,
+        "pooled_normal_sample_count": int(values.shape[1]),
+        "probes_with_any_normal_coverage": int(len(targets)),
+        "samples_per_probe_min": int(per_probe.min()),
+        "samples_per_probe_median": float(np.median(per_probe)),
+    }
+    print(f"  pooled: {summary['pooled_normal_sample_count']} normal samples, "
+          f"{summary['probes_with_any_normal_coverage']} probes covered, "
+          f"median {summary['samples_per_probe_median']:.0f} samples per probe")
+    return targets, summary
 
 
 def validate_split_chromosomes(val_chroms: Iterable[str], test_chroms: Iterable[str]) -> tuple[set[str], set[str], set[str]]:
@@ -208,7 +317,9 @@ def main() -> None:
 
     fasta_path = data_dir / "hg38.fa"
     manifest_path = data_dir / "HM450.hg38.manifest.tsv.gz"
-    meth_path = data_dir / "TCGA-BRCA.methylation450.tsv.gz"
+    meth_paths = ([p.resolve() for p in args.methylation] if args.methylation
+                  else [data_dir / "TCGA-BRCA.methylation450.tsv.gz"])
+    meth_path = meth_paths[0]   # kept for the single-matrix manifest field
     published_ref = data_dir / "reference"
     base_ref = (args.reference_dir.resolve() if args.reference_dir
                 else published_ref)
@@ -290,52 +401,13 @@ def main() -> None:
     del df_manifest, sequences, valid_rows
     gc.collect()
 
-    with gzip.open(meth_path, "rt") as handle:
-        methylation_header = handle.readline().rstrip("\n").split("\t")
-
-    probe_column = methylation_header[0]
-    normal_columns = [column for column in methylation_header[1:] if is_normal_sample_column(column)]
-    if not normal_columns:
-        raise RuntimeError("No TCGA sample-type-11 columns were detected in the methylation matrix.")
-
-    print(f"Selected {len(normal_columns)} solid-tissue-normal columns from {len(methylation_header) - 1} sample columns.")
-
-    target_chunks: list[pd.DataFrame] = []
-    reader = pd.read_csv(
-        meth_path,
-        sep="\t",
-        usecols=[probe_column, *normal_columns],
-        chunksize=50_000,
-        dtype={column: "float32" for column in normal_columns},
-    )
-    for chunk in tqdm(reader, desc="Calculating normal-tissue targets"):
-        chunk = chunk.rename(columns={probe_column: "probeID"})
-        chunk = chunk[chunk["probeID"].astype(str).isin(relevant_probes)].copy()
-        if chunk.empty:
-            continue
-        chunk = chunk.loc[~chunk[normal_columns].isna().all(axis=1)].copy()
-        if chunk.empty:
-            continue
-
-        values = chunk[normal_columns].to_numpy(dtype=np.float32)
-        chunk["Median_Beta"] = np.nanmedian(values, axis=1)
-        beta_clipped = np.clip(chunk["Median_Beta"].to_numpy(dtype=float), 0.0001, 0.9999)
-        chunk["M_Value_Target"] = np.log2(beta_clipped / (1.0 - beta_clipped))
-        chunk["Binary_State_Target"] = (chunk["Median_Beta"] > 0.5).astype(np.int8)
-        target_chunks.append(chunk[["probeID", "Median_Beta", "M_Value_Target", "Binary_State_Target"]])
-        del chunk, values
-
-    if not target_chunks:
-        raise RuntimeError("No methylation targets matched the sequence-valid HM450 probes.")
-
-    target_map = pd.concat(target_chunks, ignore_index=True)
-    if target_map["probeID"].duplicated().any():
-        duplicate_count = int(target_map["probeID"].duplicated(keep=False).sum())
-        raise RuntimeError(f"Methylation matrix contains duplicated probe rows ({duplicate_count} duplicated records).")
+    target_map, target_summary = pooled_normal_targets(meth_paths, relevant_probes)
+    normal_columns = [c for rec in target_summary["matrices"]
+                      for c in rec["normal_columns"]]
 
     df_master = df_seq.merge(target_map, on="probeID", how="inner", validate="one_to_one")
     df_master["Split"] = df_master["chr"].map(lambda chrom: assign_split(chrom, val_chroms, test_chroms))
-    del df_seq, target_map, target_chunks
+    del df_seq, target_map
     gc.collect()
 
     print("==========================================")
@@ -462,7 +534,11 @@ def main() -> None:
 
     input_records = {
         "manifest": file_record(manifest_path),
+        # Kept as a scalar for backward compatibility with manifests written
+        # before pooling existed; methylation_matrices is the authoritative list.
         "methylation_matrix": file_record(meth_path, hash_file=args.hash_large_inputs),
+        "methylation_matrices": [file_record(p, hash_file=args.hash_large_inputs)
+                                 for p in meth_paths],
         "reference_fasta": file_record(fasta_path, hash_file=args.hash_large_inputs),
         "reference_fasta_index": file_record(Path(str(fasta_path) + ".fai")) if Path(str(fasta_path) + ".fai").exists() else None,
         "bigwigs": {name: file_record(path, hash_file=args.hash_large_inputs) for name, path in bw_paths.items()},
@@ -477,8 +553,12 @@ def main() -> None:
         "normal_sample_selection": {
             "rule": NORMAL_SAMPLE_RE.pattern,
             "selected_count": len(normal_columns),
-            "total_sample_columns": len(methylation_header) - 1,
             "sample_ids_file": normal_samples_path.name,
+            # Per-matrix counts and per-probe coverage. With two cohorts pooled,
+            # a single total hides that one arm may contribute most of the
+            # samples, and samples_per_probe_min catches a probe whose median
+            # rests on very few donors.
+            "pooling": target_summary,
         },
         "sequence_filtering": {
             "valid_sequence_rows_before_target_join": int(len(relevant_probes)),
