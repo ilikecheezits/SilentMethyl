@@ -1,5 +1,7 @@
 .
+├── EOF
 ├── LAB_NOTES.md
+├── Lung:
 ├── README.md
 ├── _archive
 │   ├── logs_ctxperm.tar.gz
@@ -27,6 +29,7 @@
 │   ├── tensorboard_events_folds.tar.gz
 │   └── tissue_specificity_smoke.tar.gz
 ├── a.md
+├── atac
 ├── build_data.sh
 ├── checkpoints_folds
 │   ├── fold1
@@ -113,7 +116,10 @@
 │   ├── _test_egtex_harmonizer.py
 │   ├── acquire_external_cohorts.py
 │   ├── acquire_healthy_breast_cohort.py
+│   ├── acquire_multitissue.sbatch
+│   ├── acquire_multitissue_inputs.py
 │   ├── audit_data_purity.py
+│   ├── audit_reference_tracks.py
 │   ├── audit_training_data.py
 │   ├── build_genoa_scoring_input.py
 │   ├── build_tcga_ancestry_labels.py
@@ -161,6 +167,7 @@
 │   │   ├── val.csv
 │   │   ├── val_100bp.fasta
 │   │   └── val_100bp_rc.fasta
+│   ├── datafiles_breast_epithelium
 │   ├── egtex_breast_mqtl_heldout.csv
 │   ├── egtex_breast_mqtl_heldout_qc.csv
 │   ├── egtex_breast_mqtl_model_visible.csv
@@ -424,8 +431,20 @@
 │   │   ├── curated_seed_grch38_preview.csv
 │   │   └── literature_breast_variant_seeds.csv
 │   ├── merge_genoa_harmonized.py
+│   ├── multitissue_picks.tsv
+│   ├── profile_bigwig.py
 │   ├── reference
 │   │   ├── ATAC_seq.bw
+│   │   ├── BreastEpithelium
+│   │   │   ├── ATAC_seq.bw
+│   │   │   ├── H3K27ac.bw
+│   │   │   ├── H3K27me3.bw
+│   │   │   ├── H3K36me3.bw
+│   │   │   ├── H3K4me1.bw
+│   │   │   ├── H3K4me3.bw
+│   │   │   ├── H3K9me3.bw
+│   │   │   └── TRACK_SET.md
+│   │   ├── ENCFF356LFX.bed.gz
 │   │   ├── H3K27ac.bw
 │   │   ├── H3K27me3.bw
 │   │   ├── H3K36me3.bw
@@ -436,7 +455,13 @@
 │   │   ├── hg19ToHg38.over.chain.gz
 │   │   └── hg38.phyloP100way.bw
 │   ├── run_harmonize_genoa.sh
-│   └── split_predictions_by_tissue.py
+│   ├── split_predictions_by_tissue.py
+│   ├── survey_tcga_normal_cohorts.py
+│   ├── targets
+│   │   ├── TCGA-BRCA.methylation450.tsv.gz
+│   │   ├── TCGA-LUAD.methylation450.tsv.gz
+│   │   └── TCGA-LUSC.methylation450.tsv.gz
+│   └── tcga_normal_cohort_survey.json
 ├── dnabert2_local
 │   ├── LICENSE
 │   ├── README.md
@@ -449,10 +474,17 @@
 │   ├── pytorch_model.bin
 │   ├── tokenizer.json
 │   └── tokenizer_config.json
+├── h3k27ac
+├── h3k27me3
+├── h3k36me3
+├── h3k4me1
+├── h3k4me3
+├── h3k9me3
 ├── logs
 │   ├── data_build
 │   │   ├── acquire_clinvar.log
-│   │   └── acquire_genoa.log
+│   │   ├── acquire_genoa.log
+│   │   └── acquire_lung.log
 │   ├── experiments
 │   │   ├── 04_mqtl_probe_sensitivity.log
 │   │   ├── 07_candidate_model_comparison.log
@@ -1625,4 +1657,4 @@
     ├── testing_common.py
     └── training_common.py
 
-453 directories, 1172 files
+456 directories, 1201 files

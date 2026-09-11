@@ -1,0 +1,157 @@
+{
+  "generated_utc": "2026-09-10T04:20:26+00:00",
+  "min_normals": 30,
+  "per_tissue": [
+    {
+      "context_ok": true,
+      "egtex_tissue": "KidneyCortex",
+      "encode_missing": [],
+      "encode_term": "kidney",
+      "encode_tracks_present": 7,
+      "normal_donors": 205,
+      "reasons": [],
+      "targets_ok": true,
+      "tcga_projects": [
+        "TCGA-KIRC",
+        "TCGA-KIRP",
+        "TCGA-KICH"
+      ],
+      "usable": true
+    },
+    {
+      "context_ok": true,
+      "egtex_tissue": "BreastMammaryTissue",
+      "encode_missing": [],
+      "encode_term": "breast epithelium",
+      "encode_tracks_present": 7,
+      "normal_donors": 97,
+      "reasons": [],
+      "targets_ok": true,
+      "tcga_projects": [
+        "TCGA-BRCA"
+      ],
+      "usable": true
+    },
+    {
+      "context_ok": true,
+      "egtex_tissue": "Lung",
+      "encode_missing": [],
+      "encode_term": "lung",
+      "encode_tracks_present": 7,
+      "normal_donors": 74,
+      "reasons": [],
+      "targets_ok": true,
+      "tcga_projects": [
+        "TCGA-LUAD",
+        "TCGA-LUSC"
+      ],
+      "usable": true
+    },
+    {
+      "context_ok": true,
+      "egtex_tissue": "Prostate",
+      "encode_missing": [],
+      "encode_term": "prostate gland",
+      "encode_tracks_present": 7,
+      "normal_donors": 50,
+      "reasons": [],
+      "targets_ok": true,
+      "tcga_projects": [
+        "TCGA-PRAD"
+      ],
+      "usable": true
+    },
+    {
+      "context_ok": true,
+      "egtex_tissue": "ColonTransverse",
+      "encode_missing": [],
+      "encode_term": "transverse colon",
+      "encode_tracks_present": 7,
+      "normal_donors": 45,
+      "reasons": [],
+      "targets_ok": true,
+      "tcga_projects": [
+        "TCGA-COAD",
+        "TCGA-READ"
+      ],
+      "usable": true
+    },
+    {
+      "context_ok": true,
+      "egtex_tissue": "MuscleSkeletal",
+      "encode_missing": [],
+      "encode_term": "gastrocnemius medialis",
+      "encode_tracks_present": 7,
+      "normal_donors": 0,
+      "reasons": [
+        "no TCGA project for this tissue"
+      ],
+      "targets_ok": false,
+      "tcga_projects": [],
+      "usable": false
+    },
+    {
+      "context_ok": true,
+      "egtex_tissue": "Ovary",
+      "encode_missing": [],
+      "encode_term": "ovary",
+      "encode_tracks_present": 7,
+      "normal_donors": 0,
+      "reasons": [
+        "only 0 normal donors (< 30)"
+      ],
+      "targets_ok": false,
+      "tcga_projects": [
+        "TCGA-OV"
+      ],
+      "usable": false
+    },
+    {
+      "context_ok": true,
+      "egtex_tissue": "Testis",
+      "encode_missing": [],
+      "encode_term": "testis",
+      "encode_tracks_present": 7,
+      "normal_donors": 0,
+      "reasons": [
+        "only 0 normal donors (< 30)"
+      ],
+      "targets_ok": false,
+      "tcga_projects": [
+        "TCGA-TGCT"
+      ],
+      "usable": false
+    },
+    {
+      "context_ok": false,
+      "egtex_tissue": "WholeBlood",
+      "encode_missing": [
+        "ATAC-seq"
+      ],
+      "encode_term": "peripheral blood mononuclear cell",
+      "encode_tracks_present": 6,
+      "normal_donors": 0,
+      "reasons": [
+        "no TCGA project for this tissue",
+        "ENCODE missing ATAC-seq"
+      ],
+      "targets_ok": false,
+      "tcga_projects": [],
+      "usable": false
+    }
+  ],
+  "platform": "Illumina Human Methylation 450",
+  "required_tracks": [
+    "ATAC-seq",
+    "H3K4me3",
+    "H3K27ac",
+    "H3K27me3",
+    "H3K9me3",
+    "H3K36me3",
+    "H3K4me1"
+  ],
+  "sources": {
+    "context": "ENCODE /search, released Experiments with GRCh38 assembly",
+    "targets": "GDC /files, open access, distinct case_id per project"
+  }
+}
