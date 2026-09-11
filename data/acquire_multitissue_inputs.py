@@ -93,24 +93,42 @@ OUTPUT_TYPE = "fold change over control"
 # existing data/reference/ATAC_seq.bw was converted with parameters nobody
 # recorded, which is why it cannot be matched and has to be redone.
 #
+# These settings are chosen to MATCH the published breast track, so that
+# data/reference/ATAC_seq.bw can be reused unchanged as the joint model's breast
+# context rather than replaced by a re-conversion. data/profile_bigwig.py
+# recovered its parameters from the file itself:
+#
+#     bin size        50 bp
+#     normalisation   CPM -- its smallest positive value is 0.00273, which is
+#                     1e6/366M, exactly the per-read quantum of a CPM track
+#     exclusion list  NOT applied; signal inside ENCODE-excluded regions
+#                     averages 5.46 against 0.001 in the flanks
+#
 # Why each flag:
 #   --normalizeUsing CPM   depth differs between experiments, and without
 #                          normalisation a deeper-sequenced tissue simply gets
 #                          larger numbers -- a scale offset perfectly correlated
-#                          with tissue, which is the artifact this route exists
-#                          to avoid. CPM is the standard choice and needs no
-#                          input control, which snATAC does not have.
-#   --binSize 10           near the resolution of the ENCODE histone signal the
-#                          other six features come from. Larger bins blur the
-#                          accessibility peaks that matter at a 1 kb window.
+#                          with tissue. Also what the published track used.
+#   --binSize 50           matches the published track. A finer 10 bp binning
+#                          was tried first and produced a track that could not
+#                          be reconciled with it.
 #   --ignoreDuplicates     10x libraries carry PCR duplicates.
 #   --minMappingQuality 30 drops multi-mapping reads, standard for ATAC.
-#   --blacklist            ENCODE GRCh38 exclusion list; ATAC is especially
-#                          prone to artifact pileups in these regions.
+#
+# NO exclusion list by default. Applying one here would make these tracks
+# cleaner than the breast track they sit beside, and a filter applied to three
+# tissues out of four is a difference that tracks tissue identity -- the exact
+# confound this route exists to remove. Pass --blacklist to override, and only
+# if the published breast track is being regenerated to match.
+#
+# Duplicate handling, MAPQ and read extension are NOT recoverable from a bigWig,
+# so a re-conversion of MCF-10A would not reproduce the published file even with
+# these settings. Breast therefore REUSES the published file (mark 'atac_file')
+# rather than converting it.
 SNATAC_BAMCOVERAGE = [
     "bamCoverage",
     "--normalizeUsing", "CPM",
-    "--binSize", "10",
+    "--binSize", "50",
     "--ignoreDuplicates",
     "--minMappingQuality", "30",
     "--extendReads",
@@ -183,6 +201,11 @@ MARK_ALIASES = {
     # tissue on this route goes through the same conversion below.
     "atac_bam": "Ref_ATAC_Signal", "snatac": "Ref_ATAC_Signal",
     "snatac_bam": "Ref_ATAC_Signal",
+    # An existing local bigWig, copied in rather than downloaded or converted.
+    # Breast uses this so the joint model reads the SAME file as the published
+    # single-tissue model -- a re-conversion could not reproduce it, because
+    # duplicate/MAPQ/extension settings are not recoverable from a bigWig.
+    "atac_file": "Ref_ATAC_Signal",
     "dnase": None,
     "h3k4me3": "Ref_H3K4me3_Signal",
     "h3k27ac": "Ref_H3K27ac_Signal",
@@ -343,12 +366,20 @@ def read_picks(path: Path) -> dict[str, dict[str, str]]:
             raise SystemExit(f"STOP: {path}:{lineno}: {mark!r} is not a model input")
 
         acc = token.strip()
+        if key == "atac_file":
+            src = Path(acc)
+            if not src.is_file():
+                raise SystemExit(f"STOP: {path}:{lineno}: {acc} not found")
+            picks.setdefault(tissue, {})[feature] = {
+                "accession": None, "as_bam": False, "reuse_path": str(src)}
+            continue
         as_bam = key in ("atac_bam", "snatac", "snatac_bam") or acc.endswith(".bam")
         if "/files/" in acc:                     # a full download URL
             acc = acc.split("/files/")[1].split("/")[0]
         if not acc.startswith("ENCFF"):
             raise SystemExit(f"STOP: {path}:{lineno}: {token!r} is not an ENCFF accession")
-        picks.setdefault(tissue, {})[feature] = {"accession": acc, "as_bam": as_bam}
+        picks.setdefault(tissue, {})[feature] = {"accession": acc, "as_bam": as_bam,
+                                                 "reuse_path": None}
     return picks
 
 
@@ -698,6 +729,12 @@ def main(argv=None) -> int:
                          "'<tissue> <mark> <accession-or-url>'; see read_picks(). "
                          "Every file is checked for format, output type, "
                          "assembly, released status and target before use.")
+    ap.add_argument("--blacklist", action="store_true",
+                    help="Apply the ENCODE exclusion list when converting. OFF "
+                         "by default, because the published breast track does "
+                         "not have it applied and the joint model reuses that "
+                         "file -- filtering three tissues but not the fourth "
+                         "would make the filter a tissue marker.")
     ap.add_argument("--keep-bams", action="store_true",
                     help="Keep the downloaded BAMs after conversion. They are "
                          "13-30 GB each and the bigWig is what the model reads, "
@@ -748,6 +785,17 @@ def main(argv=None) -> int:
                 files, bad = {}, []
                 for feature, pick in chosen.items():
                     acc, as_bam = pick["accession"], pick["as_bam"]
+                    if pick.get("reuse_path"):
+                        src = Path(pick["reuse_path"])
+                        prof = {"reuse_path": str(src), "filename": MARK_FILENAME[feature],
+                                "bytes": src.stat().st_size, "ok": True,
+                                "biosample": "(reused local file)", "problems": [],
+                                "md5": hashlib.md5(src.read_bytes()).hexdigest()}
+                        print(f"    {MARK_TARGET[feature] or 'ATAC':<10}"
+                              f"{'(local)':<14}{src}  "
+                              f"{prof['bytes']/1e6:.0f} MB")
+                        files[feature] = prof
+                        continue
                     rec = (verify_bam_pick(feature, acc) if as_bam
                            else verify_pick(feature, acc))
                     time.sleep(0.15)
@@ -924,7 +972,7 @@ def main(argv=None) -> int:
 
     # One shared exclusion list, fetched once, used by every conversion.
     blacklist = None
-    if needs_conversion:
+    if needs_conversion and args.blacklist:
         blacklist = args.reference_root / f"{BLACKLIST_ACCESSION}.bed.gz"
         if not blacklist.is_file():
             meta = _json(f"{ENCODE}/files/{BLACKLIST_ACCESSION}/?format=json")
@@ -951,6 +999,28 @@ def main(argv=None) -> int:
             # survived a switch from bulk ATAC to snATAC purely because the name
             # was unchanged, leaving the plan and the marker file claiming a
             # source the bytes did not come from. Check identity, not presence.
+            if f.get("reuse_path"):
+                src = Path(f["reuse_path"])
+                if dest.exists() and hashlib.md5(dest.read_bytes()).hexdigest() == f["md5"]:
+                    print(f"  skip {dest} (identical to {src})")
+                    continue
+                print(f"  copying {src} -> {dest}  (same file as the published model)")
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                import shutil as _sh
+                _sh.copy2(src, dest)
+                dest.with_suffix(dest.suffix + ".source.json").write_text(
+                    json.dumps({"reused_from": str(src),
+                                "md5": f["md5"],
+                                "note": ("byte-identical to the published "
+                                         "single-tissue context, deliberately -- "
+                                         "its conversion parameters are not "
+                                         "recoverable, so it cannot be "
+                                         "reproduced, only reused"),
+                                "copied_utc": datetime.now(timezone.utc)
+                                .isoformat(timespec="seconds")},
+                               indent=2, sort_keys=True) + "\n")
+                continue
+
             if dest.exists():
                 if f.get("convert_from_bam"):
                     side = dest.with_suffix(dest.suffix + ".source.json")

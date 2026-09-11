@@ -49,7 +49,10 @@ ColonTransverse:
 # with this route's command -- the published data/reference/ATAC_seq.bw used
 # unrecorded parameters and so cannot be matched by anything else.
 BreastMammaryTissue:
-  atac_bam  ENCFF021PIS
+# REUSED, not converted. The published track's duplicate/MAPQ/extension settings
+# are not recoverable from the bigWig, so a re-conversion could not reproduce it.
+# Copying it in is the only way both models read the SAME breast ATAC file.
+  atac_file  data/reference/ATAC_seq.bw
   h3k4me3   ENCFF548SFG
   h3k27ac   ENCFF282YCX
   h3k27me3  ENCFF274LWG
