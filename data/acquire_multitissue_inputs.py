@@ -147,6 +147,17 @@ FLAG_FALLBACKS = {
 # ENCODE GRCh38 exclusion list (Amemiya et al. 2019), fetched if absent.
 BLACKLIST_ACCESSION = "ENCFF356LFX"
 
+# What data/reference/ATAC_seq.bw actually is, recovered by the checksum audit
+# and data/profile_bigwig.py. Needed because a reused file carries no ENCODE
+# metadata of its own, and describing it as "a reused file" made the
+# cross-tissue checks below see a biosample and an assay that do not exist.
+REUSED_ATAC = {
+    "biosample": "MCF 10A",
+    "assay_title": "snATAC-seq",
+    "output_type": "coverage, converted locally from a BAM",
+    "derived_from": "ENCFF021PIS",
+}
+
 # TCGA projects supply the targets; ENCODE biosample terms supply the context.
 # Donor counts from data/survey_tcga_normal_cohorts.py, 10 Sep 2026.
 #
@@ -155,6 +166,15 @@ BLACKLIST_ACCESSION = "ENCFF356LFX"
 # than the cortex, and the eGTEx tissue being matched is Kidney Cortex.
 # Anatomical match beats sample count here.
 TISSUES = {
+    # The ablation candidate: primary breast epithelium instead of the MCF-10A
+    # cell line. Same TCGA targets, different context, so a model built on this
+    # is directly comparable to the published one on the same split.
+    "BreastEpithelium": {
+        "projects": ["TCGA-BRCA"],
+        "encode": ["breast epithelium"],
+        "note": "primary-tissue alternative to MCF-10A; tests whether the "
+                "published context choice cost anything",
+    },
     "BreastMammaryTissue": {
         "projects": ["TCGA-BRCA"],
         "encode": ["breast epithelium", "MCF 10A",
@@ -741,7 +761,12 @@ def main(argv=None) -> int:
                          "so they are deleted by default.")
     ap.add_argument("--force", action="store_true",
                     help="Download even when the resolved set is inconsistent "
-                         "across tissues. Only with a recorded reason.")
+                         "across tissues. Requires --force-reason.")
+    ap.add_argument("--force-reason", default=None,
+                    help="Why the inconsistency is acceptable. Written into the "
+                         "plan so the decision is auditable later -- a bare "
+                         "override leaves no record of whether it was reasoned "
+                         "or just clicked through.")
     ap.add_argument("--network-check", action="store_true",
                     help="Just test whether this host can reach ENCODE and the "
                          "Xena hub, then exit. Run this inside a compute job to "
@@ -787,9 +812,17 @@ def main(argv=None) -> int:
                     acc, as_bam = pick["accession"], pick["as_bam"]
                     if pick.get("reuse_path"):
                         src = Path(pick["reuse_path"])
+                        # Describe the reused file by what it actually IS, not by
+                        # the fact that it was reused. Leaving these blank made
+                        # the consistency checks below see a second biosample
+                        # and a second assay in this tissue that do not exist.
                         prof = {"reuse_path": str(src), "filename": MARK_FILENAME[feature],
                                 "bytes": src.stat().st_size, "ok": True,
-                                "biosample": "(reused local file)", "problems": [],
+                                "biosample": REUSED_ATAC["biosample"],
+                                "assay_title": REUSED_ATAC["assay_title"],
+                                "output_type": REUSED_ATAC["output_type"],
+                                "accession": REUSED_ATAC["derived_from"],
+                                "problems": [],
                                 "md5": hashlib.md5(src.read_bytes()).hexdigest()}
                         print(f"    {MARK_TARGET[feature] or 'ATAC':<10}"
                               f"{'(local)':<14}{src}  "
@@ -872,12 +905,17 @@ def main(argv=None) -> int:
     # can learn that difference as tissue identity. Same for output type. This
     # is the failure the whole rebuild exists to avoid, so it is checked before
     # anything is downloaded.
+    # Compare only values that are actually known. A missing field is not a
+    # second assay, and treating it as one produced a "differ" warning listing a
+    # single value -- which is nonsense and trains you to ignore the check.
     per_feature: dict[str, dict[str, set]] = {}
     for tissue, entry in plan["tissues"].items():
         for feature, f in entry.get("context", {}).get("files", {}).items():
             slot = per_feature.setdefault(feature, {"assay": set(), "output": set()})
-            slot["assay"].add(f.get("assay_title"))
-            slot["output"].add(f.get("output_type"))
+            if f.get("assay_title"):
+                slot["assay"].add(f["assay_title"])
+            if f.get("output_type"):
+                slot["output"].add(f["output_type"])
     inconsistent = {f: s for f, s in per_feature.items()
                     if len(s["assay"]) > 1 or len(s["output"]) > 1}
     plan["cross_tissue_consistent"] = not inconsistent
@@ -924,8 +962,23 @@ def main(argv=None) -> int:
     if args.apply and inconsistent and not args.force:
         raise SystemExit(
             "STOP: refusing to download a cross-tissue inconsistent set.\n"
-            "Fix it, or pass --force if you have decided the difference is "
-            "acceptable and recorded why.")
+            "Fix it, or pass --force with --force-reason if you have decided "
+            "the difference is acceptable.")
+    if args.force and inconsistent:
+        if not args.force_reason:
+            raise SystemExit(
+                "STOP: --force needs --force-reason.\n"
+                "An override with no recorded reason is indistinguishable later "
+                "from one nobody thought about.")
+        plan["accepted_inconsistency"] = {
+            "features": {f: {"assays": sorted(s["assay"]),
+                             "output_types": sorted(s["output"])}
+                         for f, s in inconsistent.items()},
+            "reason": args.force_reason,
+            "accepted_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        }
+        print(f"\nproceeding despite the inconsistency, recorded as:")
+        print(f"  {args.force_reason}")
 
     if not args.apply:
         print("\nResolve-only. Read the plan, then re-run with --apply to download.")
