@@ -54,7 +54,7 @@ ColonTransverse:
 # data/reference/BreastEpithelium/ and touches neither the published tracks nor
 # the joint-model directories.
 BreastEpithelium:
-  atac      ENCFF720WSA
+  atac      ENCFF665NGK   # ENCFF720WSA was a Histone ChIP file, rejected
   h3k4me3   ENCFF653CLL
   h3k4me1   ENCFF234JZW
   h3k27me3  ENCFF212ZFW
