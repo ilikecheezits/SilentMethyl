@@ -5,13 +5,18 @@ Single running record for the project. Consolidates the former
 presentation outlines. `README.md` remains separate as the repository's entry
 point.
 
-Last updated 9 Sep 2026, after the repeated chromosome-blocked folds completed.
+Last updated 11 Sep 2026, after the breast-epithelium context ablation returned
+and the single-tissue reprocessing was launched.
 
 ---
 
 ## 0. Status in one page
 
-**Every analysis is finished. What remains is writing.**
+**Every analysis is finished, but the context source changed on 11 Sep and the
+single-tissue set is being reprocessed.** See §1.10. The conclusions are
+unaffected — the swap improves absolute numbers and strengthens R2 — but every
+reported single-tissue figure will need its value refreshed once the five
+in-flight runs land. Do not circulate numbers from before that date.
 
 The claim is methodological: here is how variant-effect prediction should be
 evaluated, here is what happens to two very different models under it, and
@@ -682,6 +687,157 @@ already documented in R2.
 
 ---
 
+### 10. Context ablation — breast epithelium replaces MCF-10A, 11 Sep 2026
+
+**The published context was a cell line; the targets are primary tissue.** Six
+Mint-ChIP marks from MCF-10A, a clonal immortalized line, plus an ATAC track
+converted locally from a snATAC BAM (ENCFF021PIS, ENCSR037XNN) with parameters
+that were never recorded. The domain mismatch was a stated limitation. ENCODE
+also has primary breast epithelium with all seven marks as bulk, fold-change-
+over-control bigWigs from one biosample through one pipeline — so the swap was
+testable rather than merely arguable.
+
+New context, `data/reference/BreastEpithelium/`, all checksum-verified, GRCh38:
+
+| mark | accession | | mark | accession |
+|---|---|---|---|---|
+| ATAC | ENCFF665NGK | | H3K36me3 | ENCFF714QJF |
+| H3K4me3 | ENCFF653CLL | | H3K9me3 | ENCFF481QEK |
+| H3K4me1 | ENCFF234JZW | | H3K27ac | ENCFF085IYD |
+| H3K27me3 | ENCFF212ZFW | | | |
+
+#### Result, seed 42, published chr8+chr9 split
+
+| arm | MCF-10A | breast epithelium | difference |
+|---|---|---|---|
+| context-only | β MAE 0.1396, AUC 0.9188 | β MAE 0.1022, AUC 0.9658 | **−0.0374, +0.0470** |
+| fusion | β MAE 0.0971, AUC 0.9699 | β MAE 0.0885, AUC 0.9765 | **−0.0086, +0.0066** |
+
+**It is not seed noise.** The published three-seed fusion spread is 0.0971 /
+0.0988 / 0.1020 (mean 0.0993, SD 0.0025) and AUC 0.9699 / 0.9683 / 0.9657 (mean
+0.9680, SD 0.0021). The ablation's 0.0885 sits **4.3 SD** below that mean and
+0.0086 below even the best published seed — a gap 1.8x the entire three-seed
+range. AUC is +4.0 SD. Confirmation across seeds 43/44 is in flight regardless.
+
+#### Why it moved — mechanism, not luck
+
+The context tower applies **no per-feature standardization**: raw bigWig values
+go straight into `nn.Linear(tabular_dim*2, 128)`, with `LayerNorm` only after
+that first linear. Input scale and input artifacts therefore reach the weights
+directly. Two concrete defects in the MCF-10A set:
+
+- **Blacklist artifacts in the ATAC track.** Mean signal inside ENCODE-excluded
+  regions is 5.4568 against 0.001 in the flanks — roughly 5000x — with a maximum
+  of 90. The locally converted track never had the exclusion applied.
+- **Scale incoherence.** MCF-10A track means span 0.099–2.735 with maxima
+  27–584; the ATAC track is a different quantity from the histone tracks.
+  Breast epithelium means span 0.295–1.960 with maxima 8–137, and its ATAC mean
+  of 1.006 sits *inside* the histone range.
+
+Primary tissue matching primary-tissue targets is the third reason, and the one
+that closes the stated limitation, but the two above are why the effect is large.
+
+#### The asymmetry is the publishable finding
+
+The context arm improved by 0.0374. Fusion improved by 0.0086. **Only 23% of the
+context gain survives the gate** — roughly three quarters of what better
+chromatin tracks provide is already encoded by the sequence tower.
+
+This is a measured statement that context quality is not the binding constraint
+on this architecture, which is what R2 claims on derivational grounds (context is
+allele-invariant; it can rescale a variant effect but never create one or set its
+direction). It also lands inside the ≤0.02–0.027 bound on scale/tissue matching
+established by four independent routes in §2.3b/3d, corroborating that bound
+rather than disturbing it. Tripling the quality of the context input moves the
+model by less than 0.01.
+
+Use it in R2 and in the §1.9 refusal of joint multi-tissue training: the reason
+joint training will not deliver tissue-specific *variant* effects is
+architectural, and this is the experiment that shows better context does not
+rescue it.
+
+#### Decision and cost
+
+Swap. The 0.0086 is the tiebreaker, not the argument. The argument is that the
+swap retires the domain-mismatch limitation with data instead of a caveat, and
+removes an ATAC track with blacklist artifacts that a reviewer could find
+unaided — much worse to defend than to have fixed. Seven fold-change tracks, one
+primary biosample, one pipeline, all checksum-verified is a provenance statement
+that fits in one sentence.
+
+Cost: every single-tissue number in the paper is refreshed. Downstream
+reanalyses (variant scoring, meQTL discrimination, tissue specificity) consume
+model predictions and cannot start until the retrains land, but none need a GPU.
+
+#### In flight as of 11 Sep 2026
+
+Five jobs, ~14 h each, all independent, all reusing published sequence towers:
+
+| job | tag | sequence tower reused |
+|---|---|---|
+| 45804079 | seed43 | `checkpoints_journal/seed43/sequence/` |
+| 45804080 | seed44 | `checkpoints_journal/seed44/sequence/` |
+| 45804081 | fold1 | `checkpoints_folds/fold1/sequence_seed42/` |
+| 45804082 | fold2 | `checkpoints_folds/fold2/sequence_seed42/` |
+| 45804083 | fold3 | `checkpoints_folds/fold3/sequence_seed42/` |
+
+The sequence tower reads DNA only and never sees context, so it does not need
+retraining — that is ~32 of ~46 h saved per run, and it keeps the sequence-only
+baseline untouched and still comparable.
+
+#### Reproduction
+
+```bash
+# build the context (CPU, ~10 min)
+python -u data/build_training_data.py \
+    --reference-dir data/reference/BreastEpithelium \
+    --out-dir data/datafiles_breast_epithelium
+
+# fold splits on the new context (CPU, minutes)
+python -u scripts/17_chromosome_splits.py \
+    --datafiles data/datafiles_breast_epithelium \
+    --out-root data/datafiles_breast_epithelium/splits --folds 4
+
+# retrain epi + gate (GPU, ~14 h each)
+mkdir -p logs/ablation
+sbatch --job-name=ctx-s43 --export=ALL,SEED=43 scripts/run_context_ablation.sbatch
+sbatch --job-name=ctx-f1  --export=ALL,FOLD=1  scripts/run_context_ablation.sbatch
+```
+
+Outputs land in `checkpoints_ablation/breast_epithelium/<tag>/{epi,fusion}` and
+`results/journal/ablation_breast_epithelium/<tag>/{epi,fusion}`.
+
+#### Traps, recorded because they nearly fired
+
+- **`17_chromosome_splits.py --out-root` does not follow `--datafiles`.** It
+  defaults to `data/datafiles/splits` independently. Running it with only
+  `--datafiles` pointed at the new context **overwrites the published fold
+  splits** that `checkpoints_folds/fold{1,2,3}` were trained against. Always set
+  both flags.
+- **`build_training_data.py --reference-dir` without `--out-dir`** would
+  overwrite `data/datafiles/`. The script now refuses this outright.
+- **Fold sequence-tower reuse is only valid if the split is identical.** The
+  sbatch verifies train/val/test probe sets against `data/datafiles/splits/foldN`
+  before touching the GPU. Without it a mismatch completes normally while testing
+  on probes the tower trained on — a result that looks excellent and is worthless.
+  `build_folds` uses no RNG and the row set is identical between context builds
+  (bigWigs are read after all row filtering), so this passes by construction; it
+  is a guard against future edits, not against today.
+- **`logs/ablation/` must exist before `sbatch`.** Slurm opens `--output` and
+  `--error` before the script body runs, so a missing directory kills the job at
+  ~5 s with no log to say why.
+- **`--export=ALL,VAR=x`, never plain `VAR=x`.** Without `ALL`, Slurm drops the
+  environment and the conda python is not found.
+- **Slurm snapshots the batch script at submit time.** Editing after submission
+  changes nothing. `scontrol write batch_script <jobid> -` shows what actually
+  ran — use it to confirm a parameterized script was the one submitted.
+- **Slurm `.err` files are not covered by `*.log`.** A 123 MB tqdm log reached a
+  commit and was rejected by GitHub's 100 MB limit. `logs/` is now gitignored.
+  Salvage the useful lines with
+  `zcat -f <file>.err* | tr '\r' '\n' | grep -E '^20[0-9]{2}-'`.
+
+---
+
 ## 2. Melody — positioning, reanalysis, and head-to-head
 
 Jin, Wang, Qiao et al. "Decoding the sequence determinants of locus-specific DNA
@@ -1090,6 +1246,12 @@ and pre-empts the "different splits" objection.
 6. Split-status label on the case-study figure — the text states it, the figure
    does not.
 7. Mentor email. Every number in it is now checkable.
+8. **Refresh every single-tissue number after the §1.10 reprocessing lands.**
+   Five runs in flight (seeds 43/44, folds 1–3). The fold table, the seed table
+   and every downstream analysis that consumes model predictions are all keyed to
+   the MCF-10A context until then. The mentor email quotes pre-swap numbers —
+   either send it before the runs land, or update it, but do not let the two
+   drift apart silently.
 
 ### The one open scientific decision
 **eQTL / eQTM colocalisation.** The only remaining substantive analysis and the
