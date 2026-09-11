@@ -31,6 +31,22 @@
 ├── a.md
 ├── atac
 ├── build_data.sh
+├── checkpoints_ablation
+│   └── breast_epithelium
+│       ├── epi_seed42
+│       │   ├── best_weights.pth
+│       │   ├── latest_checkpoint.pt
+│       │   ├── run_config.json
+│       │   └── tensorboard
+│       │       └── events.out.tfevents.1789098545.v022.ib.bridges2.psc.edu.4330.0
+│       ├── fusion_seed42
+│       │   ├── best_validation_gates.csv
+│       │   ├── best_weights.pth
+│       │   ├── latest_checkpoint.pt
+│       │   ├── run_config.json
+│       │   └── tensorboard
+│       │       └── events.out.tfevents.1789100045.v022.ib.bridges2.psc.edu.13501.0
+│       └── input_checksums.txt
 ├── checkpoints_folds
 │   ├── fold1
 │   │   ├── epi_seed42
@@ -168,6 +184,19 @@
 │   │   ├── val_100bp.fasta
 │   │   └── val_100bp_rc.fasta
 │   ├── datafiles_breast_epithelium
+│   │   ├── feature_imputation.json
+│   │   ├── split_manifest.json
+│   │   ├── tcga_normal_sample_ids.json
+│   │   ├── test.csv
+│   │   ├── test_100bp.fasta
+│   │   ├── test_100bp_rc.fasta
+│   │   ├── train.csv
+│   │   ├── train_100bp.fasta
+│   │   ├── train_100bp_rc.fasta
+│   │   ├── training_data_manifest.json
+│   │   ├── val.csv
+│   │   ├── val_100bp.fasta
+│   │   └── val_100bp_rc.fasta
 │   ├── egtex_breast_mqtl_heldout.csv
 │   ├── egtex_breast_mqtl_heldout_qc.csv
 │   ├── egtex_breast_mqtl_model_visible.csv
@@ -481,6 +510,9 @@
 ├── h3k4me3
 ├── h3k9me3
 ├── logs
+│   ├── ablation
+│   │   ├── ctxabl_45740496.err
+│   │   └── ctxabl_45740496.out
 │   ├── data_build
 │   │   ├── acquire_clinvar.log
 │   │   ├── acquire_genoa.log
@@ -531,6 +563,27 @@
 ├── requirements.txt
 ├── results
 │   └── journal
+│       ├── ablation_breast_epithelium
+│       │   ├── epi
+│       │   │   ├── fig_1_density_scatter.png
+│       │   │   ├── fig_2a_signed_error.png
+│       │   │   ├── fig_2b_absolute_error.png
+│       │   │   ├── fig_3_beta_distribution.png
+│       │   │   ├── fig_4_roc.png
+│       │   │   ├── fig_5_calibration.png
+│       │   │   ├── metrics.json
+│       │   │   └── predictions.csv
+│       │   └── fusion
+│       │       ├── fig_1_density_scatter.png
+│       │       ├── fig_2a_signed_error.png
+│       │       ├── fig_2b_absolute_error.png
+│       │       ├── fig_3_beta_distribution.png
+│       │       ├── fig_4_roc.png
+│       │       ├── fig_5_calibration.png
+│       │       ├── fig_6_gate_share_distribution.png
+│       │       ├── fig_7_gate_rc_consistency.png
+│       │       ├── metrics.json
+│       │       └── predictions.csv
 │       ├── baseline_variant_evaluation
 │       │   ├── distance_bins.csv
 │       │   ├── fusion_vs_sequence_paired.csv
@@ -1639,11 +1692,15 @@
     ├── 71_mqtl_matched_negative.py
     ├── 90_build_supplement_package.py
     ├── 91_build_manuscript_figures.py
+    ├── __pycache__
+    │   ├── testing_common.cpython-310.pyc
+    │   └── training_common.cpython-310.pyc
     ├── _test_sequence_baselines.py
     ├── literature_breast_variant_seeds.csv
     ├── matched_background_utils.py
     ├── run_baseline_grid.sh
     ├── run_baseline_seeds.sh
+    ├── run_context_ablation.sbatch
     ├── run_ctxperm.sbatch
     ├── run_egtex_multitissue_scoring.sh
     ├── run_egtex_scoring.sh
@@ -1657,4 +1714,4 @@
     ├── testing_common.py
     └── training_common.py
 
-456 directories, 1201 files
+467 directories, 1247 files
