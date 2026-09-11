@@ -940,7 +940,22 @@ def main(argv=None) -> int:
               f"output type in all tissues.")
         print(f"  assays in use: {assays}")
 
+    # Merge into any existing plan rather than replacing it. Running one tissue
+    # at a time with --tissues used to overwrite the file with just that tissue,
+    # silently discarding the record for every other one -- and this file is
+    # meant to BE the record of which ENCODE files the context is built from.
     args.plan.parent.mkdir(parents=True, exist_ok=True)
+    if args.plan.is_file():
+        try:
+            prior = json.loads(args.plan.read_text())
+        except json.JSONDecodeError:
+            prior = {}
+        merged = dict(prior.get("tissues", {}))
+        merged.update(plan["tissues"])
+        carried = [t for t in merged if t not in plan["tissues"]]
+        plan["tissues"] = merged
+        if carried:
+            print(f"  carried forward from the previous plan: {', '.join(sorted(carried))}")
     with args.plan.open("w") as fh:
         json.dump(plan, fh, indent=2, sort_keys=True)
         fh.write("\n")
