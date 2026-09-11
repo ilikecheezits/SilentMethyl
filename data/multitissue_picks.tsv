@@ -1,60 +1,67 @@
 # <tissue> <mark> <ENCFF accession or download URL>
 # Seven marks only: atac h3k4me3 h3k27ac h3k27me3 h3k9me3 h3k36me3 h3k4me1
-# H3K9ac and DNase are not model inputs.
+# H3K9ac and DNase are NOT model inputs -- TABULAR_FEATURES fixes the context
+# vector at seven tissue-specific features, and an eighth would change the
+# epigenomic tower's input dimension and stop being the published architecture.
 # Notes must start with '#' or they are parsed as picks.
 #
-# ROUTE B: accessibility comes from snATAC BAMs, converted locally with one
-# fixed command, so MCF-10A can stay as the breast context. Use mark 'atac_bam'
-# for those; 'atac' still means a ready-made fold-change bigWig.
+# ROUTE A, adopted 11 Sep 2026. Every tissue uses a ready-made bulk
+# fold-change-over-control bigWig on GRCh38 -- no BAMs, no local conversion, no
+# unrecorded parameters. Route B (snATAC BAMs converted with a fixed
+# bamCoverage command) is dead: it existed only to keep MCF-10A as the breast
+# context, and the context ablation replaced MCF-10A with primary breast
+# epithelium, which HAS bulk ATAC. See LAB_NOTES section 1.10.
 #
-# Prostate was dropped: ENCODE has no snATAC for it, only bulk ATAC, and mixing
-# assays for one tissue reintroduces the confound this route exists to remove.
+# ALL FOUR TISSUES ARE PINNED.
+# ----------------------------
+# Breast must be pinned: it is already downloaded and already trained on. The
+# single-tissue reprocessing (seeds 42/43/44, folds 1-3) used exactly these
+# seven files, and the joint model must read the same bytes or the two models
+# are not comparable. Auto-resolution could silently pick a different file from
+# the same experiment.
 #
-# Verify without downloading:
-#   python -u data/acquire_multitissue_inputs.py --picks data/multitissue_picks.tsv
-# then, once every line passes and the set is consistent across tissues:
-#   python -u data/acquire_multitissue_inputs.py --picks data/multitissue_picks.tsv --apply
+# The other three are pinned because the accessions already exist: the ATAC
+# files were chosen by hand on 11 Sep 2026, and the eighteen histone files were
+# collected under Route B, where only the ATAC entries were route-specific.
+# Pinning all of them means ONE command verifies all 28 files.
+#
+# How to run, on a LOGIN NODE (compute nodes have no outbound HTTPS):
+#
+#   # 1. verify all 28 files without downloading anything
+#   python -u data/acquire_multitissue_inputs.py --context-only \
+#       --picks data/multitissue_picks.tsv
+#
+#   # 2. only once every line passes and the set is consistent
+#   python -u data/acquire_multitissue_inputs.py \
+#       --picks data/multitissue_picks.tsv --apply
+#
+# Step 1 prints per-file verification and then the consistency verdict across
+# all four tissues. The line to look for is "Cross-tissue consistent: every
+# feature uses the same assay and output type in all tissues", followed by the
+# assay list.
+#
+# The likely failure: breast epithelium histones are standard Histone ChIP-seq
+# while some of the Route B picks may be Mint-ChIP-seq, or vice versa. The check
+# refuses the download and tells you to pin HISTONE_ASSAYS. Do that rather than
+# forcing -- a mark measured by a different assay in different tissues encodes
+# the assay alongside the biology, and a joint model will learn it as tissue
+# identity. If a histone pick is rejected outright (hg19, wrong output type),
+# the rejection names the parent experiment to search for a sibling file.
 
-Lung:
-  atac_bam  ENCFF673RWI
-  h3k4me1   ENCFF325EMH
-  h3k4me3   ENCFF910JMH
-  h3k36me3  ENCFF345TBP
-  h3k9me3   ENCFF943PCH
-  h3k27me3  ENCFF856MGM
-  h3k27ac   ENCFF105RLH
-# h3k9ac    ENCFF110TAI    not a model input
-# ENCFF113XMQ was the original H3K4me3 pick, rejected as hg19
+# The four tissues, their TCGA solid-tissue-normal donor counts, and the
+# training rows each gets under a ~345k budget with disjoint probe sets:
+#
+#   BreastEpithelium   TCGA-BRCA              97 donors    ~86k probes
+#   KidneyCortex       TCGA-KIRC             205 donors    ~86k probes
+#   Lung               TCGA-LUAD + LUSC       74 donors    ~86k probes
+#   ColonTransverse    TCGA-COAD + READ       45 donors    ~86k probes
+#
+# Colon is the weakest arm: a target median over 45 donors is a noisier label
+# than one over 205. Disclose it, and consider donor-weighting rather than an
+# even split.
 
-KidneyCortex:
-  atac_bam  ENCFF482GRX
-  h3k36me3  ENCFF285VAE
-  h3k4me1   ENCFF992BPB
-  h3k4me3   ENCFF438RHT
-  h3k27ac   ENCFF722YGU
-  h3k9me3   ENCFF344RCN
-  h3k27me3  ENCFF803HAQ
-
-ColonTransverse:
-  atac_bam  ENCFF354SCV
-  h3k27ac   ENCFF826GOW
-  h3k36me3  ENCFF762PUM
-  h3k4me1   ENCFF095NPI
-  h3k4me3   ENCFF451EGE
-  h3k27me3  ENCFF865CYJ
-  h3k9me3   ENCFF834GGD
-
-# The joint model's breast context. Same MCF-10A accessions the checksum audit
-# recovered for the published model, but the ATAC is RE-CONVERTED from the BAM
-# with this route's command -- the published data/reference/ATAC_seq.bw used
-# unrecorded parameters and so cannot be matched by anything else.
-# The breast-epithelium context, for the single-tissue ablation that decides
-# whether MCF-10A is replaced everywhere. Primary tissue, bulk ATAC, all
-# fold-change bigWigs -- nothing to convert. Lands in
-# data/reference/BreastEpithelium/ and touches neither the published tracks nor
-# the joint-model directories.
 BreastEpithelium:
-  atac      ENCFF665NGK   # ENCFF720WSA was a Histone ChIP file, rejected
+  atac      ENCFF665NGK
   h3k4me3   ENCFF653CLL
   h3k4me1   ENCFF234JZW
   h3k27me3  ENCFF212ZFW
@@ -62,14 +69,39 @@ BreastEpithelium:
   h3k9me3   ENCFF481QEK
   h3k27ac   ENCFF085IYD
 
-BreastMammaryTissue:
-# REUSED, not converted. The published track's duplicate/MAPQ/extension settings
-# are not recoverable from the bigWig, so a re-conversion could not reproduce it.
-# Copying it in is the only way both models read the SAME breast ATAC file.
-  atac_file  data/reference/ATAC_seq.bw
-  h3k4me3   ENCFF548SFG
-  h3k27ac   ENCFF282YCX
-  h3k27me3  ENCFF274LWG
-  h3k9me3   ENCFF423DKY
-  h3k36me3  ENCFF634LDP
-  h3k4me1   ENCFF714NIL
+# ATAC below replaces the Route B snATAC BAM (ENCFF673RWI). Histones are the
+# Route B picks, which were never route-specific.
+Lung:
+  atac      ENCFF260QGF
+  h3k4me1   ENCFF325EMH
+  h3k4me3   ENCFF910JMH
+  h3k36me3  ENCFF345TBP
+  h3k9me3   ENCFF943PCH
+  h3k27me3  ENCFF856MGM
+  h3k27ac   ENCFF105RLH
+# ENCFF113XMQ was the original H3K4me3 pick, rejected as hg19
+# ENCFF110TAI is H3K9ac -- not a model input, do not add it
+
+# ATAC below replaces the Route B snATAC BAM (ENCFF482GRX).
+KidneyCortex:
+  atac      ENCFF395HGS
+  h3k36me3  ENCFF285VAE
+  h3k4me1   ENCFF992BPB
+  h3k4me3   ENCFF438RHT
+  h3k27ac   ENCFF722YGU
+  h3k9me3   ENCFF344RCN
+  h3k27me3  ENCFF803HAQ
+
+# ATAC below replaces the Route B snATAC BAM (ENCFF354SCV).
+ColonTransverse:
+  atac      ENCFF668GUI
+  h3k27ac   ENCFF826GOW
+  h3k36me3  ENCFF762PUM
+  h3k4me1   ENCFF095NPI
+  h3k4me3   ENCFF451EGE
+  h3k27me3  ENCFF865CYJ
+  h3k9me3   ENCFF834GGD
+
+# BreastMammaryTissue (MCF-10A) was removed entirely on 11 Sep 2026. Its six
+# Mint-ChIP accessions and the locally converted snATAC track are recorded in
+# LAB_NOTES section 8 (reference-track provenance) if they are ever needed.
