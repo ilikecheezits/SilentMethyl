@@ -41,6 +41,9 @@
 │       │   │   └── tensorboard
 │       │   │       └── events.out.tfevents.1789162535.v019.ib.bridges2.psc.edu.73012.0
 │       │   ├── fusion
+│       │   │   ├── best_validation_gates.csv
+│       │   │   ├── best_weights.pth
+│       │   │   ├── latest_checkpoint.pt
 │       │   │   ├── run_config.json
 │       │   │   └── tensorboard
 │       │   │       └── events.out.tfevents.1789163895.v019.ib.bridges2.psc.edu.74950.0
@@ -53,6 +56,9 @@
 │       │   │   └── tensorboard
 │       │   │       └── events.out.tfevents.1789162168.v018.ib.bridges2.psc.edu.76343.0
 │       │   ├── fusion
+│       │   │   ├── best_validation_gates.csv
+│       │   │   ├── best_weights.pth
+│       │   │   ├── latest_checkpoint.pt
 │       │   │   ├── run_config.json
 │       │   │   └── tensorboard
 │       │   │       └── events.out.tfevents.1789163475.v018.ib.bridges2.psc.edu.78527.0
@@ -65,6 +71,9 @@
 │       │   │   └── tensorboard
 │       │   │       └── events.out.tfevents.1789162199.v018.ib.bridges2.psc.edu.76383.0
 │       │   ├── fusion
+│       │   │   ├── best_validation_gates.csv
+│       │   │   ├── best_weights.pth
+│       │   │   ├── latest_checkpoint.pt
 │       │   │   ├── run_config.json
 │       │   │   └── tensorboard
 │       │   │       └── events.out.tfevents.1789163650.v018.ib.bridges2.psc.edu.78735.0
@@ -92,6 +101,9 @@
 │       │   │   └── tensorboard
 │       │   │       └── events.out.tfevents.1789162393.v013.ib.bridges2.psc.edu.97239.0
 │       │   ├── fusion
+│       │   │   ├── best_validation_gates.csv
+│       │   │   ├── best_weights.pth
+│       │   │   ├── latest_checkpoint.pt
 │       │   │   ├── run_config.json
 │       │   │   └── tensorboard
 │       │   │       └── events.out.tfevents.1789163695.v013.ib.bridges2.psc.edu.101602.0
@@ -104,6 +116,9 @@
 │           │   └── tensorboard
 │           │       └── events.out.tfevents.1789162143.v004.ib.bridges2.psc.edu.6856.0
 │           ├── fusion
+│           │   ├── best_validation_gates.csv
+│           │   ├── best_weights.pth
+│           │   ├── latest_checkpoint.pt
 │           │   ├── run_config.json
 │           │   └── tensorboard
 │           │       └── events.out.tfevents.1789163681.v004.ib.bridges2.psc.edu.8274.0
@@ -151,6 +166,25 @@
 │       ├── split_checksums.txt
 │       ├── split_checksums_fusion.txt
 │       └── splits_summary_at_launch.json
+├── checkpoints_joint
+│   ├── all4
+│   │   └── seed42
+│   │       ├── input_checksums.txt
+│   │       └── sequence
+│   │           ├── best_weights.pth
+│   │           ├── latest_checkpoint.pt
+│   │           ├── run_config.json
+│   │           └── tensorboard
+│   │               └── events.out.tfevents.1789174614.v023.ib.bridges2.psc.edu.55621.0
+│   └── holdout_BreastEpithelium
+│       └── seed42
+│           ├── input_checksums.txt
+│           └── sequence
+│               ├── best_weights.pth
+│               ├── latest_checkpoint.pt
+│               ├── run_config.json
+│               └── tensorboard
+│                   └── events.out.tfevents.1789174612.v024.ib.bridges2.psc.edu.91516.0
 ├── checkpoints_journal
 │   ├── seed42
 │   │   ├── epi
@@ -196,6 +230,7 @@
 │   ├── acquire_multitissue.sbatch
 │   ├── acquire_multitissue_inputs.py
 │   ├── audit_data_purity.py
+│   ├── audit_multitissue_builds.py
 │   ├── audit_reference_tracks.py
 │   ├── audit_training_data.py
 │   ├── build_genoa_scoring_input.py
@@ -203,6 +238,7 @@
 │   ├── build_tcga_tumor_cohort.py
 │   ├── build_testing_data.py
 │   ├── build_training_data.py
+│   ├── compose_multitissue_splits.py
 │   ├── datafiles
 │   │   ├── candidate_cohort_manifest.json
 │   │   ├── data_purity_audit.json
@@ -276,6 +312,62 @@
 │   │   ├── val.csv
 │   │   ├── val_100bp.fasta
 │   │   └── val_100bp_rc.fasta
+│   ├── datafiles_joint
+│   │   ├── all4
+│   │   │   ├── composition_manifest.json
+│   │   │   ├── probe_assignment.json
+│   │   │   ├── test.csv
+│   │   │   ├── train.csv
+│   │   │   └── val.csv
+│   │   └── holdout_BreastEpithelium
+│   │       ├── composition_manifest.json
+│   │       ├── probe_assignment.json
+│   │       ├── test.csv
+│   │       ├── train.csv
+│   │       └── val.csv
+│   ├── datafiles_multitissue
+│   │   ├── ColonTransverse
+│   │   │   ├── feature_imputation.json
+│   │   │   ├── split_manifest.json
+│   │   │   ├── tcga_normal_sample_ids.json
+│   │   │   ├── test.csv
+│   │   │   ├── test_100bp.fasta
+│   │   │   ├── test_100bp_rc.fasta
+│   │   │   ├── train.csv
+│   │   │   ├── train_100bp.fasta
+│   │   │   ├── train_100bp_rc.fasta
+│   │   │   ├── training_data_manifest.json
+│   │   │   ├── val.csv
+│   │   │   ├── val_100bp.fasta
+│   │   │   └── val_100bp_rc.fasta
+│   │   ├── KidneyCortex
+│   │   │   ├── feature_imputation.json
+│   │   │   ├── split_manifest.json
+│   │   │   ├── tcga_normal_sample_ids.json
+│   │   │   ├── test.csv
+│   │   │   ├── test_100bp.fasta
+│   │   │   ├── test_100bp_rc.fasta
+│   │   │   ├── train.csv
+│   │   │   ├── train_100bp.fasta
+│   │   │   ├── train_100bp_rc.fasta
+│   │   │   ├── training_data_manifest.json
+│   │   │   ├── val.csv
+│   │   │   ├── val_100bp.fasta
+│   │   │   └── val_100bp_rc.fasta
+│   │   └── Lung
+│   │       ├── feature_imputation.json
+│   │       ├── split_manifest.json
+│   │       ├── tcga_normal_sample_ids.json
+│   │       ├── test.csv
+│   │       ├── test_100bp.fasta
+│   │       ├── test_100bp_rc.fasta
+│   │       ├── train.csv
+│   │       ├── train_100bp.fasta
+│   │       ├── train_100bp_rc.fasta
+│   │       ├── training_data_manifest.json
+│   │       ├── val.csv
+│   │       ├── val_100bp.fasta
+│   │       └── val_100bp_rc.fasta
 │   ├── egtex_breast_mqtl_heldout.csv
 │   ├── egtex_breast_mqtl_heldout_qc.csv
 │   ├── egtex_breast_mqtl_model_visible.csv
@@ -539,11 +631,22 @@
 │   │   ├── curated_seed_grch38_preview.csv
 │   │   └── literature_breast_variant_seeds.csv
 │   ├── merge_genoa_harmonized.py
+│   ├── multitissue_acquisition_plan.json
+│   ├── multitissue_audit.json
 │   ├── multitissue_picks.tsv
 │   ├── profile_bigwig.py
 │   ├── reference
 │   │   ├── ATAC_seq.bw
 │   │   ├── BreastEpithelium
+│   │   │   ├── ATAC_seq.bw
+│   │   │   ├── H3K27ac.bw
+│   │   │   ├── H3K27me3.bw
+│   │   │   ├── H3K36me3.bw
+│   │   │   ├── H3K4me1.bw
+│   │   │   ├── H3K4me3.bw
+│   │   │   ├── H3K9me3.bw
+│   │   │   └── TRACK_SET.md
+│   │   ├── ColonTransverse
 │   │   │   ├── ATAC_seq.bw
 │   │   │   ├── H3K27ac.bw
 │   │   │   ├── H3K27me3.bw
@@ -559,6 +662,24 @@
 │   │   ├── H3K4me1.bw
 │   │   ├── H3K4me3.bw
 │   │   ├── H3K9me3.bw
+│   │   ├── KidneyCortex
+│   │   │   ├── ATAC_seq.bw
+│   │   │   ├── H3K27ac.bw
+│   │   │   ├── H3K27me3.bw
+│   │   │   ├── H3K36me3.bw
+│   │   │   ├── H3K4me1.bw
+│   │   │   ├── H3K4me3.bw
+│   │   │   ├── H3K9me3.bw
+│   │   │   └── TRACK_SET.md
+│   │   ├── Lung
+│   │   │   ├── ATAC_seq.bw
+│   │   │   ├── H3K27ac.bw
+│   │   │   ├── H3K27me3.bw
+│   │   │   ├── H3K36me3.bw
+│   │   │   ├── H3K4me1.bw
+│   │   │   ├── H3K4me3.bw
+│   │   │   ├── H3K9me3.bw
+│   │   │   └── TRACK_SET.md
 │   │   ├── gencode.v44.annotation.gtf.gz
 │   │   ├── hg19ToHg38.over.chain.gz
 │   │   └── hg38.phyloP100way.bw
@@ -567,8 +688,11 @@
 │   ├── survey_tcga_normal_cohorts.py
 │   ├── targets
 │   │   ├── TCGA-BRCA.methylation450.tsv.gz
+│   │   ├── TCGA-COAD.methylation450.tsv.gz
+│   │   ├── TCGA-KIRC.methylation450.tsv.gz
 │   │   ├── TCGA-LUAD.methylation450.tsv.gz
-│   │   └── TCGA-LUSC.methylation450.tsv.gz
+│   │   ├── TCGA-LUSC.methylation450.tsv.gz
+│   │   └── TCGA-READ.methylation450.tsv.gz
 │   └── tcga_normal_cohort_survey.json
 ├── dnabert2_local
 │   ├── LICENSE
@@ -606,7 +730,11 @@
 │   ├── data_build
 │   │   ├── acquire_clinvar.log
 │   │   ├── acquire_genoa.log
-│   │   └── acquire_lung.log
+│   │   ├── acquire_lung.log
+│   │   ├── acquire_multitissue.log
+│   │   ├── build_colon.log
+│   │   ├── build_kidney.log
+│   │   └── build_lung.log
 │   ├── experiments
 │   │   ├── 04_mqtl_probe_sensitivity.log
 │   │   ├── 07_candidate_model_comparison.log
@@ -626,6 +754,11 @@
 │   │   ├── 21_tcga_tumor_domain_shift.log
 │   │   └── 22_motif_disruption.log
 │   ├── folds
+│   ├── joint
+│   │   ├── jt-all4-s42-seq_45812871.err
+│   │   ├── jt-all4-s42-seq_45812871.out
+│   │   ├── jt-ho-seq_45812873.err
+│   │   └── jt-ho-seq_45812873.out
 │   ├── r41_melody.txt
 │   ├── r41_silentmethyl.txt
 │   └── reproducibility
@@ -654,7 +787,112 @@
 ├── results
 │   └── journal
 │       ├── ablation_breast_epithelium
-│       │   └── seed42
+│       │   ├── fold1
+│       │   │   ├── epi
+│       │   │   │   ├── fig_1_density_scatter.png
+│       │   │   │   ├── fig_2a_signed_error.png
+│       │   │   │   ├── fig_2b_absolute_error.png
+│       │   │   │   ├── fig_3_beta_distribution.png
+│       │   │   │   ├── fig_4_roc.png
+│       │   │   │   ├── fig_5_calibration.png
+│       │   │   │   ├── metrics.json
+│       │   │   │   └── predictions.csv
+│       │   │   └── fusion
+│       │   │       ├── fig_1_density_scatter.png
+│       │   │       ├── fig_2a_signed_error.png
+│       │   │       ├── fig_2b_absolute_error.png
+│       │   │       ├── fig_3_beta_distribution.png
+│       │   │       ├── fig_4_roc.png
+│       │   │       ├── fig_5_calibration.png
+│       │   │       ├── fig_6_gate_share_distribution.png
+│       │   │       ├── fig_7_gate_rc_consistency.png
+│       │   │       ├── metrics.json
+│       │   │       └── predictions.csv
+│       │   ├── fold2
+│       │   │   ├── epi
+│       │   │   │   ├── fig_1_density_scatter.png
+│       │   │   │   ├── fig_2a_signed_error.png
+│       │   │   │   ├── fig_2b_absolute_error.png
+│       │   │   │   ├── fig_3_beta_distribution.png
+│       │   │   │   ├── fig_4_roc.png
+│       │   │   │   ├── fig_5_calibration.png
+│       │   │   │   ├── metrics.json
+│       │   │   │   └── predictions.csv
+│       │   │   └── fusion
+│       │   │       ├── fig_1_density_scatter.png
+│       │   │       ├── fig_2a_signed_error.png
+│       │   │       ├── fig_2b_absolute_error.png
+│       │   │       ├── fig_3_beta_distribution.png
+│       │   │       ├── fig_4_roc.png
+│       │   │       ├── fig_5_calibration.png
+│       │   │       ├── fig_6_gate_share_distribution.png
+│       │   │       ├── fig_7_gate_rc_consistency.png
+│       │   │       ├── metrics.json
+│       │   │       └── predictions.csv
+│       │   ├── fold3
+│       │   │   ├── epi
+│       │   │   │   ├── fig_1_density_scatter.png
+│       │   │   │   ├── fig_2a_signed_error.png
+│       │   │   │   ├── fig_2b_absolute_error.png
+│       │   │   │   ├── fig_3_beta_distribution.png
+│       │   │   │   ├── fig_4_roc.png
+│       │   │   │   ├── fig_5_calibration.png
+│       │   │   │   ├── metrics.json
+│       │   │   │   └── predictions.csv
+│       │   │   └── fusion
+│       │   │       ├── fig_1_density_scatter.png
+│       │   │       ├── fig_2a_signed_error.png
+│       │   │       ├── fig_2b_absolute_error.png
+│       │   │       ├── fig_3_beta_distribution.png
+│       │   │       ├── fig_4_roc.png
+│       │   │       ├── fig_5_calibration.png
+│       │   │       ├── fig_6_gate_share_distribution.png
+│       │   │       ├── fig_7_gate_rc_consistency.png
+│       │   │       ├── metrics.json
+│       │   │       └── predictions.csv
+│       │   ├── seed42
+│       │   │   ├── epi
+│       │   │   │   ├── fig_1_density_scatter.png
+│       │   │   │   ├── fig_2a_signed_error.png
+│       │   │   │   ├── fig_2b_absolute_error.png
+│       │   │   │   ├── fig_3_beta_distribution.png
+│       │   │   │   ├── fig_4_roc.png
+│       │   │   │   ├── fig_5_calibration.png
+│       │   │   │   ├── metrics.json
+│       │   │   │   └── predictions.csv
+│       │   │   └── fusion
+│       │   │       ├── fig_1_density_scatter.png
+│       │   │       ├── fig_2a_signed_error.png
+│       │   │       ├── fig_2b_absolute_error.png
+│       │   │       ├── fig_3_beta_distribution.png
+│       │   │       ├── fig_4_roc.png
+│       │   │       ├── fig_5_calibration.png
+│       │   │       ├── fig_6_gate_share_distribution.png
+│       │   │       ├── fig_7_gate_rc_consistency.png
+│       │   │       ├── metrics.json
+│       │   │       └── predictions.csv
+│       │   ├── seed43
+│       │   │   ├── epi
+│       │   │   │   ├── fig_1_density_scatter.png
+│       │   │   │   ├── fig_2a_signed_error.png
+│       │   │   │   ├── fig_2b_absolute_error.png
+│       │   │   │   ├── fig_3_beta_distribution.png
+│       │   │   │   ├── fig_4_roc.png
+│       │   │   │   ├── fig_5_calibration.png
+│       │   │   │   ├── metrics.json
+│       │   │   │   └── predictions.csv
+│       │   │   └── fusion
+│       │   │       ├── fig_1_density_scatter.png
+│       │   │       ├── fig_2a_signed_error.png
+│       │   │       ├── fig_2b_absolute_error.png
+│       │   │       ├── fig_3_beta_distribution.png
+│       │   │       ├── fig_4_roc.png
+│       │   │       ├── fig_5_calibration.png
+│       │   │       ├── fig_6_gate_share_distribution.png
+│       │   │       ├── fig_7_gate_rc_consistency.png
+│       │   │       ├── metrics.json
+│       │   │       └── predictions.csv
+│       │   └── seed44
 │       │       ├── epi
 │       │       │   ├── fig_1_density_scatter.png
 │       │       │   ├── fig_2a_signed_error.png
@@ -1799,10 +2037,11 @@
     ├── run_folds.sbatch
     ├── run_fusion_only.sbatch
     ├── run_genoa_scoring.sh
+    ├── run_joint_multitissue.sbatch
     ├── run_melody_st.sbatch
     ├── run_melody_union.sbatch
     ├── run_transfer_all.sh
     ├── testing_common.py
     └── training_common.py
 
-499 directories, 1306 files
+534 directories, 1510 files

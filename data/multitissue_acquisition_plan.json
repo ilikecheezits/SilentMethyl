@@ -1,0 +1,912 @@
+{
+  "assembly": "GRCh38",
+  "cross_tissue_consistent": true,
+  "generated_utc": "2026-09-11T23:17:30+00:00",
+  "note": "bulk ATAC-seq and bulk histone ChIP for every tissue including breast, all as fold-change-over-control bigWigs, so that no feature differs between tissues by assay. Breast is primary epithelium, pinned to the same seven accessions the single-tissue model was rebuilt on, so the joint and single-tissue models read identical breast context.",
+  "output_type": "fold change over control",
+  "selection": "hand-picked accessions",
+  "tissues": {
+    "BreastEpithelium": {
+      "context": {
+        "complete": true,
+        "files": {
+          "Ref_ATAC_Signal": {
+            "accession": "ENCFF665NGK",
+            "assay_title": "ATAC-seq",
+            "assembly": "GRCh38",
+            "biological_replicates": [
+              1
+            ],
+            "biosample": "breast epithelium",
+            "bytes": 1427557313,
+            "dataset": "/experiments/ENCSR955JSO/",
+            "encode_status": "released",
+            "experiment": "ENCSR955JSO",
+            "file_format": "bigWig",
+            "filename": "ATAC_seq.bw",
+            "lab": "Michael Snyder, Stanford",
+            "md5": "7effdce98e749c91009b74c6eac225cd",
+            "ok": true,
+            "output_type": "fold change over control",
+            "problems": [],
+            "replication_type": "unreplicated",
+            "target": null,
+            "url": "https://www.encodeproject.org/files/ENCFF665NGK/@@download/ENCFF665NGK.bigWig"
+          },
+          "Ref_H3K27ac_Signal": {
+            "accession": "ENCFF085IYD",
+            "assay_title": "Histone ChIP-seq",
+            "assembly": "GRCh38",
+            "biological_replicates": [
+              1
+            ],
+            "biosample": "breast epithelium",
+            "bytes": 1870164332,
+            "dataset": "/experiments/ENCSR081OTO/",
+            "encode_status": "released",
+            "experiment": "ENCSR081OTO",
+            "file_format": "bigWig",
+            "filename": "H3K27ac.bw",
+            "lab": "Bradley Bernstein, Broad",
+            "md5": "5ddb4795f5bcd88dd75ebb874a33199d",
+            "ok": true,
+            "output_type": "fold change over control",
+            "problems": [],
+            "replication_type": "unreplicated",
+            "target": "H3K27ac",
+            "url": "https://www.encodeproject.org/files/ENCFF085IYD/@@download/ENCFF085IYD.bigWig"
+          },
+          "Ref_H3K27me3_Signal": {
+            "accession": "ENCFF212ZFW",
+            "assay_title": "Histone ChIP-seq",
+            "assembly": "GRCh38",
+            "biological_replicates": [
+              1
+            ],
+            "biosample": "breast epithelium",
+            "bytes": 1803920204,
+            "dataset": "/experiments/ENCSR134LLK/",
+            "encode_status": "released",
+            "experiment": "ENCSR134LLK",
+            "file_format": "bigWig",
+            "filename": "H3K27me3.bw",
+            "lab": "Bradley Bernstein, Broad",
+            "md5": "6c4830851a98900cd213db67ed57a892",
+            "ok": true,
+            "output_type": "fold change over control",
+            "problems": [],
+            "replication_type": "unreplicated",
+            "target": "H3K27me3",
+            "url": "https://www.encodeproject.org/files/ENCFF212ZFW/@@download/ENCFF212ZFW.bigWig"
+          },
+          "Ref_H3K36me3_Signal": {
+            "accession": "ENCFF714QJF",
+            "assay_title": "Histone ChIP-seq",
+            "assembly": "GRCh38",
+            "biological_replicates": [
+              1
+            ],
+            "biosample": "breast epithelium",
+            "bytes": 1309515025,
+            "dataset": "/experiments/ENCSR793QCL/",
+            "encode_status": "released",
+            "experiment": "ENCSR793QCL",
+            "file_format": "bigWig",
+            "filename": "H3K36me3.bw",
+            "lab": "Bradley Bernstein, Broad",
+            "md5": "706a5be148d96239ca0ba4cb819af011",
+            "ok": true,
+            "output_type": "fold change over control",
+            "problems": [],
+            "replication_type": "unreplicated",
+            "target": "H3K36me3",
+            "url": "https://www.encodeproject.org/files/ENCFF714QJF/@@download/ENCFF714QJF.bigWig"
+          },
+          "Ref_H3K4me1_Signal": {
+            "accession": "ENCFF234JZW",
+            "assay_title": "Histone ChIP-seq",
+            "assembly": "GRCh38",
+            "biological_replicates": [
+              1
+            ],
+            "biosample": "breast epithelium",
+            "bytes": 1472197630,
+            "dataset": "/experiments/ENCSR263XKR/",
+            "encode_status": "released",
+            "experiment": "ENCSR263XKR",
+            "file_format": "bigWig",
+            "filename": "H3K4me1.bw",
+            "lab": "Bradley Bernstein, Broad",
+            "md5": "cbfcb57dbc1de468d185392839f8775b",
+            "ok": true,
+            "output_type": "fold change over control",
+            "problems": [],
+            "replication_type": "unreplicated",
+            "target": "H3K4me1",
+            "url": "https://www.encodeproject.org/files/ENCFF234JZW/@@download/ENCFF234JZW.bigWig"
+          },
+          "Ref_H3K4me3_Signal": {
+            "accession": "ENCFF653CLL",
+            "assay_title": "Histone ChIP-seq",
+            "assembly": "GRCh38",
+            "biological_replicates": [
+              1
+            ],
+            "biosample": "breast epithelium",
+            "bytes": 925782073,
+            "dataset": "/experiments/ENCSR224STY/",
+            "encode_status": "released",
+            "experiment": "ENCSR224STY",
+            "file_format": "bigWig",
+            "filename": "H3K4me3.bw",
+            "lab": "Bradley Bernstein, Broad",
+            "md5": "0744ffdccc18c4bbba4f1054eb6cf0d7",
+            "ok": true,
+            "output_type": "fold change over control",
+            "problems": [],
+            "replication_type": "unreplicated",
+            "target": "H3K4me3",
+            "url": "https://www.encodeproject.org/files/ENCFF653CLL/@@download/ENCFF653CLL.bigWig"
+          },
+          "Ref_H3K9me3_Signal": {
+            "accession": "ENCFF481QEK",
+            "assay_title": "Histone ChIP-seq",
+            "assembly": "GRCh38",
+            "biological_replicates": [
+              1
+            ],
+            "biosample": "breast epithelium",
+            "bytes": 1599510365,
+            "dataset": "/experiments/ENCSR936LAH/",
+            "encode_status": "released",
+            "experiment": "ENCSR936LAH",
+            "file_format": "bigWig",
+            "filename": "H3K9me3.bw",
+            "lab": "Bradley Bernstein, Broad",
+            "md5": "36b8acf0bedfb712692d8117b1f971e0",
+            "ok": true,
+            "output_type": "fold change over control",
+            "problems": [],
+            "replication_type": "unreplicated",
+            "target": "H3K9me3",
+            "url": "https://www.encodeproject.org/files/ENCFF481QEK/@@download/ENCFF481QEK.bigWig"
+          }
+        },
+        "histone_assays": [
+          "Histone ChIP-seq"
+        ],
+        "missing": [],
+        "rejected": [],
+        "term": [
+          "breast epithelium"
+        ]
+      },
+      "note": "primary-tissue alternative to MCF-10A; tests whether the published context choice cost anything",
+      "targets": [
+        {
+          "available": true,
+          "bytes": 2985684079,
+          "etag": "c35c7d0c03b3b3d2b79acd541d72e9bf-356",
+          "project": "TCGA-BRCA",
+          "url": "https://gdc-hub.s3.us-east-1.amazonaws.com/download/TCGA-BRCA.methylation450.tsv.gz"
+        }
+      ]
+    },
+    "ColonTransverse": {
+      "context": {
+        "complete": true,
+        "files": {
+          "Ref_ATAC_Signal": {
+            "accession": "ENCFF668GUI",
+            "assay_title": "ATAC-seq",
+            "assembly": "GRCh38",
+            "biological_replicates": [
+              1
+            ],
+            "biosample": "transverse colon",
+            "bytes": 1356374735,
+            "dataset": "/experiments/ENCSR386HAZ/",
+            "downloaded": {
+              "bytes": 1356374735,
+              "md5": "6b2929c4018c5c6e25affe13e104cded",
+              "path": "data/reference/ColonTransverse/ATAC_seq.bw",
+              "verified": true
+            },
+            "encode_status": "released",
+            "experiment": "ENCSR386HAZ",
+            "file_format": "bigWig",
+            "filename": "ATAC_seq.bw",
+            "lab": "Michael Snyder, Stanford",
+            "md5": "6b2929c4018c5c6e25affe13e104cded",
+            "ok": true,
+            "output_type": "fold change over control",
+            "problems": [],
+            "replication_type": "unreplicated",
+            "target": null,
+            "url": "https://www.encodeproject.org/files/ENCFF668GUI/@@download/ENCFF668GUI.bigWig"
+          },
+          "Ref_H3K27ac_Signal": {
+            "accession": "ENCFF826GOW",
+            "assay_title": "Histone ChIP-seq",
+            "assembly": "GRCh38",
+            "biological_replicates": [
+              1
+            ],
+            "biosample": "transverse colon",
+            "bytes": 1530983887,
+            "dataset": "/experiments/ENCSR792VLP/",
+            "downloaded": {
+              "bytes": 1530983887,
+              "md5": "23cf3ff74a0edf032df14487b8358e08",
+              "path": "data/reference/ColonTransverse/H3K27ac.bw",
+              "verified": true
+            },
+            "encode_status": "released",
+            "experiment": "ENCSR792VLP",
+            "file_format": "bigWig",
+            "filename": "H3K27ac.bw",
+            "lab": "Bradley Bernstein, Broad",
+            "md5": "23cf3ff74a0edf032df14487b8358e08",
+            "ok": true,
+            "output_type": "fold change over control",
+            "problems": [],
+            "replication_type": "isogenic",
+            "target": "H3K27ac",
+            "url": "https://www.encodeproject.org/files/ENCFF826GOW/@@download/ENCFF826GOW.bigWig"
+          },
+          "Ref_H3K27me3_Signal": {
+            "accession": "ENCFF865CYJ",
+            "assay_title": "Histone ChIP-seq",
+            "assembly": "GRCh38",
+            "biological_replicates": [
+              1
+            ],
+            "biosample": "transverse colon",
+            "bytes": 2027275255,
+            "dataset": "/experiments/ENCSR604QMH/",
+            "downloaded": {
+              "bytes": 2027275255,
+              "md5": "dd6a03f054c38426df43885cf08e9627",
+              "path": "data/reference/ColonTransverse/H3K27me3.bw",
+              "verified": true
+            },
+            "encode_status": "released",
+            "experiment": "ENCSR604QMH",
+            "file_format": "bigWig",
+            "filename": "H3K27me3.bw",
+            "lab": "Bradley Bernstein, Broad",
+            "md5": "dd6a03f054c38426df43885cf08e9627",
+            "ok": true,
+            "output_type": "fold change over control",
+            "problems": [],
+            "replication_type": "isogenic",
+            "target": "H3K27me3",
+            "url": "https://www.encodeproject.org/files/ENCFF865CYJ/@@download/ENCFF865CYJ.bigWig"
+          },
+          "Ref_H3K36me3_Signal": {
+            "accession": "ENCFF762PUM",
+            "assay_title": "Histone ChIP-seq",
+            "assembly": "GRCh38",
+            "biological_replicates": [
+              1
+            ],
+            "biosample": "transverse colon",
+            "bytes": 2038918435,
+            "dataset": "/experiments/ENCSR488YXS/",
+            "downloaded": {
+              "bytes": 2038918435,
+              "md5": "f686d9f6b934bba063f519386c3eaed2",
+              "path": "data/reference/ColonTransverse/H3K36me3.bw",
+              "verified": true
+            },
+            "encode_status": "released",
+            "experiment": "ENCSR488YXS",
+            "file_format": "bigWig",
+            "filename": "H3K36me3.bw",
+            "lab": "Bradley Bernstein, Broad",
+            "md5": "f686d9f6b934bba063f519386c3eaed2",
+            "ok": true,
+            "output_type": "fold change over control",
+            "problems": [],
+            "replication_type": "isogenic",
+            "target": "H3K36me3",
+            "url": "https://www.encodeproject.org/files/ENCFF762PUM/@@download/ENCFF762PUM.bigWig"
+          },
+          "Ref_H3K4me1_Signal": {
+            "accession": "ENCFF095NPI",
+            "assay_title": "Histone ChIP-seq",
+            "assembly": "GRCh38",
+            "biological_replicates": [
+              1
+            ],
+            "biosample": "transverse colon",
+            "bytes": 2014734981,
+            "dataset": "/experiments/ENCSR500QVK/",
+            "downloaded": {
+              "bytes": 2014734981,
+              "md5": "c33af347fde93f5c0a1b1b9094cf5a92",
+              "path": "data/reference/ColonTransverse/H3K4me1.bw",
+              "verified": true
+            },
+            "encode_status": "released",
+            "experiment": "ENCSR500QVK",
+            "file_format": "bigWig",
+            "filename": "H3K4me1.bw",
+            "lab": "Bradley Bernstein, Broad",
+            "md5": "c33af347fde93f5c0a1b1b9094cf5a92",
+            "ok": true,
+            "output_type": "fold change over control",
+            "problems": [],
+            "replication_type": "isogenic",
+            "target": "H3K4me1",
+            "url": "https://www.encodeproject.org/files/ENCFF095NPI/@@download/ENCFF095NPI.bigWig"
+          },
+          "Ref_H3K4me3_Signal": {
+            "accession": "ENCFF451EGE",
+            "assay_title": "Histone ChIP-seq",
+            "assembly": "GRCh38",
+            "biological_replicates": [
+              1
+            ],
+            "biosample": "transverse colon",
+            "bytes": 1595983879,
+            "dataset": "/experiments/ENCSR315EZG/",
+            "downloaded": {
+              "bytes": 1595983879,
+              "md5": "9916a3a02172f3f635f86fe61ccd280e",
+              "path": "data/reference/ColonTransverse/H3K4me3.bw",
+              "verified": true
+            },
+            "encode_status": "released",
+            "experiment": "ENCSR315EZG",
+            "file_format": "bigWig",
+            "filename": "H3K4me3.bw",
+            "lab": "Bradley Bernstein, Broad",
+            "md5": "9916a3a02172f3f635f86fe61ccd280e",
+            "ok": true,
+            "output_type": "fold change over control",
+            "problems": [],
+            "replication_type": "isogenic",
+            "target": "H3K4me3",
+            "url": "https://www.encodeproject.org/files/ENCFF451EGE/@@download/ENCFF451EGE.bigWig"
+          },
+          "Ref_H3K9me3_Signal": {
+            "accession": "ENCFF834GGD",
+            "assay_title": "Histone ChIP-seq",
+            "assembly": "GRCh38",
+            "biological_replicates": [
+              1
+            ],
+            "biosample": "transverse colon",
+            "bytes": 2440447101,
+            "dataset": "/experiments/ENCSR413CHO/",
+            "downloaded": {
+              "bytes": 2440447101,
+              "md5": "de8a06afd82004fadc164e519f7a34bb",
+              "path": "data/reference/ColonTransverse/H3K9me3.bw",
+              "verified": true
+            },
+            "encode_status": "released",
+            "experiment": "ENCSR413CHO",
+            "file_format": "bigWig",
+            "filename": "H3K9me3.bw",
+            "lab": "Bradley Bernstein, Broad",
+            "md5": "de8a06afd82004fadc164e519f7a34bb",
+            "ok": true,
+            "output_type": "fold change over control",
+            "problems": [],
+            "replication_type": "isogenic",
+            "target": "H3K9me3",
+            "url": "https://www.encodeproject.org/files/ENCFF834GGD/@@download/ENCFF834GGD.bigWig"
+          }
+        },
+        "histone_assays": [
+          "Histone ChIP-seq"
+        ],
+        "missing": [],
+        "rejected": [],
+        "term": [
+          "transverse colon"
+        ]
+      },
+      "note": "COAD and READ normals pooled; transverse colon preferred to match the eGTEx tissue",
+      "targets": [
+        {
+          "available": true,
+          "bytes": 1178010264,
+          "downloaded": {
+            "bytes": 1178010264,
+            "md5": "65eb0c4691ddfa70489a92ae1ca1a631",
+            "path": "data/targets/TCGA-COAD.methylation450.tsv.gz",
+            "verified": false
+          },
+          "etag": "f1e7d3e4659ea507e2abba65c90ce270-141",
+          "project": "TCGA-COAD",
+          "url": "https://gdc-hub.s3.us-east-1.amazonaws.com/download/TCGA-COAD.methylation450.tsv.gz"
+        },
+        {
+          "available": true,
+          "bytes": 363163184,
+          "downloaded": {
+            "bytes": 363163184,
+            "md5": "66af30a5224ecdfa5ab93e26133c424f",
+            "path": "data/targets/TCGA-READ.methylation450.tsv.gz",
+            "verified": false
+          },
+          "etag": "612c62810f3982afc7034222b8519fe4-44",
+          "project": "TCGA-READ",
+          "url": "https://gdc-hub.s3.us-east-1.amazonaws.com/download/TCGA-READ.methylation450.tsv.gz"
+        }
+      ]
+    },
+    "KidneyCortex": {
+      "context": {
+        "complete": true,
+        "files": {
+          "Ref_ATAC_Signal": {
+            "accession": "ENCFF395HGS",
+            "assay_title": "ATAC-seq",
+            "assembly": "GRCh38",
+            "biological_replicates": [
+              1
+            ],
+            "biosample": "kidney",
+            "bytes": 4187556193,
+            "dataset": "/experiments/ENCSR297VGU/",
+            "downloaded": {
+              "bytes": 4187556193,
+              "md5": "8543fd947b74f6460965b79fba451742",
+              "path": "data/reference/KidneyCortex/ATAC_seq.bw",
+              "verified": true
+            },
+            "encode_status": "released",
+            "experiment": "ENCSR297VGU",
+            "file_format": "bigWig",
+            "filename": "ATAC_seq.bw",
+            "lab": "Michael Snyder, Stanford",
+            "md5": "8543fd947b74f6460965b79fba451742",
+            "ok": true,
+            "output_type": "fold change over control",
+            "problems": [],
+            "replication_type": "unreplicated",
+            "target": null,
+            "url": "https://www.encodeproject.org/files/ENCFF395HGS/@@download/ENCFF395HGS.bigWig"
+          },
+          "Ref_H3K27ac_Signal": {
+            "accession": "ENCFF722YGU",
+            "assay_title": "Histone ChIP-seq",
+            "assembly": "GRCh38",
+            "biological_replicates": [
+              1
+            ],
+            "biosample": "kidney",
+            "bytes": 396524472,
+            "dataset": "/experiments/ENCSR230BWN/",
+            "downloaded": {
+              "bytes": 396524472,
+              "md5": "82aeb8204fbb21546a7673fc09a69dbf",
+              "path": "data/reference/KidneyCortex/H3K27ac.bw",
+              "verified": true
+            },
+            "encode_status": "released",
+            "experiment": "ENCSR230BWN",
+            "file_format": "bigWig",
+            "filename": "H3K27ac.bw",
+            "lab": "Bradley Bernstein, Broad",
+            "md5": "82aeb8204fbb21546a7673fc09a69dbf",
+            "ok": true,
+            "output_type": "fold change over control",
+            "problems": [],
+            "replication_type": "unreplicated",
+            "target": "H3K27ac",
+            "url": "https://www.encodeproject.org/files/ENCFF722YGU/@@download/ENCFF722YGU.bigWig"
+          },
+          "Ref_H3K27me3_Signal": {
+            "accession": "ENCFF803HAQ",
+            "assay_title": "Histone ChIP-seq",
+            "assembly": "GRCh38",
+            "biological_replicates": [
+              1
+            ],
+            "biosample": "kidney",
+            "bytes": 425932733,
+            "dataset": "/experiments/ENCSR761KZV/",
+            "downloaded": {
+              "bytes": 425932733,
+              "md5": "ac807597a9afc41b35b8a459eaf8ea6e",
+              "path": "data/reference/KidneyCortex/H3K27me3.bw",
+              "verified": true
+            },
+            "encode_status": "released",
+            "experiment": "ENCSR761KZV",
+            "file_format": "bigWig",
+            "filename": "H3K27me3.bw",
+            "lab": "Bradley Bernstein, Broad",
+            "md5": "ac807597a9afc41b35b8a459eaf8ea6e",
+            "ok": true,
+            "output_type": "fold change over control",
+            "problems": [],
+            "replication_type": "unreplicated",
+            "target": "H3K27me3",
+            "url": "https://www.encodeproject.org/files/ENCFF803HAQ/@@download/ENCFF803HAQ.bigWig"
+          },
+          "Ref_H3K36me3_Signal": {
+            "accession": "ENCFF285VAE",
+            "assay_title": "Histone ChIP-seq",
+            "assembly": "GRCh38",
+            "biological_replicates": [
+              1
+            ],
+            "biosample": "kidney",
+            "bytes": 711074798,
+            "dataset": "/experiments/ENCSR331CRR/",
+            "downloaded": {
+              "bytes": 711074798,
+              "md5": "a9ca3087d3649b96333bb2c3aa0c4e64",
+              "path": "data/reference/KidneyCortex/H3K36me3.bw",
+              "verified": true
+            },
+            "encode_status": "released",
+            "experiment": "ENCSR331CRR",
+            "file_format": "bigWig",
+            "filename": "H3K36me3.bw",
+            "lab": "Bradley Bernstein, Broad",
+            "md5": "a9ca3087d3649b96333bb2c3aa0c4e64",
+            "ok": true,
+            "output_type": "fold change over control",
+            "problems": [],
+            "replication_type": "unreplicated",
+            "target": "H3K36me3",
+            "url": "https://www.encodeproject.org/files/ENCFF285VAE/@@download/ENCFF285VAE.bigWig"
+          },
+          "Ref_H3K4me1_Signal": {
+            "accession": "ENCFF992BPB",
+            "assay_title": "Histone ChIP-seq",
+            "assembly": "GRCh38",
+            "biological_replicates": [
+              1
+            ],
+            "biosample": "kidney",
+            "bytes": 643918168,
+            "dataset": "/experiments/ENCSR994BPD/",
+            "downloaded": {
+              "bytes": 643918168,
+              "md5": "8a395f43d4015f232beb73b056b9f372",
+              "path": "data/reference/KidneyCortex/H3K4me1.bw",
+              "verified": true
+            },
+            "encode_status": "released",
+            "experiment": "ENCSR994BPD",
+            "file_format": "bigWig",
+            "filename": "H3K4me1.bw",
+            "lab": "Bradley Bernstein, Broad",
+            "md5": "8a395f43d4015f232beb73b056b9f372",
+            "ok": true,
+            "output_type": "fold change over control",
+            "problems": [],
+            "replication_type": "unreplicated",
+            "target": "H3K4me1",
+            "url": "https://www.encodeproject.org/files/ENCFF992BPB/@@download/ENCFF992BPB.bigWig"
+          },
+          "Ref_H3K4me3_Signal": {
+            "accession": "ENCFF438RHT",
+            "assay_title": "Histone ChIP-seq",
+            "assembly": "GRCh38",
+            "biological_replicates": [
+              1
+            ],
+            "biosample": "kidney",
+            "bytes": 689799762,
+            "dataset": "/experiments/ENCSR100OZR/",
+            "downloaded": {
+              "bytes": 689799762,
+              "md5": "7cc661908bd48fd22f9cce027e005123",
+              "path": "data/reference/KidneyCortex/H3K4me3.bw",
+              "verified": true
+            },
+            "encode_status": "released",
+            "experiment": "ENCSR100OZR",
+            "file_format": "bigWig",
+            "filename": "H3K4me3.bw",
+            "lab": "Bradley Bernstein, Broad",
+            "md5": "7cc661908bd48fd22f9cce027e005123",
+            "ok": true,
+            "output_type": "fold change over control",
+            "problems": [],
+            "replication_type": "unreplicated",
+            "target": "H3K4me3",
+            "url": "https://www.encodeproject.org/files/ENCFF438RHT/@@download/ENCFF438RHT.bigWig"
+          },
+          "Ref_H3K9me3_Signal": {
+            "accession": "ENCFF344RCN",
+            "assay_title": "Histone ChIP-seq",
+            "assembly": "GRCh38",
+            "biological_replicates": [
+              1
+            ],
+            "biosample": "kidney",
+            "bytes": 794166954,
+            "dataset": "/experiments/ENCSR378HAM/",
+            "downloaded": {
+              "bytes": 794166954,
+              "md5": "a0142ab5f2787ba8f437fe897a36db24",
+              "path": "data/reference/KidneyCortex/H3K9me3.bw",
+              "verified": true
+            },
+            "encode_status": "released",
+            "experiment": "ENCSR378HAM",
+            "file_format": "bigWig",
+            "filename": "H3K9me3.bw",
+            "lab": "Bradley Bernstein, Broad",
+            "md5": "a0142ab5f2787ba8f437fe897a36db24",
+            "ok": true,
+            "output_type": "fold change over control",
+            "problems": [],
+            "replication_type": "unreplicated",
+            "target": "H3K9me3",
+            "url": "https://www.encodeproject.org/files/ENCFF344RCN/@@download/ENCFF344RCN.bigWig"
+          }
+        },
+        "histone_assays": [
+          "Histone ChIP-seq"
+        ],
+        "missing": [],
+        "rejected": [],
+        "term": [
+          "kidney"
+        ]
+      },
+      "note": "KIRC only; KICH is not cortex-derived",
+      "targets": [
+        {
+          "available": true,
+          "bytes": 1628945910,
+          "downloaded": {
+            "bytes": 1628945910,
+            "md5": "b914384e7a4925eacbd6e5e2bb9c31ee",
+            "path": "data/targets/TCGA-KIRC.methylation450.tsv.gz",
+            "verified": false
+          },
+          "etag": "9774f4ec66afc78e2f0cd8d3995c1b3e-195",
+          "project": "TCGA-KIRC",
+          "url": "https://gdc-hub.s3.us-east-1.amazonaws.com/download/TCGA-KIRC.methylation450.tsv.gz"
+        }
+      ]
+    },
+    "Lung": {
+      "context": {
+        "complete": true,
+        "files": {
+          "Ref_ATAC_Signal": {
+            "accession": "ENCFF260QGF",
+            "assay_title": "ATAC-seq",
+            "assembly": "GRCh38",
+            "biological_replicates": [
+              1
+            ],
+            "biosample": "lung",
+            "bytes": 498223655,
+            "dataset": "/experiments/ENCSR647AOY/",
+            "downloaded": {
+              "bytes": 498223655,
+              "md5": "9c54ad9a20bdb69e23055c5426caf12f",
+              "path": "data/reference/Lung/ATAC_seq.bw",
+              "verified": true
+            },
+            "encode_status": "released",
+            "experiment": "ENCSR647AOY",
+            "file_format": "bigWig",
+            "filename": "ATAC_seq.bw",
+            "lab": "Michael Snyder, Stanford",
+            "md5": "9c54ad9a20bdb69e23055c5426caf12f",
+            "ok": true,
+            "output_type": "fold change over control",
+            "problems": [],
+            "replication_type": "unreplicated",
+            "target": null,
+            "url": "https://www.encodeproject.org/files/ENCFF260QGF/@@download/ENCFF260QGF.bigWig"
+          },
+          "Ref_H3K27ac_Signal": {
+            "accession": "ENCFF105RLH",
+            "assay_title": "Histone ChIP-seq",
+            "assembly": "GRCh38",
+            "biological_replicates": [
+              1
+            ],
+            "biosample": "lung",
+            "bytes": 246923629,
+            "dataset": "/experiments/ENCSR550WUX/",
+            "downloaded": {
+              "bytes": 246923629,
+              "md5": "82ad393787200757e31e1394a29fd728",
+              "path": "data/reference/Lung/H3K27ac.bw",
+              "verified": true
+            },
+            "encode_status": "released",
+            "experiment": "ENCSR550WUX",
+            "file_format": "bigWig",
+            "filename": "H3K27ac.bw",
+            "lab": "Bing Ren, UCSD",
+            "md5": "82ad393787200757e31e1394a29fd728",
+            "ok": true,
+            "output_type": "fold change over control",
+            "problems": [],
+            "replication_type": "unreplicated",
+            "target": "H3K27ac",
+            "url": "https://www.encodeproject.org/files/ENCFF105RLH/@@download/ENCFF105RLH.bigWig"
+          },
+          "Ref_H3K27me3_Signal": {
+            "accession": "ENCFF856MGM",
+            "assay_title": "Histone ChIP-seq",
+            "assembly": "GRCh38",
+            "biological_replicates": [
+              1
+            ],
+            "biosample": "lung",
+            "bytes": 620156851,
+            "dataset": "/experiments/ENCSR204NFO/",
+            "downloaded": {
+              "bytes": 620156851,
+              "md5": "633e001dade1628049b8dc56246843ed",
+              "path": "data/reference/Lung/H3K27me3.bw",
+              "verified": true
+            },
+            "encode_status": "released",
+            "experiment": "ENCSR204NFO",
+            "file_format": "bigWig",
+            "filename": "H3K27me3.bw",
+            "lab": "Bing Ren, UCSD",
+            "md5": "633e001dade1628049b8dc56246843ed",
+            "ok": true,
+            "output_type": "fold change over control",
+            "problems": [],
+            "replication_type": "unreplicated",
+            "target": "H3K27me3",
+            "url": "https://www.encodeproject.org/files/ENCFF856MGM/@@download/ENCFF856MGM.bigWig"
+          },
+          "Ref_H3K36me3_Signal": {
+            "accession": "ENCFF345TBP",
+            "assay_title": "Histone ChIP-seq",
+            "assembly": "GRCh38",
+            "biological_replicates": [
+              1
+            ],
+            "biosample": "lung",
+            "bytes": 284857928,
+            "dataset": "/experiments/ENCSR671NXL/",
+            "downloaded": {
+              "bytes": 284857928,
+              "md5": "ee710983cf8fc74e217f366ab005b40c",
+              "path": "data/reference/Lung/H3K36me3.bw",
+              "verified": true
+            },
+            "encode_status": "released",
+            "experiment": "ENCSR671NXL",
+            "file_format": "bigWig",
+            "filename": "H3K36me3.bw",
+            "lab": "Bing Ren, UCSD",
+            "md5": "ee710983cf8fc74e217f366ab005b40c",
+            "ok": true,
+            "output_type": "fold change over control",
+            "problems": [],
+            "replication_type": "unreplicated",
+            "target": "H3K36me3",
+            "url": "https://www.encodeproject.org/files/ENCFF345TBP/@@download/ENCFF345TBP.bigWig"
+          },
+          "Ref_H3K4me1_Signal": {
+            "accession": "ENCFF325EMH",
+            "assay_title": "Histone ChIP-seq",
+            "assembly": "GRCh38",
+            "biological_replicates": [
+              1
+            ],
+            "biosample": "lung",
+            "bytes": 321895730,
+            "dataset": "/experiments/ENCSR356ANC/",
+            "downloaded": {
+              "bytes": 321895730,
+              "md5": "b0a08fe2f18dbda6a2bb28984be25f48",
+              "path": "data/reference/Lung/H3K4me1.bw",
+              "verified": true
+            },
+            "encode_status": "released",
+            "experiment": "ENCSR356ANC",
+            "file_format": "bigWig",
+            "filename": "H3K4me1.bw",
+            "lab": "Bing Ren, UCSD",
+            "md5": "b0a08fe2f18dbda6a2bb28984be25f48",
+            "ok": true,
+            "output_type": "fold change over control",
+            "problems": [],
+            "replication_type": "unreplicated",
+            "target": "H3K4me1",
+            "url": "https://www.encodeproject.org/files/ENCFF325EMH/@@download/ENCFF325EMH.bigWig"
+          },
+          "Ref_H3K4me3_Signal": {
+            "accession": "ENCFF910JMH",
+            "assay_title": "Histone ChIP-seq",
+            "assembly": "GRCh38",
+            "biological_replicates": [
+              1
+            ],
+            "biosample": "lung",
+            "bytes": 408234584,
+            "dataset": "/experiments/ENCSR500GXT/",
+            "downloaded": {
+              "bytes": 408234584,
+              "md5": "e2fbeca4a295c6b12c88537b25d34531",
+              "path": "data/reference/Lung/H3K4me3.bw",
+              "verified": true
+            },
+            "encode_status": "released",
+            "experiment": "ENCSR500GXT",
+            "file_format": "bigWig",
+            "filename": "H3K4me3.bw",
+            "lab": "Bing Ren, UCSD",
+            "md5": "e2fbeca4a295c6b12c88537b25d34531",
+            "ok": true,
+            "output_type": "fold change over control",
+            "problems": [],
+            "replication_type": "unreplicated",
+            "target": "H3K4me3",
+            "url": "https://www.encodeproject.org/files/ENCFF910JMH/@@download/ENCFF910JMH.bigWig"
+          },
+          "Ref_H3K9me3_Signal": {
+            "accession": "ENCFF943PCH",
+            "assay_title": "Histone ChIP-seq",
+            "assembly": "GRCh38",
+            "biological_replicates": [
+              1
+            ],
+            "biosample": "lung",
+            "bytes": 495588218,
+            "dataset": "/experiments/ENCSR728FLA/",
+            "downloaded": {
+              "bytes": 495588218,
+              "md5": "e0ad98fde2020544719da045bc9e9119",
+              "path": "data/reference/Lung/H3K9me3.bw",
+              "verified": true
+            },
+            "encode_status": "released",
+            "experiment": "ENCSR728FLA",
+            "file_format": "bigWig",
+            "filename": "H3K9me3.bw",
+            "lab": "Bing Ren, UCSD",
+            "md5": "e0ad98fde2020544719da045bc9e9119",
+            "ok": true,
+            "output_type": "fold change over control",
+            "problems": [],
+            "replication_type": "unreplicated",
+            "target": "H3K9me3",
+            "url": "https://www.encodeproject.org/files/ENCFF943PCH/@@download/ENCFF943PCH.bigWig"
+          }
+        },
+        "histone_assays": [
+          "Histone ChIP-seq"
+        ],
+        "missing": [],
+        "rejected": [],
+        "term": [
+          "lung"
+        ]
+      },
+      "note": "adenocarcinoma and squamous normals pooled",
+      "targets": [
+        {
+          "available": true,
+          "bytes": 1706564154,
+          "etag": "a9f5df125bf8d8122428195dd4c63e15-204",
+          "project": "TCGA-LUAD",
+          "url": "https://gdc-hub.s3.us-east-1.amazonaws.com/download/TCGA-LUAD.methylation450.tsv.gz"
+        },
+        {
+          "available": true,
+          "bytes": 1394459408,
+          "etag": "ce938cb582f181d9eed151b049634d9e-167",
+          "project": "TCGA-LUSC",
+          "url": "https://gdc-hub.s3.us-east-1.amazonaws.com/download/TCGA-LUSC.methylation450.tsv.gz"
+        }
+      ]
+    }
+  }
+}

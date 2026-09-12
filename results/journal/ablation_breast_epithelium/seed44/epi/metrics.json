@@ -1,0 +1,20 @@
+{
+  "auc": 0.9658133720647201,
+  "beta_fwd_rc_mae": 0.0013241349731031827,
+  "beta_fwd_rc_max_abs": 0.083740234375,
+  "beta_fwd_rc_pearson": 0.9999604983018655,
+  "beta_mae": 0.10226457553889741,
+  "beta_mean_signed_error": 0.010076823184199387,
+  "beta_median_absolute_error": 0.05393579602241516,
+  "beta_rmse": 0.16048539555545252,
+  "classprob_fwd_rc_mae": 0.0015606073674556229,
+  "classprob_fwd_rc_pearson": 0.9999513138010059,
+  "inference": "forward_reverse_complement_average_with_ordered_phylop_swap",
+  "m_mae": 1.176656414384863,
+  "m_rmse": 1.5305647269037692,
+  "model_type": "context_only",
+  "n_test_loci": 26570,
+  "split": "test",
+  "test_path": "data/datafiles_breast_epithelium/test.csv",
+  "weights_path": "checkpoints_ablation/breast_epithelium/seed44/epi/best_weights.pth"
+}
