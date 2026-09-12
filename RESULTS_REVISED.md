@@ -106,19 +106,40 @@ notes were not. Make both single-seed.
 
 ### Paired bootstrap, fusion minus sequence-only
 
-**[STALE]** — rerun `16_paired_model_bootstrap` and read
-`paired_model_difference_bootstrap.csv`, **not** `run_summary.json`, which holds
-metadata only. Previous values, cross-seed ensemble, 26,570 loci, 257 blocks:
+Cross-seed ensemble, 26,570 loci, 257 genomic blocks, 5,000 replicates, read
+from `paired_model_difference_bootstrap.csv` (**not** `run_summary.json`, which
+holds metadata only):
 
-    roc_auc    +0.010533 [+0.009090, +0.012069]   P(diff>=0) = 1.0
-    beta_mae   -0.010429 [-0.011323, -0.009514]   P(diff>=0) = 0.0
-    beta_rmse  -0.019041 [-0.020601, -0.017471]
-    m_mae      -0.094613 [-0.102197, -0.086805]
-    m_rmse     -0.150900 [-0.163059, -0.139263]
+    roc_auc    +0.016643 [+0.014663, +0.018769]   P(diff>=0) = 1.0
+    beta_mae   -0.018188 [-0.019616, -0.016756]   P(diff>=0) = 0.0
+    beta_rmse  -0.032530 [-0.035247, -0.030062]
+    m_mae      -0.156464 [-0.168563, -0.144415]
+    m_rmse     -0.254229 [-0.279333, -0.232417]
 
-All three seeds agreed in sign with intervals excluding zero. Against the
-context-only arm the gap was an order of magnitude larger (roc_auc +0.0507,
-m_mae −0.378) — sequence carries the signal, context modifies it.
+All three seeds agree in sign with intervals excluding zero (β MAE −0.0204 /
+−0.0203 / −0.0148 and AUROC +0.0189 / +0.0183 / +0.0155 for seeds 42 / 43 / 44).
+
+**The gain over sequence-only grew with the better context**, from −0.0104 to
+−0.0182 β MAE and from +0.0105 to +0.0166 AUROC.
+
+**The comparison against the context-only arm inverted, and that is the
+reframing to carry into the text.** Fusion minus context-only is now roc_auc
++0.009851 [+0.007679, +0.012420] and m_mae −0.159558 [−0.175944, −0.144258] —
+about five-fold smaller on AUROC than the previous +0.0507 and 2.4-fold smaller
+on m MAE than the previous −0.378, because the context arm itself improved so
+much. On absolute β MAE the context-only arm (0.1022) now **beats** sequence-only
+(0.1079), and on AUC as well (0.9658 against 0.9590); under the previous context
+it did neither. That inversion survives the choice of estimator — mean-of-seeds
+gives 0.1022 against 0.1099 — which matters because the absolute values quoted
+in the ladder above are mean-of-seeds and the ones in this block are the
+cross-seed ensemble. The two differ most for sequence-only (0.1099 against
+0.1079) and are not in conflict; per LAB_NOTES §7B, quote the ensemble only as
+the ensemble. Fusion now sits closer to its context arm (0.0125 β MAE) than to
+its sequence arm (0.0182). The old line — "sequence carries the signal, context
+modifies it" — no longer describes the level task and must not be carried over.
+
+This is a statement about methylation **levels** only. It says nothing about
+variant effects, where R2 finds the arms indistinguishable.
 
 **How to write it.** The gain is consistent and significant, and now moderate
 rather than small: roughly 1.7 points of β MAE. That is larger than the previous
@@ -151,9 +172,53 @@ on variant effects, the finding is that sequence-only allelic methylation
 prediction is much harder than reported, and DNABERT-2 pretraining is not what
 closes the gap.* Its variant scores exist
 (`sequence_baselines/variant_scoring/heldout/{composition,kmer_ridge}/seed-1/`,
-66,495 pairs, all counters clean). **[FILL]** the variant-effect comparison from
-`results/journal/baseline_variant_evaluation/run_summary.json` — this is the
-single most load-bearing unfilled number in the document.
+66,495 pairs, all counters clean).
+
+**The prediction does not fire on the primary metric.** GENOA, non-CpG-altering,
+cross-seed ensemble, 1 Mb block bootstrap. The distance-only baseline is
+0.5952795746 in every row of both runs, and the cohort sizes match exactly
+(42,866 scored / 8,074 matched / 4,037 significant), so the two evaluations are
+measuring the same pairs:
+
+| model | AUROC within distance bin | AUROC distance-matched | signed rho | direction agr. |
+|---|---|---|---|---|
+| composition | 0.4669 [0.4543, 0.4803] | 0.4600 [0.4467, 0.4738] | −0.0377 [−0.0723, −0.0004] | 0.4835 [0.4659, 0.5013] |
+| k-mer ridge | 0.5055 [0.4924, 0.5170] | 0.5027 [0.4879, 0.5177] | +0.1000 [+0.0592, +0.1326] | 0.5377 [0.5216, 0.5551] |
+| sequence-only | 0.5745 [0.5591, 0.5898] | 0.5629 [0.5473, 0.5784] | +0.1497 [+0.1161, +0.1833] | 0.5541 [0.5362, 0.5728] |
+| fusion | 0.5722 [0.5576, 0.5869] | 0.5559 [0.5392, 0.5720] | +0.1487 [+0.1148, +0.1842] | 0.5559 [0.5376, 0.5728] |
+
+**k-mer ridge cannot discriminate meQTLs from distance-matched nulls at all.**
+Within distance bin it sits at 0.5055 with the interval spanning 0.5, against
+0.572–0.575 for both neural arms with intervals well clear of chance. The gap of
+roughly 0.067 is about five times the ~0.012 run-to-run instability of this
+metric, so it is readable despite being unpaired. Composition is *below* chance,
+as a pure nucleotide-frequency model over a distance-matched cohort should be.
+So DNABERT-2 pretraining is what buys distance-controlled discrimination, and the
+recorded adverse interpretation is not triggered.
+
+**State the other half honestly: on effect direction it is not clean.** k-mer
+ridge reaches signed rho +0.1000 against the neural +0.149, and the intervals
+overlap (+0.1326 against +0.1148); direction agreement overlaps likewise. So a
+2,772-feature ridge recovers roughly two thirds of the neural rank correlation
+among already-significant pairs and cannot be declared different on these
+numbers. The claim the data supports is **discrimination, not effect direction** —
+write it that way rather than reporting a general baseline win.
+
+**Two provenance points, because both look like problems and are not.** These
+two baselines are sequence-only and never read a context feature, so their
+numbers are untouched by the context swap and are directly comparable to the
+breast-epithelium arms. The `caveats.tissue` field in that `run_summary.json`
+nonetheless reads "context features are MCF-10A breast": that is the hardcoded
+caveat string recorded in LAB_NOTES §1.10, since fixed in
+`21_variant_evaluation.py`, not a statement about how these models were built.
+
+**What would sharpen it.** The comparison above is unpaired — the baselines were
+evaluated 28 Aug at 500 replicates, the neural arms 12 Sep at 2,000. The
+document's own rule is that only paired differences are reportable below ~0.012,
+which is exactly where the signed-rho comparison sits. A paired run is cheap
+(the score files exist) but needs a column check first: the baseline scores
+predate the `beta_ref_to_alt` / `pvalue` inline-schema change, and mixing schemas
+in one scores directory silently yields no per-model metrics for the older arm.
 
 ---
 
@@ -486,9 +551,24 @@ Scripts `60`–`64`. STK11 and NCOA2 retained per mentor instruction.
 and `91` hard-require the candidate CSVs that `60` produces, and `60`/`62` are
 GPU jobs of their own.
 
-**`64_literature_variant_screen.py` must be fixed first.** It shells out to `63`
-without forwarding `--weights-template`, so it would silently score the previous
-checkpoints and report a result that looks correct.
+**`64_literature_variant_screen.py` — fixed 12 Sep 2026.** It shelled out to `63`
+without forwarding `--weights-template`, so it would have silently scored the
+previous checkpoints and reported a result that looked correct. It now takes a
+`--weights-template` of its own and forwards it; the default is unchanged, so
+existing published-checkpoint invocations behave exactly as before. Scoring the
+ablation requires setting **both** `--weights-template` and `--split-template`.
+
+One blocker remains before `60` can run against the new context, and it is not a
+scheduling problem. `60` reads its context features as columns of the candidate
+CSV built by `data/build_testing_data.py`, and that script resolves the seven
+bigWigs from a hardcoded `<data-dir>/reference` with no `--reference-dir`
+override — the separation that `build_training_data.py` already has. So there is
+currently no breast-epithelium candidate cohort to score, and pointing `60` at
+the existing one would pair new fusion weights with old context columns and
+produce a hybrid that is neither model. Give `build_testing_data.py` the same
+`--reference-dir` / `--out-dir` pair, rebuild the cohort against
+`data/reference/BreastEpithelium`, and reuse the existing GDC response cache so
+the candidate variant set stays byte-identical.
 
 On NCOA2, keep the existing framing: its active chromatin context is an
 independent annotation of that locus and **not a contributor to the predicted

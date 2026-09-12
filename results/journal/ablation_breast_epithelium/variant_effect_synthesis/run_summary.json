@@ -20,7 +20,7 @@
     "GENOA",
     "eGTEx"
   ],
-  "generated_utc": "2026-09-12T16:53:20+00:00",
+  "generated_utc": "2026-09-12T23:21:20+00:00",
   "meta_analysis": [
     {
       "ci_high": 0.2779804363240442,
@@ -35,6 +35,20 @@
       "q_p": 0.4791190589679356,
       "rho_meta": 0.1722567930795652,
       "z": 3.0584921890618584
+    },
+    {
+      "ci_high": 0.2756551811989571,
+      "ci_low": 0.0599010150902891,
+      "cochran_q": 0.3642950203631358,
+      "cohorts": "GENOA, eGTEx",
+      "df": 1,
+      "i_squared": 0.0,
+      "k": 2,
+      "model": "sequence",
+      "p": 0.0025763592608953043,
+      "q_p": 0.5461305132681473,
+      "rho_meta": 0.16981223627906,
+      "z": 3.0142258630779137
     }
   ],
   "meta_note": "Meta-analysis weights use independent 1 Mb LD blocks, not pair counts. Using pairs would understate the variance by roughly an order of magnitude and manufacture significance.",
