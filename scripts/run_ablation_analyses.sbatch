@@ -38,18 +38,33 @@
 # -------------
 #   mkdir -p logs/ablation_analyses
 #
-#   L=$(sbatch --parsable --partition=RM-shared --time=00:20:00 \
-#       --export=ALL,STAGE=link scripts/run_ablation_analyses.sbatch)
+#   # 1. link runs in ~20 s and needs no allocation. Run it on the LOGIN NODE
+#   #    so a verification failure is visible immediately rather than buried in
+#   #    a log an hour later. It must succeed before the rest is submitted.
+#   STAGE=link bash scripts/run_ablation_analyses.sbatch
 #
-#   S=$(sbatch --parsable --dependency=afterok:$L --array=0-5 \
+#   # 2. GPU work. Defaults in this file already suit GPU-shared.
+#   S=$(sbatch --parsable --array=0-5 \
 #       --export=ALL,STAGE=score scripts/run_ablation_analyses.sbatch)
 #
-#   sbatch --dependency=afterok:$L --time=10:00:00 \
+#   sbatch --time=12:00:00 \
 #       --export=ALL,STAGE=ctxperm scripts/run_ablation_analyses.sbatch
 #
-#   sbatch --dependency=afterok:$S --partition=RM-shared \
-#       --cpus-per-task=8 --mem=48G --time=12:00:00 \
+#   # 3. CPU work, chained behind the whole array.
+#   sbatch --dependency=afterany:$S --partition=RM-shared \
+#       --gpus=0 --cpus-per-task=8 --mem=16000M --time=20:00:00 \
 #       --export=ALL,STAGE=analyse scripts/run_ablation_analyses.sbatch
+#
+# RM-shared caps memory at 2000 MB PER CORE. --mem=48G with 8 cores is 6 GB/core
+# and is rejected with "Allocation requested mem-per-core higher than maximum of
+# 2000M/core", which Slurm then reports as a permission error. 8 cores x 2000M =
+# 16000M is the ceiling for 8 cores; ask for more cores if more memory is
+# needed. --gpus=0 is required too, or the GPU directive in this file follows
+# the job onto a partition that has none.
+#
+# afterany, NOT afterok, on the analyse stage: if one scoring task fails the
+# other five results are still worth analysing, and every step below is
+# individually guarded. afterok would discard all of it over one task.
 #
 # --export=ALL,VAR=x, never plain VAR=x: without ALL, Slurm drops the
 # environment and the conda python is not found.
@@ -269,12 +284,26 @@ run () {
   return 0
 }
 
+echo "--- scoring inventory ---"
+SCORED_OK=1
 for COHORT in genoa egtex; do
-  D="${ABL}/${COHORT}_variant_scoring/heldout/fusion"
-  n=$(ls -1 "${D}"/seed*/pair_scores.csv 2>/dev/null | wc -l)
-  echo "  ${COHORT}: ${n}/3 fusion seed score files present"
-  [ "$n" -eq 3 ] || echo "  !! scoring incomplete; dependent steps will fail"
+  for ARM in fusion sequence; do
+    D="${ABL}/${COHORT}_variant_scoring/heldout/${ARM}"
+    n=$(ls -1 "${D}"/seed*/pair_scores.csv 2>/dev/null | wc -l)
+    printf "  %-6s %-9s %s/3 seed score files\n" "${COHORT}" "${ARM}" "${n}"
+    if [ "$n" -ne 3 ]; then
+      SCORED_OK=0
+      FAILED+=("incomplete scores: ${COHORT}/${ARM} (${n}/3)")
+    fi
+  done
 done
+if [ "${SCORED_OK}" -eq 0 ]; then
+  echo
+  echo "  !! Scoring is incomplete. Steps that read pair_scores.csv (21, 30,"
+  echo "     40, 41, 50, 52) will fail and are listed at the end. Steps that"
+  echo "     read predictions.csv (16, 51) are unaffected and still run."
+  echo "     This stage continues deliberately -- partial results beat none."
+fi
 
 # --- discrimination against the distance-matched null, both cohorts ----------
 run "21 variant evaluation (GENOA)" \
