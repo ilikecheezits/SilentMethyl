@@ -368,7 +368,7 @@ run "51 rc uncertainty (conditional)" \
       --strata 10 --output-dir "${ABL}/rc_uncertainty_conditional"
 
 # --- GWAS regulatory enrichment: build then analyse -------------------------
-GWAS=data/external/gwas/gwas_catalog_associations.tsv.gz
+GWAS=data/external/gwas_catalog/gwas-catalog-download-associations-alt-full.tsv
 if [ -s "${GWAS}" ]; then
   run "52 gwas enrichment (build)" \
     $PY -u scripts/52_gwas_enrichment.py --build --gwas "${GWAS}" \
