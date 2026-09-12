@@ -1,0 +1,74 @@
+{
+  "verdict": "null",
+  "primary_tail_enrichment": [
+    {
+      "fraction": 0.05,
+      "n_in_tail": 155,
+      "gwas_share": 0.47096774193548385,
+      "ci_low": 0.3691774596682572,
+      "ci_high": 0.5562939521800281,
+      "excludes_half": false
+    },
+    {
+      "fraction": 0.02,
+      "n_in_tail": 62,
+      "gwas_share": 0.5161290322580645,
+      "ci_low": 0.372883064516129,
+      "ci_high": 0.7044540229885056,
+      "excludes_half": false
+    },
+    {
+      "fraction": 0.01,
+      "n_in_tail": 31,
+      "gwas_share": 0.4838709677419355,
+      "ci_low": 0.25,
+      "ci_high": 0.7328544061302678,
+      "excludes_half": false
+    }
+  ],
+  "af_matching": {
+    "bins": 5,
+    "strata_used": 5
+  },
+  "auroc": 0.515846069613872,
+  "auroc_ci": [
+    0.49262565217199106,
+    0.5439071326696334
+  ],
+  "n_matched_pairs": 3096,
+  "n_gwas_pairs": 1548,
+  "mean_abs_delta_m": {
+    "gwas": 0.03760562605445306,
+    "background": 0.036072409105455706
+  },
+  "matching": {
+    "significant_n": 1548,
+    "matched_null_n": 1548,
+    "requested_negatives": 1548,
+    "unmatched_slots": 0,
+    "af_strata_used": 5,
+    "median_distance_significant": 253.0,
+    "median_distance_matched_null": 253.0,
+    "distance_only_auroc_after_matching": 0.5
+  },
+  "confounds": [
+    {
+      "feature": "abs_distance_bp",
+      "available": true,
+      "cohort_mean": 254.02454780361757,
+      "background_mean": 254.02454780361757,
+      "standardised_difference": 0.0
+    },
+    {
+      "feature": "af_genoa",
+      "available": true,
+      "cohort_mean": 0.20339147286821707,
+      "background_mean": 0.19515826873385012,
+      "standardised_difference": 0.05785371346842019
+    }
+  ],
+  "n_boot": 500,
+  "block_size_bp": 1000000,
+  "preregistration": "results/journal/ablation_breast_epithelium/gwas_regulatory_enrichment/preregistration.json",
+  "unchecked_confounds": []
+}

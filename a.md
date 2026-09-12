@@ -727,6 +727,39 @@
 │   │   ├── ctxabl_45804082.out
 │   │   ├── ctxabl_45804083.err
 │   │   └── ctxabl_45804083.out
+│   ├── ablation_analyses
+│   │   ├── ablana_45833712_0.err
+│   │   ├── ablana_45833712_0.out
+│   │   ├── ablana_45833712_1.err
+│   │   ├── ablana_45833712_1.out
+│   │   ├── ablana_45833712_2.err
+│   │   ├── ablana_45833712_2.out
+│   │   ├── ablana_45833712_3.err
+│   │   ├── ablana_45833712_3.out
+│   │   ├── ablana_45833712_4.err
+│   │   ├── ablana_45833712_4.out
+│   │   ├── ablana_45833712_5.err
+│   │   ├── ablana_45833712_5.out
+│   │   ├── ablana_45833713_4294967294.err
+│   │   ├── ablana_45833713_4294967294.out
+│   │   ├── ablana_45834415_5.err
+│   │   ├── ablana_45834415_5.out
+│   │   ├── ablana_45834416_4294967294.err
+│   │   ├── ablana_45834416_4294967294.out
+│   │   ├── ablana_45834421_4294967294.err
+│   │   ├── ablana_45834421_4294967294.out
+│   │   ├── ablana_45839388_0.err
+│   │   ├── ablana_45839388_0.out
+│   │   ├── ablana_45839388_1.err
+│   │   ├── ablana_45839388_1.out
+│   │   ├── ablana_45839388_2.err
+│   │   ├── ablana_45839388_2.out
+│   │   ├── ablana_45839388_3.err
+│   │   ├── ablana_45839388_3.out
+│   │   ├── ablana_45839388_4.err
+│   │   ├── ablana_45839388_4.out
+│   │   ├── ablana_45839388_5.err
+│   │   └── ablana_45839388_5.out
 │   ├── data_build
 │   │   ├── acquire_clinvar.log
 │   │   ├── acquire_genoa.log
@@ -787,6 +820,48 @@
 ├── results
 │   └── journal
 │       ├── ablation_breast_epithelium
+│       │   ├── context_permutation
+│       │   │   ├── agreement_with_identity.csv
+│       │   │   ├── pair_scores_identity.csv
+│       │   │   ├── pair_scores_median.csv
+│       │   │   ├── pair_scores_shuffle.csv
+│       │   │   └── run_summary.json
+│       │   ├── egtex_variant_evaluation
+│       │   │   ├── distance_bins.csv
+│       │   │   ├── fusion_vs_sequence_paired.csv
+│       │   │   ├── gate_modulation.csv
+│       │   │   ├── matched_negative_auroc.csv
+│       │   │   ├── matching_balance.csv
+│       │   │   ├── plots
+│       │   │   │   ├── discrimination_vs_distance.pdf
+│       │   │   │   ├── discrimination_vs_distance.png
+│       │   │   │   ├── significance_gradient.pdf
+│       │   │   │   └── significance_gradient.png
+│       │   │   ├── primary_metrics.csv
+│       │   │   ├── run_summary.json
+│       │   │   └── significance_gradient.csv
+│       │   ├── egtex_variant_scoring
+│       │   │   └── heldout
+│       │   │       ├── fusion
+│       │   │       │   ├── seed42
+│       │   │       │   │   └── pair_scores.csv
+│       │   │       │   ├── seed43
+│       │   │       │   │   └── pair_scores.csv
+│       │   │       │   └── seed44
+│       │   │       │       └── pair_scores.csv
+│       │   │       ├── run_summary_fusion_seed42.json
+│       │   │       ├── run_summary_fusion_seed43.json
+│       │   │       ├── run_summary_fusion_seed44.json
+│       │   │       ├── run_summary_sequence_seed42.json
+│       │   │       ├── run_summary_sequence_seed43.json
+│       │   │       ├── run_summary_sequence_seed44.json
+│       │   │       └── sequence
+│       │   │           ├── seed42
+│       │   │           │   └── pair_scores.csv
+│       │   │           ├── seed43
+│       │   │           │   └── pair_scores.csv
+│       │   │           └── seed44
+│       │   │               └── pair_scores.csv
 │       │   ├── fold1
 │       │   │   ├── epi
 │       │   │   │   ├── fig_1_density_scatter.png
@@ -850,6 +925,96 @@
 │       │   │       ├── fig_7_gate_rc_consistency.png
 │       │   │       ├── metrics.json
 │       │   │       └── predictions.csv
+│       │   ├── genoa_variant_evaluation
+│       │   │   ├── distance_bins.csv
+│       │   │   ├── fusion_vs_sequence_paired.csv
+│       │   │   ├── gate_modulation.csv
+│       │   │   ├── matched_negative_auroc.csv
+│       │   │   ├── matching_balance.csv
+│       │   │   ├── plots
+│       │   │   │   ├── discrimination_vs_distance.pdf
+│       │   │   │   ├── discrimination_vs_distance.png
+│       │   │   │   ├── significance_gradient.pdf
+│       │   │   │   └── significance_gradient.png
+│       │   │   ├── primary_metrics.csv
+│       │   │   ├── run_summary.json
+│       │   │   └── significance_gradient.csv
+│       │   ├── genoa_variant_scoring
+│       │   │   └── heldout
+│       │   │       ├── fusion
+│       │   │       │   ├── seed42
+│       │   │       │   │   └── pair_scores.csv
+│       │   │       │   ├── seed43
+│       │   │       │   │   └── pair_scores.csv
+│       │   │       │   └── seed44
+│       │   │       │       └── pair_scores.csv
+│       │   │       ├── run_summary_fusion_seed42.json
+│       │   │       ├── run_summary_fusion_seed43.json
+│       │   │       ├── run_summary_fusion_seed44.json
+│       │   │       ├── run_summary_sequence_seed42.json
+│       │   │       ├── run_summary_sequence_seed43.json
+│       │   │       ├── run_summary_sequence_seed44.json
+│       │   │       └── sequence
+│       │   │           ├── seed42
+│       │   │           │   └── pair_scores.csv
+│       │   │           ├── seed43
+│       │   │           │   └── pair_scores.csv
+│       │   │           └── seed44
+│       │   │               └── pair_scores.csv
+│       │   ├── gwas_regulatory_enrichment
+│       │   │   ├── labelled_pairs.csv
+│       │   │   ├── preregistration.json
+│       │   │   └── run_summary.json
+│       │   ├── meqtl_class_chromatin
+│       │   │   ├── chromatin_by_class.csv
+│       │   │   └── run_summary.json
+│       │   ├── motif_disruption
+│       │   │   ├── coupling_null_summary.json
+│       │   │   ├── meqtl_discrimination_by_motif_status.csv
+│       │   │   ├── motif_vs_background.csv
+│       │   │   ├── per_motif_coupling.csv
+│       │   │   ├── plots
+│       │   │   │   ├── motif_disruption.pdf
+│       │   │   │   └── motif_disruption.png
+│       │   │   ├── run_summary.json
+│       │   │   └── top_motif_overlap.csv
+│       │   ├── paired_model_bootstrap
+│       │   │   ├── model_metrics_recomputed.csv
+│       │   │   ├── paired_model_difference_bootstrap.csv
+│       │   │   └── run_summary.json
+│       │   ├── rc_uncertainty
+│       │   │   ├── disagreement_decile_table.csv
+│       │   │   ├── disagreement_error_correlations.csv
+│       │   │   ├── estimator_comparison.csv
+│       │   │   ├── plots
+│       │   │   │   ├── error_by_disagreement_decile_epi_seed42.png
+│       │   │   │   ├── error_by_disagreement_decile_epi_seed43.png
+│       │   │   │   ├── error_by_disagreement_decile_epi_seed44.png
+│       │   │   │   ├── error_by_disagreement_decile_fusion_seed42.png
+│       │   │   │   ├── error_by_disagreement_decile_fusion_seed43.png
+│       │   │   │   ├── error_by_disagreement_decile_fusion_seed44.png
+│       │   │   │   ├── error_by_disagreement_decile_sequence_seed42.png
+│       │   │   │   ├── error_by_disagreement_decile_sequence_seed43.png
+│       │   │   │   ├── error_by_disagreement_decile_sequence_seed44.png
+│       │   │   │   ├── risk_coverage_epi_seed42.png
+│       │   │   │   ├── risk_coverage_epi_seed43.png
+│       │   │   │   ├── risk_coverage_epi_seed44.png
+│       │   │   │   ├── risk_coverage_fusion_seed42.png
+│       │   │   │   ├── risk_coverage_fusion_seed43.png
+│       │   │   │   ├── risk_coverage_fusion_seed44.png
+│       │   │   │   ├── risk_coverage_sequence_seed42.png
+│       │   │   │   ├── risk_coverage_sequence_seed43.png
+│       │   │   │   └── risk_coverage_sequence_seed44.png
+│       │   │   ├── rc_uncertainty_summary.txt
+│       │   │   ├── run_summary.json
+│       │   │   └── selective_prediction_curves.csv
+│       │   ├── rc_uncertainty_conditional
+│       │   │   ├── conditional_summary.txt
+│       │   │   ├── incremental_value.csv
+│       │   │   ├── partial_correlations.csv
+│       │   │   ├── run_summary.json
+│       │   │   ├── stratified_selective_prediction.csv
+│       │   │   └── within_stratum_correlations.csv
 │       │   ├── seed42
 │       │   │   ├── epi
 │       │   │   │   ├── fig_1_density_scatter.png
@@ -860,17 +1025,20 @@
 │       │   │   │   ├── fig_5_calibration.png
 │       │   │   │   ├── metrics.json
 │       │   │   │   └── predictions.csv
-│       │   │   └── fusion
-│       │   │       ├── fig_1_density_scatter.png
-│       │   │       ├── fig_2a_signed_error.png
-│       │   │       ├── fig_2b_absolute_error.png
-│       │   │       ├── fig_3_beta_distribution.png
-│       │   │       ├── fig_4_roc.png
-│       │   │       ├── fig_5_calibration.png
-│       │   │       ├── fig_6_gate_share_distribution.png
-│       │   │       ├── fig_7_gate_rc_consistency.png
-│       │   │       ├── metrics.json
-│       │   │       └── predictions.csv
+│       │   │   ├── fusion
+│       │   │   │   ├── fig_1_density_scatter.png
+│       │   │   │   ├── fig_2a_signed_error.png
+│       │   │   │   ├── fig_2b_absolute_error.png
+│       │   │   │   ├── fig_3_beta_distribution.png
+│       │   │   │   ├── fig_4_roc.png
+│       │   │   │   ├── fig_5_calibration.png
+│       │   │   │   ├── fig_6_gate_share_distribution.png
+│       │   │   │   ├── fig_7_gate_rc_consistency.png
+│       │   │   │   ├── metrics.json
+│       │   │   │   └── predictions.csv
+│       │   │   └── sequence
+│       │   │       ├── metrics.json -> /ocean/projects/med250012p/szhang37/SilentMethyl/results/journal/seed42/sequence/metrics.json
+│       │   │       └── predictions.csv -> /ocean/projects/med250012p/szhang37/SilentMethyl/results/journal/seed42/sequence/predictions.csv
 │       │   ├── seed43
 │       │   │   ├── epi
 │       │   │   │   ├── fig_1_density_scatter.png
@@ -881,38 +1049,54 @@
 │       │   │   │   ├── fig_5_calibration.png
 │       │   │   │   ├── metrics.json
 │       │   │   │   └── predictions.csv
-│       │   │   └── fusion
-│       │   │       ├── fig_1_density_scatter.png
-│       │   │       ├── fig_2a_signed_error.png
-│       │   │       ├── fig_2b_absolute_error.png
-│       │   │       ├── fig_3_beta_distribution.png
-│       │   │       ├── fig_4_roc.png
-│       │   │       ├── fig_5_calibration.png
-│       │   │       ├── fig_6_gate_share_distribution.png
-│       │   │       ├── fig_7_gate_rc_consistency.png
-│       │   │       ├── metrics.json
-│       │   │       └── predictions.csv
-│       │   └── seed44
-│       │       ├── epi
-│       │       │   ├── fig_1_density_scatter.png
-│       │       │   ├── fig_2a_signed_error.png
-│       │       │   ├── fig_2b_absolute_error.png
-│       │       │   ├── fig_3_beta_distribution.png
-│       │       │   ├── fig_4_roc.png
-│       │       │   ├── fig_5_calibration.png
-│       │       │   ├── metrics.json
-│       │       │   └── predictions.csv
-│       │       └── fusion
-│       │           ├── fig_1_density_scatter.png
-│       │           ├── fig_2a_signed_error.png
-│       │           ├── fig_2b_absolute_error.png
-│       │           ├── fig_3_beta_distribution.png
-│       │           ├── fig_4_roc.png
-│       │           ├── fig_5_calibration.png
-│       │           ├── fig_6_gate_share_distribution.png
-│       │           ├── fig_7_gate_rc_consistency.png
-│       │           ├── metrics.json
-│       │           └── predictions.csv
+│       │   │   ├── fusion
+│       │   │   │   ├── fig_1_density_scatter.png
+│       │   │   │   ├── fig_2a_signed_error.png
+│       │   │   │   ├── fig_2b_absolute_error.png
+│       │   │   │   ├── fig_3_beta_distribution.png
+│       │   │   │   ├── fig_4_roc.png
+│       │   │   │   ├── fig_5_calibration.png
+│       │   │   │   ├── fig_6_gate_share_distribution.png
+│       │   │   │   ├── fig_7_gate_rc_consistency.png
+│       │   │   │   ├── metrics.json
+│       │   │   │   └── predictions.csv
+│       │   │   └── sequence
+│       │   │       ├── metrics.json -> /ocean/projects/med250012p/szhang37/SilentMethyl/results/journal/seed43/sequence/metrics.json
+│       │   │       └── predictions.csv -> /ocean/projects/med250012p/szhang37/SilentMethyl/results/journal/seed43/sequence/predictions.csv
+│       │   ├── seed44
+│       │   │   ├── epi
+│       │   │   │   ├── fig_1_density_scatter.png
+│       │   │   │   ├── fig_2a_signed_error.png
+│       │   │   │   ├── fig_2b_absolute_error.png
+│       │   │   │   ├── fig_3_beta_distribution.png
+│       │   │   │   ├── fig_4_roc.png
+│       │   │   │   ├── fig_5_calibration.png
+│       │   │   │   ├── metrics.json
+│       │   │   │   └── predictions.csv
+│       │   │   ├── fusion
+│       │   │   │   ├── fig_1_density_scatter.png
+│       │   │   │   ├── fig_2a_signed_error.png
+│       │   │   │   ├── fig_2b_absolute_error.png
+│       │   │   │   ├── fig_3_beta_distribution.png
+│       │   │   │   ├── fig_4_roc.png
+│       │   │   │   ├── fig_5_calibration.png
+│       │   │   │   ├── fig_6_gate_share_distribution.png
+│       │   │   │   ├── fig_7_gate_rc_consistency.png
+│       │   │   │   ├── metrics.json
+│       │   │   │   └── predictions.csv
+│       │   │   └── sequence
+│       │   │       ├── metrics.json -> /ocean/projects/med250012p/szhang37/SilentMethyl/results/journal/seed44/sequence/metrics.json
+│       │   │       └── predictions.csv -> /ocean/projects/med250012p/szhang37/SilentMethyl/results/journal/seed44/sequence/predictions.csv
+│       │   ├── tissue_shared_meqtls
+│       │   │   ├── by_class.csv
+│       │   │   ├── decision.json
+│       │   │   ├── run_summary.json
+│       │   │   ├── summary_direction_agreement.csv
+│       │   │   └── summary_signed_rho.csv
+│       │   └── variant_effect_synthesis
+│       │       ├── all_strata.csv
+│       │       ├── cross_cohort_meta_analysis.csv
+│       │       └── run_summary.json
 │       ├── baseline_variant_evaluation
 │       │   ├── distance_bins.csv
 │       │   ├── fusion_vs_sequence_paired.csv
@@ -2022,11 +2206,15 @@
     ├── 90_build_supplement_package.py
     ├── 91_build_manuscript_figures.py
     ├── __pycache__
+    │   ├── 20_variant_scoring.cpython-310.pyc
+    │   ├── 21_variant_evaluation.cpython-310.pyc
+    │   ├── matched_background_utils.cpython-310.pyc
     │   ├── testing_common.cpython-310.pyc
     │   └── training_common.cpython-310.pyc
     ├── _test_sequence_baselines.py
     ├── literature_breast_variant_seeds.csv
     ├── matched_background_utils.py
+    ├── run_ablation_analyses.sbatch
     ├── run_baseline_grid.sh
     ├── run_baseline_seeds.sh
     ├── run_context_ablation.sbatch
@@ -2044,4 +2232,4 @@
     ├── testing_common.py
     └── training_common.py
 
-534 directories, 1510 files
+573 directories, 1659 files

@@ -1,0 +1,87 @@
+{
+  "agreement": [
+    {
+      "column": "WT_M_RC_Avg",
+      "mae": 1.671719529221535,
+      "n": 76893,
+      "pearson": 0.63236329142477,
+      "quantity": "absolute methylation (WT_M)",
+      "scheme": "shuffle",
+      "sd_reference": 3.1779144278316824,
+      "sign_agreement": 0.7521620953792933,
+      "spearman": 0.6179947425994514
+    },
+    {
+      "column": "Predicted_Delta_M",
+      "mae": 0.022639110219732785,
+      "n": 76893,
+      "pearson": 0.752848926328781,
+      "quantity": "variant effect (Delta_M)",
+      "scheme": "shuffle",
+      "sd_reference": 0.0998951497424845,
+      "sign_agreement": 0.8440149820527493,
+      "spearman": 0.7755205672623394
+    },
+    {
+      "column": "WT_M_RC_Avg",
+      "mae": 1.1217163507930243,
+      "n": 76893,
+      "pearson": 0.9525063066442515,
+      "quantity": "absolute methylation (WT_M)",
+      "scheme": "median",
+      "sd_reference": 3.1779144278316824,
+      "sign_agreement": 0.9427776260517863,
+      "spearman": 0.9429974855762393
+    },
+    {
+      "column": "Predicted_Delta_M",
+      "mae": 0.018578543888640105,
+      "n": 76893,
+      "pearson": 0.8623611911961239,
+      "quantity": "variant effect (Delta_M)",
+      "scheme": "median",
+      "sd_reference": 0.0998951497424845,
+      "sign_agreement": 0.8355355563647714,
+      "spearman": 0.8046947504920948
+    }
+  ],
+  "analysis": "context permutation: does the context vector carry allele information?",
+  "construction_counters": {
+    "alters_target_cpg": 0,
+    "bad_stored_sequence_length": 0,
+    "outside_model_window": 0,
+    "probe_not_in_splits": 0,
+    "reference_base_mismatch": 0,
+    "scoreable": 76893,
+    "stored_sequence_not_cpg_centred": 0,
+    "unexpected_window_difference": 0,
+    "window_not_cpg_centred": 0
+  },
+  "generated_utc": "2026-09-12T18:32:38+00:00",
+  "input_csv": "data/external/egtex_breast/scoring/egtex_scoring_input_heldout.csv",
+  "model": "fusion",
+  "pairs": 76893,
+  "permutation_seed": 1234,
+  "prediction_made_before_running": "absolute methylation degrades under permutation; predicted variant effects do not, because the context vector is identical for reference and alternate alleles and can enter a paired contrast only through the gate",
+  "schemes": [
+    "identity",
+    "shuffle",
+    "median"
+  ],
+  "seed": 42,
+  "stratum": "heldout",
+  "verdict": {
+    "median": {
+      "deltas_pearson": 0.8623611911961239,
+      "deltas_preserved_more": false,
+      "levels_pearson": 0.9525063066442515
+    },
+    "shuffle": {
+      "deltas_pearson": 0.752848926328781,
+      "deltas_preserved_more": true,
+      "levels_pearson": 0.63236329142477
+    }
+  },
+  "weights_sha256": "8e8917433f25a6960788c6ff3a7bf1a915793e04eaec8c00cd16f59c1c97c0c3",
+  "why_this_substitutes_for_a_tissue_swap": "a random locus's chromatin is further from the truth than another tissue's chromatin at the same locus, so a null here implies a null for the tissue swap"
+}

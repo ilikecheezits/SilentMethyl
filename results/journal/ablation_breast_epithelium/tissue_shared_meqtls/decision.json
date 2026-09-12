@@ -1,5 +1,5 @@
 {
-  "label": "SilentMethyl (MCF-10A context)",
+  "label": "SilentMethyl (breast-epithelium context)",
   "per_metric": {
     "direction_agreement": {
       "classes_favoured": [
@@ -44,7 +44,7 @@
           "shared": [],
           "specific": [
             {
-              "arm_value": -0.07548038997846593,
+              "arm_value": -0.06151869934661096,
               "direction": "eGTEx->GENOA",
               "n": 24
             }
@@ -52,7 +52,7 @@
         },
         "directions_with_negative_specific_arm": [
           {
-            "arm_value": -0.07548038997846593,
+            "arm_value": -0.06151869934661096,
             "direction": "eGTEx->GENOA",
             "n": 24
           }
@@ -61,7 +61,7 @@
       }
     }
   },
-  "results_dir": "results/journal/tissue_shared_meqtls",
+  "results_dir": "results/journal/ablation_breast_epithelium/tissue_shared_meqtls",
   "rule": "a tissue PAIR counts as support only when both ordered directions show a same-signed difference whose 95% block-bootstrap interval excludes zero; fixed before the numbers were read",
   "sign_convention": "difference = shared - specific; positive supports the hypothesis"
 }

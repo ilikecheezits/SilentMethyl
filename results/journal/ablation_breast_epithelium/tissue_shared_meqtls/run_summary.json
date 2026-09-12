@@ -6,13 +6,16 @@
     "power_screen": "a pair counts as tissue-specific only if the replication cohort could have detected an effect of the observed magnitude, compared in Z units",
     "why": "shared meQTLs have larger effects and larger effects are easier to predict; without matching the result would be a restatement of effect size"
   },
-  "generated_utc": "2026-09-12T17:15:28+00:00",
+  "generated_utc": "2026-09-12T17:17:59+00:00",
   "hypothesis": "a sequence-only variant pathway should predict sequence-intrinsic (tissue-shared) meQTLs better than chromatin-mediated (tissue-specific) ones",
   "parameters": {
-    "cohort": null,
+    "cohort": [
+      "GENOA:results/journal/ablation_breast_epithelium/genoa_variant_scoring:5e-8",
+      "eGTEx:results/journal/ablation_breast_epithelium/egtex_variant_scoring:1.483e-5"
+    ],
     "model": "fusion",
     "n_boot": 1000,
-    "output_dir": null,
+    "output_dir": "results/journal/ablation_breast_epithelium/tissue_shared_meqtls",
     "random_seed": 42,
     "replication_p": 0.05,
     "seeds": [
@@ -20,26 +23,26 @@
       43,
       44
     ],
-    "split_template": "data/datafiles/{split}.csv",
-    "stage": "all",
+    "split_template": "data/datafiles_breast_epithelium/{split}.csv",
+    "stage": "matched",
     "z_tolerance": 0.5
   },
   "results": [
     {
-      "direction_agreement_difference": 0.03946048442057423,
+      "direction_agreement_difference": 0.04606505418546107,
       "direction_agreement_difference_ci": [
-        0.004161947418720078,
-        0.07277378840658055
+        0.012768106136689111,
+        0.08012822701233276
       ],
-      "direction_agreement_shared": 0.5903771131339401,
+      "direction_agreement_shared": 0.5955786736020806,
       "direction_agreement_shared_ci": [
-        0.55807681152898,
-        0.6224034238505799
+        0.5650892465727475,
+        0.6264926702108367
       ],
-      "direction_agreement_tissue_specific": 0.5500650195058517,
+      "direction_agreement_tissue_specific": 0.5487646293888166,
       "direction_agreement_tissue_specific_ci": [
-        0.5165363193316315,
-        0.5834587037170641
+        0.5150960694858747,
+        0.5846896121892696
       ],
       "discovery": "GENOA",
       "matched": 769,
@@ -48,20 +51,20 @@
       "median_absZ_specific": 11.109144618711426,
       "replication": "eGTEx",
       "shared": 868,
-      "signed_rho_difference": 0.075791451873901,
+      "signed_rho_difference": 0.07745542689184547,
       "signed_rho_difference_ci": [
-        -0.0013817823605167911,
-        0.15452597736478893
+        -0.001811218792075249,
+        0.1577680089133768
       ],
-      "signed_rho_shared": 0.2045955522565302,
+      "signed_rho_shared": 0.2020526511660903,
       "signed_rho_shared_ci": [
-        0.12547904579785965,
-        0.2759087279918325
+        0.1197575911941347,
+        0.27360565463704234
       ],
-      "signed_rho_tissue_specific": 0.12688603913406035,
+      "signed_rho_tissue_specific": 0.12257788776390265,
       "signed_rho_tissue_specific_ci": [
-        0.04669184434171465,
-        0.20717603270000026
+        0.038220038495957266,
+        0.19925049567343828
       ],
       "significant_in_discovery": 2822,
       "specific": 904,
@@ -92,20 +95,20 @@
       "median_absZ_specific": 6.108995562858144,
       "replication": "GENOA",
       "shared": 190,
-      "signed_rho_difference": 0.27960977435752665,
+      "signed_rho_difference": 0.2824299352827719,
       "signed_rho_difference_ci": [
-        -0.29404014134036593,
-        0.9010293184937352
+        -0.2942914148346805,
+        0.8915765284585685
       ],
-      "signed_rho_shared": 0.17622776969027487,
+      "signed_rho_shared": 0.19280364901757793,
       "signed_rho_shared_ci": [
-        -0.27554036337785853,
-        0.7049850270154314
+        -0.2587678642998093,
+        0.7252719923726632
       ],
-      "signed_rho_tissue_specific": -0.07548038997846593,
+      "signed_rho_tissue_specific": -0.06151869934661096,
       "signed_rho_tissue_specific_ci": [
-        -0.43228505774167203,
-        0.3521382963030349
+        -0.4251213123149521,
+        0.36565092962590695
       ],
       "significant_in_discovery": 214,
       "specific": 24,
