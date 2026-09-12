@@ -216,25 +216,61 @@ else
   IN="${EGTEX_IN}"; OUT="${EGTEX_OUT}"
 fi
 
-W="checkpoints_ablation/breast_epithelium/seed${SEED}/fusion/best_weights.pth"
+# MODELS defaults to fusion because the sequence tower is unchanged. But
+# 20_variant_scoring.py started writing beta_ref_to_alt and pvalue INLINE some
+# time after 25 Aug 2026, while the older sequence pair_scores rely on
+# 21_variant_evaluation.py merging those columns from the input CSV. Mixing the
+# two schemas in one scoring directory made every per-model sequence metric come
+# back n/a on 12 Sep -- the paired fusion-minus-sequence numbers computed fine,
+# so nothing failed, it just silently produced no sequence arm.
+#
+# Rescoring sequence with the current script costs ~6 GPU-hours and removes the
+# mismatch, rather than teaching the evaluator to tolerate it. The predictions
+# are identical either way; only the column set changes.
+#
+#   sbatch --array=0-5 --export=ALL,STAGE=score,MODELS=sequence \
+#       scripts/run_ablation_analyses.sbatch
+MODELS=${MODELS:-fusion}
+case "${MODELS}" in
+  fusion|sequence) ;;
+  *) echo "STOP: MODELS must be 'fusion' or 'sequence', got '${MODELS}'" >&2
+     exit 2 ;;
+esac
+
+W="checkpoints_ablation/breast_epithelium/seed${SEED}/${MODELS}/best_weights.pth"
+# The ablation never trained a sequence tower -- it reused the published one
+# verbatim. Point at that rather than a path that does not exist.
+if [ "${MODELS}" = "sequence" ]; then
+  W="checkpoints_journal/seed${SEED}/sequence/best_weights.pth"
+fi
 for f in "${IN}" "${W}" "data/datafiles_breast_epithelium/test.csv"; do
   [ -s "$f" ] || { echo "STOP: missing or empty ${f}" >&2; exit 1; }
 done
 
-echo "cohort ${COHORT}  seed ${SEED}"
+echo "cohort ${COHORT}  seed ${SEED}  model ${MODELS}"
 echo "weights ${W}"
 echo "splits  data/datafiles_breast_epithelium/{split}.csv"
+
+# The weights template has to resolve to ${W} for whichever model is being
+# scored, including the sequence case where the checkpoint root differs.
+if [ "${MODELS}" = "sequence" ]; then
+  W_TEMPLATE='checkpoints_journal/seed{seed}/{model}/best_weights.pth'
+else
+  W_TEMPLATE="${WEIGHTS}"
+fi
 
 # --split-template MUST point at the breast-epithelium build. It is where the
 # seven context features come from; leaving the default would score the new
 # fusion weights against MCF-10A context and produce a hybrid that is neither
-# model.
+# model. It is passed for the sequence arm too: that tower ignores the context
+# columns, but the split files are also where the probe records and sequences
+# are read from, and mixing builds there would be its own inconsistency.
 $PY -u scripts/20_variant_scoring.py \
     --input-csv "${IN}" \
     --stratum heldout \
-    --models fusion \
+    --models "${MODELS}" \
     --seeds "${SEED}" \
-    --weights-template "${WEIGHTS}" \
+    --weights-template "${W_TEMPLATE}" \
     --split-template "${SPLITS}" \
     --device cuda --batch-size 32 \
     --output-dir "${OUT}"
