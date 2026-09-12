@@ -368,21 +368,65 @@ def patch_and_load_dnabert(
             else:
                 shutil.copy2(src, dst)
 
+    # Both files below used to be rewritten unconditionally with open(path,"w"),
+    # which truncates to zero bytes BEFORE writing. Any other process reading the
+    # file inside that window sees an empty file. With an --array=0-5 scoring job
+    # every task loads DNABERT-2 at the same moment against this one shared
+    # directory, so two tasks died with
+    #     json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+    # on 12 Sep 2026 while four identical tasks succeeded -- a pure race, and one
+    # that gets blamed on the node or the checkpoint because it is intermittent.
+    #
+    # Fixed two ways, both needed:
+    #   1. write only when the content would actually CHANGE. After the first run
+    #      the patch is already applied, so steady state is read-only and the
+    #      race cannot occur at all.
+    #   2. when a write IS needed, build it under a unique name and os.replace()
+    #      it in. That is atomic on POSIX, so a concurrent reader sees either the
+    #      old file or the new one, never a truncated one.
+    def _write_atomic(path: str, text: str) -> None:
+        tmp = f"{path}.tmp.{os.getpid()}"
+        with open(tmp, "w") as handle:
+            handle.write(text)
+        os.replace(tmp, path)
+
     triton_file = os.path.join(local_dir, "flash_attn_triton.py")
+    triton_stub = "def __getattr__(name):\n    return None\n"
     if os.path.exists(triton_file):
-        with open(triton_file, "w") as handle:
-            handle.write("def __getattr__(name):\n    return None\n")
+        try:
+            with open(triton_file) as handle:
+                already_stubbed = handle.read() == triton_stub
+        except OSError:
+            already_stubbed = False
+        if not already_stubbed:
+            _write_atomic(triton_file, triton_stub)
 
     config_path = os.path.join(local_dir, "config.json")
     if not os.path.exists(config_path):
         raise FileNotFoundError(f"Missing DNABERT config: {config_path}")
-    with open(config_path) as handle:
-        config_data = json.load(handle)
-    config_data["use_flash_attn"] = False
-    if config_data.get("pad_token_id") is None:
-        config_data["pad_token_id"] = 0
-    with open(config_path, "w") as handle:
-        json.dump(config_data, handle)
+    try:
+        with open(config_path) as handle:
+            config_data = json.load(handle)
+    except json.JSONDecodeError as exc:
+        # Reaching here means the file was empty or half-written -- almost
+        # certainly another process mid-patch. Say so, rather than leaving the
+        # next reader of this traceback to rediscover the race.
+        raise RuntimeError(
+            f"{config_path} is not valid JSON ({exc}). If several jobs started "
+            "together this is the concurrent-patch race; the file is rewritten "
+            "atomically now, so restore it with\n"
+            f"  rm -rf {local_dir}\n"
+            "and let the next run re-download, or restore config.json from the "
+            "HuggingFace cache."
+        ) from exc
+
+    patched = dict(config_data)
+    patched["use_flash_attn"] = False
+    if patched.get("pad_token_id") is None:
+        patched["pad_token_id"] = 0
+    if patched != config_data:
+        _write_atomic(config_path, json.dumps(patched))
+    config_data = patched
 
     config = AutoConfig.from_pretrained(
         local_dir,
