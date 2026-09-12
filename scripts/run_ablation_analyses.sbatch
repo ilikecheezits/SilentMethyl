@@ -328,16 +328,46 @@ run "30 transfer synthesis" \
 
 # --- shared vs tissue-specific meQTLs (R4) ----------------------------------
 # 40 builds its score paths with "heldout" hardcoded, which matches what the
-# score stage wrote. Both stages run; chromatin reads the context features out
-# of the breast-epithelium splits, so --split-template matters here too.
-run "40 tissue specificity" \
+# score stage wrote. chromatin reads the context features out of the
+# breast-epithelium splits, so --split-template matters here too.
+#
+# RUN THE TWO STAGES SEPARATELY. --stage all IGNORES --output-dir and writes to
+# 40's own stage defaults, which are the PUBLISHED paths
+# results/journal/{tissue_shared_meqtls,meqtl_class_chromatin}. On 12 Sep 2026
+# that silently overwrote four published MCF-10A result files with
+# breast-epithelium numbers while reporting success, and 41 then failed because
+# the ablation directory it was pointed at did not exist -- the only reason the
+# clobber was noticed at all. Same footgun as 51 --stage all, guarded below.
+# Per-stage, --output-dir IS honoured; verified 12 Sep.
+run "40 tissue specificity (matched)" \
   $PY -u scripts/40_meqtl_tissue_specificity.py \
-      --stage all \
+      --stage matched \
       --cohort "GENOA:${GENOA_OUT}:5e-8" \
       --cohort "eGTEx:${EGTEX_OUT}:1.483e-5" \
       --split-template "${SPLITS}" \
       --model fusion --seeds 42 43 44 --n-boot 1000 \
       --output-dir "${ABL}/tissue_shared_meqtls"
+
+run "40 tissue specificity (chromatin)" \
+  $PY -u scripts/40_meqtl_tissue_specificity.py \
+      --stage chromatin \
+      --cohort "GENOA:${GENOA_OUT}:5e-8" \
+      --cohort "eGTEx:${EGTEX_OUT}:1.483e-5" \
+      --split-template "${SPLITS}" \
+      --model fusion --seeds 42 43 44 --n-boot 1000 \
+      --output-dir "${ABL}/meqtl_class_chromatin"
+
+# Nothing in this stage may write outside ${ABL}. Checked rather than trusted,
+# because the failure above was silent and only surfaced two steps later.
+for PUB_DIR in results/journal/tissue_shared_meqtls \
+               results/journal/meqtl_class_chromatin; do
+  if [ -d "${PUB_DIR}" ] && \
+     [ -n "$(find "${PUB_DIR}" -newermt '-30 minutes' -type f 2>/dev/null)" ]; then
+    echo "!!! ${PUB_DIR} was modified during this run -- a step wrote to a"
+    echo "    PUBLISHED path. Restore it before trusting anything downstream."
+    FAILED+=("published path ${PUB_DIR} was overwritten")
+  fi
+done
 
 run "41 tissue specificity summary" \
   $PY -u scripts/41_tissue_specificity_summary.py \

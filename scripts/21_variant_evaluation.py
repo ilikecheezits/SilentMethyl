@@ -116,8 +116,14 @@ DISTANCE_BINS = [0, 50, 100, 200, 300, 400, 501]
 COHORTS = {
     "GENOA": {
         "label": "GENOA",
+        # The context source is NOT hardcoded here. It was -- this string said
+        # "MCF-10A breast" and kept saying so after the 11 Sep context swap,
+        # writing a false provenance claim into every run_summary.json the
+        # pipeline produced (LAB_NOTES 1.10). A caveat that can go stale without
+        # anything failing is worse than no caveat, so it is derived from the
+        # weights actually scored and filled in by summarise().
         "tissue_caveat": ("GENOA is peripheral blood; SilentMethyl is trained on "
-                          "breast and its context features are MCF-10A breast. "
+                          "breast and its context features are {context_source}. "
                           "This is cross-tissue, cross-ancestry transfer, not "
                           "tissue-matched validation."),
         "effect_scale": ("GENOA betas are on a normalized-phenotype scale. Rank "
@@ -135,6 +141,63 @@ COHORTS = {
     },
 }
 BLOCK_BP = 1_000_000
+
+# Which chromatin tracks the scored checkpoints were built on. Recognised by the
+# checkpoint root, because that is the one thing 20_variant_scoring.py records
+# for every run and the one thing that actually determines the answer.
+CONTEXT_SOURCES = {
+    "checkpoints_ablation/breast_epithelium":
+        "primary breast epithelium (ENCODE, bulk ATAC-seq and six histone "
+        "ChIP-seq tracks, all fold change over control, one biosample)",
+    "checkpoints_journal":
+        "MCF-10A (six Mint-ChIP tracks plus a locally converted snATAC "
+        "coverage track)",
+    "checkpoints_folds":
+        "MCF-10A (six Mint-ChIP tracks plus a locally converted snATAC "
+        "coverage track)",
+}
+
+
+def describe_context_source(scores_dir: Path) -> str:
+    """Name the context the scored checkpoints used, from the scoring record.
+
+    This used to be a hardcoded string saying "MCF-10A breast". It kept saying
+    so after the context was swapped on 11 Sep 2026, writing a false provenance
+    claim into every run_summary.json without anything failing. A caveat that
+    can silently go stale is worse than none, so it is derived rather than
+    asserted -- and when it cannot be derived it says so instead of guessing.
+    """
+    weights: list[str] = []
+    for summary in sorted(Path(scores_dir).rglob("run_summary*.json")):
+        try:
+            blob = json.loads(summary.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        stack = [blob]
+        while stack:
+            node = stack.pop()
+            if isinstance(node, dict):
+                stack.extend(node.values())
+            elif isinstance(node, list):
+                stack.extend(node)
+            elif isinstance(node, str) and "best_weights.pth" in node:
+                weights.append(node)
+    if not weights:
+        return (f"unrecorded (no weights path found under {scores_dir}); "
+                "check the scoring run_summary before quoting this")
+
+    matched = {label for root, label in CONTEXT_SOURCES.items()
+               if any(root in w for w in weights)}
+    if len(matched) == 1:
+        return matched.pop()
+    if len(matched) > 1:
+        # Two context sources in one scoring directory is not a caveat problem,
+        # it is a corrupted comparison -- say so loudly rather than picking one.
+        return ("MIXED CONTEXT SOURCES in one scoring directory: "
+                + "; ".join(sorted(matched))
+                + " -- these results are not comparable to each other")
+    roots = sorted({w.split("/best_weights.pth")[0] for w in weights})[:3]
+    return f"unrecognised checkpoint root(s): {', '.join(roots)}"
 
 
 # --------------------------------------------------------------------------- io
@@ -600,10 +663,12 @@ def main() -> int:
             },
             "caveats": {
                 "effect_scale": COHORTS[args.cohort]["effect_scale"],
-                "tissue": COHORTS[args.cohort]["tissue_caveat"],
+                "tissue": COHORTS[args.cohort]["tissue_caveat"].format(
+                    context_source=describe_context_source(args.scores_dir)),
                 "dependence": ("Pairs are in LD. All intervals are 1 Mb block "
                                "bootstraps; naive intervals would be far too narrow."),
             },
+            "context_source": describe_context_source(args.scores_dir),
         },
         out / "run_summary.json",
     )
