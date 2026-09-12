@@ -5,18 +5,25 @@ Single running record for the project. Consolidates the former
 presentation outlines. `README.md` remains separate as the repository's entry
 point.
 
-Last updated 11 Sep 2026, after the breast-epithelium context ablation returned
-and the single-tissue reprocessing was launched.
+Last updated 12 Sep 2026: all six context-ablation retrains complete, downstream
+reruns in flight, and the three-way variant-discrimination contrast recorded.
 
 ---
 
 ## 0. Status in one page
 
-**Every analysis is finished, but the context source changed on 11 Sep and the
-single-tissue set is being reprocessed.** See §1.10. The conclusions are
-unaffected — the swap improves absolute numbers and strengthens R2 — but every
-reported single-tissue figure will need its value refreshed once the five
-in-flight runs land. Do not circulate numbers from before that date.
+**The context source changed on 11 Sep. All six retrains are done; the
+downstream reruns are in flight.** See §1.10.
+
+The conclusions are unaffected and R2 is materially stronger. The swap gave a
+large methylation-level gain (context arm β MAE 0.1396 → 0.1022, six of six
+runs) and **no** variant-effect gain (distance-matched AUROC 0.5586 → 0.5608,
+against a seed SD of 0.0117) — the controlled demonstration of allele
+invariance that the paper previously argued only on derivational grounds.
+
+Every reported single-tissue number needs refreshing from
+`results/journal/ablation_breast_epithelium/`. **Do not circulate figures
+computed before 12 Sep 2026.**
 
 The claim is methodological: here is how variant-effect prediction should be
 evaluated, here is what happens to two very different models under it, and
@@ -706,18 +713,37 @@ New context, `data/reference/BreastEpithelium/`, all checksum-verified, GRCh38:
 | H3K4me1 | ENCFF234JZW | | H3K27ac | ENCFF085IYD |
 | H3K27me3 | ENCFF212ZFW | | | |
 
-#### Result, seed 42, published chr8+chr9 split
+#### Result — COMPLETE, six runs, 12 Sep 2026
 
-| arm | MCF-10A | breast epithelium | difference |
-|---|---|---|---|
-| context-only | β MAE 0.1396, AUC 0.9188 | β MAE 0.1022, AUC 0.9658 | **−0.0374, +0.0470** |
-| fusion | β MAE 0.0971, AUC 0.9699 | β MAE 0.0885, AUC 0.9765 | **−0.0086, +0.0066** |
+Three seeds on the published split and three chromosome folds. **Every one of
+the six favours breast epithelium, on both arms and both metrics.**
+
+β MAE (lower is better):
+
+| run | arm | MCF-10A | breast epi | Δ | | arm | MCF-10A | breast epi | Δ |
+|---|---|---|---|---|---|---|---|---|---|
+| seed42 | fusion | 0.0971 | 0.0885 | −0.0085 | | context | 0.1396 | 0.1022 | −0.0374 |
+| seed43 | fusion | 0.0988 | 0.0901 | −0.0087 | | context | 0.1394 | 0.1022 | −0.0372 |
+| seed44 | fusion | 0.1020 | 0.0956 | −0.0063 | | context | 0.1396 | 0.1023 | −0.0373 |
+| fold1 | fusion | 0.0942 | 0.0873 | −0.0069 | | context | 0.1331 | 0.0980 | −0.0350 |
+| fold2 | fusion | 0.0990 | 0.0934 | −0.0056 | | context | 0.1360 | 0.0985 | −0.0375 |
+| fold3 | fusion | 0.0938 | 0.0862 | −0.0077 | | context | 0.1328 | 0.0987 | −0.0342 |
+
+- **fusion** ΔMAE −0.0073 ± 0.0012, ΔAUC +0.0061 ± 0.0006
+- **context-only** ΔMAE −0.0364 ± 0.0014, ΔAUC +0.0445 ± 0.0027
 
 **It is not seed noise.** The published three-seed fusion spread is 0.0971 /
-0.0988 / 0.1020 (mean 0.0993, SD 0.0025) and AUC 0.9699 / 0.9683 / 0.9657 (mean
-0.9680, SD 0.0021). The ablation's 0.0885 sits **4.3 SD** below that mean and
-0.0086 below even the best published seed — a gap 1.8x the entire three-seed
-range. AUC is +4.0 SD. Confirmation across seeds 43/44 is in flight regardless.
+0.0988 / 0.1020 (mean 0.0993, SD 0.0025). Seed 42's ablation value of 0.0885
+sits 4.3 SD below that mean, and the smallest of the six effects (fold2,
+−0.0056) is still more than twice the seed SD. Six of six in the same direction
+on two metrics settles it.
+
+**Have an answer ready for the context-arm seed stability.** The ablation
+context numbers are near-identical across seeds — 0.1022, 0.1022, 0.1023, with
+AUC 0.9658 three times — which reads as a bug at first glance. It is not: the
+PUBLISHED context arm does the same thing (0.1396, 0.1394, 0.1396). A small MLP
+over 16 features with 345k training rows has almost no seed sensitivity. State
+this in the paper before a reviewer asks.
 
 #### Why it moved — mechanism, not luck
 
@@ -739,22 +765,62 @@ that closes the stated limitation, but the two above are why the effect is large
 
 #### The asymmetry is the publishable finding
 
-The context arm improved by 0.0374. Fusion improved by 0.0086. **Only 23% of the
-context gain survives the gate** — roughly three quarters of what better
-chromatin tracks provide is already encoded by the sequence tower.
+Averaged over all six runs: the context arm improved by 0.0364, fusion by
+0.0073. **Only 20% of the context gain survives the gate** — roughly four fifths
+of what better chromatin tracks provide is already encoded by the sequence
+tower. The ratio barely moves between runs, so it is a property of the
+architecture rather than of one split.
 
-This is a measured statement that context quality is not the binding constraint
-on this architecture, which is what R2 claims on derivational grounds (context is
-allele-invariant; it can rescale a variant effect but never create one or set its
-direction). It also lands inside the ≤0.02–0.027 bound on scale/tissue matching
-established by four independent routes in §2.3b/3d, corroborating that bound
-rather than disturbing it. Tripling the quality of the context input moves the
-model by less than 0.01.
+#### And it buys NOTHING for variant effects — the controlled version of R2
+
+This is the sharpest result in the paper and it did not exist before 12 Sep.
+
+GENOA, discrimination against the distance-matched null (2000-replicate 1 Mb
+block bootstrap, distance-only forced to exactly 0.5000 by construction):
+
+| model | context | mean AUROC | seed SD |
+|---|---|---|---|
+| sequence-only | none | **0.5606** | 0.0044 |
+| fusion | MCF-10A | **0.5586** | 0.0117 |
+| fusion | breast epithelium | **0.5608** | 0.0065 |
+
+Per-seed, breast epithelium: 0.5624 / 0.5536 / 0.5663, ensemble 0.5645.
+Per-seed, MCF-10A: 0.5452 / 0.5665 / 0.5642, ensemble 0.5700.
+
+All three means lie within **0.0022** of each other against seed SDs of
+0.004–0.012. The context swap moved variant discrimination by about one fifth
+of the MCF-10A seed spread.
+
+**So the same intervention improved methylation-level prediction by 27% on the
+context arm and changed variant-effect discrimination by 0.002 AUROC.** That is
+allele invariance demonstrated rather than derived: context is identical for REF
+and ALT, so it can rescale a predicted effect but cannot create one or set its
+direction. It also kills the obvious reviewer objection — "your chromatin data
+is simply bad" — with data instead of argument. We improved the chromatin data,
+verified the improvement six ways, and the variant result did not move.
+
+Note also that **sequence-only matches both fusion models** on this benchmark.
+The claim is that the three are statistically inseparable; the CIs overlap
+heavily, so do NOT write that fusion underperforms sequence.
+
+From the same table, the evaluation argument in one row: `auroc_marginal` 0.5939
+against `auroc_distance_only_baseline` 0.5953 — distance alone beats the model
+marginally, and signal appears only after matching (0.5623 within distance bin).
+Same pattern in the CpG-altering class, 0.6253 against 0.6292. Now reproduced on
+a second context.
+
+This lands inside the ≤0.02–0.027 bound on scale/tissue matching established by
+four independent routes in §2.3b/3d, corroborating that bound rather than
+disturbing it.
 
 Use it in R2 and in the §1.9 refusal of joint multi-tissue training: the reason
 joint training will not deliver tissue-specific *variant* effects is
 architectural, and this is the experiment that shows better context does not
 rescue it.
+
+**Still to check:** whether eGTEx reproduces the three-way contrast. That is
+tissue-matched rather than cross-tissue, so if it holds there the argument
+spans both cohorts and both context sources.
 
 #### Decision and cost
 
@@ -769,21 +835,41 @@ Cost: every single-tissue number in the paper is refreshed. Downstream
 reanalyses (variant scoring, meQTL discrimination, tissue specificity) consume
 model predictions and cannot start until the retrains land, but none need a GPU.
 
-#### In flight as of 11 Sep 2026
+#### All six retrains completed 12 Sep 2026
 
-Five jobs, ~14 h each, all independent, all reusing published sequence towers:
+Jobs 45804079–83 plus the original seed-42 run, ~14 h each, all reusing the
+published sequence towers (`checkpoints_journal/seed{43,44}/sequence/` and
+`checkpoints_folds/fold{1,2,3}/sequence_seed42/`). The sequence tower reads DNA
+only and never sees context, so it needs no retraining — ~32 of ~46 h saved per
+run, and the sequence-only baseline stays untouched and comparable.
 
-| job | tag | sequence tower reused |
-|---|---|---|
-| 45804079 | seed43 | `checkpoints_journal/seed43/sequence/` |
-| 45804080 | seed44 | `checkpoints_journal/seed44/sequence/` |
-| 45804081 | fold1 | `checkpoints_folds/fold1/sequence_seed42/` |
-| 45804082 | fold2 | `checkpoints_folds/fold2/sequence_seed42/` |
-| 45804083 | fold3 | `checkpoints_folds/fold3/sequence_seed42/` |
+That reuse is also why the downstream pipeline rescores **fusion only** and
+links the published sequence scores in, verifying the checkpoint md5 first
+(`scripts/run_ablation_analyses.sbatch`, STAGE=link).
 
-The sequence tower reads DNA only and never sees context, so it does not need
-retraining — that is ~32 of ~46 h saved per run, and it keeps the sequence-only
-baseline untouched and still comparable.
+#### Downstream reruns, launched 12 Sep 2026
+
+Everything downstream was computed on MCF-10A models and is stale.
+`scripts/run_ablation_analyses.sbatch` reruns it in four stages — link, score
+(GPU array 0-5), ctxperm (GPU), analyse (RM-shared, CPU). All output lands under
+`results/journal/ablation_breast_epithelium/`, so the MCF-10A results survive
+for the side-by-side.
+
+Scoring verified complete: GENOA 66,495 rows × 3 seeds, eGTEx 76,893 × 3, zero
+reference-base mismatches, every task confirmed to have used the ablation
+checkpoints and the breast-epithelium splits.
+
+**Not included, and why:** 60/61/62 candidates, 22 context stratification, 63
+known-variant, 64 literature screen, 91 figures. 22 and 91 hard-require the
+candidate CSVs that 60 produces; 60 and 62 are GPU jobs of their own. **64 is
+actively dangerous** — it shells out to 63 without forwarding
+`--weights-template`, so it would silently score the OLD MCF-10A checkpoints and
+report a result that looks correct. Fix 64 before running that chain.
+
+**Stale caveat string to fix.** `21_variant_evaluation.py` hardcodes
+`caveats.tissue` as "...its context features are MCF-10A breast", which is now
+wrong and is written into every `run_summary.json` the pipeline produces. One
+line to fix, ~40 min to regenerate both evaluations.
 
 #### Reproduction
 
@@ -1246,12 +1332,21 @@ and pre-empts the "different splits" objection.
 6. Split-status label on the case-study figure — the text states it, the figure
    does not.
 7. Mentor email. Every number in it is now checkable.
-8. **Refresh every single-tissue number after the §1.10 reprocessing lands.**
-   Five runs in flight (seeds 43/44, folds 1–3). The fold table, the seed table
-   and every downstream analysis that consumes model predictions are all keyed to
-   the MCF-10A context until then. The mentor email quotes pre-swap numbers —
-   either send it before the runs land, or update it, but do not let the two
-   drift apart silently.
+8. **Refresh every single-tissue number from the §1.10 rerun.** The six
+   retrains are done and the downstream pipeline is running; results are under
+   `results/journal/ablation_breast_epithelium/`, alongside rather than over the
+   MCF-10A results. The fold table, the seed table and every variant analysis
+   need their values swapped. The mentor email quotes pre-swap numbers — either
+   send it before the reruns land or update it, but do not let the two drift.
+9. **Fix the `caveats.tissue` string in `21_variant_evaluation.py`** — it still
+   says MCF-10A and is written into every `run_summary.json`.
+10. **Fix `64_literature_variant_screen.py` to forward `--weights-template`**
+   before running the candidate chain. As written it silently scores the old
+   MCF-10A checkpoints through `63`, and the output looks correct.
+11. **Add the three-way variant-discrimination table (§1.10) to the Results.**
+   Sequence-only 0.5606, fusion/MCF-10A 0.5586, fusion/breast-epi 0.5608 — all
+   within 0.0022. This is the strongest form of R2 and currently exists nowhere
+   in the manuscript.
 
 ### The one open scientific decision
 **eQTL / eQTM colocalisation.** The only remaining substantive analysis and the
@@ -1300,6 +1395,32 @@ same time again if lost.
   GPU jobs on CPU at 13.3 s/it against 3.66 it/s — a 49× slowdown with no error.
   Add a `torch.cuda.is_available()` guard to every GPU sbatch so this fails in
   seconds rather than hours.
+- **RM-shared caps memory at 2000 MB PER CORE.** `--mem=48G` with 8 cores is
+  rejected as "Allocation requested mem-per-core higher than maximum of
+  2000M/core", which Slurm then reports as `Access/permission denied` — a
+  misleading message that looks like an account problem. Also pass `--gpus=0`
+  or a GPU directive in the script follows the job onto a GPU-less partition.
+- **Slurm snapshots the batch script at submission.** Editing the file after
+  `sbatch` changes nothing for queued jobs. `scontrol write batch_script <id> -`
+  prints what will actually run. Extending `TimeLimit` on a running job needs
+  admin — `scontrol update` returns "Access/permission denied" for users.
+- **`--array` jobs raced on `dnabert2_local/config.json`, 12 Sep 2026.**
+  `patch_and_load_dnabert` in `training_common.py` rewrote that file on every
+  startup with `open(path, "w")`, which truncates to zero BEFORE writing. With
+  an `--array=0-5` scoring job, six processes load DNABERT-2 at the same moment
+  against one shared directory; two died with
+
+      json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+  while four identical tasks succeeded. It looks like a node fault or a corrupt
+  checkpoint and is neither — it is intermittent and blames whatever node it
+  lands on. Reproduced deterministically: 16 threads × 40 rounds gives 15
+  failures with the old code, 0 with the fix. **Fixed** by writing only when the
+  content would actually change (steady state is now read-only, so the race
+  cannot occur) and by `os.replace()` for the write itself, which is atomic.
+  `run_genoa_scoring.sh` and `run_egtex_scoring.sh` are both `--array=0-5` and
+  carried the same exposure — any historical task that "failed on a bad node"
+  was probably this.
 - V100 needs torch 2.6.0+cu124; torch 2.14.0+cu130 ships no sm_70 kernels.
 
 ### Training pipeline
