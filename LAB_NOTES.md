@@ -5,21 +5,25 @@ Single running record for the project. Consolidates the former
 presentation outlines. `README.md` remains separate as the repository's entry
 point.
 
-Last updated 12 Sep 2026: all six context-ablation retrains complete, downstream
-reruns in flight, and the three-way variant-discrimination contrast recorded.
+Last updated 12 Sep 2026: context ablation and its full downstream rerun
+complete, across both cohorts, with the context-permutation mechanism measured.
 
 ---
 
 ## 0. Status in one page
 
-**The context source changed on 11 Sep. All six retrains are done; the
-downstream reruns are in flight.** See §1.10.
+**The context source changed on 11 Sep. All six retrains and the full
+downstream rerun are complete.** See §1.10.
 
 The conclusions are unaffected and R2 is materially stronger. The swap gave a
 large methylation-level gain (context arm β MAE 0.1396 → 0.1022, six of six
 runs) and **no** variant-effect gain (distance-matched AUROC 0.5586 → 0.5608,
 against a seed SD of 0.0117) — the controlled demonstration of allele
 invariance that the paper previously argued only on derivational grounds.
+
+Report the PAIRED fusion-minus-sequence statistics, not marginal AUROCs:
+the distance-matched metric moves ~0.01 between runs of identical data, while
+the paired differences are bit-identical. §1.10 has the evidence.
 
 Every reported single-tissue number needs refreshing from
 `results/journal/ablation_breast_epithelium/`. **Do not circulate figures
@@ -818,9 +822,64 @@ joint training will not deliver tissue-specific *variant* effects is
 architectural, and this is the experiment that shows better context does not
 rescue it.
 
-**Still to check:** whether eGTEx reproduces the three-way contrast. That is
-tissue-matched rather than cross-tissue, so if it holds there the argument
-spans both cohorts and both context sources.
+#### eGTEx reproduces it — and forces a change in WHICH statistic we report
+
+Both cohorts, fusion minus sequence, paired on identical pairs:
+
+| metric | GENOA | eGTEx |
+|---|---|---|
+| signed rho | −0.0010 [−0.0078, +0.0051] | +0.0117 [−0.0085, +0.0320] |
+| direction agreement | +0.0017 [−0.0050, +0.0079] | +0.0048 [−0.0169, +0.0234] |
+| AUROC marginal | −0.0024 [−0.0060, +0.0009] | +0.0028 [−0.0118, +0.0143] |
+| AUROC within distance bin | −0.0023 [−0.0058, +0.0010] | +0.0057 [−0.0094, +0.0176] |
+
+Eight intervals, all spanning zero, in the cross-tissue cohort and the
+tissue-matched one.
+
+**REPORT THE PAIRED NUMBERS, NOT THE MARGINAL ONES.** The distance-matched
+AUROC is rebuilt per evaluation (matched-cohort construction plus block
+bootstrap), and it moves by ~0.01 between runs of *identical* data:
+
+- eGTEx sequence arm, same weights and same score files, two evaluations:
+  0.5781 and 0.5900 — a 0.012 gap from nothing at all.
+- GENOA fusion ensemble, two runs: 0.5645 and 0.5559 — 0.0086.
+
+The paired differences were **bit-identical** across the same two runs, because
+they are computed on the same pairs rather than on a resampled cohort. So any
+marginal difference below ~0.012 is unreadable, and the equivalence claim must
+rest on the paired test. Quoting a 0.002 marginal difference as evidence would
+be indefensible.
+
+With that caveat, marginal distance-matched means (three seeds):
+
+| cohort | sequence | fusion / MCF-10A | fusion / breast-epi |
+|---|---|---|---|
+| GENOA | 0.5606 | 0.5586 | 0.5608 |
+| eGTEx | 0.5781–0.5900 (same model, two runs) | 0.5842 | 0.5883 |
+
+#### Context permutation — the mechanism, measured
+
+`23_context_permutation.py`, eGTEx heldout, fusion seed 42, 76,893 pairs.
+Context is replaced by a shuffle or by the per-feature median and the model is
+rescored. Agreement with the unperturbed run, MAE expressed in units of the
+reference SD so the two quantities are comparable:
+
+| scheme | quantity | pearson | MAE / SD | sign agreement |
+|---|---|---|---|---|
+| shuffle | absolute methylation (WT_M) | 0.632 | **0.526** | 0.752 |
+| shuffle | variant effect (Delta_M) | 0.753 | **0.227** | 0.844 |
+| median | absolute methylation (WT_M) | 0.953 | **0.353** | 0.943 |
+| median | variant effect (Delta_M) | 0.862 | **0.186** | 0.836 |
+
+**Destroying the context moves the methylation LEVEL 2.3x more than it moves the
+variant EFFECT** (0.53 SD vs 0.23 SD under shuffle; 1.9x under median).
+
+Do NOT over-claim this as "context does nothing for variant effects" — 0.23 SD
+is not zero. It is exactly what allele invariance predicts: an identical context
+for REF and ALT can **rescale** a predicted effect through the gate, which a
+permutation will perturb, but cannot **create** one or set its direction. The
+level/effect ratio is the quantitative form of that statement, and it is the
+mechanistic counterpart to the statistical equivalence above.
 
 #### Decision and cost
 
@@ -866,10 +925,37 @@ actively dangerous** — it shells out to 63 without forwarding
 `--weights-template`, so it would silently score the OLD MCF-10A checkpoints and
 report a result that looks correct. Fix 64 before running that chain.
 
-**Stale caveat string to fix.** `21_variant_evaluation.py` hardcodes
-`caveats.tissue` as "...its context features are MCF-10A breast", which is now
-wrong and is written into every `run_summary.json` the pipeline produces. One
-line to fix, ~40 min to regenerate both evaluations.
+**Three silent failures this pipeline surfaced — all fixed, all worth knowing.**
+
+1. **`40 --stage all` IGNORES `--output-dir`** and writes to its own stage
+   defaults, which are the PUBLISHED paths. On 12 Sep it overwrote four MCF-10A
+   result files with breast-epithelium numbers *while reporting success*; the
+   only reason it was caught is that `41` then failed looking for an ablation
+   directory that did not exist. Restored by rerunning `40` with defaults
+   (it reads the untouched MCF-10A scores, so it regenerates exactly).
+   `run_ablation_analyses.sbatch` now calls the two stages separately and ends
+   every analyse run by checking whether either published path was modified in
+   the last 30 minutes. Same footgun as `51 --stage all`.
+
+   Note: `git checkout` will NOT restore these correctly — the committed
+   `run_summary.json` predates the 11 Sep changes to `40` and is a different
+   schema. Regenerate rather than revert.
+
+2. **`caveats.tissue` in `21_variant_evaluation.py` was hardcoded** to "MCF-10A
+   breast" and kept saying so after the swap, writing false provenance into
+   every `run_summary.json`. Now derived from the weights paths recorded in the
+   scoring summaries, reports "unrecorded" when it cannot tell, and shouts
+   `MIXED CONTEXT SOURCES` if one directory contains both.
+
+3. **Schema drift in `20_variant_scoring.py`.** It began writing
+   `beta_ref_to_alt` and `pvalue` INLINE some time after 25 Aug; older files
+   rely on `21` merging them from the input CSV. Linking old sequence scores
+   beside new fusion scores produced a directory with both schemas, and every
+   per-model sequence metric came back `n/a` — with no error, because the paired
+   fusion-minus-sequence numbers computed fine. GENOA was affected, eGTEx was
+   not. Fixed by rescoring the sequence arm (`MODELS=sequence`, ~6 GPU-hours;
+   the tower is unchanged, only the column set differs). **Any pipeline that
+   links old scores beside new ones needs a column check at link time.**
 
 #### Reproduction
 
