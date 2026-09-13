@@ -99,53 +99,63 @@ promoter-dense regions. Held-out sizes are matched by construction
 (26,570–26,806). Sex chromosomes stay in training for every fold and are never
 evaluated — chrY is absent in female donors and chrX carries X-inactivation.
 
-**Fix a known inconsistency while you are here.** LAB_NOTES §1.2's fold table
-lists fold 0 as 0.0993 / 0.1099, which is a **three-seed mean**, while folds 1–3
-are single-seed. `main_revised.tex` was corrected to the seed-42 values; the
-notes were not. Make both single-seed.
+**A known inconsistency, now fixed.** LAB_NOTES §1.2's fold table listed fold 0
+as 0.0993 / 0.1099 — a **three-seed mean** — while folds 1–3 were single-seed.
+`main_revised.tex` had already been corrected to the seed-42 values; the notes
+had not. The whole table is now new-context single-seed, and the paragraph that
+depended on it was rewritten to match.
 
 ### Paired bootstrap, fusion minus sequence-only
 
-Cross-seed ensemble, 26,570 loci, 257 genomic blocks, 5,000 replicates, read
-from `paired_model_difference_bootstrap.csv` (**not** `run_summary.json`, which
-holds metadata only):
+New-context values, cross-seed ensemble, read from
+`results/journal/ablation_breast_epithelium/paired_model_bootstrap/paired_model_difference_bootstrap.csv`
+(**not** `run_summary.json`, which holds metadata only; and **not**
+`results/journal/paired_model_bootstrap/`, which is the pre-swap run and stays
+frozen as the internal record):
 
-    roc_auc    +0.016643 [+0.014663, +0.018769]   P(diff>=0) = 1.0
+    roc_auc    +0.016643 [+0.014663, +0.018769]
     beta_mae   -0.018188 [-0.019616, -0.016756]   P(diff>=0) = 0.0
     beta_rmse  -0.032530 [-0.035247, -0.030062]
-    m_mae      -0.156464 [-0.168563, -0.144415]
+    m_mae      -0.156464 [-0.168563, -0.144415]   P(diff>=0) = 0.0
     m_rmse     -0.254229 [-0.279333, -0.232417]
 
-All three seeds agree in sign with intervals excluding zero (β MAE −0.0204 /
-−0.0203 / −0.0148 and AUROC +0.0189 / +0.0183 / +0.0155 for seeds 42 / 43 / 44).
+All three seeds agree in sign with intervals excluding zero: roc_auc +0.018868,
++0.018317, +0.015487 for seeds 42/43/44.
 
-**The gain over sequence-only grew with the better context**, from −0.0104 to
-−0.0182 β MAE and from +0.0105 to +0.0166 AUROC.
+**Against the context-only arm the ordering has inverted, and this is the one
+narrative change the swap forced.**
 
-**The comparison against the context-only arm inverted, and that is the
-reframing to carry into the text.** Fusion minus context-only is now roc_auc
-+0.009851 [+0.007679, +0.012420] and m_mae −0.159558 [−0.175944, −0.144258] —
-about five-fold smaller on AUROC than the previous +0.0507 and 2.4-fold smaller
-on m MAE than the previous −0.378, because the context arm itself improved so
-much. On absolute β MAE the context-only arm (0.1022) now **beats** sequence-only
-(0.1079), and on AUC as well (0.9658 against 0.9590); under the previous context
-it did neither. That inversion survives the choice of estimator — mean-of-seeds
-gives 0.1022 against 0.1099 — which matters because the absolute values quoted
-in the ladder above are mean-of-seeds and the ones in this block are the
-cross-seed ensemble. The two differ most for sequence-only (0.1099 against
-0.1079) and are not in conflict; per LAB_NOTES §7B, quote the ensemble only as
-the ensemble. Fusion now sits closer to its context arm (0.0125 β MAE) than to
-its sequence arm (0.0182). The old line — "sequence carries the signal, context
-modifies it" — no longer describes the level task and must not be carried over.
+| ensemble | old (MCF-10A) | new (breast epithelium) |
+|---|---|---|
+| fusion − epi, roc_auc | +0.0507 | +0.009851 [+0.007679, +0.012420] |
+| fusion − epi, m_mae | −0.378 | −0.159558 [−0.175944, −0.144258] |
 
-This is a statement about methylation **levels** only. It says nothing about
-variant effects, where R2 finds the arms indistinguishable.
+Fusion now beats the context-only arm by *less* than it beats the sequence-only
+arm (+0.0099 vs +0.0166 AUROC). The old sentence — "an order of magnitude
+larger… sequence carries the signal, context modifies it" — is dead. It was an
+artefact of a weak context, not a property of the architecture. Do not reuse it
+anywhere.
 
-**How to write it.** The gain is consistent and significant, and now moderate
-rather than small: roughly 1.7 points of β MAE. That is larger than the previous
-1.0 and worth stating plainly, but it is still not "substantial" — a reviewer
-will convert the AUROC delta into plain language whether or not you do, and
-overreach here costs credibility on the parts that are strong.
+This is consistent with the ladder above: context-only β MAE 0.1022 now sits
+*below* sequence-only 0.1099. On methylation level, the two towers are
+comparable and the context tower is marginally ahead.
+
+**How to write it.** Two claims, and they must be kept apart:
+
+1. *On methylation level*, the two modalities are comparable and complementary —
+   fusion beats each arm by a consistent, significant margin (~1.8 points of
+   β MAE, ~0.017 AUROC) and neither arm dominates. Larger than the previous ~1.0
+   and worth stating plainly, but still not "substantial"; a reviewer will
+   convert the AUROC delta into plain language whether or not you do.
+2. *On variant effect* (R2), only the sequence tower contributes at all, and
+   that is structural rather than empirical — the context vector is
+   byte-identical for REF and ALT.
+
+The inversion strengthens the paper rather than weakening it. The dissociation
+is now between two arms of **comparable** level-prediction skill, one of which
+is mathematically incapable of producing a variant effect. That is a cleaner
+statement than the old one, which invited the reply that context simply was not
+very informative.
 
 ### Classical sequence baselines
 
@@ -174,63 +184,54 @@ closes the gap.* Its variant scores exist
 (`sequence_baselines/variant_scoring/heldout/{composition,kmer_ridge}/seed-1/`,
 66,495 pairs, all counters clean).
 
-**The prediction does not fire on the primary metric.** GENOA, non-CpG-altering,
-cross-seed ensemble, 1 Mb block bootstrap. The distance-only baseline is
-0.5952795746 in every row of both runs, and the cohort sizes match exactly
-(42,866 scored / 8,074 matched / 4,037 significant), so the two evaluations are
-measuring the same pairs:
+**The adverse reading does not fire.** Under distance control the k-mer ridge is
+at chance on variant effects:
 
-| model | AUROC within distance bin | AUROC distance-matched | signed rho | direction agr. |
-|---|---|---|---|---|
-| composition | 0.4669 [0.4543, 0.4803] | 0.463–0.465 (4 constructions) | −0.0377 [−0.0723, −0.0004] | 0.4835 [0.4659, 0.5013] |
-| k-mer ridge | 0.5055 [0.4924, 0.5170] | 0.504–0.512 (4 constructions) | +0.1000 [+0.0592, +0.1326] | 0.5377 [0.5216, 0.5551] |
-| sequence-only | 0.5745 [0.5591, 0.5898] | 0.5629 (1 construction) | +0.1497 [+0.1161, +0.1833] | 0.5541 [0.5362, 0.5728] |
-| fusion | 0.5722 [0.5576, 0.5869] | 0.5559 (1 construction) | +0.1487 [+0.1148, +0.1842] | 0.5559 [0.5376, 0.5728] |
+| model | AUROC within distance bin | signed rho |
+|---|---|---|
+| k-mer ridge (k ≤ 6) | 0.5055 [0.4934, 0.5172] | +0.1000 [+0.0592, +0.1326] |
+| sequence | 0.5745 [0.5591, 0.5898] | +0.1497 [+0.1161, +0.1833] |
+| fusion | 0.5722 [0.5576, 0.5869] | +0.1487 [+0.1148, +0.1842] |
 
-**Quote the within-distance-bin column, not the distance-matched one.** Every
-value in the first, third and fourth columns is bit-reproducible: the 28 Aug and
-12 Sep baseline evaluations agree to all printed digits on `auroc_marginal`,
-`auroc_within_distance_bin`, `signed_rho` and `direction_agreement`. The
-distance-matched column is not, because the matched cohort is rebuilt each time
-it is evaluated — k-mer ridge came back 0.5027 and 0.5119 in August and 0.5075
-and 0.5038 in September, four independent constructions of the same comparison
-on the same scores, spanning 0.0092. That is the ~0.01 instability recorded in
-R2, now measured on the baseline arm as well, and it is why the equivalence
-claims in this document rest on paired statistics. All four constructions agree
-on the conclusion, which is the point: k-mer ridge sits at chance either way.
+(neural rows are the GENOA values tabulated in R7 — same cohort, same stratum,
+same estimator)
 
-**k-mer ridge cannot discriminate meQTLs from distance-matched nulls at all.**
-Within distance bin it sits at 0.5055 with the interval spanning 0.5, against
-0.572–0.575 for both neural arms with intervals well clear of chance. The gap of
-roughly 0.067 is about five times the ~0.012 run-to-run instability of this
-metric, so it is readable despite being unpaired. Composition is *below* chance,
-as a pure nucleotide-frequency model over a distance-matched cohort should be.
-So DNABERT-2 pretraining is what buys distance-controlled discrimination, and the
-recorded adverse interpretation is not triggered.
+The k-mer interval spans 0.5; both neural arms sit ~0.067 above it. That gap is
+roughly 5× the 0.012 run-to-run instability of the distance-matched estimator
+(§R2), so it is readable even though the comparison is unpaired — the k-mer
+baseline and the neural models do not share a bootstrap. **The claim this
+supports is discrimination, not effect direction.** On signed rho the intervals
+overlap (k-mer +0.1000 [+0.0592, +0.1326] against +0.1487/+0.1497 with lower
+bounds at +0.115), so the sentence to
+write is that learned sequence representations discriminate variant-affected
+from distance-matched control sites where a k-mer ridge cannot — not that they
+recover the direction of the effect better. Claiming the latter from these
+intervals is exactly the overreach a reviewer will find.
 
-**State the other half honestly: on effect direction it is not clean.** k-mer
-ridge reaches signed rho +0.1000 against the neural +0.149, and the intervals
-overlap (+0.1326 against +0.1148); direction agreement overlaps likewise. So a
-2,772-feature ridge recovers roughly two thirds of the neural rank correlation
-among already-significant pairs and cannot be declared different on these
-numbers. The claim the data supports is **discrimination, not effect direction** —
-write it that way rather than reporting a general baseline win.
+*Source note — read this before quoting the file.* `baseline_variant_evaluation/`
+contains **two** distinct k-mer numbers that are easy to conflate:
 
-**Two provenance points, because both look like problems and are not.** These
-two baselines are sequence-only and never read a context feature, so their
-numbers are untouched by the context swap and are directly comparable to the
-breast-epithelium arms. The `caveats.tissue` field in that `run_summary.json`
-nonetheless reads "context features are MCF-10A breast": that is the hardcoded
-caveat string recorded in LAB_NOTES §1.10, since fixed in
-`21_variant_evaluation.py`, not a statement about how these models were built.
+- `primary_metrics.csv` → `auroc_within_distance_bin` = **0.5054858**. This is
+  bit-reproducible across evaluation passes. **This is the column to quote.**
+- `matched_negative_auroc.csv` → `auroc_distance_matched` = 0.5027 / 0.5119
+  (August) and 0.5075 / 0.5038 (September). These genuinely differ between
+  passes because the matched cohort is rebuilt per evaluation — the same ~0.012
+  instability documented in R2. Not quotable as a single figure.
 
-**What would sharpen it.** The comparison above is unpaired — the baselines were
-evaluated 28 Aug at 500 replicates, the neural arms 12 Sep at 2,000. The
-document's own rule is that only paired differences are reportable below ~0.012,
-which is exactly where the signed-rho comparison sits. A paired run is cheap
-(the score files exist) but needs a column check first: the baseline scores
-predate the `beta_ref_to_alt` / `pvalue` inline-schema change, and mixing schemas
-in one scores directory silently yields no per-model metrics for the older arm.
+Two open items on that directory, neither of which changes the reading:
+
+1. **The duplication is not fixed.** `primary_metrics.csv` still carries 40 rows
+   where 20 are expected — every model × variant class × metric appears twice.
+   Rerunning with `n_boot 2000` did not remove it, so it is a write path that
+   appends a second pass, not a stale file. Harmless if you take the point
+   estimate (identical across passes) and one CI, fatal if anyone ever averages
+   the file. Worth a one-line fix before the data goes into a supplement.
+2. **The interval did not tighten.** `n_boot 2000` left the half-width at
+   0.0239–0.0242 against 0.0246, so the width is set by the 1 Mb block structure
+   and the number of blocks, not by bootstrap replicates. Expected, but it means
+   there is no cheap way to narrow it. The two regenerated passes give
+   [0.4934, 0.5172] and [0.4930, …], differing in the fourth decimal; the
+   interval spans 0.5 under either.
 
 ---
 
@@ -316,9 +317,14 @@ above a distance-matched null?*
 Scripts `30_transfer_synthesis`, `31_transfer_discrimination`,
 `32_transfer_summary`.
 
-**[STALE]** — the nine-tissue scoring has not been rerun on the new context.
-Given R2, it should barely move; rerun it before submission, but the conclusion
-will not change.
+**[STALE], with a spot-check in flight.** The nine-tissue scoring has not been
+rerun on the new context. Given R2 it should barely move, so rather than pay for
+all nine, a single-tissue check is running: Lung, fusion, three seeds (the
+largest of the well-powered tissues at 77,421 rows). Its referent is the 0.5880
+[0.5669, 0.6091] in the table below. If the rerun lands inside that interval,
+the honest write-up is that the nine-tissue result was verified to be
+context-insensitive on the largest tissue and carried over; if it moves, all
+nine have to be rerun.
 
 Distance-matched AUROC, seed ensemble, distance-only pinned to exactly 0.5000 by
 construction, CpG-altering variants excluded (~37% of pairs, enriched for true
@@ -559,28 +565,30 @@ weakly positive result with none.
 
 Scripts `60`–`64`. STK11 and NCOA2 retained per mentor instruction.
 
-**[STALE], and blocked.** The `60 → 62 → 22 → 91` chain has not been rerun: `22`
-and `91` hard-require the candidate CSVs that `60` produces, and `60`/`62` are
-GPU jobs of their own.
+**[STALE], no longer blocked — but the blocker was not the one recorded here.**
+`64_literature_variant_screen.py` not forwarding `--weights-template` was a real
+bug and is fixed (line 746), but `64` shells out to `63` and is not in the
+`60 → 62 → 22 → 91` chain at all. Fixing it unblocked nothing.
 
-**`64_literature_variant_screen.py` — fixed 12 Sep 2026.** It shelled out to `63`
-without forwarding `--weights-template`, so it would have silently scored the
-previous checkpoints and reported a result that looked correct. It now takes a
-`--weights-template` of its own and forwards it; the default is unchanged, so
-existing published-checkpoint invocations behave exactly as before. Scoring the
-ablation requires setting **both** `--weights-template` and `--split-template`.
+The actual blocker was one directory earlier: `data/build_testing_data.py`
+hardcoded `base_ref = data_dir / "reference"` with no `--reference-dir`, while
+`build_training_data.py` has had one since the swap. So no breast-epithelium
+candidate cohort existed, and `60` reads context straight out of
+`testing_data_test_only.csv`. Submitting the chain would have produced exactly
+the hybrid this document warns about — new fusion weights scoring old MCF-10A
+context columns — and nothing would have errored.
 
-One blocker remains before `60` can run against the new context, and it is not a
-scheduling problem. `60` reads its context features as columns of the candidate
-CSV built by `data/build_testing_data.py`, and that script resolves the seven
-bigWigs from a hardcoded `<data-dir>/reference` with no `--reference-dir`
-override — the separation that `build_training_data.py` already has. So there is
-currently no breast-epithelium candidate cohort to score, and pointing `60` at
-the existing one would pair new fusion weights with old context columns and
-produce a hybrid that is neither model. Give `build_testing_data.py` the same
-`--reference-dir` / `--out-dir` pair, rebuild the cohort against
-`data/reference/BreastEpithelium`, and reuse the existing GDC response cache so
-the candidate variant set stays byte-identical.
+`build_testing_data.py` now takes `--reference-dir` / `--out-dir` mirroring the
+training script, with phyloP still from the published reference, the GDC cache
+still read from `data/datafiles/` so the variant set cannot drift, and a guard
+refusing to write an alternative context into the published path. The rebuilt
+cohort is verified against the published one: 771 candidates, 0 reference-allele
+mismatches, exactly seven columns differing (the seven context tracks), all 55
+others byte-identical including `Candidate_ID`, positions, alleles, sequences
+and all four phyloP columns.
+
+Note that `.gitignore` ignores `data/*`, so the rebuilt cohort lives only on
+cluster disk. The patch travels in git; the cohort does not.
 
 On NCOA2, keep the existing framing: its active chromatin context is an
 independent annotation of that locus and **not a contributor to the predicted
@@ -634,19 +642,26 @@ replication of discrimination.
 
 ### Meta-analysis over independent LD blocks
 
-Rerun 12 Sep on the new context, GENOA (132,990 rows, p < 5e-8) and eGTEx
-(153,786 rows, p < 1.483e-5):
+Rerun 12 Sep 23:21 UTC on the new context, both arms, GENOA (132,990 rows,
+p < 5e-8) and eGTEx (153,786 rows, p < 1.483e-5):
 
     fusion    rho_meta 0.1723 [0.0624, 0.2780]  p = 0.0022  I2 = 0.0  Q p = 0.479  k = 2
+    sequence  rho_meta 0.1698 [0.0599, 0.2757]  p = 0.0026  I2 = 0.0  Q p = 0.546  k = 2
 
-Previous configuration, for reference: fusion 0.1775 [0.0678, 0.2829], sequence
-0.1698 [0.0599, 0.2757]. The point estimate is essentially unchanged.
+**Two internal consistency checks pass here, and both are worth one sentence.**
 
-**The sequence arm is missing from this rerun** — the synthesis ran at 16:53,
-before the sequence rescore completed, so only fusion is in `meta_analysis`.
-Rerun `30_transfer_synthesis` now that both arms have current scores; it is CPU
-and takes minutes. Until then the fusion-vs-sequence equivalence in R7 rests on
-the previous values.
+The sequence arm returns **0.1698 [0.0599, 0.2757]** — identical to the previous
+configuration's value, to four decimals. It should be: the sequence tower was
+reused verbatim and never sees context. That the whole pipeline reproduces it
+exactly is evidence the rerun did what it claims.
+
+Fusion moved 0.1775 → 0.1723, far inside its own interval, so the context change
+does not move the meta-analytic effect either.
+
+**R2 replicates a third time here.** fusion 0.1723 and sequence 0.1698 are
+indistinguishable — after the paired tests in both cohorts (R2) and the nine
+per-tissue comparisons (R3), this is the cross-cohort meta-analytic version of
+the same result.
 
     eGTEx conditional   breast, European-dominant      81  rho 0.610 [0.452, 0.731]
     eGTEx regular       breast, European-dominant     418  rho 0.246 [0.114, 0.402]
