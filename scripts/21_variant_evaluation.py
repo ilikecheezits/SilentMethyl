@@ -60,6 +60,7 @@ import json
 import logging
 import os
 import sys
+from collections.abc import Sequence
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -157,8 +158,17 @@ CONTEXT_SOURCES = {
         "coverage track)",
 }
 
+# Models that have no context tower at all. For these the honest answer is
+# "none", not "unrecorded": there is nothing to record. "unrecorded" reads as a
+# logging failure and sends a reader looking through the scoring run_summary for
+# a weights path that was never meant to exist -- which is what it did for the
+# kmer_ridge / composition baselines, whose run_summary.json claimed the context
+# features were "unrecorded (no weights path found ...)" when the correct
+# statement is that these models do not consume context features.
+CONTEXT_FREE_MODELS = {"sequence", "kmer_ridge", "composition"}
 
-def describe_context_source(scores_dir: Path) -> str:
+
+def describe_context_source(scores_dir: Path, models: Sequence[str] = ()) -> str:
     """Name the context the scored checkpoints used, from the scoring record.
 
     This used to be a hardcoded string saying "MCF-10A breast". It kept saying
@@ -166,7 +176,17 @@ def describe_context_source(scores_dir: Path) -> str:
     claim into every run_summary.json without anything failing. A caveat that
     can silently go stale is worse than none, so it is derived rather than
     asserted -- and when it cannot be derived it says so instead of guessing.
+
+    ``models`` short-circuits the derivation when every evaluated arm is
+    context-free, because for those runs the absence of a weights path is the
+    expected state rather than missing provenance.
     """
+    named = [str(m) for m in models]
+    if named and all(m in CONTEXT_FREE_MODELS for m in named):
+        listed = ", ".join(sorted(set(named)))
+        verb = "is a sequence-only model" if len(set(named)) == 1 else "are sequence-only models"
+        return f"none ({listed} {verb} with no context tower)"
+
     weights: list[str] = []
     for summary in sorted(Path(scores_dir).rglob("run_summary*.json")):
         try:
@@ -183,8 +203,39 @@ def describe_context_source(scores_dir: Path) -> str:
             elif isinstance(node, str) and "best_weights.pth" in node:
                 weights.append(node)
     if not weights:
+        # 20_variant_scoring.py records the weights PATH as a column of
+        # pair_scores.csv and only the weights SHA in run_summary*.json, so the
+        # JSON scan above finds nothing even for a perfectly well-recorded run.
+        # That made this guard fail open on every real evaluation -- both
+        # ablation run_summary.json files say "unrecorded" while the scores
+        # beside them name checkpoints_ablation/breast_epithelium. Fall back to
+        # the column that actually carries the path.
+        for scores in sorted(Path(scores_dir).rglob("pair_scores*.csv")):
+            try:
+                column = pd.read_csv(scores, usecols=["Weights_Path"])
+            except (OSError, ValueError, pd.errors.ParserError):
+                continue
+            weights.extend(str(v) for v in column["Weights_Path"].dropna().unique())
+
+    if not weights:
         return (f"unrecorded (no weights path found under {scores_dir}); "
-                "check the scoring run_summary before quoting this")
+                "check the scoring run_summary or the Weights_Path column of "
+                "pair_scores.csv before quoting this")
+
+    # A sequence-only arm keeps living under checkpoints_journal because it has
+    # no context tower and so was never retrained for the context swap. Reading
+    # its checkpoint root as a context source made the mixed-source alarm fire on
+    # every ablation evaluation -- fusion from checkpoints_ablation beside
+    # sequence from checkpoints_journal -- and declare a correct comparison
+    # "not comparable". Only weights that carry a context tower can name a
+    # context source.
+    context_bearing = [w for w in weights
+                       if not (CONTEXT_FREE_MODELS & set(Path(w).parts))]
+    if weights and not context_bearing:
+        listed = ", ".join(sorted({m for w in weights
+                                   for m in CONTEXT_FREE_MODELS & set(Path(w).parts)}))
+        return f"none ({listed} scored; no context tower)"
+    weights = context_bearing
 
     matched = {label for root, label in CONTEXT_SOURCES.items()
                if any(root in w for w in weights)}
@@ -626,6 +677,10 @@ def main() -> int:
 
     make_figures(gradient, primary, pd.DataFrame(matched_rows), out, args)
 
+    # Derived once so the tissue caveat and the context_source field cannot drift
+    # apart -- they were two independent calls before.
+    context_source = describe_context_source(args.scores_dir, args.models)
+
     atomic_json(
         {
             "analysis": (f"{COHORTS[args.cohort]['label']} variant evaluation "
@@ -664,11 +719,11 @@ def main() -> int:
             "caveats": {
                 "effect_scale": COHORTS[args.cohort]["effect_scale"],
                 "tissue": COHORTS[args.cohort]["tissue_caveat"].format(
-                    context_source=describe_context_source(args.scores_dir)),
+                    context_source=context_source),
                 "dependence": ("Pairs are in LD. All intervals are 1 Mb block "
                                "bootstraps; naive intervals would be far too narrow."),
             },
-            "context_source": describe_context_source(args.scores_dir),
+            "context_source": context_source,
         },
         out / "run_summary.json",
     )

@@ -144,25 +144,38 @@ Held-out sizes are matched by construction (26,570-26,806). Sex chromosomes stay
 in training for every fold and are never evaluated -- chrY is absent in female
 donors and chrX carries X-inactivation, so a fold holding either out would not
 measure the same quantity as the rest.
-*VERIFIED 5 Sep 2026* (the numbers live in
-`paired_model_bootstrap/paired_model_difference_bootstrap.csv`, NOT in
-`run_summary.json`, which holds metadata only). Cross-seed ensemble, 26,570 loci,
+*VERIFIED 12 Sep 2026, breast-epithelium context* (the numbers live in
+`ablation_breast_epithelium/paired_model_bootstrap/paired_model_difference_bootstrap.csv`,
+NOT in `run_summary.json`, which holds metadata only, and NOT in the
+pre-swap `results/journal/paired_model_bootstrap/` copy, which is the 11 Aug
+MCF-10A run and must not be quoted). Cross-seed ensemble, 26,570 loci,
 257 genomic blocks, fusion minus sequence-only:
 
-    roc_auc    +0.010533 [+0.009090, +0.012069]   P(diff>=0) = 1.0
-    beta_mae   -0.010429 [-0.011323, -0.009514]   P(diff>=0) = 0.0
-    beta_rmse  -0.019041 [-0.020601, -0.017471]
-    m_mae      -0.094613 [-0.102197, -0.086805]
-    m_rmse     -0.150900 [-0.163059, -0.139263]
+    roc_auc    +0.016643 [+0.014663, +0.018769]   P(diff>=0) = 1.0
+    beta_mae   -0.018188 [-0.019616, -0.016756]   P(diff>=0) = 0.0
+    beta_rmse  -0.032530 [-0.035247, -0.030062]   P(diff>=0) = 0.0
+    m_mae      -0.156464 [-0.168563, -0.144415]   P(diff>=0) = 0.0
+    m_rmse     -0.254229 [-0.279333, -0.232417]   P(diff>=0) = 0.0
 
-All three individual seeds agree in sign with intervals excluding zero. Against
-the epigenomic-only arm the gap is an order of magnitude larger (ensemble
-roc_auc +0.0507, m_mae -0.378), as expected — sequence carries the signal,
-context modifies it.
+All three individual seeds agree in sign, on all five metrics, with every
+interval excluding zero (roc_auc +0.018868 / +0.018317 / +0.015487 for seeds
+42 / 43 / 44; beta_mae -0.020442 / -0.020265 / -0.014770).
+
+**The comparison against the epigenomic-only arm has INVERTED and the old
+sentence must not be reused.** Pre-swap, the fusion-minus-epi gap was an order
+of magnitude larger than fusion-minus-sequence (roc_auc +0.0507, m_mae -0.378).
+With the breast-epithelium context the epi arm improves enough that the gap
+collapses: ensemble roc_auc **+0.009851** [+0.007679, +0.012420] and m_mae
+**-0.159558** [-0.175944, -0.144258]. Fusion now beats the epi-only arm by
+*less* AUROC than it beats the sequence-only arm (+0.0099 vs +0.0166), and by
+about the same M-value MAE (-0.160 vs -0.156). The two single-modality arms are
+now roughly equally far from fusion. Do not write "sequence carries the signal,
+context modifies it" on the strength of these numbers -- that ordering was an
+artefact of the weak MCF-10A context.
 
 *How to write it.* The gain is **consistent and significant but small**:
-+0.011 AUROC and ~1.0 percentage point of beta-value MAE. Say that explicitly.
-A reviewer will convert 0.011 into plain language whether or not we do, and
++0.017 AUROC and ~1.8 percentage points of beta-value MAE. Say that explicitly.
+A reviewer will convert 0.017 into plain language whether or not we do, and
 claiming "substantial" here is the kind of overreach that costs credibility on
 the parts of the paper that are strong.
 
