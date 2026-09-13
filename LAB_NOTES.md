@@ -110,21 +110,34 @@ sequence alone and beat published architectures?
 *Status:* **done.** Three arms x three seeds, vs CpGenie, DeepCpG, k-mer ridge,
 composition.
 
-*REPEATED CHROMOSOME-BLOCKED FOLDS COMPLETE, 8 Sep 2026.* Four folds, each with
-both towers and the gate retrained end to end on that fold's training
-chromosomes. Test-set results:
+*REPEATED CHROMOSOME-BLOCKED FOLDS COMPLETE, 8 Sep 2026. Values refreshed for the
+breast-epithelium context, 12 Sep 2026.* Four folds, each with the gate and the
+context tower retrained end to end on that fold's training chromosomes; each
+fold's sequence tower is its own and was reused unchanged, so the seq column is
+unaffected by the context swap.
+
+**SINGLE SEED (42) THROUGHOUT.** Fold 0 previously carried 0.0993 / 0.1099, which
+was a three-seed MEAN sitting in a table of single-seed rows; the two were not
+comparable. `main_revised.tex` was corrected at the time and these notes were
+not. Test-set results:
 
     fold  test chromosomes        n        fusion b MAE  seq b MAE  d b MAE   d AUC
-    0     chr8, chr9              26,570   0.0993        0.1099     -0.0106   +0.0111
-    1     chr12, chr18            26,748   0.0942        0.1040     -0.0098   +0.0100
-    2     chr20, chr4             26,783   0.0990        0.1064     -0.0074   +0.0093
-    3     chr13, chr15, chr21     26,806   0.0938        0.1049     -0.0111   +0.0110
+    0     chr8, chr9              26,570   0.0885        0.1090     -0.0205   +0.0189
+    1     chr12, chr18            26,748   0.0873        0.1040     -0.0167   +0.0154
+    2     chr20, chr4             26,783   0.0934        0.1064     -0.0130   +0.0153
+    3     chr13, chr15, chr21     26,806   0.0862        0.1049     -0.0187   +0.0165
 
-**The fusion gain reproduces on every split.** The published -0.0106 sits inside
-the fold range (-0.0074 to -0.0111), so the original split was neither lucky nor
-unlucky. Absolute performance varies more than the gain does (0.0938-0.0993),
-which is the expected consequence of chromosomes differing in gene density; the
-two most gene-poor folds gave the LOWEST error, so the model is not carried by
+**The fusion gain reproduces on every split**, mean -0.0173, range -0.0130 to
+-0.0205, AUC +0.0153 to +0.0189. Every split agrees in sign on both metrics.
+
+**The published split is now the STRONGEST of the four, not a middling one.**
+Like for like, -0.0205 is the largest gain in the table. The old wording --
+"neither lucky nor unlucky" -- was an artefact of comparing a three-seed mean
+against single-seed folds and must not be reused; say instead that the published
+split is the most favourable of the four and that the gain reproduces on all of
+them. Absolute performance still varies more than the gain does (0.0862-0.0934),
+the expected consequence of chromosomes differing in gene density; the two most
+gene-poor folds again give the LOWEST error, so the model is not carried by
 promoter-dense regions.
 
 Held-out sizes are matched by construction (26,570-26,806). Sex chromosomes stay
