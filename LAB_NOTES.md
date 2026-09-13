@@ -570,7 +570,16 @@ the published split are `0.0971 / 0.1090 / 0.9699 / 0.9576`.
 | fold 1 | −0.0098 | +0.0100 |
 | fold 2 | −0.0074 | +0.0093 |
 | fold 3 | −0.0111 | +0.0110 |
-| 3-seed paired bootstrap (ensemble) | −0.0104 | +0.0105 |
+
+*The 3-seed paired-bootstrap ensemble row (−0.0104 / +0.0105) was REMOVED on
+13 Sep 2026, not updated.* It was the pre-swap MCF-10A ensemble, and the new
+value is −0.0182 / +0.0166 (R1) — but dropping that into this table would have
+compared a new-context ensemble against four old-context folds. The folds cannot
+be refreshed: `results/journal/ablation_breast_epithelium/fold{1,2,3}/` carry
+`epi` and `fusion` only, and these deltas are fusion **minus sequence**, so
+there is no per-fold sequence arm to difference against. Quote the ensemble from
+R1, where it sits beside its own context; quote the folds from here, where every
+row is seed 42 on MCF-10A. Do not mix them in one table.
 
 This *changes a claim*. The old text said the published values sat "inside both
 ranges" — i.e. the published split was unremarkable. Like-for-like, the

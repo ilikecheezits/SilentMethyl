@@ -123,8 +123,13 @@ COHORTS = {
         # pipeline produced (LAB_NOTES 1.10). A caveat that can go stale without
         # anything failing is worse than no caveat, so it is derived from the
         # weights actually scored and filled in by summarise().
-        "tissue_caveat": ("GENOA is peripheral blood; SilentMethyl is trained on "
-                          "breast and its context features are {context_source}. "
+        # The model clause is derived, not hardcoded, for the same reason the
+        # context source is: this string asserted "SilentMethyl is trained on
+        # breast" over every run, including the k-mer ridge and composition
+        # baseline evaluations, which are not SilentMethyl and have no context
+        # features. The cohort half of the caveat is true regardless; only the
+        # model half has to be filled in by summarise().
+        "tissue_caveat": ("GENOA is peripheral blood; {model_clause}. "
                           "This is cross-tissue, cross-ancestry transfer, not "
                           "tissue-matched validation."),
         "effect_scale": ("GENOA betas are on a normalized-phenotype scale. Rank "
@@ -166,6 +171,10 @@ CONTEXT_SOURCES = {
 # features were "unrecorded (no weights path found ...)" when the correct
 # statement is that these models do not consume context features.
 CONTEXT_FREE_MODELS = {"sequence", "kmer_ridge", "composition"}
+
+# Of those, these are not SilentMethyl at all -- they are the published-baseline
+# arms, and no claim about SilentMethyl's training tissue applies to them.
+BASELINE_MODELS = {"kmer_ridge", "composition"}
 
 
 def describe_context_source(scores_dir: Path, models: Sequence[str] = ()) -> str:
@@ -249,6 +258,17 @@ def describe_context_source(scores_dir: Path, models: Sequence[str] = ()) -> str
                 + " -- these results are not comparable to each other")
     roots = sorted({w.split("/best_weights.pth")[0] for w in weights})[:3]
     return f"unrecognised checkpoint root(s): {', '.join(roots)}"
+
+
+def describe_model_clause(models: Sequence[str], context_source: str) -> str:
+    """Say what was actually scored, for the cohort tissue caveat."""
+    named = [str(m) for m in models]
+    if named and all(m in BASELINE_MODELS for m in named):
+        listed = ", ".join(sorted(set(named)))
+        return (f"the scored models ({listed}) are sequence-only published "
+                "baselines, not SilentMethyl, and use no context features")
+    return ("SilentMethyl is trained on breast and its context features are "
+            f"{context_source}")
 
 
 # --------------------------------------------------------------------------- io
@@ -541,7 +561,14 @@ def main() -> int:
     LOGGER.info("non-CpG-altering pairs per model-seed: %d",
                 int(len(clean) / (len(args.models) * (len(args.seeds) + 1))))
 
-    seed_labels = [*args.seeds, -1]
+    # -1 is the cross-seed ensemble label, appended to whatever seeds were asked
+    # for. A run invoked with "--seeds -1" (the sequence/k-mer baselines do
+    # exactly that, having no per-seed arm) therefore got [-1, -1] and emitted
+    # every row of primary_metrics.csv and matched_negative_auroc.csv twice --
+    # identical point estimates, different CIs, because the shared rng advances
+    # between the two passes. Nothing published was wrong, but averaging the
+    # file gives garbage. Dedupe, order-preserving.
+    seed_labels = list(dict.fromkeys([*args.seeds, -1]))
 
     # ---- 1. headline metrics, per model, per seed, per CpG-altering stratum
     rows = []
@@ -680,6 +707,7 @@ def main() -> int:
     # Derived once so the tissue caveat and the context_source field cannot drift
     # apart -- they were two independent calls before.
     context_source = describe_context_source(args.scores_dir, args.models)
+    model_clause = describe_model_clause(args.models, context_source)
 
     atomic_json(
         {
@@ -718,8 +746,10 @@ def main() -> int:
             },
             "caveats": {
                 "effect_scale": COHORTS[args.cohort]["effect_scale"],
-                "tissue": COHORTS[args.cohort]["tissue_caveat"].format(
-                    context_source=context_source),
+                "tissue": (COHORTS[args.cohort]["tissue_caveat"].format(
+                    model_clause=model_clause)
+                    if "{model_clause}" in COHORTS[args.cohort]["tissue_caveat"]
+                    else COHORTS[args.cohort]["tissue_caveat"]),
                 "dependence": ("Pairs are in LD. All intervals are 1 Mb block "
                                "bootstraps; naive intervals would be far too narrow."),
             },
