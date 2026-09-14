@@ -730,6 +730,35 @@ R3 narrows this by one dimension: it varies tissue alone across nine
 European-dominant eGTEx cohorts, so tissue is measured on its own and GENOA's
 marginal contribution is ancestry plus platform.
 
+### Against the published baselines on variant effects
+
+*Restored 14 Sep 2026: this subsection was dropped in commit `fd017a1` while the
+§R3 paragraph above still cites its bit-identity result. Numbers unchanged from
+the 13 Sep rebuild; recovered from `aca3354`. Delete deliberately if that is the
+intent, but delete the citation with it.*
+
+`31_transfer_discrimination`, fusion as reference, DeepCpG and CpGenie as
+comparisons, one shared distance-matched cohort per cohort. Both reproduced their
+published cohorts exactly (GENOA 42,866 pairs / 4,037 significant at 5e-08;
+eGTEx 47,991 / 418 at the calibrated 1.483e-5).
+
+| cohort | fusion, MCF-10A | fusion, breast epi | shift |
+|---|---|---|---|
+| GENOA | 0.5604 [0.5420, 0.5780] | 0.5618 [0.5443, 0.5787] | +0.0014 |
+| eGTEx | 0.5868 [0.5380, 0.6514] | 0.5870 [0.5398, 0.6491] | +0.0002 |
+
+**DeepCpG and CpGenie came back bit-identical** in value and both CI bounds —
+GENOA 0.5427 [0.5260, 0.5585] and 0.5567 [0.5372, 0.5764]; eGTEx 0.5943 [0.5542,
+0.6394] and 0.5770 [0.5227, 0.6442] — because those score files read DNA only and
+are untouched by our context. That is the same internal control as R3: the whole
+movement is the fusion column, and it is negligible.
+
+**The conclusion is unchanged and now holds on the new context:** fusion is not
+distinguishable from DeepCpG or CpGenie on distance-matched AUROC. The GENOA tail
+arm still separates — fusion over CpGenie at top 0.5% (+0.0981 [+0.0203,
++0.1906]) and top 1% (+0.0886 [+0.0242, +0.1345]), and over DeepCpG at top 5%
+(+0.0219 [+0.0019, +0.0441]). Quote the paired differences, not the marginals.
+
 ---
 
 ## Superseded — remove in one coordinated edit
