@@ -4,10 +4,11 @@ Written 12 Sep 2026, updated 13 Sep 2026. Follows the R1–R7 framework in
 LAB_NOTES §1.2. Values from `results/journal/ablation_breast_epithelium/` where
 the rerun is complete.
 
-**Status, 13 Sep 2026: no [STALE] or [FILL] markers remain in the body.** R3 was
-resolved by the Lung spot-check (landed inside its referent) and R6 is the only
-section whose inputs are still being rebuilt — six jobs, four done or running,
-tracked in the R6 table. Every other section is final on the new context.
+**Status, 13 Sep 2026 22:43: the context swap is CLOSED.** No [STALE] or [FILL]
+markers remain in the body. R3 was resolved by the Lung spot-check (landed inside
+its referent) and R6's six-job rebuild finished with every job exit 0 and every
+input breast-epithelium. Every section is final on the new context, and the
+figure set is manuscript-ready.
 
 Markers used throughout (both now retired, kept for future revisions):
 
@@ -592,33 +593,37 @@ weakly positive result with none.
 
 Scripts `60`–`64`. STK11 and NCOA2 retained per mentor instruction.
 
-**IN FLIGHT as of 13 Sep 2026, 22:30 — the chain is submitted and self-completing.**
+**COMPLETE, 13 Sep 2026 22:43. Every R6 input is now breast-epithelium.**
 `64_literature_variant_screen.py` not forwarding `--weights-template` was a real
 bug and is fixed (line 746; it now forwards `--split-template` too, and both must
 be set explicitly because the defaults still point at `checkpoints_journal` and
 `data/datafiles`). But `64` shells out to `63` and is not in the
 `60 → 62 → 22 → 91` chain at all. Fixing it unblocked nothing.
 
-Current state of the R6/R7 rebuild (`jobs/r7_ablation/`, `afterok`-chained so a
-failure stops the chain rather than feeding stale inputs forward):
+The rebuild (`jobs/r7_ablation/`, `afterok`-chained) — all six COMPLETED 0:0,
+every one logging `clobber check clean`:
 
-| job | id | state |
+| job | id | result |
 |---|---|---|
-| `63_known_variant` | 45920218 | **done** — 27 model-visible CpG pairs |
-| `64_literature` | 45920219 | running |
-| `70_mqtl_positive` | 45920214 | running |
-| `71_mqtl_negative` | 45920215 | waits on 70 |
-| `22_context` | 45920224 | waits on 70 |
-| `91_figures` | 45920225 | waits on 22 **and** 64 |
+| `63_known_variant` | 45920218 | 27 model-visible CpG pairs |
+| `70_mqtl_positive` | 45920214 | 81 loci, seeds 42/43/44 |
+| `22_context` | 45920224 | 26,570 held-out CpGs, 440 candidates, 81 fusion mQTL associations |
+| `64_literature` | 45920219 | 1,318 resolved GRCh38 SNVs → 322 candidates → 321 scored pairs (910 model-visible) |
+| `71_mqtl_negative` | 45920935 | same lead-mQTL input as published (sha256 `604c34e4…`) |
+| `91_figures` | 45920225 | 6 figures, **manuscript-ready** |
 
-**Until 91 lands, do not circulate the figure set.** The R6 figures in
-`ablation_breast_epithelium/manuscript_figures/` are a STAGING run: they were
-built on the published MCF-10A mQTL positive control and MCF-10A literature
-screen, because no breast-epithelium rebuild of either existed at the time. Both
-job scripts printed `[!] CROSS-CONTEXT INPUT` and 91 declared itself
-not-manuscript-ready, so this was flagged, never silently mixed. 45920224 and
-45920225 rebuild both on new-context inputs and refuse to start if those inputs
-are absent.
+**The figure set is now circulatable.** 91's `run_summary.json` records nine
+input paths and **all nine resolve under `ablation_breast_epithelium/`** — no
+MCF-10A product survives anywhere in the figure chain. This run supersedes the
+R6 STAGING set, which had been built on the published MCF-10A mQTL positive
+control and literature screen (flagged at the time with `[!] CROSS-CONTEXT
+INPUT`, never silently mixed).
+
+One note on 71: its first attempt (45920215) failed at 18 s on
+`FileNotFoundError` — the script default `data/BreastMammaryTissue.regular.perm.
+fdr.txt` is the path the published run used, but the file has since moved to
+`data/external/egtex_breast/`. Verified byte-identical to the published input
+before resubmitting, so this was a relocation, not a data change.
 
 For `70`/`71` the flag that makes it a new-context run is **`--test-csv`**, not a
 weights flag: both scripts merge `TABULAR_FEATURES` off that file, so it must be

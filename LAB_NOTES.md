@@ -1158,8 +1158,14 @@ that consumed them survives — so this was a rebuild from scratch, not a
 re-point. Conclusion reproduces: report uncertainty on M-value error;
 `boundary_distance` was tracking the compressed range of beta near 0 and 1.
 
-**Queued — the six-job R7 chain.** Dependencies are `afterok`, so a failure stops
-the chain rather than feeding stale inputs forward.
+**Finished — the six-job R7 chain, all exit 0:0 by 22:43.** Dependencies were
+`afterok`, so a failure would have stopped the chain rather than feeding stale
+inputs forward. One did fail and the guard worked: `71`'s first attempt
+(45920215) died at 18 s on `FileNotFoundError` because the script default
+`data/BreastMammaryTissue.regular.perm.fdr.txt` had moved to
+`data/external/egtex_breast/`. Byte-identity to the published input was verified
+(sha256 `604c34e4…03743da0`) before resubmitting as 45920935 — a relocation, not
+a data change. **Fix the script default**, or this fires again on the next run.
 
 | job | id | waits on |
 |---|---|---|
@@ -1177,11 +1183,16 @@ must be `data/datafiles_breast_epithelium/test.csv`. The fusion arm uses
 stays on `checkpoints_journal` — there is no ablation sequence checkpoint and
 there should not be.
 
-**What the chain retires.** The R6 `biological_context` and `manuscript_figures`
-were STAGING runs built on MCF-10A mQTL and literature inputs. 45920224 and
-45920225 rebuild both on new-context inputs and both refuse to start if those
-inputs are absent, so the cross-context caveat on §10's figure set goes away
-when 91 lands. Until then, do not circulate the R6 figures.
+**What the chain retired — done.** The R6 `biological_context` and
+`manuscript_figures` were STAGING runs built on MCF-10A mQTL and literature
+inputs. 45920224 and 45920225 rebuilt both on new-context inputs. 91's
+`run_summary.json` records nine input paths and **all nine now resolve under
+`ablation_breast_epithelium/`**, so no MCF-10A product survives in the figure
+chain. The cross-context caveat is retired and the figures are circulatable.
+Job results: 63 → 27 model-visible pairs; 70 → 81 loci; 22 → 26,570 held-out
+CpGs / 440 candidates / 81 fusion mQTL associations; 64 → 1,318 resolved SNVs →
+322 candidates → 321 scored pairs; 71 → same lead input as published; 91 → 6
+figures.
 
 Every job carries `check_no_clobber`. A session-wide `find -newermt` over
 `results/journal/` confirmed nothing outside the ablation subtree was written.
