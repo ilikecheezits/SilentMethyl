@@ -1881,11 +1881,30 @@ before the numbers land:**
    back ≈0%, and that is correct behaviour, not a bug.* `epi` itself **is**
    bit-identical (same tabular input both alleles). Its **contribution**
    `g_epi × epi` is not, because the gate network reads `[dna, epi]` and `dna`
-   moves with the allele. The fallback measures |g_epi(ALT) − g_epi(REF)|:
-   median 1.0e-4, p95 1.4e-3, max 0.055. That residual is the *sole* channel by
-   which context can touch a variant effect — small, but **not zero**. The paper
-   must not claim zero. The script separates the two quantities deliberately
+   moves with the allele. That residual is the *sole* channel by which context
+   can touch a variant effect — small, but **not zero**. The paper must not
+   claim zero. The script separates the two quantities deliberately
    (`Epi_Vector_Bit_Identical_*` vs `Epi_Contribution_Bit_Identical_*`).
+
+   **Scale reconciliation, 14 Sep 2026 — do not quote 0.055 as the channel
+   size.** A first reading paired "0.055" against "gate_epi ≈ 0.017–0.019" and
+   concluded the gate swings 3× its own magnitude between alleles, which would
+   have contradicted R2. It does not. Two separate errors produced that:
+
+   - **max vs mean.** 0.055 is the single most extreme pair out of 76,893. The
+     *mean* |Δg_epi| is 3.58e-4 and the median 1.06e-4. Only 104 pairs (0.14%)
+     exceed 0.01 and exactly one exceeds 0.05.
+   - **two different models.** gate_epi ≈ 0.017–0.019 is the **all4 joint**
+     model (Task C's model: gate_dna_avg 0.0188, gate_epi_avg 0.0196). The
+     model Task A scores is **breast-epithelium fusion**, whose gate_epi is
+     0.0292 on validation loci and 0.0280 on the variant pairs.
+
+   Like for like, on the breast-epithelium model: mean |Δg_epi| / gate_epi =
+   **1.28%**, median 0.46%, p99 ~14%, and the 169.8% ratio occurs at one locus
+   where gate_epi(REF) is itself near zero. A ~1% mean perturbation is fully
+   consistent with R2's paired fusion-minus-sequence spanning zero in all eight
+   tests. There is no bug here — but quote the mean or the median, never the max,
+   and never across models.
 
 Allele invariance of the DNA gate itself, from the fallback (fwd/RC-averaged,
 both cohorts): |gate_dna(ALT) − gate_dna(REF)| median ~1.2e-4, p95 ~1.5e-3,
@@ -1938,6 +1957,19 @@ toward the mean prediction. `gate_total` is therefore most naturally read as a
 learned **shrinkage/confidence** term that partially tracks plasticity, not as a
 plasticity detector. Anyone promoting this to a claim needs a mechanism check
 first, not another correlation.
+
+This is the same behaviour R5 sees from a different angle. `51_rc_uncertainty`
+(§R5, mentor requirement 4) reads model uncertainty off forward/RC disagreement;
+gate magnitude is a second, architecturally explicit route to the same quantity —
+the model hedging where methylation is unstable. If the two agree per locus, the
+gate is an uncertainty readout and should be described as one throughout, which
+also retires any remaining temptation to read the gate as modality
+*attribution*. That correlation has not been run; it is the obvious next step if
+budget survives B and D.
+
+Task C also actively supports the caveat the paper already carries: gates are
+descriptive scaling, not causal attribution. The null is doing work here, not
+just failing to find something.
 
 Per the standing note, every statement here is distribution-level; no per-locus
 gate share is quoted.
