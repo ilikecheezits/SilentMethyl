@@ -786,6 +786,14 @@ One cosmetic note: the per-tissue split keys off `probeID` containing `__`. The
 holdout probeIDs do not, so its one bucket is labelled `ALL` rather than
 `BreastEpithelium`. Harmless — the bucket is the whole test set either way.
 
+**The `all4` arm also landed** (45812872, 13 Sep 21:54): fusion β MAE 0.09522 /
+AUC 0.97018, sequence 0.11207 / 0.95296, over all 106,278 loci. Its per-tissue
+split works as intended — BreastEpithelium 0.09429, KidneyCortex 0.09513,
+Lung 0.09692, ColonTransverse 0.10390 (forward-only, as labelled). It was written
+by the pre-patch script, so all six joint per-tissue files have now been
+backfilled with `inference` / `pred_column` / `true_column`; every `n` and
+`beta_mae` was asserted bit-identical first.
+
 ---
 
 ### 10. Context ablation — breast epithelium replaces MCF-10A, 11 Sep 2026
@@ -1010,10 +1018,16 @@ checkpoints and the breast-epithelium splits.
 
 **Not included, and why:** 60/61/62 candidates, 22 context stratification, 63
 known-variant, 64 literature screen, 91 figures. 22 and 91 hard-require the
-candidate CSVs that 60 produces; 60 and 62 are GPU jobs of their own. **64 is
-actively dangerous** — it shells out to 63 without forwarding
-`--weights-template`, so it would silently score the OLD MCF-10A checkpoints and
-report a result that looks correct. Fix 64 before running that chain.
+candidate CSVs that 60 produces; 60 and 62 are GPU jobs of their own. 64 shelled
+out to 63 without forwarding `--weights-template`, so it would have silently
+scored the OLD MCF-10A checkpoints and reported a result that looks correct.
+
+*Superseded 13 Sep 2026: **64 has been fixed** and now forwards both
+`--weights-template` and `--split-template` (`run_scorer`, and the `--weights-
+template` help text spells out the failure mode). Both must be set on the command
+line for an ablation run — the defaults still point at `checkpoints_journal` and
+`data/datafiles`. The chain is safe to run; `jobs/r7_ablation/64_literature.sbatch`
+sets both.*
 
 **Three silent failures this pipeline surfaced — all fixed, all worth knowing.**
 
@@ -1046,6 +1060,131 @@ report a result that looks correct. Fix 64 before running that chain.
    not. Fixed by rescoring the sequence arm (`MODELS=sequence`, ~6 GPU-hours;
    the tower is unchanged, only the column set differs). **Any pipeline that
    links old scores beside new ones needs a column check at link time.**
+
+#### R3 settled — Lung transfer re-scored on the new context, 13 Sep 2026
+
+The nine-tissue eGTEx transfer table was computed on MCF-10A fusion scores. The
+largest well-powered tissue was re-scored (array 45849084, three seeds, all
+COMPLETED) and `31_transfer_discrimination` re-run on it.
+
+| | β AUROC, distance-matched |
+|---|---|
+| fusion, MCF-10A (published referent) | 0.5880 [0.5669, 0.6091] |
+| fusion, breast epithelium | **0.5857 [0.5654, 0.6071]** |
+| shift | **−0.0022** |
+
+**Inside the interval — R3 carries over.** No rerun of the other eight tissues.
+Methods gets one sentence: the largest well-powered tissue was re-scored on the
+new context and reproduced within CI.
+
+**The internal control is what makes this tight.** Only fusion was scored, which
+is correct — the sequence tower is the published one and is not touched by a
+context swap. Running the published sequence arm through the same evaluation
+returned **0.5868656838 [0.5658176855, 0.6094125260]**, *bit-identical* to the
+published run in value and both CI bounds. Cohort construction also reproduced
+exactly: 48,340 shared pairs, 2,241 significant at p < 5e-08, 4,482 matched,
+distance-only AUROC 0.5000, median distance 182 bp, 248 blocks. So cohort,
+matching, blocks and bootstrap RNG are all identical and the entire −0.0022 is
+attributable to the fusion context swap alone.
+
+The two input score sets are locus-aligned: identical `Pair_UID` sets and
+`beta_ref_to_alt` / `pvalue` / `abs_distance_bp` agreeing to 0.0, with predicted
+Δ M correlating 0.939 — the cohort cannot move, only the predictions.
+
+Output: `results/journal/ablation_breast_epithelium/transfer_discrimination/Lung`.
+The published tree was md5-verified unchanged before and after.
+
+**This one number also discharges the Melody head-to-heads.**
+`melody_head_to_head` and `melody_st_head_to_head` read fusion from the *same*
+`egtex_multitissue_scoring/by_tissue/<tissue>/heldout/fusion/` directories as
+`transfer_discrimination`. Same scores, same stability. Do not rerun them on the
+strength of the context swap alone.
+
+#### Recompletion audit — where the MCF-10A → breast-epithelium swap stands
+
+Checked 13 Sep 2026 against every directory under `results/journal/`. The queue
+is **empty**; all four R6 jobs (45857185–88) finished 0:0 and every one logged
+`clobber check clean`.
+
+**Done on the new context** — training seeds 42/43/44, folds 1–3, GENOA and
+eGTEx variant scoring + evaluation, context permutation, paired model bootstrap,
+rc_uncertainty (+conditional), motif disruption, meQTL class chromatin,
+tissue-shared meQTLs, variant-effect synthesis, GWAS regulatory enrichment,
+candidates (60) and candidate comparison (62), biological context (22),
+manuscript figures (91), and now Lung multitissue scoring + transfer
+discrimination.
+
+**Deliberately not rerun, because a context swap cannot move them** —
+sequence_baselines, published_baselines(_egtex) (DeepCpG/CpGenie),
+baseline_variant_evaluation (its models are `kmer_ridge` and `composition`; its
+`fusion_vs_sequence_paired.csv` and `gate_modulation.csv` are *1-byte empty*),
+melody / melody_st / melody_st_matched_vs_unmatched / tissue_shared_meqtls_melody
+(Melody's own model), motif_disruption_kmer_baseline, target_qc,
+training_data_audit. Eight of nine tissues in transfer_discrimination and the
+Melody head-to-heads are covered by the Lung spot-check above.
+
+**Everything on the remaining list was run on 13 Sep 2026.** The audit table that
+stood here is superseded by §10a below.
+
+#### 10a. Closing out the swap — 13 Sep 2026
+
+Every analysis that could move under the context swap is now either finished or
+queued. Two finished in-session, two more were rebuilt, and six went to the GPU
+queue as `jobs/r7_ablation/` with dependencies wired so the chain completes
+unattended.
+
+**Finished — `paired_model_comparison_{genoa,egtex}` (script 31).**
+Both cohorts reproduced exactly (GENOA 42,866 pairs / 4,037 significant at
+5e-08; eGTEx 47,991 / 418 at the calibrated 1.483e-5). The same internal control
+as the Lung run applies and is again clean: **DeepCpG and CpGenie came back
+bit-identical in value and both CI bounds**, because those score files are
+untouched by our context. So the whole movement is the fusion column.
+
+| cohort | fusion, MCF-10A | fusion, breast epi | shift |
+|---|---|---|---|
+| GENOA | 0.5604 [0.5420, 0.5780] | 0.5618 [0.5443, 0.5787] | +0.0014 |
+| eGTEx | 0.5868 [0.5380, 0.6514] | 0.5870 [0.5398, 0.6491] | +0.0002 |
+
+Both trivially inside their referents. The conclusion is unchanged and now holds
+on the new context: fusion is not distinguishable from DeepCpG or CpGenie on
+distance-matched AUROC. (The GENOA tail-enrichment arm still separates from
+CpGenie at top 0.5% / top 1% and from DeepCpG at top 5%, as before.)
+
+**Finished — `rc_uncertainty_figure`.** The figure stage needs three conditional
+runs and the ablation had only strata 10, so strata 20 and 50 were generated
+first (`rc_uncertainty_conditional_s{20,50}`, CPU, seconds each). Note the
+published `_s20`/`_s50` directories are **no longer on disk** — only the figure
+that consumed them survives — so this was a rebuild from scratch, not a
+re-point. Conclusion reproduces: report uncertainty on M-value error;
+`boundary_distance` was tracking the compressed range of beta near 0 and 1.
+
+**Queued — the six-job R7 chain.** Dependencies are `afterok`, so a failure stops
+the chain rather than feeding stale inputs forward.
+
+| job | id | waits on |
+|---|---|---|
+| `70_mqtl_positive` | 45920214 | — |
+| `71_mqtl_negative` | 45920215 | 70 |
+| `63_known_variant` | 45920218 | — |
+| `64_literature` | 45920219 | 63 |
+| `22_context` | 45920224 | 70 |
+| `91_figures` | 45920225 | 22 **and** 64 |
+
+For 70 and 71 the thing that makes it a new-context run is **`--test-csv`**, not
+a weights flag alone: both scripts merge `TABULAR_FEATURES` off that file, so it
+must be `data/datafiles_breast_epithelium/test.csv`. The fusion arm uses
+`checkpoints_ablation/breast_epithelium/seed{seed}/fusion`, the sequence arm
+stays on `checkpoints_journal` — there is no ablation sequence checkpoint and
+there should not be.
+
+**What the chain retires.** The R6 `biological_context` and `manuscript_figures`
+were STAGING runs built on MCF-10A mQTL and literature inputs. 45920224 and
+45920225 rebuild both on new-context inputs and both refuse to start if those
+inputs are absent, so the cross-context caveat on §10's figure set goes away
+when 91 lands. Until then, do not circulate the R6 figures.
+
+Every job carries `check_no_clobber`. A session-wide `find -newermt` over
+`results/journal/` confirmed nothing outside the ablation subtree was written.
 
 #### Reproduction
 

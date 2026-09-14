@@ -1,0 +1,71 @@
+{
+  "analysis_status": "COMPLETE",
+  "atac_strata": [
+    "Q1 low",
+    "Q2",
+    "Q3",
+    "Q4 high",
+    "Missing"
+  ],
+  "block_size_bp": 1000000,
+  "bootstrap_replicates": 2000,
+  "candidate_count": 440,
+  "cpg_island_strata": [
+    "Island",
+    "Shore",
+    "Shelf",
+    "Open sea",
+    "Unclassified"
+  ],
+  "distance_bins_bp": [
+    "0--50",
+    "51--100",
+    "101--250",
+    "251--500"
+  ],
+  "genomic_region_audit_file": "results/journal/ablation_breast_epithelium/biological_context/genomic_region_classification_audit.csv",
+  "genomic_region_definition": "Exclusive hierarchy: GENCODE v44 transcript TSS -1500/+200 bp; then explicit GENCODE UTR features; then the union of GENCODE transcript spans; otherwise intergenic. Input positions are 0-based and converted to the GTF's 1-based closed coordinates.",
+  "genomic_region_strata": [
+    "Promoter/TSS",
+    "UTR",
+    "Gene body",
+    "Intergenic"
+  ],
+  "h3k27ac_strata": [
+    "Q1 low",
+    "Q2",
+    "Q3",
+    "Q4 high",
+    "Missing"
+  ],
+  "heldout_cpg_count": 26570,
+  "inputs": {
+    "data/HM450.hg38.manifest.CpGIsland.tsv.gz": "b5117ddedbc8d40ba9603d6de1e51970c719919a97c62d5b7f29289dedd58cc5",
+    "data/datafiles_breast_epithelium/test.csv": "a15f3ff0fe820fd3ce786df34afd7ee5d87ad7349f7293dc766a154626b43224",
+    "data/reference/gencode.v44.annotation.gtf.gz": "01f817afed65feee863361b4baf30a95e722ee5c5d508ff77b04106ef7ba20d3",
+    "results/journal/ablation_breast_epithelium/candidates/candidate_matched_background_statistics.csv": "d26994e7e5c13cc6718f43f80e83037521e3e0738d94c3a680ef75f421c7e0aa",
+    "results/journal/ablation_breast_epithelium/egtex_mqtl_positive_control/mqtl_predictions_seed_aggregate.csv": "0591a4fee862027d53db0b840c5c8347f36848212f0c85bb1ce33046a9b9b432",
+    "results/journal/ablation_breast_epithelium/seed42/epi/predictions.csv": "019af066f1afec0a794b787f9fd24a2e69d11290d3094e2463258ca3353b28e2",
+    "results/journal/ablation_breast_epithelium/seed42/fusion/predictions.csv": "cda023f08f83b18db64335714f4912926d0f7101d7a7e416e0e537e9e01e061b",
+    "results/journal/ablation_breast_epithelium/seed42/sequence/predictions.csv": "0a90be817a7a3a1464a9fcccea6a503b1b0a2695fc4387aad94c262b5e3e6647",
+    "results/journal/ablation_breast_epithelium/seed43/epi/predictions.csv": "15a8d16f84546ea7e7c125a447591254670218b1efdc767d69fc03155efc4e03",
+    "results/journal/ablation_breast_epithelium/seed43/fusion/predictions.csv": "746f3ebbbcbec6c2983d26a2cceacf33fcb824846a4bb6532f1c50e9ac0b035e",
+    "results/journal/ablation_breast_epithelium/seed43/sequence/predictions.csv": "e7dd0070b2d881070f8db95cc997e184d20c8aa86bc8a2ff6e2c6f5a475ce82d",
+    "results/journal/ablation_breast_epithelium/seed44/epi/predictions.csv": "745f6ad126b2df9059b1a5c0dfb09517288f439f563067243760da8bd1251fe2",
+    "results/journal/ablation_breast_epithelium/seed44/fusion/predictions.csv": "430188e0a3d25d300bf8a30813a14f68eef9e5608bf4e3bdba197148bd968847",
+    "results/journal/ablation_breast_epithelium/seed44/sequence/predictions.csv": "7299a2e4e17448931bf32850892817a94e043a8704be55a70d3153bf9b7d46ef"
+  },
+  "interpretation": "Post hoc descriptive stratification of frozen held-out predictions; not an additional training experiment or causal analysis.",
+  "models": [
+    "epi",
+    "sequence",
+    "fusion"
+  ],
+  "mqtl_fusion_association_count": 81,
+  "random_seed": 20260814,
+  "seeds": [
+    42,
+    43,
+    44
+  ]
+}

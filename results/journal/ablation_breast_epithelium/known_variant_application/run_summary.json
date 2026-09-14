@@ -1,0 +1,21 @@
+{
+  "analysis_status": "COMPLETE",
+  "input_sha256": {
+    "checkpoints_ablation/breast_epithelium/seed42/fusion/best_weights.pth": "8e8917433f25a6960788c6ff3a7bf1a915793e04eaec8c00cd16f59c1c97c0c3",
+    "checkpoints_ablation/breast_epithelium/seed43/fusion/best_weights.pth": "3147158b5aa9b4a4b2eaf2ad297dad34415092a80e6ab82202469211ef433982",
+    "checkpoints_ablation/breast_epithelium/seed44/fusion/best_weights.pth": "a24824882605ff39c03bad7469873a9392031d4815c94c528698fd563fac903d",
+    "data/HM450.hg38.manifest.CpGIsland.tsv.gz": "b5117ddedbc8d40ba9603d6de1e51970c719919a97c62d5b7f29289dedd58cc5",
+    "data/HM450.hg38.manifest.tsv.gz": "668a11ea624b3e645aab963dca048bdd4628ae5d297732867c91525c831cf191",
+    "data/datafiles_breast_epithelium/test.csv": "a15f3ff0fe820fd3ce786df34afd7ee5d87ad7349f7293dc766a154626b43224",
+    "data/datafiles_breast_epithelium/train.csv": "a8e1798b4cd1f1a5751654c61b0795a9b688301835ac8f12153778e975558dbf",
+    "data/datafiles_breast_epithelium/val.csv": "309df3abd948e036d3ca4c9e47a26424272be7789637dfb0e9eb4720a81f427f",
+    "data/reference/gencode.v44.annotation.gtf.gz": "01f817afed65feee863361b4baf30a95e722ee5c5d508ff77b04106ef7ba20d3",
+    "scripts/22_context_stratification.py": "fa00df5e3faf47f3c810fb58c7f15a141285c0bb6f8f44dbd2c0d1e769e71723",
+    "scripts/60_candidate_background.py": "21a48b516d2ccf40154476d02c84e7354be9e60ef136e6f0c0745361f0e337d2"
+  },
+  "interpretation": "Illustrative application of frozen checkpoints. Split membership is retained so training-locus examples are not presented as validation.",
+  "model_visible_cpg_pairs": 27,
+  "primary_case_rows": 1,
+  "selection_rule": "Nearest unmasked model-visible HM450 CpG, with probeID used only as a deterministic tie breaker; model scores were not used.",
+  "variant_count": 1
+}

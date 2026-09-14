@@ -1,9 +1,15 @@
 # SilentMethyl — Results, R1–R7, revised for the breast-epithelium context
 
-Written 12 Sep 2026. Follows the R1–R7 framework in LAB_NOTES §1.2. Values from
-`results/journal/ablation_breast_epithelium/` where the rerun is complete.
+Written 12 Sep 2026, updated 13 Sep 2026. Follows the R1–R7 framework in
+LAB_NOTES §1.2. Values from `results/journal/ablation_breast_epithelium/` where
+the rerun is complete.
 
-Markers used throughout:
+**Status, 13 Sep 2026: no [STALE] or [FILL] markers remain in the body.** R3 was
+resolved by the Lung spot-check (landed inside its referent) and R6 is the only
+section whose inputs are still being rebuilt — six jobs, four done or running,
+tracked in the R6 table. Every other section is final on the new context.
+
+Markers used throughout (both now retired, kept for future revisions):
 
 - **[FILL]** — the value exists on disk and needs reading out. Not guessed.
 - **[STALE]** — the number below is from the MCF-10A configuration and has not
@@ -317,14 +323,35 @@ above a distance-matched null?*
 Scripts `30_transfer_synthesis`, `31_transfer_discrimination`,
 `32_transfer_summary`.
 
-**[STALE], with a spot-check in flight.** The nine-tissue scoring has not been
-rerun on the new context. Given R2 it should barely move, so rather than pay for
-all nine, a single-tissue check is running: Lung, fusion, three seeds (the
-largest of the well-powered tissues at 77,421 rows). Its referent is the 0.5880
-[0.5669, 0.6091] in the table below. If the rerun lands inside that interval,
-the honest write-up is that the nine-tissue result was verified to be
-context-insensitive on the largest tissue and carried over; if it moves, all
-nine have to be rerun.
+**RESOLVED 13 Sep 2026 — the spot-check landed inside. The table below carries
+over unchanged.** Rather than pay for all nine tissues, Lung was re-scored on the
+new context (fusion, three seeds, the largest well-powered tissue at 77,421
+rows; array 45849084) and `31_transfer_discrimination` re-run on it:
+
+| | AUROC, distance-matched |
+|---|---|
+| fusion, MCF-10A (the referent in the table below) | 0.5880 [0.5669, 0.6091] |
+| fusion, breast epithelium | **0.5857 [0.5654, 0.6071]** |
+| shift | **−0.0022** |
+
+**Methods sentence:** the largest well-powered tissue was re-scored on the
+breast-epithelium context and reproduced within its confidence interval; the
+remaining eight were not re-scored.
+
+The control that makes this tight: only fusion was re-scored, which is correct —
+the sequence tower is the published one and a context swap cannot touch it.
+Running the published sequence arm back through the same evaluation returned
+0.5868656838 [0.5658176855, 0.6094125260], **bit-identical in value and both CI
+bounds**, and cohort construction reproduced exactly (48,340 shared pairs, 2,241
+significant, 4,482 matched, distance-only 0.5000, 248 blocks). So the entire
+−0.0022 is the fusion context swap and nothing else. The two score sets are also
+locus-aligned — identical `Pair_UID` sets, `beta_ref_to_alt`/`pvalue`/
+`abs_distance_bp` agreeing to 0.0.
+
+**This also covers the Melody head-to-heads.** `melody_head_to_head` and
+`melody_st_head_to_head` read fusion from the same
+`egtex_multitissue_scoring/by_tissue/<tissue>/heldout/fusion/` directories, so
+they inherit the same stability and were not rerun.
 
 Distance-matched AUROC, seed ensemble, distance-only pinned to exactly 0.5000 by
 construction, CpG-altering variants excluded (~37% of pairs, enriched for true
@@ -565,10 +592,40 @@ weakly positive result with none.
 
 Scripts `60`–`64`. STK11 and NCOA2 retained per mentor instruction.
 
-**[STALE], no longer blocked — but the blocker was not the one recorded here.**
+**IN FLIGHT as of 13 Sep 2026, 22:30 — the chain is submitted and self-completing.**
 `64_literature_variant_screen.py` not forwarding `--weights-template` was a real
-bug and is fixed (line 746), but `64` shells out to `63` and is not in the
+bug and is fixed (line 746; it now forwards `--split-template` too, and both must
+be set explicitly because the defaults still point at `checkpoints_journal` and
+`data/datafiles`). But `64` shells out to `63` and is not in the
 `60 → 62 → 22 → 91` chain at all. Fixing it unblocked nothing.
+
+Current state of the R6/R7 rebuild (`jobs/r7_ablation/`, `afterok`-chained so a
+failure stops the chain rather than feeding stale inputs forward):
+
+| job | id | state |
+|---|---|---|
+| `63_known_variant` | 45920218 | **done** — 27 model-visible CpG pairs |
+| `64_literature` | 45920219 | running |
+| `70_mqtl_positive` | 45920214 | running |
+| `71_mqtl_negative` | 45920215 | waits on 70 |
+| `22_context` | 45920224 | waits on 70 |
+| `91_figures` | 45920225 | waits on 22 **and** 64 |
+
+**Until 91 lands, do not circulate the figure set.** The R6 figures in
+`ablation_breast_epithelium/manuscript_figures/` are a STAGING run: they were
+built on the published MCF-10A mQTL positive control and MCF-10A literature
+screen, because no breast-epithelium rebuild of either existed at the time. Both
+job scripts printed `[!] CROSS-CONTEXT INPUT` and 91 declared itself
+not-manuscript-ready, so this was flagged, never silently mixed. 45920224 and
+45920225 rebuild both on new-context inputs and refuse to start if those inputs
+are absent.
+
+For `70`/`71` the flag that makes it a new-context run is **`--test-csv`**, not a
+weights flag: both scripts merge `TABULAR_FEATURES` off that file, so it must be
+`data/datafiles_breast_epithelium/test.csv`. The fusion arm uses
+`checkpoints_ablation/breast_epithelium/seed{seed}/fusion`; the sequence arm
+stays on `checkpoints_journal` — there is no ablation sequence checkpoint and
+there should not be.
 
 The actual blocker was one directory earlier: `data/build_testing_data.py`
 hardcoded `base_ref = data_dir / "reference"` with no `--reference-dir`, while
@@ -697,12 +754,52 @@ R3 narrows this by one dimension: it varies tissue alone across nine
 European-dominant eGTEx cohorts, so tissue is measured on its own and GENOA's
 marginal contribution is ancestry plus platform.
 
+### Against the published baselines on variant effects — rebuilt 13 Sep 2026
+
+`31_transfer_discrimination`, fusion as reference, DeepCpG and CpGenie as
+comparisons, one shared distance-matched cohort per cohort. Both reproduced their
+published cohorts exactly (GENOA 42,866 pairs / 4,037 significant at 5e-08;
+eGTEx 47,991 / 418 at the calibrated 1.483e-5).
+
+| cohort | fusion, MCF-10A | fusion, breast epi | shift |
+|---|---|---|---|
+| GENOA | 0.5604 [0.5420, 0.5780] | 0.5618 [0.5443, 0.5787] | +0.0014 |
+| eGTEx | 0.5868 [0.5380, 0.6514] | 0.5870 [0.5398, 0.6491] | +0.0002 |
+
+**DeepCpG and CpGenie came back bit-identical** in value and both CI bounds —
+GENOA 0.5427 [0.5260, 0.5585] and 0.5567 [0.5372, 0.5764]; eGTEx 0.5943 [0.5542,
+0.6394] and 0.5770 [0.5227, 0.6442] — because those score files read DNA only and
+are untouched by our context. That is the same internal control as R3: the whole
+movement is the fusion column, and it is negligible.
+
+**The conclusion is unchanged and now holds on the new context:** fusion is not
+distinguishable from DeepCpG or CpGenie on distance-matched AUROC. The GENOA tail
+arm still separates — fusion over CpGenie at top 0.5% (+0.0981 [+0.0203,
++0.1906]) and top 1% (+0.0886 [+0.0242, +0.1345]), and over DeepCpG at top 5%
+(+0.0219 [+0.0019, +0.0441]). Quote the paired differences, not the marginals.
+
 ---
 
 ## Superseded — remove in one coordinated edit
 
 `70_mqtl_positive_control` (81 pairs) and `71_mqtl_matched_negative` (35 pairs),
 together with Supplementary S2/S3. The text still cites them.
+
+**Read this before acting on the deletion.** Both were nevertheless rebuilt on
+the new context on 13 Sep 2026, for two reasons that survive the plan to delete
+them:
+
+1. **`70` is not only a results section — it is an input.** Both `22_context_
+   stratification` and `91_build_manuscript_figures` consume
+   `egtex_mqtl_positive_control/mqtl_predictions_seed_aggregate.csv`. Deleting the
+   S2 *section* does not remove that dependency, and the figures cannot be
+   manuscript-ready while it points at an MCF-10A product.
+2. **Until the coordinated edit happens, the text still cites these numbers**, so
+   leaving them stale means the manuscript quotes MCF-10A values in a paper whose
+   every other number is breast epithelium.
+
+If the coordinated edit does land, `71` alone becomes genuinely disposable — `70`
+still has to exist for the figure chain.
 
 ---
 

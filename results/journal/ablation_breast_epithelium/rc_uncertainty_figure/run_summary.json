@@ -1,0 +1,23 @@
+{
+  "analysis": "Scale-stability of uncertainty estimators (figure + table)",
+  "generated_utc": "2026-09-14T02:28:02+00:00",
+  "input_runs": {
+    "10": "results/journal/ablation_breast_epithelium/rc_uncertainty_conditional",
+    "20": "results/journal/ablation_breast_epithelium/rc_uncertainty_conditional_s20",
+    "50": "results/journal/ablation_breast_epithelium/rc_uncertainty_conditional_s50"
+  },
+  "outputs": [
+    "uncertainty_scale_stability.png",
+    "uncertainty_scale_stability.pdf",
+    "within_stratum_by_strata.csv",
+    "beats_boundary_by_strata.csv",
+    "uncertainty_figure_summary.txt"
+  ],
+  "palette": {
+    "boundary_distance": "#B03A2E",
+    "cross_seed_sd": "#1F6FB2",
+    "rc_disagreement": "#B4761A"
+  },
+  "palette_validation": "six-check categorical validator, light surface, all PASS",
+  "stage": "B.3c -- consolidation, no GPU"
+}

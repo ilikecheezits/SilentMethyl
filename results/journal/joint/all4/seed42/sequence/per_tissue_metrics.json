@@ -1,0 +1,30 @@
+{
+  "BreastEpithelium": {
+    "beta_mae": 0.11355999873572169,
+    "inference": "forward_only",
+    "n": 26570,
+    "pred_column": "pred_beta_fwd",
+    "true_column": "true_beta"
+  },
+  "ColonTransverse": {
+    "beta_mae": 0.12259529151538753,
+    "inference": "forward_only",
+    "n": 26566,
+    "pred_column": "pred_beta_fwd",
+    "true_column": "true_beta"
+  },
+  "KidneyCortex": {
+    "beta_mae": 0.11316510667227866,
+    "inference": "forward_only",
+    "n": 26571,
+    "pred_column": "pred_beta_fwd",
+    "true_column": "true_beta"
+  },
+  "Lung": {
+    "beta_mae": 0.11172649827494698,
+    "inference": "forward_only",
+    "n": 26571,
+    "pred_column": "pred_beta_fwd",
+    "true_column": "true_beta"
+  }
+}
