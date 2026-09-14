@@ -674,9 +674,10 @@ a numerical one. Do not rebuild anything over it.
 `CONVERSION COMMAND NOT RECORDED`. No API can recover it, and it must be
 repeated identically for any tissue added later.
 
-### 9. Joint multi-tissue model — the standing plan
+### 9. Joint multi-tissue model — the plan, and the first result
 
-Assume the mentor asks for this. Design is settled; nothing has been built.
+Assume the mentor asks for this. Design is settled. The plan below is unchanged;
+the **zero-shot transfer arm has since been built and run** — see §9a.
 
 **Source: TCGA solid-tissue-normal, not eGTEx.** GSE213478 (eGTEx methylation,
 987 samples, 9 tissues, EPIC, normal donors, beta matrix public — only IDATs are
@@ -730,6 +731,60 @@ control. One training run buys an interpretable comparison.
 tissues are added; context is still identical for REF and ALT. If this is sold as
 improving tissue-specific *variant* effects it will fail again for the reason
 already documented in R2.
+
+#### 9a. It was built after all — holdout_BreastEpithelium, seed 42, 13 Sep 2026
+
+The zero-shot transfer arm is done. Trained jointly on KidneyCortex, Lung and
+ColonTransverse with BreastEpithelium **entirely held out of training**, then
+tested on the breast test split. Test set verified 100% BreastEpithelium
+(`Tissue` column, 26,570/26,570) — no leakage.
+
+| arm | β MAE | AUC |
+|---|---|---|
+| sequence-only | 0.11123 | 0.95456 |
+| context-only | 0.10692 | 0.96211 |
+| **fusion** | **0.09775** | **0.96933** |
+
+n = 26,570. `results/journal/joint/holdout_BreastEpithelium/seed42/`.
+
+**Context-only again beats sequence-only on both metrics.** Same inversion as the
+paired bootstrap, now reproduced independently on a model that never saw breast
+during training — so it is not an artifact of the single-tissue fit.
+
+**Transfer penalty is small, but mind the estimator.** The 3-seed
+breast-*trained* means are fusion 0.09140 and sequence 0.10990, giving +0.0064
+and +0.0013. Those are the numbers to quote for the headline, but the joint model
+is **seed 42 only**, so this is single-seed against mean-of-seeds — the exact mix
+§3B forbids in the fold table. Like-for-like against seed 42 alone
+(`ablation_breast_epithelium/seed42/`: fusion 0.08854, sequence 0.10898) the
+penalties are **+0.0092** and **+0.0023**. State which estimator is in use
+wherever this is quoted; do not let the two versions travel unlabelled.
+
+**The transfer comparison is exact.** `data/datafiles_joint/holdout_
+BreastEpithelium/test.csv` and `data/datafiles_breast_epithelium/test.csv` are
+locus-identical: same 26,570 rows, identical `(chr, pos, probeID)` key sets,
+**same row order**, and `Median_Beta` agreeing to 0.0. The joint file adds a
+`Tissue` column; otherwise the schemas match. No caveat sentence is needed.
+
+**Gate statements stay at the distribution level.** `gate_dna_share_fwd_rc_mae`
+is 0.059 on test, so the per-locus DNA share is not quotable. Distribution-level
+only: share mean 0.535, median 0.525, q10–q90 0.342–0.726; DNA-dominant 33.7%,
+balanced 49.4%, context-dominant 16.9%.
+
+**`per_tissue_metrics.json` reports 0.10116, and that is not a contradiction.**
+`run_joint_multitissue.sbatch` selects the first `pred`-matching beta column,
+which is `pred_beta_fwd` — **forward strand only**. `metrics.json` reports
+forward/RC-averaged (`pred_beta_rc_avg`). Verified on the same predictions.csv:
+fwd 0.10116, rc 0.10054, rc_avg 0.09775; `beta_fwd_rc_mae` 0.0503 is the
+fwd-vs-rc spread that the 0.0034 gap sits inside. The per-tissue writer now
+records `inference`, `pred_column` and `true_column` in the JSON, and the
+existing files were backfilled — **all MAEs bit-identical**, only the labels are
+new. Quote `metrics.json`.
+
+One cosmetic note: the per-tissue split keys off `probeID` containing `__`. The
+`all4` probeIDs carry it and split correctly into four tissues; the single-tissue
+holdout probeIDs do not, so its one bucket is labelled `ALL` rather than
+`BreastEpithelium`. Harmless — the bucket is the whole test set either way.
 
 ---
 

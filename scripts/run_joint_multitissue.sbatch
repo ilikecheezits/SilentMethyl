@@ -257,12 +257,26 @@ for arm in ("fusion", "epi", "sequence"):
         print(f"  {arm}: could not identify beta columns among {beta_cols}")
         continue
 
-    print(f"\n  {arm}")
+    # Which inference mode this MAE reflects is determined by pred_col above.
+    # predictions.csv carries pred_beta_fwd / pred_beta_rc / pred_beta_rc_avg;
+    # the first "pred" match is the FORWARD-strand column, so these per-tissue
+    # values are forward-only and are NOT the same statistic as the
+    # forward/RC-averaged "beta_mae" in metrics.json. Record the mode so the
+    # two files cannot be read as contradicting each other.
+    mode = {"pred_beta_fwd": "forward_only",
+            "pred_beta_rc": "reverse_complement_only",
+            "pred_beta_rc_avg": "forward_reverse_complement_average"}.get(
+                pred_col, "unknown")
+
+    print(f"\n  {arm}  [inference: {mode}; pred_col={pred_col}]")
     print(f"    {'tissue':<20}{'n':>9}{'beta MAE':>11}")
     rows = {}
     for tissue, g in df.groupby("Tissue"):
         mae = float(np.abs(g[pred_col] - g[true_col]).mean())
-        rows[tissue] = {"n": int(len(g)), "beta_mae": mae}
+        rows[tissue] = {"n": int(len(g)), "beta_mae": mae,
+                        "inference": mode,
+                        "pred_column": pred_col,
+                        "true_column": true_col}
         print(f"    {tissue:<20}{len(g):>9,}{mae:>11.4f}")
     (res / arm / "per_tissue_metrics.json").write_text(
         json.dumps(rows, indent=2, sort_keys=True) + "\n")

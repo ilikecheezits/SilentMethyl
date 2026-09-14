@@ -1,0 +1,21 @@
+{
+  "auc": 0.9545617292917216,
+  "beta_fwd_rc_mae": 0.06035370056818516,
+  "beta_fwd_rc_max_abs": 0.91168212890625,
+  "beta_fwd_rc_pearson": 0.9554722726671802,
+  "beta_mae": 0.11123080159320875,
+  "beta_mean_signed_error": -0.007502694460267175,
+  "beta_median_absolute_error": 0.055000895634293556,
+  "beta_rmse": 0.1772768686463388,
+  "classprob_fwd_rc_mae": 0.06793596268956446,
+  "classprob_fwd_rc_pearson": 0.9428279654280675,
+  "inference": "forward_reverse_complement_average",
+  "m_mae": 1.2022399315273025,
+  "m_rmse": 1.6401068907195158,
+  "model_type": "sequence_only",
+  "n_test_loci": 26570,
+  "split": "test",
+  "test_path": "data/datafiles_joint/holdout_BreastEpithelium/test.csv",
+  "weights_path": "checkpoints_joint/holdout_BreastEpithelium/seed42/sequence/best_weights.pth",
+  "window_size_bp": 1000
+}
