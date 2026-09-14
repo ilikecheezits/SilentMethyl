@@ -1,0 +1,36 @@
+{
+  "analysis": "Conditional uncertainty analysis vs the |beta_hat-0.5| heuristic",
+  "coverages": [
+    0.1,
+    0.15,
+    0.2,
+    0.25,
+    0.3,
+    0.35,
+    0.4,
+    0.45,
+    0.5,
+    0.55,
+    0.6,
+    0.65,
+    0.7,
+    0.75,
+    0.8,
+    0.85,
+    0.9,
+    0.95,
+    1.0
+  ],
+  "generated_utc": "2026-09-14T02:27:50+00:00",
+  "motivation": "The base stage found boundary_distance beats RC disagreement and the 3-seed ensemble SD. This separates a genuine difficulty signal from the mechanically bounded range of beta near 0 and 1.",
+  "outputs": [
+    "partial_correlations.csv",
+    "within_stratum_correlations.csv",
+    "stratified_selective_prediction.csv",
+    "incremental_value.csv",
+    "conditional_summary.txt"
+  ],
+  "results_root": "results/journal/ablation_breast_epithelium",
+  "stage": "B.3b -- uncertainty calibration (no GPU, no retraining)",
+  "strata": 50
+}

@@ -8,6 +8,7 @@ import hashlib
 import json
 import logging
 import os
+from datetime import datetime
 from pathlib import Path
 import sys
 from typing import Iterable
@@ -651,6 +652,21 @@ def main() -> None:
     if not input_path.exists():
         raise FileNotFoundError(input_path)
     raw_df = pd.read_csv(input_path)
+    # Provenance on the record, not in someone's head: which cohort file this is,
+    # when it was built, and the context columns actually carried in it. The
+    # published cohort and the breast-epithelium rebuild differ ONLY in these
+    # seven columns, so a run that silently picked up the wrong one is otherwise
+    # invisible in the outputs.
+    LOGGER.info("candidate cohort: %s", input_path.resolve())
+    LOGGER.info("candidate cohort mtime: %s",
+                datetime.fromtimestamp(input_path.stat().st_mtime).isoformat(timespec="seconds"))
+    LOGGER.info("candidate cohort rows: %d", len(raw_df))
+    context_columns = [c for c in raw_df.columns
+                       if c.startswith("Ref_") and not c.endswith("_Missing")]
+    LOGGER.info("context columns (%d): %s", len(context_columns), ", ".join(context_columns))
+    for column in context_columns:
+        LOGGER.info("  %-24s mean=%.6f", column, float(raw_df[column].mean()))
+    LOGGER.info("weights template: %s", args.weights_template)
     input_row_count_before_probe_qc = len(raw_df)
     validate_candidate_table(raw_df, str(input_path))
     raw_df = apply_probe_qc(raw_df, args.hm450_manifest, args.include_masked_probes)

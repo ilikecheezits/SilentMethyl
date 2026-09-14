@@ -61,6 +61,27 @@ CODON_TABLE = {
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
+    # build_training_data.py gained --reference-dir/--out-dir for the context
+    # swap; this script did not, so the candidate cohort could only ever be
+    # built against the published MCF-10A tracks in <data-dir>/reference. That
+    # left 60_candidate_background.py with no breast-epithelium cohort to score,
+    # and pointing it at the published one would have paired new fusion weights
+    # with old context columns. Same two flags, same meanings.
+    parser.add_argument(
+        "--reference-dir", type=Path, default=None,
+        help="Directory holding the seven context bigWigs. Defaults to "
+             "<data-dir>/reference, the published MCF-10A tracks. Point it at "
+             "e.g. data/reference/BreastEpithelium to build an alternative "
+             "context. phyloP is always read from <data-dir>/reference, since "
+             "conservation is not tissue-specific.")
+    parser.add_argument(
+        "--out-dir", type=Path, default=None,
+        help="Where the candidate cohort is written, and where split_manifest "
+             "and feature_imputation are read from. Defaults to "
+             "<data-dir>/datafiles. Set it when building an alternative context "
+             "so the published candidate cohort is left intact; it must be the "
+             "matching --out-dir from build_training_data.py, because the split "
+             "and the imputation statistics have to come from the same build.")
     parser.add_argument(
         "--refresh-gdc",
         action="store_true",
@@ -618,7 +639,8 @@ def write_candidate_fastas(df: pd.DataFrame, paths: dict[str, tuple[Path, str]])
 def main() -> None:
     args = parse_args()
     data_dir = args.data_dir.resolve()
-    datafiles_dir = data_dir / "datafiles"
+    published_datafiles = data_dir / "datafiles"
+    datafiles_dir = (args.out_dir.resolve() if args.out_dir else published_datafiles)
     datafiles_dir.mkdir(parents=True, exist_ok=True)
 
     fasta_path = data_dir / "hg38.fa"
@@ -626,9 +648,15 @@ def main() -> None:
     gtf_path = data_dir / "reference" / "gencode.v44.annotation.gtf.gz"
     split_manifest_path = datafiles_dir / "split_manifest.json"
     imputation_path = datafiles_dir / "feature_imputation.json"
-    raw_gdc_path = datafiles_dir / "gdc_tcga_brca_synonymous_raw.json.gz"
+    # The GDC response cache is a property of the query, not of the context, so
+    # it is always read from the published datafiles directory. Reusing it keeps
+    # the candidate variant set byte-identical across contexts, which is the
+    # whole point of the comparison.
+    raw_gdc_path = published_datafiles / "gdc_tcga_brca_synonymous_raw.json.gz"
 
-    base_ref = data_dir / "reference"
+    published_ref = data_dir / "reference"
+    base_ref = (args.reference_dir.resolve() if args.reference_dir
+                else published_ref)
     bw_paths = {
         "Ref_ATAC_Signal": base_ref / "ATAC_seq.bw",
         "Ref_H3K4me3_Signal": base_ref / "H3K4me3.bw",
@@ -637,9 +665,21 @@ def main() -> None:
         "Ref_H3K9me3_Signal": base_ref / "H3K9me3.bw",
         "Ref_H3K36me3_Signal": base_ref / "H3K36me3.bw",
         "Ref_H3K4me1_Signal": base_ref / "H3K4me1.bw",
-        "Target_Base_PhyloP_100way_1": base_ref / "hg38.phyloP100way.bw",
-        "Target_Base_PhyloP_100way_2": base_ref / "hg38.phyloP100way.bw",
+        # Conservation is a property of the genome, not of the tissue, so it is
+        # always read from the published reference directory even when the
+        # context tracks come from elsewhere.
+        "Target_Base_PhyloP_100way_1": published_ref / "hg38.phyloP100way.bw",
+        "Target_Base_PhyloP_100way_2": published_ref / "hg38.phyloP100way.bw",
     }
+    if base_ref != published_ref:
+        print(f"[*] ALTERNATIVE CONTEXT: {base_ref}")
+        print(f"[*] outputs -> {datafiles_dir}")
+        if datafiles_dir == published_datafiles:
+            raise SystemExit(
+                "STOP: building an alternative context into data/datafiles/ "
+                "would overwrite the published candidate cohort that R6 is "
+                "built on.\nPass --out-dir, e.g. "
+                "--out-dir data/datafiles_breast_epithelium")
 
     required = [fasta_path, manifest_path, gtf_path, split_manifest_path, imputation_path, *bw_paths.values()]
     missing = [str(path) for path in required if not path.exists()]

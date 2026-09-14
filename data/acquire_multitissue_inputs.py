@@ -175,13 +175,13 @@ TISSUES = {
         "note": "primary-tissue alternative to MCF-10A; tests whether the "
                 "published context choice cost anything",
     },
-    "BreastMammaryTissue": {
-        "projects": ["TCGA-BRCA"],
-        "encode": ["breast epithelium", "MCF 10A",
-                   "luminal epithelial cell of mammary gland"],
-        "note": "already published on MCF-10A context; rebuilt here only so all "
-                "five tissues share one accessibility assay",
-    },
+    # BreastMammaryTissue (the MCF-10A route) was REMOVED on 11 Sep 2026. It
+    # existed only to let the joint model reuse the published cell-line context,
+    # which required converting an snATAC BAM per tissue because ENCODE has no
+    # fold-change bigWig for single-nucleus ATAC. The context ablation replaced
+    # MCF-10A with primary breast epithelium everywhere (LAB_NOTES section 1.10),
+    # and breast epithelium has bulk ATAC, so every tissue can now use a
+    # ready-made fold-change bigWig. Do not reinstate it without rereading 1.10.
     "KidneyCortex": {
         "projects": ["TCGA-KIRC"],
         "encode": ["kidney", "kidney epithelial cell", "renal cortex interstitium"],
@@ -791,10 +791,12 @@ def main(argv=None) -> int:
         "selection": "hand-picked accessions" if picks else "resolved automatically",
         "output_type": OUTPUT_TYPE,
         "assembly": "GRCh38",
-        "note": ("bulk ATAC-seq for every tissue including breast, so that "
-                 "accessibility is one assay across the joint model. The "
-                 "published breast model uses a locally converted snATAC BAM "
-                 "and is deliberately left alone."),
+        "note": ("bulk ATAC-seq and bulk histone ChIP for every tissue "
+                 "including breast, all as fold-change-over-control bigWigs, so "
+                 "that no feature differs between tissues by assay. Breast is "
+                 "primary epithelium, pinned to the same seven accessions the "
+                 "single-tissue model was rebuilt on, so the joint and "
+                 "single-tissue models read identical breast context."),
         "tissues": {},
     }
 
@@ -899,6 +901,31 @@ def main(argv=None) -> int:
             f"STOP: {exc}.\nCompute nodes have no outbound HTTPS -- run this on "
             f"a login node or your laptop.") from exc
 
+    # Merge into any existing plan BEFORE the consistency check, not after.
+    # Running one tissue at a time with --tissues used to overwrite the file with
+    # just that tissue, silently discarding the record for every other one -- and
+    # this file is meant to BE the record of which ENCODE files the context is
+    # built from. The merge also has to come first because the check below is the
+    # only thing standing between a mixed-assay set and a trained model: when
+    # breast is pinned by a picks file and the other tissues resolve
+    # automatically, those are two separate invocations, and a check that saw
+    # only the current run would compare each set against itself and pass.
+    args.plan.parent.mkdir(parents=True, exist_ok=True)
+    carried: list[str] = []
+    if args.plan.is_file():
+        try:
+            prior = json.loads(args.plan.read_text())
+        except json.JSONDecodeError:
+            prior = {}
+        merged = dict(prior.get("tissues", {}))
+        merged.update(plan["tissues"])
+        carried = [t for t in merged if t not in plan["tissues"]]
+        plan["tissues"] = merged
+        if carried:
+            print(f"  carried forward from the previous plan: {', '.join(sorted(carried))}")
+            print(f"  consistency is checked across all "
+                  f"{len(plan['tissues'])} tissues, not just this run")
+
     # Cross-tissue consistency. Checking each tissue on its own is not enough:
     # if breast resolves to Mint-ChIP and lung to Histone ChIP-seq, the context
     # differs between tissues by ASSAY rather than by biology, and a joint model
@@ -940,22 +967,6 @@ def main(argv=None) -> int:
               f"output type in all tissues.")
         print(f"  assays in use: {assays}")
 
-    # Merge into any existing plan rather than replacing it. Running one tissue
-    # at a time with --tissues used to overwrite the file with just that tissue,
-    # silently discarding the record for every other one -- and this file is
-    # meant to BE the record of which ENCODE files the context is built from.
-    args.plan.parent.mkdir(parents=True, exist_ok=True)
-    if args.plan.is_file():
-        try:
-            prior = json.loads(args.plan.read_text())
-        except json.JSONDecodeError:
-            prior = {}
-        merged = dict(prior.get("tissues", {}))
-        merged.update(plan["tissues"])
-        carried = [t for t in merged if t not in plan["tissues"]]
-        plan["tissues"] = merged
-        if carried:
-            print(f"  carried forward from the previous plan: {', '.join(sorted(carried))}")
     with args.plan.open("w") as fh:
         json.dump(plan, fh, indent=2, sort_keys=True)
         fh.write("\n")

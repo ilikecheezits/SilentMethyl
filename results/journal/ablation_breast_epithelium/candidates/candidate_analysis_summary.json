@@ -1,0 +1,30 @@
+{
+  "background_interpretation": "descriptive observed-synonymous comparators selected by similarity-priority tiers; not a random-mutation null or calibrated p-value",
+  "background_random_seed": 42,
+  "candidate_rows_after_probe_qc": 703,
+  "candidate_rows_input_before_probe_qc": 771,
+  "candidate_rows_model_visible": 440,
+  "checkpoints": [
+    {
+      "seed": 42,
+      "sha256": "8e8917433f25a6960788c6ff3a7bf1a915793e04eaec8c00cd16f59c1c97c0c3",
+      "weights_path": "checkpoints_ablation/breast_epithelium/seed42/fusion/best_weights.pth"
+    }
+  ],
+  "cross_seed_aggregation": "single available seed",
+  "cross_seed_stability_inference_available": false,
+  "hm450_manifest": "data/HM450.hg38.manifest.tsv.gz",
+  "inference_precision": "fp32_forced_and_dtype_audited",
+  "input_csv": "data/datafiles_breast_epithelium/testing_data_test_only.csv",
+  "masked_probes_included": false,
+  "matched_background_delta_column": "Predicted_Delta_Beta",
+  "max_comparators": 1000,
+  "min_comparators": 20,
+  "minimum_empirical_tail_probability": 0.008333333333333333,
+  "output_rows": 440,
+  "primary_ranking": "absolute value of cross-seed mean RC-averaged mutant-minus-WT beta shift",
+  "requested_seeds": [
+    42
+  ],
+  "seed_count": 1
+}

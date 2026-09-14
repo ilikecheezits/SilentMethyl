@@ -4,10 +4,11 @@
   "caveats": {
     "dependence": "Pairs are in LD. All intervals are 1 Mb block bootstraps; naive intervals would be far too narrow.",
     "effect_scale": "GENOA betas are on a normalized-phenotype scale. Rank and sign comparisons only; no magnitude calibration claim is available.",
-    "tissue": "GENOA is peripheral blood; SilentMethyl is trained on breast and its context features are MCF-10A breast. This is cross-tissue, cross-ancestry transfer, not tissue-matched validation."
+    "tissue": "GENOA is peripheral blood; SilentMethyl is trained on breast and its context features are unrecorded (no weights path found under results/journal/sequence_baselines/variant_scoring); check the scoring run_summary before quoting this. This is cross-tissue, cross-ancestry transfer, not tissue-matched validation."
   },
   "cohort": "GENOA",
-  "generated_utc": "2026-08-28T21:28:17+00:00",
+  "context_source": "unrecorded (no weights path found under results/journal/sequence_baselines/variant_scoring); check the scoring run_summary before quoting this",
+  "generated_utc": "2026-09-12T23:51:20+00:00",
   "matching": {
     "negatives_per_positive": 1,
     "replacement": false,
@@ -17,7 +18,7 @@
     "kmer_ridge",
     "composition"
   ],
-  "n_boot": 500,
+  "n_boot": 2000,
   "primary_claims": {
     "dilution": "signal rises monotonically with association strength and reaches chance in the null stratum -- the evidence that the effect is real rather than fitted noise.",
     "direction": "signed Spearman rho and direction agreement against the cohort effect at p < 5e-8, non-CpG-altering. Direction has no mechanical relationship to distance, so it is the confound-resistant claim.",

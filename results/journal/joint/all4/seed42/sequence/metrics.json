@@ -1,0 +1,21 @@
+{
+  "auc": 0.9529592953314336,
+  "beta_fwd_rc_mae": 0.056477820362450075,
+  "beta_fwd_rc_max_abs": 0.922576904296875,
+  "beta_fwd_rc_pearson": 0.9604882593183274,
+  "beta_mae": 0.1120728687901483,
+  "beta_mean_signed_error": 0.003897516913214632,
+  "beta_median_absolute_error": 0.05500224977731705,
+  "beta_rmse": 0.17972459566281201,
+  "classprob_fwd_rc_mae": 0.06080515240785707,
+  "classprob_fwd_rc_pearson": 0.9561056091020009,
+  "inference": "forward_reverse_complement_average",
+  "m_mae": 1.220405515410086,
+  "m_rmse": 1.6654980189794193,
+  "model_type": "sequence_only",
+  "n_test_loci": 106278,
+  "split": "test",
+  "test_path": "data/datafiles_joint/all4/test.csv",
+  "weights_path": "checkpoints_joint/all4/seed42/sequence/best_weights.pth",
+  "window_size_bp": 1000
+}

@@ -1,0 +1,63 @@
+{
+  "analysis": "TF motif disruption and SilentMethyl variant effects",
+  "block_size_bp": 1000000,
+  "caveat": "PWM occurrence is a sequence-match prediction, not measured binding. Without matched ChIP-seq these are candidate sites.",
+  "continuous_coupling_ci": [
+    -0.022009462453399877,
+    0.0018851805155762858
+  ],
+  "continuous_coupling_spearman": -0.010346614757851034,
+  "contrast_quantile": 0.25,
+  "coupling_null_summary": {
+    "coupling_iqr": [
+      -0.04483970534914547,
+      0.03787732100835739
+    ],
+    "coupling_median": -0.003520515742575787,
+    "coupling_median_partial": -0.0031768023723739006,
+    "fraction_negative": 0.5186522262334536,
+    "known_methylation_sensitive_median_rank": 154,
+    "known_methylation_sensitive_tested": 18,
+    "motifs_tested": 831,
+    "significant_negative_q05": 185,
+    "significant_positive_q05": 158,
+    "spearman_motif_gc_vs_coupling": -0.20910479602386217,
+    "top15_max_pairwise_jaccard": 0.7915119363395225,
+    "top15_mean_pairwise_jaccard": 0.27788069388648745
+  },
+  "disruption_cut_strong": 0.251687616109848,
+  "disruption_cut_weak": 0.19334347546100616,
+  "exclusions": "CpG-creating and CpG-destroying variants are removed: their methylation direction is near-deterministic and would masquerade as a motif effect",
+  "generated_utc": "2026-09-12T17:05:50+00:00",
+  "interpretation_guide": {
+    "Q1": "does the SIZE of motif disruption predict the size of the predicted methylation shift? Reported two ways: a continuous rank correlation over all pairs, and a top-vs-bottom quantile contrast matched on distance and GC. A binary inside/outside split is NOT used: with the full JASPAR library essentially every variant falls inside some occurrence, leaving no background. Confirmatory either way, not novel.",
+    "Q2": "per-factor coupling between motif score change and predicted methylation change; the SIGN is the mechanistic claim",
+    "Q3": "higher meQTL discrimination inside motifs than outside would mean the model's requirement-6 signal is specifically TF-binding disruption. A flat result is informative and must be reported as such."
+  },
+  "matching": {
+    "replacement": false,
+    "tolerance_bp": 10,
+    "variables": [
+      "exact bp distance",
+      "GC quintile"
+    ]
+  },
+  "model": "fusion",
+  "motif_source": "data/external/jaspar/JASPAR_CORE_vertebrates_non-redundant_pfms_jaspar.txt",
+  "motifs_scanned": 877,
+  "motifs_tested": 831,
+  "n_boot": 500,
+  "n_strong": 11525,
+  "n_weak": 10787,
+  "pairs_in_any_motif": 42866,
+  "pairs_scanned": 42866,
+  "purpose": "mentor requirement 7: regulatory enrichment",
+  "relative_score_threshold": 0.8,
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "strand": "both; best WT hit chosen, mutant scored at the same site",
+  "stratum": "heldout"
+}

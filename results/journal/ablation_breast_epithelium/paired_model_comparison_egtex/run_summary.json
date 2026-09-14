@@ -1,0 +1,368 @@
+{
+  "purpose": "paired, LD-aware intervals on the difference between models' variant-effect performance; scripts/20 reports marginal intervals only",
+  "reference": "fusion",
+  "specs": [
+    {
+      "dir": "results/journal/ablation_breast_epithelium/egtex_variant_scoring",
+      "model": "fusion",
+      "seeds": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "dir": "results/journal/published_baselines_egtex/variant_scoring",
+      "model": "deepcpg",
+      "seeds": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "dir": "results/journal/published_baselines_egtex/variant_scoring",
+      "model": "cpgenie",
+      "seeds": [
+        42,
+        43,
+        44
+      ]
+    }
+  ],
+  "stratum": "heldout",
+  "significance_threshold": 1.483e-05,
+  "n_boot": 500,
+  "block_size_bp": 1000000,
+  "shared_cohort_pairs": 47991,
+  "significant_pairs": 418,
+  "matching": {
+    "tolerance_bp": 10,
+    "negatives_per_positive": 1,
+    "replacement": false,
+    "significant_n": 418,
+    "matched_null_n": 418,
+    "requested_negatives": 418,
+    "unmatched_slots": 0,
+    "median_distance_significant": 185.0,
+    "median_distance_matched_null": 185.0,
+    "distance_only_auroc_after_matching": 0.5
+  },
+  "per_model_on_shared_cohort": [
+    {
+      "model": "fusion",
+      "metric": "AUROC, distance-matched",
+      "n": 836,
+      "value": 0.5870229619,
+      "ci_low": 0.5398066101,
+      "ci_high": 0.649083498
+    },
+    {
+      "model": "deepcpg",
+      "metric": "AUROC, distance-matched",
+      "n": 836,
+      "value": 0.5942801218,
+      "ci_low": 0.5541781488,
+      "ci_high": 0.6394248865
+    },
+    {
+      "model": "cpgenie",
+      "metric": "AUROC, distance-matched",
+      "n": 836,
+      "value": 0.5770071656,
+      "ci_low": 0.5226739445,
+      "ci_high": 0.644242815
+    },
+    {
+      "model": "fusion",
+      "metric": "signed rho (significant)",
+      "n": 418,
+      "value": 0.236419489,
+      "ci_low": 0.1085692295,
+      "ci_high": 0.4005711667
+    },
+    {
+      "model": "deepcpg",
+      "metric": "signed rho (significant)",
+      "n": 418,
+      "value": 0.2157518816,
+      "ci_low": 0.1189512365,
+      "ci_high": 0.3207438903
+    },
+    {
+      "model": "cpgenie",
+      "metric": "signed rho (significant)",
+      "n": 418,
+      "value": 0.1906293467,
+      "ci_low": 0.0713404982,
+      "ci_high": 0.3173056357
+    },
+    {
+      "model": "fusion",
+      "metric": "direction agreement",
+      "n": 418,
+      "value": 0.5956937799,
+      "ci_low": 0.5472737438,
+      "ci_high": 0.6563616071
+    },
+    {
+      "model": "deepcpg",
+      "metric": "direction agreement",
+      "n": 418,
+      "value": 0.6028708134,
+      "ci_low": 0.5561717053,
+      "ci_high": 0.6459680574
+    },
+    {
+      "model": "cpgenie",
+      "metric": "direction agreement",
+      "n": 418,
+      "value": 0.5861244019,
+      "ci_low": 0.536060049,
+      "ci_high": 0.6402296409
+    },
+    {
+      "model": "fusion",
+      "metric": "tail enrichment, top 0.1%",
+      "n": 47991,
+      "value": 0.1875,
+      "ci_low": 0.0625,
+      "ci_high": 0.2948195187
+    },
+    {
+      "model": "deepcpg",
+      "metric": "tail enrichment, top 0.1%",
+      "n": 47991,
+      "value": 0.0833333333,
+      "ci_low": 0.0196078431,
+      "ci_high": 0.1590909091
+    },
+    {
+      "model": "cpgenie",
+      "metric": "tail enrichment, top 0.1%",
+      "n": 47991,
+      "value": 0.0625,
+      "ci_low": 0.0,
+      "ci_high": 0.16
+    },
+    {
+      "model": "fusion",
+      "metric": "tail enrichment, top 0.5%",
+      "n": 47991,
+      "value": 0.0708333333,
+      "ci_low": 0.0295953122,
+      "ci_high": 0.1167864486
+    },
+    {
+      "model": "deepcpg",
+      "metric": "tail enrichment, top 0.5%",
+      "n": 47991,
+      "value": 0.0458333333,
+      "ci_low": 0.0192560541,
+      "ci_high": 0.0747753623
+    },
+    {
+      "model": "cpgenie",
+      "metric": "tail enrichment, top 0.5%",
+      "n": 47991,
+      "value": 0.0541666667,
+      "ci_low": 0.0152400977,
+      "ci_high": 0.1175440151
+    },
+    {
+      "model": "fusion",
+      "metric": "tail enrichment, top 1%",
+      "n": 47991,
+      "value": 0.0520833333,
+      "ci_low": 0.0280161484,
+      "ci_high": 0.0798651352
+    },
+    {
+      "model": "deepcpg",
+      "metric": "tail enrichment, top 1%",
+      "n": 47991,
+      "value": 0.0395833333,
+      "ci_low": 0.0182957621,
+      "ci_high": 0.0687071184
+    },
+    {
+      "model": "cpgenie",
+      "metric": "tail enrichment, top 1%",
+      "n": 47991,
+      "value": 0.0395833333,
+      "ci_low": 0.0134670766,
+      "ci_high": 0.0739119304
+    },
+    {
+      "model": "fusion",
+      "metric": "tail enrichment, top 5%",
+      "n": 47991,
+      "value": 0.025,
+      "ci_low": 0.0160713077,
+      "ci_high": 0.0339907071
+    },
+    {
+      "model": "deepcpg",
+      "metric": "tail enrichment, top 5%",
+      "n": 47991,
+      "value": 0.02375,
+      "ci_low": 0.0138687806,
+      "ci_high": 0.0346425892
+    },
+    {
+      "model": "cpgenie",
+      "metric": "tail enrichment, top 5%",
+      "n": 47991,
+      "value": 0.0208333333,
+      "ci_low": 0.0126241034,
+      "ci_high": 0.0313513129
+    }
+  ],
+  "paired_differences": [
+    {
+      "reference": "fusion",
+      "comparison": "deepcpg",
+      "metric": "AUROC, distance-matched",
+      "n": 836,
+      "difference": -0.0072571599,
+      "ci_low": -0.0508580847,
+      "ci_high": 0.0399064203,
+      "interval_excludes_zero": false
+    },
+    {
+      "reference": "fusion",
+      "comparison": "cpgenie",
+      "metric": "AUROC, distance-matched",
+      "n": 836,
+      "difference": 0.0100157963,
+      "ci_low": -0.0499469896,
+      "ci_high": 0.066897339,
+      "interval_excludes_zero": false
+    },
+    {
+      "reference": "fusion",
+      "comparison": "deepcpg",
+      "metric": "signed rho (significant)",
+      "n": 418,
+      "difference": 0.0206676074,
+      "ci_low": -0.0894388498,
+      "ci_high": 0.1431807117,
+      "interval_excludes_zero": false
+    },
+    {
+      "reference": "fusion",
+      "comparison": "cpgenie",
+      "metric": "signed rho (significant)",
+      "n": 418,
+      "difference": 0.0457901423,
+      "ci_low": -0.031382047,
+      "ci_high": 0.1467337493,
+      "interval_excludes_zero": false
+    },
+    {
+      "reference": "fusion",
+      "comparison": "deepcpg",
+      "metric": "direction agreement",
+      "n": 418,
+      "difference": -0.0071770335,
+      "ci_low": -0.059804879,
+      "ci_high": 0.0633096435,
+      "interval_excludes_zero": false
+    },
+    {
+      "reference": "fusion",
+      "comparison": "cpgenie",
+      "metric": "direction agreement",
+      "n": 418,
+      "difference": 0.009569378,
+      "ci_low": -0.0306337062,
+      "ci_high": 0.0616483051,
+      "interval_excludes_zero": false
+    },
+    {
+      "reference": "fusion",
+      "comparison": "deepcpg",
+      "metric": "tail enrichment, top 0.1%",
+      "n": 47991,
+      "difference": 0.1041666667,
+      "ci_low": -0.0213088768,
+      "ci_high": 0.2259508349,
+      "interval_excludes_zero": false
+    },
+    {
+      "reference": "fusion",
+      "comparison": "cpgenie",
+      "metric": "tail enrichment, top 0.1%",
+      "n": 47991,
+      "difference": 0.125,
+      "ci_low": 0.02,
+      "ci_high": 0.1919189853,
+      "interval_excludes_zero": true
+    },
+    {
+      "reference": "fusion",
+      "comparison": "deepcpg",
+      "metric": "tail enrichment, top 0.5%",
+      "n": 47991,
+      "difference": 0.025,
+      "ci_low": -0.0176491146,
+      "ci_high": 0.0687727273,
+      "interval_excludes_zero": false
+    },
+    {
+      "reference": "fusion",
+      "comparison": "cpgenie",
+      "metric": "tail enrichment, top 0.5%",
+      "n": 47991,
+      "difference": 0.0166666667,
+      "ci_low": -0.020726769,
+      "ci_high": 0.0470930233,
+      "interval_excludes_zero": false
+    },
+    {
+      "reference": "fusion",
+      "comparison": "deepcpg",
+      "metric": "tail enrichment, top 1%",
+      "n": 47991,
+      "difference": 0.0125,
+      "ci_low": -0.0138622652,
+      "ci_high": 0.0398519575,
+      "interval_excludes_zero": false
+    },
+    {
+      "reference": "fusion",
+      "comparison": "cpgenie",
+      "metric": "tail enrichment, top 1%",
+      "n": 47991,
+      "difference": 0.0125,
+      "ci_low": -0.0095906211,
+      "ci_high": 0.031861806,
+      "interval_excludes_zero": false
+    },
+    {
+      "reference": "fusion",
+      "comparison": "deepcpg",
+      "metric": "tail enrichment, top 5%",
+      "n": 47991,
+      "difference": 0.00125,
+      "ci_low": -0.0079375811,
+      "ci_high": 0.0086924854,
+      "interval_excludes_zero": false
+    },
+    {
+      "reference": "fusion",
+      "comparison": "cpgenie",
+      "metric": "tail enrichment, top 5%",
+      "n": 47991,
+      "difference": 0.0041666667,
+      "ci_low": -0.0033024079,
+      "ci_high": 0.0115747614,
+      "interval_excludes_zero": false
+    }
+  ],
+  "caveats": {
+    "shared_cohort": "All models are scored on one distance-matched cohort, so the difference contains no matching noise. Each model's marginal value here can differ slightly from its scripts/20 value, which used its own draw of negatives.",
+    "dependence": "Pairs are in LD. Intervals are 1-Mb block bootstraps with both models resampled on the same blocks.",
+    "direction": "A positive difference favours the reference model. An interval spanning zero means the models are not distinguishable on this metric at this n, not that they are equal."
+  }
+}

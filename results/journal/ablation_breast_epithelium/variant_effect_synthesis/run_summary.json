@@ -1,0 +1,67 @@
+{
+  "analysis": "cross-cohort variant-effect synthesis",
+  "block_size_bp": 1000000,
+  "cohorts": {
+    "GENOA": {
+      "rows": 132990,
+      "threshold": 5e-08
+    },
+    "eGTEx": {
+      "rows": 153786,
+      "threshold": 1.483e-05
+    }
+  },
+  "cohorts_analysed": [
+    "GENOA",
+    "eGTEx"
+  ],
+  "cohorts_missing_scores": [],
+  "cohorts_requested": [
+    "GENOA",
+    "eGTEx"
+  ],
+  "generated_utc": "2026-09-12T23:21:20+00:00",
+  "meta_analysis": [
+    {
+      "ci_high": 0.2779804363240442,
+      "ci_low": 0.06240981893360361,
+      "cochran_q": 0.5008678169235279,
+      "cohorts": "GENOA, eGTEx",
+      "df": 1,
+      "i_squared": 0.0,
+      "k": 2,
+      "model": "fusion",
+      "p": 0.002224538782916797,
+      "q_p": 0.4791190589679356,
+      "rho_meta": 0.1722567930795652,
+      "z": 3.0584921890618584
+    },
+    {
+      "ci_high": 0.2756551811989571,
+      "ci_low": 0.0599010150902891,
+      "cochran_q": 0.3642950203631358,
+      "cohorts": "GENOA, eGTEx",
+      "df": 1,
+      "i_squared": 0.0,
+      "k": 2,
+      "model": "sequence",
+      "p": 0.0025763592608953043,
+      "q_p": 0.5461305132681473,
+      "rho_meta": 0.16981223627906,
+      "z": 3.0142258630779137
+    }
+  ],
+  "meta_note": "Meta-analysis weights use independent 1 Mb LD blocks, not pair counts. Using pairs would understate the variance by roughly an order of magnitude and manufacture significance.",
+  "models": [
+    "fusion",
+    "sequence"
+  ],
+  "n_boot": 500,
+  "primary_stratum": "significant AND no nearby CpG-altering variant",
+  "reporting_rule": "all_strata.csv contains every stratum computed, including the null control and every precision and distance bin. A stratified result is a finding only when the full stratification is shown; quoting one bin without the table is the same number selected after the fact.",
+  "seeds": [
+    42,
+    43,
+    44
+  ]
+}

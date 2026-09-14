@@ -1,0 +1,9 @@
+{
+  "ALL": {
+    "beta_mae": 0.10115518090518463,
+    "inference": "forward_only",
+    "n": 26570,
+    "pred_column": "pred_beta_fwd",
+    "true_column": "true_beta"
+  }
+}

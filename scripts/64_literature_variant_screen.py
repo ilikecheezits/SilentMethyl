@@ -114,6 +114,18 @@ def parse_args() -> argparse.Namespace:
         default=Path("scripts/63_known_variant_application.py"),
     )
     parser.add_argument(
+        "--weights-template",
+        default="checkpoints_journal/seed{seed}/fusion/best_weights.pth",
+        help=(
+            "Forwarded to --known-variant-script as its --weights-template. "
+            "Without this the screen silently scores whatever that script "
+            "defaults to, so a non-published checkpoint set (e.g. the "
+            "breast-epithelium ablation) must be set here AND in "
+            "--split-template, or the run reports a result that looks correct "
+            "and was produced by the wrong model."
+        ),
+    )
+    parser.add_argument(
         "--output-dir", type=Path,
         default=Path("results/journal/literature_variant_screen"),
     )
@@ -731,6 +743,7 @@ def run_scorer(args: argparse.Namespace, variant_csv: Path, output_dir: Path) ->
         sys.executable, "-u", str(args.known_variant_script),
         "--variant-csv", str(variant_csv),
         "--split-template", args.split_template,
+        "--weights-template", args.weights_template,
         "--seeds", *[str(seed) for seed in args.seeds],
         "--device", args.device,
         "--batch-size", str(args.batch_size),

@@ -1,0 +1,37 @@
+{
+  "analysis": "GENOA variant evaluation on frozen SilentMethyl checkpoints",
+  "block_size_bp": 1000000,
+  "caveats": {
+    "dependence": "Pairs are in LD. All intervals are 1 Mb block bootstraps; naive intervals would be far too narrow.",
+    "effect_scale": "GENOA betas are on a normalized-phenotype scale. Rank and sign comparisons only; no magnitude calibration claim is available.",
+    "tissue": "GENOA is peripheral blood; SilentMethyl is trained on breast and its context features are unrecorded (no weights path found under results/journal/ablation_breast_epithelium/genoa_variant_scoring); check the scoring run_summary before quoting this. This is cross-tissue, cross-ancestry transfer, not tissue-matched validation."
+  },
+  "cohort": "GENOA",
+  "context_source": "unrecorded (no weights path found under results/journal/ablation_breast_epithelium/genoa_variant_scoring); check the scoring run_summary before quoting this",
+  "generated_utc": "2026-09-12T20:55:08+00:00",
+  "matching": {
+    "negatives_per_positive": 1,
+    "replacement": false,
+    "tolerance_bp": 10
+  },
+  "models": [
+    "fusion",
+    "sequence"
+  ],
+  "n_boot": 2000,
+  "primary_claims": {
+    "dilution": "signal rises monotonically with association strength and reaches chance in the null stratum -- the evidence that the effect is real rather than fitted noise.",
+    "direction": "signed Spearman rho and direction agreement against the cohort effect at p < 5e-8, non-CpG-altering. Direction has no mechanical relationship to distance, so it is the confound-resistant claim.",
+    "discrimination": "AUROC of |delta M| against distance-matched negatives, reported beside the distance-only baseline. The marginal AUROC is NOT reportable alone: distance by itself reaches ~0.595.",
+    "equivalence": "fusion minus sequence, paired and bootstrapped. An interval spanning zero is the expected result: the context vector is identical for REF and ALT, so it cannot create a variant effect, only modulate one through the gate."
+  },
+  "purpose": "mentor requirement 6: independent variant evaluation",
+  "seed_minus_one_means": "mean delta across seeds (ensemble)",
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "significance_threshold": 5e-08,
+  "stratum": "heldout"
+}
