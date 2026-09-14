@@ -29,6 +29,13 @@ Every reported single-tissue number needs refreshing from
 `results/journal/ablation_breast_epithelium/`. **Do not circulate figures
 computed before 12 Sep 2026.**
 
+**R8 chain opened 14 Sep 2026 (§6).** Task C is done and came back **null**:
+the gate's DNA/context *share* does not track measured cross-tissue methylation
+variance (ρ = +0.042, and −0.061 once methylation level is partialled out). Do
+not write that the gate detects tissue-variable loci. Task A (gate
+decomposition) is running; note §6 A.1 — the specified Δ_sequence regression
+measures cross-model agreement, not gating, and cannot reach R² ≈ 0.99.
+
 The claim is methodological: here is how variant-effect prediction should be
 evaluated, here is what happens to two very different models under it, and
 tissue-matching buys far less than the field assumes. The biological question we
@@ -1666,9 +1673,17 @@ and pre-empts the "different splits" objection.
    send it before the reruns land or update it, but do not let the two drift.
 9. **Fix the `caveats.tissue` string in `21_variant_evaluation.py`** — it still
    says MCF-10A and is written into every `run_summary.json`.
-10. **Fix `64_literature_variant_screen.py` to forward `--weights-template`**
+10. ~~**Fix `64_literature_variant_screen.py` to forward `--weights-template`**
    before running the candidate chain. As written it silently scores the old
-   MCF-10A checkpoints through `63`, and the output looks correct.
+   MCF-10A checkpoints through `63`, and the output looks correct.~~
+   **Verified fixed 14 Sep 2026.** `64` forwards both `--weights-template` and
+   `--split-template` to `63` (`scripts/64_literature_variant_screen.py:745-746`),
+   the `--weights-template` help text spells out the failure mode, and
+   `jobs/r7_ablation/64_literature.sbatch:21-22` sets both explicitly. The
+   defaults still point at `checkpoints_journal` / `data/datafiles`, so both
+   flags remain mandatory for an ablation run — but the defect itself is gone.
+   *Do not patch this again:* this entry stayed open after the 13 Sep fix and
+   nearly generated a second patch for a bug that no longer existed.
 11. **Add the three-way variant-discrimination table (§1.10) to the Results.**
    Sequence-only 0.5606, fusion/MCF-10A 0.5586, fusion/breast-epi 0.5608 — all
    within 0.0022. This is the strongest form of R2 and currently exists nowhere
@@ -1811,3 +1826,124 @@ Now that the folds are done, slide 3 should carry the four-fold table rather
 than a single split, and the 9/1 limitation "cross-ancestry and cross-tissue are
 confounded" should be narrowed — the nine-tissue result measures tissue on its
 own, so GENOA's marginal contribution is ancestry plus platform.
+
+---
+
+## 6. R8 journal chain — five new analyses (14 Sep 2026)
+
+Five analyses aimed at acceptance, budgeted under 40 of the 125 GPU hours.
+Single seed (42) everywhere **by design**: these characterise one trained
+model's internals and external validity, not run-to-run spread. Do not add
+multi-seed replication to this chain without a reason that is about the science
+rather than about habit.
+
+Order: A and C first (A is the central claim, C is free). B and D only if those
+land. E only if the catalogue clears ~500 usable pairs.
+
+Guards: `jobs/r8_journal/_common.sh`, same contract as the R6/R7 chain — clock
+stamp before, `find -newermt` clobber check after, `require_cuda` to catch the
+v005-style silent CPU fallback. Outputs confined to
+`results/journal/ablation_breast_epithelium/` and `results/journal/joint/`.
+
+### A. Gate decomposition — running
+
+`scripts/54_gate_decomposition.py`, `jobs/r8_journal/54_gate_instrument.sbatch`
+(array 0=genoa, 1=egtex), submitted as 45992001 at 22:19 UTC.
+
+Smoke-tested first (`54_gate_instrument_smoke.sbatch`, 400 pairs, scratch
+output): the hand-rebuilt forward pass reproduces `scripts/20` to
+**max |ΔM| = 5.2e-6** against a 1e-4 threshold. Worth keeping that habit — the
+reproduction check in the full run only fires at the very *end*, so without a
+smoke pass a rebuild bug costs the whole 8 h walltime before it surfaces.
+
+Throughput measured on the smoke run: **0.059 s/pair** (400 pairs in 23.5 s of
+scoring, V100-32). Projected ~65 min genoa, ~75 min egtex, running in parallel
+→ **~1.3 h wall, ~2.4 GPU h**, comfortably inside the 3 h estimate and the 8 h
+walltime.
+
+**Two things the analysis plan got wrong, both structural, both worth recording
+before the numbers land:**
+
+1. *The specified regression cannot reach R²≈0.99, for reasons that have nothing
+   to do with gating.* Regressing Δ_fusion on Δ_sequence × gate_dna compares two
+   **separately trained models** — the sequence-only arm has its own encoder and
+   its own head — so it measures cross-model agreement and is capped by that. The
+   CPU fallback already shows the ceiling: R² = 0.794 ungated, and *adding* the
+   gate makes it slightly **worse** (0.757 with gate_dna(REF), 0.781 with the
+   REF/ALT mean). On top of that the regression head is nonlinear
+   (Linear→GELU→Linear), so an exact linear rescaling cannot hold by
+   construction. The instrumented run therefore also computes the *within-model*
+   decomposition, which is exact by construction:
+   `Δ_total = Δ_DNA_channel + Δ_gate_channel`, holding the gate frozen at REF.
+   That is the version that can support the intended claim.
+
+2. *"The epi branch's contribution is bit-identical across alleles" will come
+   back ≈0%, and that is correct behaviour, not a bug.* `epi` itself **is**
+   bit-identical (same tabular input both alleles). Its **contribution**
+   `g_epi × epi` is not, because the gate network reads `[dna, epi]` and `dna`
+   moves with the allele. The fallback measures |g_epi(ALT) − g_epi(REF)|:
+   median 1.0e-4, p95 1.4e-3, max 0.055. That residual is the *sole* channel by
+   which context can touch a variant effect — small, but **not zero**. The paper
+   must not claim zero. The script separates the two quantities deliberately
+   (`Epi_Vector_Bit_Identical_*` vs `Epi_Contribution_Bit_Identical_*`).
+
+Allele invariance of the DNA gate itself, from the fallback (fwd/RC-averaged,
+both cohorts): |gate_dna(ALT) − gate_dna(REF)| median ~1.2e-4, p95 ~1.5e-3,
+against a gate_dna level of ~0.024. Relative shift ~0.5%. The instrumented run
+reports this per strand rather than averaged.
+
+### C. Gate share vs measured tissue plasticity — DONE, null
+
+`scripts/55_gate_plasticity.py` → `results/journal/joint/gate_plasticity/`.
+Zero GPU. 46,536 probes (all4 joint validation loci, chr10+chr11), each with
+`Median_Beta` measured in all four tissues.
+
+Data note: `data/datafiles_joint/all4` assigns **one tissue per probe**, so
+cross-tissue variance cannot come from the joint build. It comes from the four
+per-tissue builds, each of which carries its own `val.csv` on the same two
+chromosomes — a direct four-way join on probeID, 46,539 probes shared, 46,536
+after matching the gate file.
+
+**The hypothesis is null.** `gate_dna_share` vs cross-tissue variance:
+**ρ = +0.042**, 95% CI [+0.019, +0.062] over 1 Mb blocks. Nonzero only because
+n is large; negligible in size, and it **flips to −0.061** once mean β is
+partialled out. Stratified by assigned training tissue: +0.085 / +0.041 /
++0.012 / +0.028. Attenuation cannot rescue it — fwd/RC share MAE 0.057 against
+a q10–q90 range of 0.413 (~14% noise-to-range) does not turn 0.04 into a result.
+Reported raw, **not disattenuated**.
+
+*The null is real, not a Spearman artifact.* The decile table is U-shaped
+(d1 median var 0.0027 → d3–d4 ~0.00002 → d6–d10 ~0.0006), and the U is fully
+explained by level: `gate_dna_share` correlates **+0.396** with mean β, and
+cross-tissue variance is mechanically compressed at β≈0 and β≈1 (deciles 3–4
+sit at mean β ≈ 0.05). The share tracks methylation level; level induces the U.
+There is no plasticity signal underneath.
+
+**What this constrains:** the DNA/context *share* — the quantity the paper
+actually interprets — carries essentially no tissue-plasticity information. Any
+wording suggesting the gate discovers tissue-variable loci is unsupported.
+
+**One real signal, but not the hypothesised one.** Both raw gates correlate
+negatively with variance, and so does their sum: `gate_total` **ρ = −0.621**.
+At tissue-variable loci the model shrinks *both* branches rather than
+re-balancing them. Tested against the obvious alternative (prediction
+difficulty): `gate_total` vs |pred err| ρ = −0.501, variance vs |pred err|
+ρ = +0.530, partial(gate_total, var | pred err) = **−0.484**, partial given
+level *and* error = **−0.465**. It survives both controls at ~three-quarters
+strength.
+
+Treat as a **lead, not a claim.** Gates are applied after LayerNorm, so
+shrinking both gates shrinks the fused vector toward the head's bias — i.e.
+toward the mean prediction. `gate_total` is therefore most naturally read as a
+learned **shrinkage/confidence** term that partially tracks plasticity, not as a
+plasticity detector. Anyone promoting this to a claim needs a mechanism check
+first, not another correlation.
+
+Per the standing note, every statement here is distribution-level; no per-locus
+gate share is quoted.
+
+### B, D, E — not started
+
+Gated on A landing. D depends on the Task C per-probe variance file, which now
+exists (`gate_plasticity_per_probe.csv`) and can be joined straight onto the
+held-out-breast predictions.
