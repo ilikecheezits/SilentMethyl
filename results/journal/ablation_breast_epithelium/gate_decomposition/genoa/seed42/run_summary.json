@@ -1,0 +1,33 @@
+{
+  "analysis": "gate decomposition of the fusion variant effect (instrumented forward pass)",
+  "channel_definition": "Delta_M_DNA_Channel = head(g(REF)_d*dna_ALT + g(REF)_e*epi) - m_REF; Delta_M_Gate_Channel = m_ALT - head(g(REF)_d*dna_ALT + g(REF)_e*epi). They sum exactly to Delta_M_Total by construction.",
+  "cohort": "genoa",
+  "construction_counters": {
+    "alters_target_cpg": 0,
+    "bad_stored_sequence_length": 0,
+    "outside_model_window": 0,
+    "probe_not_in_splits": 0,
+    "reference_base_mismatch": 0,
+    "scoreable": 66495,
+    "stored_sequence_not_cpg_centred": 0,
+    "unexpected_window_difference": 0,
+    "window_not_cpg_centred": 0
+  },
+  "generated_utc": "2026-09-14T23:23:58+00:00",
+  "input_csv": "data/external/genoa_meqtl/scoring/genoa_scoring_input_heldout.csv",
+  "input_sha256": "df19807e106c01b7e9a7004a45e7a7c40cee7faf4e1c668f98411357b45239d7",
+  "masked_probe_pairs_dropped": 0,
+  "output": "results/journal/ablation_breast_epithelium/gate_decomposition/genoa/seed42/instrumented_pairs.csv",
+  "pairs_scored": 66495,
+  "precision": "fp32",
+  "reproduction_check": {
+    "max_abs_diff_delta_m": 3.815734863299447e-06,
+    "max_abs_diff_wt_m": 2.0683593753290097e-06,
+    "pairs_matched": 66495,
+    "reference_file": "results/journal/ablation_breast_epithelium/genoa_variant_scoring/heldout/fusion/seed42/pair_scores.csv"
+  },
+  "seed": 42,
+  "split_template": "data/datafiles_breast_epithelium/{split}.csv",
+  "weights": "checkpoints_ablation/breast_epithelium/seed42/fusion/best_weights.pth",
+  "weights_sha256": "8e8917433f25a6960788c6ff3a7bf1a915793e04eaec8c00cd16f59c1c97c0c3"
+}

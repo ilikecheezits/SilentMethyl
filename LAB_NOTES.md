@@ -29,7 +29,16 @@ Every reported single-tissue number needs refreshing from
 `results/journal/ablation_breast_epithelium/`. **Do not circulate figures
 computed before 12 Sep 2026.**
 
-**R8 chain opened 14 Sep 2026 (§6).** Task C is done and came back **null**:
+**R8 chain, 14 Sep 2026 (§6). Task A refutes the allele-invariance claim as
+currently written.** The context *embedding* is bit-identical across alleles
+(confirmed), but its *gated contribution* is not, and that channel carries
+**19% of the variance** of the predicted variant effect at a median 40% of the
+sequence channel's magnitude. It adds almost no discriminative signal — the DNA
+channel alone recovers ~99% of the model's correlation with measured effects,
+which is why R2 still holds. Do not write "context cannot create a variant
+effect" anywhere. The corrected wording is in §6 A.
+
+**Task C** is done and came back **null**:
 the gate's DNA/context *share* does not track measured cross-tissue methylation
 variance (ρ = +0.042, and −0.061 once methylation level is partialled out). Do
 not write that the gate detects tissue-variable loci. Task A (gate
@@ -1845,7 +1854,7 @@ stamp before, `find -newermt` clobber check after, `require_cuda` to catch the
 v005-style silent CPU fallback. Outputs confined to
 `results/journal/ablation_breast_epithelium/` and `results/journal/joint/`.
 
-### A. Gate decomposition — running
+### A. Gate decomposition — DONE 14 Sep 2026. The intended claim is REFUTED.
 
 `scripts/54_gate_decomposition.py`, `jobs/r8_journal/54_gate_instrument.sbatch`
 (array 0=genoa, 1=egtex), submitted as 45992001 at 22:19 UTC.
@@ -1910,6 +1919,76 @@ Allele invariance of the DNA gate itself, from the fallback (fwd/RC-averaged,
 both cohorts): |gate_dna(ALT) − gate_dna(REF)| median ~1.2e-4, p95 ~1.5e-3,
 against a gate_dna level of ~0.024. Relative shift ~0.5%. The instrumented run
 reports this per strand rather than averaged.
+
+#### Result (45992001, both tasks COMPLETED 0:0, 23:24 and 23:33 UTC)
+
+Reproduction against `scripts/20`: max |ΔM| **3.8e-6** on all 66,495 / 76,893
+pairs. Channel identity `Δ_total = Δ_DNA + Δ_gate` holds to **2e-7**, so the
+decomposition is exact, not fitted. Clobber checks clean. ~2.4 GPU h.
+
+**What is confirmed.** The epi encoder output is **bit-identical across alleles**
+— `Epi_Vector_Bit_Identical` True on both strands in both cohorts. The context
+embedding really is allele-invariant.
+
+**What is refuted.** The intended claim was that gated fusion merely rescales the
+sequence variant effect by a near-allele-invariant scalar and "does not add an
+independent context-derived effect". The gate channel is not negligible:
+
+| | genoa | eGTEx |
+|---|---|---|
+| variance share, DNA channel | 0.557 | 0.555 |
+| **variance share, gate channel** | **0.187** | **0.195** |
+| corr(gate channel, total) | +0.729 | +0.725 |
+| median \|gate channel\| / \|total\| | 0.349 | 0.346 |
+| SD of gate channel (M) | 0.0404 | 0.0441 |
+
+The shares do not sum to 1 because the two channels covary (r = +0.38–0.40);
+the residual 0.25 is 2·Cov/Var.
+
+The gated epi contribution is bit-identical in **0.005–0.009%** of pairs — i.e.
+essentially never, exactly as predicted. Splitting the fused-vector perturbation
+by sub-channel (from the saved L2 diagnostics, ‖e‖ ≈ 20.1):
+
+    ‖Δ(g_epi · epi)‖   CONTEXT   median 0.0022, mean 0.0080, p95 0.0328
+    g_dna(REF)·‖Δdna‖  SEQUENCE  median 0.0058, mean 0.0127, p95 0.0467
+    ratio context/sequence       median 0.40, mean 0.59, p95 1.69
+
+So the context-mediated perturbation is a **median 40%** of the sequence one, and
+in ~5% of pairs it is larger. "Almost invariant scalar" does **not** imply
+"negligible effect": a 0.5% gate shift multiplies a vector of norm ~20, and that
+product is not small.
+
+**Why this still reconciles with R2 — and sharpens it.** The gate channel carries
+variance but almost no *information*. Signed Spearman against the measured
+effect:
+
+| | total | DNA channel only | gate channel only |
+|---|---|---|---|
+| genoa (`beta_genoa_ref_to_alt`) | +0.0707 | **+0.0699** | +0.0560 |
+| eGTEx (`beta_ref_to_alt`) | +0.0537 | **+0.0536** | +0.0408 |
+
+The DNA channel alone recovers ~99% of the full model's correlation. The gate
+channel's apparent signal is inherited through its +0.38–0.40 correlation with
+the DNA channel, not independent. That is precisely why R2's paired
+fusion-minus-sequence spans zero: the context channel injects magnitude into the
+variant effect without adding discriminative signal.
+
+**The defensible claim, replacing the old one.** The context embedding is
+allele-invariant, so context has no *independent* channel — the trigger is always
+sequence, and with no sequence change there is no gate change and no variant
+effect. But context *content* does enter the variant effect, through the gate's
+dependence on the sequence embedding, at a median 40% of the sequence channel's
+magnitude and ~19% of its variance. It modulates the size of a sequence-derived
+effect while contributing essentially no independent information about it.
+
+**Open, and cheap (~2.4 GPU h).** The gate channel mixes two sub-effects that the
+saved counterfactuals cannot separate in M units: g_dna re-scaling `dna_ALT`
+(pure sequence) and g_epi re-scaling `epi` (context content). The L2 split above
+says they are comparable, but L2 is a proxy — the head is nonlinear and different
+directions have different gain. One more counterfactual,
+`head(g(A)_d·dna_A + g(R)_e·epi)`, closes it exactly. Worth paying for before the
+claim goes in the manuscript, because the honest wording depends on which
+sub-channel dominates.
 
 ### C. Gate share vs measured tissue plasticity — DONE, null
 

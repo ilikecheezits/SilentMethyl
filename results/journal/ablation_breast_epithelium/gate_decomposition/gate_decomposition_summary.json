@@ -1,6 +1,6 @@
 {
   "analysis": "gate decomposition of the fusion model's variant effect",
-  "bootstrap": "400 draws over 1 Mb genomic blocks",
+  "bootstrap": "1000 draws over 1 Mb genomic blocks",
   "cohorts": {
     "egtex": {
       "cohort": "egtex",
@@ -11,8 +11,8 @@
           "pearson_r": 0.8909566155521806,
           "r2": 0.7938036907961972,
           "r2_block_bootstrap_95ci": [
-            0.6917590109655363,
-            0.8613070716437603
+            0.6944882554440919,
+            0.8614103160521578
           ],
           "residual_sd": 0.045361822372665866,
           "slope": 0.716564418048591
@@ -23,8 +23,8 @@
           "pearson_r": 0.8701779445454576,
           "r2": 0.7572096551733567,
           "r2_block_bootstrap_95ci": [
-            0.6853945730131862,
-            0.8134264115154843
+            0.6842625266904843,
+            0.8112958414604833
           ],
           "residual_sd": 0.04922273668236926,
           "slope": 33.709921996165804
@@ -35,8 +35,8 @@
           "pearson_r": 0.8839154086440689,
           "r2": 0.7813064496384106,
           "r2_block_bootstrap_95ci": [
-            0.7160221133536936,
-            0.8194531173498875
+            0.7162653440484579,
+            0.8194515112304631
           ],
           "residual_sd": 0.046716256846501165,
           "slope": 34.39071848111718
@@ -57,6 +57,34 @@
           "p95": 0.0014902793999999997,
           "p99": 0.0034725095600000016,
           "sd": 0.0007462621485788093
+        },
+        "abs_gate_dna_alt_minus_ref_FWD": {
+          "max": 0.032172180999999994,
+          "mean": 0.00041775487004668823,
+          "median": 0.0001349001999999995,
+          "min": 0.0,
+          "n": 76893,
+          "p1": 1.2789199999999058e-06,
+          "p25": 4.360999999999948e-05,
+          "p5": 6.34719999999811e-06,
+          "p75": 0.00039744899999999764,
+          "p95": 0.0017439517999999975,
+          "p99": 0.004263486920000009,
+          "sd": 0.000915359215928585
+        },
+        "abs_gate_dna_alt_minus_ref_RC": {
+          "max": 0.03197117,
+          "mean": 0.0004236466394392208,
+          "median": 0.00013692499999999955,
+          "min": 1.0000000001675335e-08,
+          "n": 76893,
+          "p1": 1.2418400000017984e-06,
+          "p25": 4.3723000000002454e-05,
+          "p5": 6.820400000001617e-06,
+          "p75": 0.0004013119999999974,
+          "p95": 0.001744498599999999,
+          "p99": 0.004405327280000001,
+          "sd": 0.0009515537978685967
         },
         "abs_gate_dna_share_alt_minus_ref": {
           "max": 0.47734478,
@@ -117,6 +145,83 @@
         "note": "gates here are the forward/RC average scripts/20 saves. The instrumented run reports them per strand as well.",
         "relative_gate_dna_shift_median": 0.005701966648688297
       },
+      "instrumented": {
+        "corr_dna_channel_with_total": 0.9127646878547713,
+        "corr_gate_channel_with_total": 0.7246505775566877,
+        "delta_m_dna_channel": {
+          "max": 2.323978,
+          "mean": 0.00011576778213005857,
+          "median": 0.000166893,
+          "min": -2.4672914,
+          "n": 76893,
+          "p1": -0.22148223760000002,
+          "p25": -0.013110399,
+          "p5": -0.0787177816,
+          "p75": 0.014431357,
+          "p95": 0.0822582236,
+          "p99": 0.2096554780000008,
+          "sd": 0.07442059577392222
+        },
+        "delta_m_gate_channel": {
+          "max": 2.5254993,
+          "mean": 0.0001544187999151893,
+          "median": 1.5616417e-05,
+          "min": -1.8897793,
+          "n": 76893,
+          "p1": -0.1175216718,
+          "p25": -0.0062263235,
+          "p5": -0.0417360664,
+          "p75": 0.006476164,
+          "p95": 0.04173207299999995,
+          "p99": 0.1167679531200001,
+          "sd": 0.04411410068443691
+        },
+        "delta_m_total": {
+          "max": 3.8899345,
+          "mean": 0.000270186584562438,
+          "median": 0.000218153,
+          "min": -2.1305563,
+          "n": 76893,
+          "p1": -0.30570923,
+          "p25": -0.01928401,
+          "p5": -0.10989775599999997,
+          "p75": 0.020708561,
+          "p95": 0.11462322459999992,
+          "p99": 0.28005604640000065,
+          "sd": 0.09989580072440589
+        },
+        "epi_encoder_output_bit_identical_across_alleles": {
+          "Epi_Vector_Bit_Identical_FWD": true,
+          "Epi_Vector_Bit_Identical_RC": true
+        },
+        "epi_encoder_output_max_abs_diff": {
+          "Epi_Vector_Max_Abs_Diff_FWD": 0.0,
+          "Epi_Vector_Max_Abs_Diff_RC": 0.0
+        },
+        "epi_gated_contribution_bit_identical_fraction": {
+          "Epi_Contribution_Bit_Identical_FWD": 5.2020339952921594e-05,
+          "Epi_Contribution_Bit_Identical_RC": 1.3005084988230398e-05
+        },
+        "file": "results/journal/ablation_breast_epithelium/gate_decomposition/egtex/seed42/instrumented_pairs.csv",
+        "gate_channel_share_of_abs_effect": {
+          "max": 8611.914526700843,
+          "mean": 1.1500660743472808,
+          "median": 0.3459141095275232,
+          "min": 0.0,
+          "n": 76893,
+          "p1": 0.010733714054624482,
+          "p25": 0.22704476132711499,
+          "p5": 0.05298045976063912,
+          "p75": 0.5172229397088005,
+          "p95": 1.5153304035219004,
+          "p99": 7.5579444805429,
+          "sd": 38.701750124361
+        },
+        "identity_check_max_abs_residual": 2.400000003177638e-07,
+        "pairs": 76893,
+        "variance_share_dna_channel": 0.554998513807416,
+        "variance_share_gate_channel": 0.19501157748819198
+      },
       "pairs": 76893,
       "scale": "M-value (the scale scripts/20 reports as primary)",
       "sequence_pair_scores": "results/journal/ablation_breast_epithelium/egtex_variant_scoring/heldout/sequence/seed42/pair_scores.csv"
@@ -130,8 +235,8 @@
           "pearson_r": 0.8928822323642597,
           "r2": 0.7972386808717834,
           "r2_block_bootstrap_95ci": [
-            0.7106365387966858,
-            0.8564468379704571
+            0.7099973103327216,
+            0.8552623712796557
           ],
           "residual_sd": 0.042043415028872516,
           "slope": 0.7082449458083128
@@ -142,8 +247,8 @@
           "pearson_r": 0.8733997882743678,
           "r2": 0.76282719015771,
           "r2_block_bootstrap_95ci": [
-            0.7043387723180189,
-            0.8073944993247562
+            0.7043611532806838,
+            0.8079120700751897
           ],
           "residual_sd": 0.045471353363722135,
           "slope": 33.94086005479861
@@ -154,8 +259,8 @@
           "pearson_r": 0.88148542047818,
           "r2": 0.7770165465155936,
           "r2_block_bootstrap_95ci": [
-            0.722100768733389,
-            0.8174063415556964
+            0.7212330435156052,
+            0.8188159384561404
           ],
           "residual_sd": 0.044090167586742626,
           "slope": 34.4822189421281
@@ -176,6 +281,34 @@
           "p95": 0.0014575771,
           "p99": 0.0033064786199999948,
           "sd": 0.0006962283427127561
+        },
+        "abs_gate_dna_alt_minus_ref_FWD": {
+          "max": 0.022057085,
+          "mean": 0.0004024389441416648,
+          "median": 0.0001292050000000003,
+          "min": 0.0,
+          "n": 66495,
+          "p1": 1.195939999998688e-06,
+          "p25": 4.123500000000058e-05,
+          "p5": 6.121699999999536e-06,
+          "p75": 0.0003826619999999989,
+          "p95": 0.0016814647999999993,
+          "p99": 0.0041609095399999995,
+          "sd": 0.0008743843301722171
+        },
+        "abs_gate_dna_alt_minus_ref_RC": {
+          "max": 0.027086465999999997,
+          "mean": 0.00040624540711030907,
+          "median": 0.00013137800000000144,
+          "min": 0.0,
+          "n": 66495,
+          "p1": 1.2549400000019112e-06,
+          "p25": 4.180400000000119e-05,
+          "p5": 6.467400000000589e-06,
+          "p75": 0.00038648950000000175,
+          "p95": 0.0017013642999999935,
+          "p99": 0.0041543676599999895,
+          "sd": 0.00089343923736733
         },
         "abs_gate_dna_share_alt_minus_ref": {
           "max": 0.47734494,
@@ -236,12 +369,89 @@
         "note": "gates here are the forward/RC average scripts/20 saves. The instrumented run reports them per strand as well.",
         "relative_gate_dna_shift_median": 0.005372953316279023
       },
+      "instrumented": {
+        "corr_dna_channel_with_total": 0.9179603897974984,
+        "corr_gate_channel_with_total": 0.7290209059515017,
+        "delta_m_dna_channel": {
+          "max": 1.6802546,
+          "mean": 0.0009893660246254033,
+          "median": 0.00017213821,
+          "min": -2.4672914,
+          "n": 66495,
+          "p1": -0.2034478844,
+          "p25": -0.0120474695,
+          "p5": -0.073018532,
+          "p75": 0.0134245755,
+          "p95": 0.08124087449999996,
+          "p99": 0.20824765799999784,
+          "sd": 0.06965551060036844
+        },
+        "delta_m_gate_channel": {
+          "max": 2.5254998,
+          "mean": 6.267913693074452e-05,
+          "median": -1.2636185e-05,
+          "min": -1.3484981,
+          "n": 66495,
+          "p1": -0.1125593047,
+          "p25": -0.0060543418,
+          "p5": -0.0400327686,
+          "p75": 0.00605130195,
+          "p95": 0.03969211989999999,
+          "p99": 0.11250137559999997,
+          "sd": 0.040366312230457585
+        },
+        "delta_m_total": {
+          "max": 3.3597639,
+          "mean": 0.001052045161413717,
+          "median": 0.00021368265,
+          "min": -2.1305563,
+          "n": 66495,
+          "p1": -0.286143251,
+          "p25": -0.0178450495,
+          "p5": -0.10388913079999999,
+          "p75": 0.0195354525,
+          "p95": 0.11222251299999998,
+          "p99": 0.2762397672,
+          "sd": 0.0933688855175639
+        },
+        "epi_encoder_output_bit_identical_across_alleles": {
+          "Epi_Vector_Bit_Identical_FWD": true,
+          "Epi_Vector_Bit_Identical_RC": true
+        },
+        "epi_encoder_output_max_abs_diff": {
+          "Epi_Vector_Max_Abs_Diff_FWD": 0.0,
+          "Epi_Vector_Max_Abs_Diff_RC": 0.0
+        },
+        "epi_gated_contribution_bit_identical_fraction": {
+          "Epi_Contribution_Bit_Identical_FWD": 9.023234829686443e-05,
+          "Epi_Contribution_Bit_Identical_RC": 7.519362358072035e-05
+        },
+        "file": "results/journal/ablation_breast_epithelium/gate_decomposition/genoa/seed42/instrumented_pairs.csv",
+        "gate_channel_share_of_abs_effect": {
+          "max": 14833.000011995708,
+          "mean": 1.1306618720267125,
+          "median": 0.3484517087617513,
+          "min": 0.0,
+          "n": 66495,
+          "p1": 0.011725305556888969,
+          "p25": 0.23229861928226625,
+          "p5": 0.05693711172071198,
+          "p75": 0.5234735947269716,
+          "p95": 1.604731558535201,
+          "p99": 7.609259017617117,
+          "sd": 58.78097782438508
+        },
+        "identity_check_max_abs_residual": 2.0000000011677344e-07,
+        "pairs": 66495,
+        "variance_share_dna_channel": 0.5565531053814297,
+        "variance_share_gate_channel": 0.18691054349984884
+      },
       "pairs": 66495,
       "scale": "M-value (the scale scripts/20 reports as primary)",
       "sequence_pair_scores": "results/journal/ablation_breast_epithelium/genoa_variant_scoring/heldout/sequence/seed42/pair_scores.csv"
     }
   },
-  "generated_utc": "2026-09-14T21:51:33+00:00",
+  "generated_utc": "2026-09-14T23:50:59+00:00",
   "seed": 42,
   "single_seed_note": "Seed 42 only, by design. This analysis characterises one trained model's internal arithmetic; it is not a run-to-run variability estimate."
 }
