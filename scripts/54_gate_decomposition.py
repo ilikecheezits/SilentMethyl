@@ -74,6 +74,7 @@ os.environ.setdefault("MPLCONFIGDIR", "/tmp/silentmethyl_matplotlib")
 
 import numpy as np
 import pandas as pd
+from scipy import stats
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
@@ -250,11 +251,18 @@ def run_instrument(args: argparse.Namespace) -> int:
             fused_alt_gateR = dna_a * g_r[:, 0:1] + epi_r * g_r[:, 1:2]
             # Gate channel only: `dna` is pinned at REF, the gate takes its ALT value.
             fused_ref_gateA = dna_r * g_a[:, 0:1] + epi_r * g_a[:, 1:2]
+            # Splits the GATE channel in two. Here g_dna has moved to its ALT
+            # value but g_epi is still at REF, so the step from fused_alt_gateR
+            # to this is pure sequence self-rescaling, and the step from this to
+            # fused_alt is the context-content term (g_epi re-weighting a FIXED
+            # epi vector). The two sum to the gate channel exactly.
+            fused_alt_gateEpiR = dna_a * g_a[:, 0:1] + epi_r * g_r[:, 1:2]
 
             m_ref = head_of(fused_ref)
             m_alt = head_of(fused_alt)
             m_alt_gateR = head_of(fused_alt_gateR)
             m_ref_gateA = head_of(fused_ref_gateA)
+            m_alt_gateEpiR = head_of(fused_alt_gateEpiR)
             strand_m[strand] = (m_ref, m_alt)
 
             # The epi branch's contribution to the fused vector. Allele-invariant
@@ -283,6 +291,10 @@ def run_instrument(args: argparse.Namespace) -> int:
             out[f"Delta_M_DNA_Channel_{p}"] = (m_alt_gateR - m_ref).numpy()
             out[f"Delta_M_Gate_Channel_{p}"] = (m_alt - m_alt_gateR).numpy()
             out[f"Delta_M_Gate_Channel_AtREF_{p}"] = (m_ref_gateA - m_ref).numpy()
+            out[f"M_ALT_GateEpiREF_{p}"] = m_alt_gateEpiR.numpy()
+            # gate channel = g_dna sub-channel + g_epi sub-channel, exactly.
+            out[f"Delta_M_Gate_gdna_{p}"] = (m_alt_gateEpiR - m_alt_gateR).numpy()
+            out[f"Delta_M_Gate_gepi_{p}"] = (m_alt - m_alt_gateEpiR).numpy()
             out[f"DNA_L2_Diff_{p}"] = (dna_a - dna_r).norm(dim=1).numpy()
 
         # RC-averaged quantities, matching the convention scripts/20 reports on.
@@ -295,7 +307,8 @@ def run_instrument(args: argparse.Namespace) -> int:
         out["Predicted_Delta_M"] = (m_alt_avg - m_ref_avg).numpy()
         out["Predicted_Delta_Beta"] = out["MUT_Beta_RC_Avg"] - out["WT_Beta_RC_Avg"]
         for name in ("Delta_M_Total", "Delta_M_DNA_Channel",
-                     "Delta_M_Gate_Channel", "Delta_M_Gate_Channel_AtREF"):
+                     "Delta_M_Gate_Channel", "Delta_M_Gate_Channel_AtREF",
+                     "Delta_M_Gate_gdna", "Delta_M_Gate_gepi"):
             out[f"{name}_RC_Avg"] = (out[f"{name}_FWD"] + out[f"{name}_RC"]) / 2.0
         for name in ("Gate_DNA_REF", "Gate_EPI_REF", "Gate_DNA_ALT", "Gate_EPI_ALT"):
             out[f"{name}_RC_Avg"] = (out[f"{name}_FWD"] + out[f"{name}_RC"]) / 2.0
@@ -353,7 +366,11 @@ def run_instrument(args: argparse.Namespace) -> int:
             "channel_definition": (
                 "Delta_M_DNA_Channel = head(g(REF)_d*dna_ALT + g(REF)_e*epi) - m_REF; "
                 "Delta_M_Gate_Channel = m_ALT - head(g(REF)_d*dna_ALT + g(REF)_e*epi). "
-                "They sum exactly to Delta_M_Total by construction."),
+                "They sum exactly to Delta_M_Total by construction. The gate "
+                "channel splits further: Delta_M_Gate_gdna (g_dna moves, g_epi "
+                "held at REF -- sequence self-rescaling) plus Delta_M_Gate_gepi "
+                "(g_epi moves against a FIXED epi vector -- the context-content "
+                "term). Those two sum exactly to Delta_M_Gate_Channel."),
             "output": str(target),
         },
         args.output_dir / args.cohort / f"seed{args.seed}" / "run_summary.json",
@@ -526,7 +543,81 @@ def analyse_cohort(cohort: str, args: argparse.Namespace) -> dict:
             "variance_share_gate_channel": float(np.var(gate_ch) / np.var(total)),
             "corr_dna_channel_with_total": float(np.corrcoef(dna_ch, total)[0, 1]),
             "corr_gate_channel_with_total": float(np.corrcoef(gate_ch, total)[0, 1]),
+            "spearman_corr_gate_with_dna_channel": float(
+                stats.spearmanr(gate_ch, dna_ch).statistic),
         }
+
+        # The gate channel split into sequence self-rescaling (g_dna) and the
+        # context-content term (g_epi re-weighting a fixed epi vector). Present
+        # only in runs from the extended instrument path.
+        if "Delta_M_Gate_gdna_RC_Avg" in inst.columns:
+            gd = inst["Delta_M_Gate_gdna_RC_Avg"].to_numpy(float)
+            ge = inst["Delta_M_Gate_gepi_RC_Avg"].to_numpy(float)
+            result["instrumented"]["gate_subchannels"] = {
+                "identity_max_abs_residual": float(np.abs(gate_ch - (gd + ge)).max()),
+                "delta_m_gate_gdna_sequence_rescaling": _describe(gd),
+                "delta_m_gate_gepi_context_content": _describe(ge),
+                "variance_share_of_total_gdna": float(np.var(gd) / np.var(total)),
+                "variance_share_of_total_gepi": float(np.var(ge) / np.var(total)),
+                "variance_share_of_gate_channel_gdna": float(np.var(gd) / np.var(gate_ch)),
+                "variance_share_of_gate_channel_gepi": float(np.var(ge) / np.var(gate_ch)),
+                "corr_gdna_gepi": float(np.corrcoef(gd, ge)[0, 1]),
+                "note": ("g_dna moves dna_ALT's own weight -- no context content "
+                         "enters. g_epi re-weights a bit-identical epi vector, so "
+                         "it is the ONLY route by which context content reaches "
+                         "the variant effect."),
+            }
+
+        # Does the gate channel carry signal about the MEASURED effect that the
+        # DNA channel does not already carry? Marginal correlation cannot answer
+        # this -- the channels are strongly rank-correlated -- so the partial is
+        # the test, and it is the number the allele-invariance claim turns on.
+        eff_col = next((c for c in ("beta_genoa_ref_to_alt", "beta_ref_to_alt")
+                        if c in inst.columns and inst[c].notna().sum() > 1000), None)
+        if eff_col:
+            sub = inst[inst[eff_col].notna()]
+            y = stats.rankdata(sub[eff_col].to_numpy(float))
+            gq = stats.rankdata(sub["Delta_M_Gate_Channel_RC_Avg"].to_numpy(float))
+            dq = stats.rankdata(sub["Delta_M_DNA_Channel_RC_Avg"].to_numpy(float))
+            blk = (sub["chr"].astype(str) + ":"
+                   + (sub["Position_1based"].to_numpy() // 1_000_000).astype(str)).to_numpy()
+
+            def _resid(a, b):
+                A = np.column_stack([b, np.ones_like(b)])
+                return a - A @ np.linalg.lstsq(A, a, rcond=None)[0]
+
+            def _partial(gi, di, yi):
+                return float(np.corrcoef(_resid(gi, di), _resid(yi, di))[0, 1])
+
+            uniq = np.unique(blk)
+            index = {b: np.flatnonzero(blk == b) for b in uniq}
+            boot_g, boot_d = [], []
+            for _ in range(args.bootstrap_draws):
+                pick = rng.choice(uniq, size=len(uniq), replace=True)
+                i = np.concatenate([index[b] for b in pick])
+                boot_g.append(_partial(gq[i], dq[i], y[i]))
+                boot_d.append(_partial(dq[i], gq[i], y[i]))
+            gl, gh = np.quantile(boot_g, [0.025, 0.975])
+            dl, dh = np.quantile(boot_d, [0.025, 0.975])
+            rho_gd = float(np.corrcoef(gq, dq)[0, 1])
+            marg_d = float(np.corrcoef(dq, y)[0, 1])
+            result["instrumented"]["signal_attribution"] = {
+                "measured_effect_column": eff_col,
+                "n": int(len(sub)),
+                "marginal_spearman_gate_vs_measured": float(np.corrcoef(gq, y)[0, 1]),
+                "marginal_spearman_dna_vs_measured": marg_d,
+                "spearman_gate_vs_dna_channel": rho_gd,
+                "predicted_gate_marginal_if_pure_inheritance": rho_gd * marg_d,
+                "partial_spearman_gate_given_dna": _partial(gq, dq, y),
+                "partial_spearman_gate_given_dna_95ci": [float(gl), float(gh)],
+                "partial_spearman_dna_given_gate": _partial(dq, gq, y),
+                "partial_spearman_dna_given_gate_95ci": [float(dl), float(dh)],
+                "interpretation": (
+                    "A partial at zero would mean the gate channel's apparent "
+                    "signal is entirely inherited from the DNA channel. A partial "
+                    "above zero means the gate channel carries information about "
+                    "measured variant effects that the DNA channel does not."),
+            }
         for strand in ("FWD", "RC"):
             g_ref = inst[f"Gate_DNA_REF_{strand}"].to_numpy(float)
             g_alt = inst[f"Gate_DNA_ALT_{strand}"].to_numpy(float)
