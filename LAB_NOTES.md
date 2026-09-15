@@ -1996,6 +1996,64 @@ directions have different gain. One more counterfactual,
 claim goes in the manuscript, because the honest wording depends on which
 sub-channel dominates.
 
+#### Sub-channel split — DONE 14 Sep 2026. SEQUENCE dominates.
+
+Ran as `45997644` (array 0=genoa, 1=egtex). **The job shows FAILED 1:0 in
+`sacct` but its science is complete and correct** — see the post-mortem below
+before concluding anything from the exit code. Analysed with
+`54_gate_decomposition.py analyse` (CPU, zero GPU) at 22:17 UTC.
+
+Identity `Delta_M_Gate_gdna + Delta_M_Gate_gepi = Delta_M_Gate_Channel` holds to
+**8e-8 (genoa) / 1.4e-7 (eGTEx)** on both strands, so the split is exact rather
+than fitted, and the run reproduces `scripts/20` to 3.8e-6 on all 66,495 /
+76,893 pairs — the same figure `45992001` got.
+
+| | genoa | eGTEx |
+|---|---|---|
+| variance share **of the gate channel**, g_dna (sequence self-rescaling) | **0.821** | **0.850** |
+| variance share **of the gate channel**, g_epi (context content) | 0.330 | 0.314 |
+| variance share of *total*, g_dna | 0.153 | 0.166 |
+| variance share of *total*, g_epi | 0.0617 | 0.0613 |
+| SD in M, g_dna / g_epi | 0.0366 / 0.0232 | 0.0407 / 0.0247 |
+| corr(g_dna, g_epi) | −0.145 | −0.158 |
+
+The two shares exceed 1 because the sub-channels **anti**-correlate — note the
+sign flips against the +0.38–0.40 between the DNA and gate channels; do not
+describe the two covariances with the same words.
+
+**This settles the wording question.** The gate channel is dominated by the
+sequence sub-channel: g_dna re-scaling `dna_ALT` is ~82–85% of its variance,
+while context content is ~31–33% of the gate channel and only **~6% of total**
+variant-effect variance. The L2 proxy's direction was right (it put context at a
+median 40% of sequence) but L2 could not have established the ranking, because
+the head is nonlinear. So: context content does enter the variant effect and is
+**not zero**, but it is the minority sub-channel of a minority channel. Wording
+must not promote it to a co-equal partner of sequence.
+
+#### Post-mortem: `45997644` FAILED 1:0 with its outputs already correct
+
+Worth reading before trusting any exit code in this chain. The script never
+raised. `check_no_clobber` is the **last line** of the sbatch, and it returned 1
+under `set -e` after the instrumented CSVs were written and flushed.
+
+The guard is wall-clock (`find -newermt <stamp>`, stamped 20:03:52). Task D ran
+on the **login node** and wrote `results/journal/joint/transfer_failure/*` at
+20:08:11 — inside the window, outside the declared subtree. The guard cannot
+tell a sibling analysis's legitimate output from this job clobbering a published
+path, so it flagged Task D's own now-committed (`24c607e`) files.
+
+`sacct` is the giveaway and the general lesson: elapsed **01:04:14** against
+`45992001_0`'s 01:04:16. A job that "died early on a script error" does not run
+the full hour. **Check elapsed time against the known-good run before assuming
+an exit-1 job did no work** — the instinct to blame the most recently written
+code cost this one a re-diagnosis, and would have cost 2.4 GPU h of needless
+resubmission.
+
+Fixed in `2fcd516`: `check_no_clobber` takes an opt-in
+`--concurrent <subtree>`. Default behaviour is unchanged and still hard-fails an
+*unexempted* sibling write, which was verified along with a real published-path
+clobber. Exemptions are stated in the sbatch so they stay visible.
+
 ### C. Gate share vs measured tissue plasticity — DONE, null
 
 `scripts/55_gate_plasticity.py` → `results/journal/joint/gate_plasticity/`.
@@ -2151,7 +2209,78 @@ worse than not running it, and we already carry a documented pattern of null
 under-powered external results (four disease-variant tests). Slot `53` stays
 reserved and unused.
 
-### B — the last analysis.
+### B. Context dose-response ladder — IN FLIGHT as `46007255` (14 Sep 2026)
+
+`scripts/23_context_permutation.py`, `jobs/r8_journal/23_ctx_ladder.sbatch`,
+eGTEx heldout, 76,893 pairs, four rungs, seed 42:
+
+    rung 1  identity      native context (control)
+    rung 2  shuffle       another probe's context, same tissue
+    rung 3  tissue_Lung   the SAME locus's context in a different tissue
+    rung 4  xtissue_mean  per-locus mean across all four tissues
+
+**Status at handoff: submitted and PENDING (Priority).** ~4.9 GPU h projected
+from the smoke's measured 0.0575 s/pair/scheme, inside an 8 h walltime. This is
+the last compute in the project. Nothing runs after it.
+
+**It is single-shot — there is no separate analyse step.** On success the job
+writes, under `results/journal/ablation_breast_epithelium/context_ladder/`:
+`agreement_with_identity.csv`, `level_accuracy_by_scheme.csv`,
+`pair_scores_{identity,shuffle,tissue_Lung,xtissue_mean}.csv`, and
+`run_summary.json`. Confirm `sacct -j 46007255` is COMPLETED 0:0 **and** that
+the log's per-rung guards fired (below) before reading any number.
+
+#### Why `45998301` failed, and what the fix was
+
+Genuine `NameError: TABULAR_FEATURES` at line 123 in `load_tissue_contexts`.
+Script 23 path-loads `scripts/20` as its scorer but **never imported
+`training_common`**, so four names were undefined: `TABULAR_FEATURES`,
+`MISSING_FEATURES`, `PHYLOP_1`, `PHYLOP_2` (an AST scan confirms those are the
+complete set — no others lurk).
+
+Rungs 1 and 2 never reach any of them: `load_tissue_contexts` sits behind
+`needs_tissue`, and the PhyloP guard behind the `scheme.startswith("tissue_")`
+branch. **That is the whole reason the ladder ran fine for two rungs and broke
+the moment rungs 3 and 4 were added** — not a flaw in the new rung logic, which
+is sound. Fixed in `2fcd516` with the same `sys.path` + `from training_common`
+idiom scripts 20 and 54 already use.
+
+#### Smoke test `46006922` — COMPLETED 0:0, all guards fired
+
+400 pairs / 105 probes, scratch output. The guards are the point of the smoke,
+so record that they actually triggered rather than merely not crashing:
+
+    tissue_Lung   context replaced 400/400 (100.0%)   PhyloP max shift 0.000e+00
+    xtissue_mean  context replaced 400/400 (100.0%)   PhyloP max shift 0.000e+00
+    all four tissue builds resolved 105/105 probes, shared in ALL four
+
+PhyloP shift of exactly zero matters: conservation is not tissue-specific, so a
+nonzero shift would mean the swap is reading the wrong columns and every rung
+below it is meaningless. Coverage at full scale will be **26,558 of 26,570
+probes (99.95%)** present in all four tissue builds — checked directly, so the
+`moved >= 0.5` assertion has enormous headroom.
+
+Level MAE on the smoke's 105 probes, for orientation only — **n is far too small
+to read as the result**: identity 0.0912, xtissue_mean 0.0907, tissue_Lung
+0.0959, shuffle 0.1074.
+
+#### A flag on the smoke's verdict banner — do not act on it yet
+
+The smoke printed: *"At least one scheme moved the deltas as much as the levels.
+The allele-invariance argument does NOT hold empirically here. Do not claim it;
+report this instead."* On 105 probes that is not a finding, and the full run
+re-evaluates it from scratch. It is flagged here only because it can touch the
+same R2 sentences as the sub-channel split, which is exactly the churn
+directive 2 exists to prevent. **Read it off `46007255`, not off the smoke.**
+
+#### If `46007255` fails
+
+Check `sacct` elapsed first, per the `45997644` post-mortem above: a full-length
+elapsed with outputs on disk means the science landed and only a guard tripped.
+The clobber check now declares its subtree, and nothing else should be writing
+under `results/journal/` — but if a sibling analysis is running, exempt it with
+`check_no_clobber "$STAMP" "${OUT}" --concurrent <subtree>` rather than dropping
+the guard.
 
 ### Standing directives for the rest of R8 (14 Sep 2026)
 
@@ -2170,4 +2299,30 @@ reserved and unused.
    with test probes, and tissue match, **before building anything**. n ≥ ~500 →
    ask for authorisation. Under → drop it and tell the mentor no adequately
    powered public ASM resource intersects the probe set.
-5. `main.tex` is never touched.
+5. `main.tex` is never touched. Corrections go to `main_revised.tex` only.
+
+### Where this stands — 14 Sep 2026, 22:40 UTC
+
+**All five analyses are resolved. `46007255` is the last compute in the
+project.** When it lands, coding is finished and everything remaining is prose.
+
+| task | state |
+|---|---|
+| A. gate decomposition | DONE, `45992001` COMPLETED 0:0, committed |
+| A. sub-channel split | **DONE**, `45997644` (FAILED 1:0 on the guard only — outputs correct, analysed, committed) |
+| B. context ladder | **IN FLIGHT, `46007255`**, PENDING at handoff, ~4.9 GPU h |
+| C. gate plasticity | DONE, null, zero GPU |
+| D. transfer failure | DONE, hypothesis holds, zero GPU |
+| E. ASM validation | DROPPED — underpowered ~15×, final |
+
+Budget: ~17.5 GPU h spent of 125 (the ~2.4 h in `45997644` was **not** wasted —
+it bought the split's outputs, which is why the job was not resubmitted).
+
+**The one wording pass (directive 2) is now blocked only on `46007255`.** Both
+of its other inputs have landed. When it finishes, the pass covers R2,
+LAB_NOTES and `main_revised.tex` together — one pass, not two — and must fold in
+all three of: the split's sequence-dominance result above, B's four-rung ladder,
+and the smoke's allele-invariance banner **as re-measured at full scale**.
+
+No further jobs are to be submitted. Anything B turns up is a lead for these
+notes, not a new run (directive 1).
