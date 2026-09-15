@@ -2106,7 +2106,52 @@ That is the expected tissue-variable/tissue-invariant division of the methylome,
 recovered without supervision from prediction error alone. This is the closest
 thing to a biological finding in the paper.
 
-### B — next. E — catalogue check only.
+### E. ASM validation — CHECKED 15 Sep 2026. DROP IT. Underpowered by ~15x.
+
+Catalogue check only, zero compute, no build attempted — per directive 4.
+
+**Catalogues found (all public, all usable in principle):**
+
+| resource | basis | scale |
+|---|---|---|
+| Atlas of imprinted and allele-specific DNA methylation in the human body (Nat Commun 2025) | WGBS | **34,426** ASM loci — the largest published |
+| ASMdb (NAR 2022, `dna-asmdb.com`) | WGBS, 1,484 human BS-Seq datasets | open access, SNP-linked |
+| CanASM (BMC Genomics 2025) | WGBS, 31 cancer types | tumour-focused, wrong tissue context |
+
+**Why it fails, and it is structural rather than a matter of finding a better
+catalogue.** Every public ASM resource is **WGBS-based**, and WGBS ASM calls sit
+at arbitrary genomic CpGs. Our evaluation is locked to HM450 probes, and to the
+**held-out test split only** — chr8 + chr9, 26,570 probes:
+
+    HM450 probes total                 485,577
+    our held-out test probes            26,570   =  5.47% of the array
+    HM450 coverage of all human CpGs             1.73%
+
+Expected usable CpGs = N x (26,570 / 28e6):
+
+| genome-wide ASM CpGs N | expected on our test probes |
+|---|---|
+| 34,426 (largest atlas) | **33** |
+| 100,000 | 95 |
+| 250,000 | 237 |
+| 526,910 | 500 |
+
+Reaching the ~500-pair floor needs **N ≥ 526,910** genome-wide ASM CpGs — **15×
+more than the largest published atlas**. Even granting a generous 5× enrichment
+of ASM at array (regulatory) positions, the requirement is still ~105,000, or
+**3.1× the largest atlas**. An array-based ASM study would avoid the 1.73%
+penalty but would still lose 94.5% to the chr8/chr9 restriction, and no
+array-based ASM resource of the needed scale appears to exist.
+
+**Decision: dropped, and the mentor gets the reason.** The honest sentence is
+that no adequately powered public ASM resource intersects our held-out probe
+set — the limit is the chromosome-held-out design combined with array coverage,
+not a lack of searching. Running it anyway would produce ~33 pairs, which is
+worse than not running it, and we already carry a documented pattern of null
+under-powered external results (four disease-variant tests). Slot `53` stays
+reserved and unused.
+
+### B — the last analysis.
 
 ### Standing directives for the rest of R8 (14 Sep 2026)
 

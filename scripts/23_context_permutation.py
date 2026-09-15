@@ -72,7 +72,29 @@ SCORER_PATH = HERE / "20_variant_scoring.py"
 
 LOGGER = logging.getLogger("silentmethyl.ctxperm")
 
-SCHEMES = ("identity", "shuffle", "median")
+SCHEMES = ("identity", "shuffle", "median", "xtissue_mean",
+           "tissue_ColonTransverse", "tissue_KidneyCortex", "tissue_Lung")
+
+# Task B's dose-response ladder. Rungs 1/2 reuse the original identity/shuffle
+# schemes; rungs 3/4 are new and need the per-tissue reference builds.
+#
+#   rung 1  identity        native context (control)
+#   rung 2  shuffle         a random OTHER probe's context, same tissue
+#   rung 3  tissue_<Name>   the SAME locus's context in a different tissue
+#   rung 4  xtissue_mean    the per-locus mean across all four tissues -- a
+#                           generic, tissue-agnostic context. This is what a
+#                           naively-pooled multi-tissue model effectively sees
+#                           at each locus, which is why it substitutes for the
+#                           trained pooled baseline at a fraction of the cost.
+#
+# `median` (the cohort-wide median vector, not locus-specific) is kept from the
+# original experiment as a floor: it destroys locus identity entirely.
+TISSUE_CONTEXT = {
+    "BreastEpithelium": "data/datafiles_breast_epithelium/test.csv",
+    "ColonTransverse": "data/datafiles_multitissue/ColonTransverse/test.csv",
+    "KidneyCortex": "data/datafiles_multitissue/KidneyCortex/test.csv",
+    "Lung": "data/datafiles_multitissue/Lung/test.csv",
+}
 LEVEL_COL = "WT_M_RC_Avg"
 DELTA_COL = "Predicted_Delta_M"
 
@@ -88,8 +110,86 @@ def load_scorer():
     return module
 
 
+def load_tissue_contexts(probe_ids: list[str]) -> dict:
+    """probeID -> (features, missing) for each tissue, aligned to TABULAR_FEATURES.
+
+    Only probes present in ALL four builds are usable; a locus missing from one
+    tissue cannot have a cross-tissue mean and would silently bias the rung if
+    filled some other way, so it is reported and excluded from the swap.
+    """
+    wanted = set(probe_ids)
+    out = {}
+    for tissue, path in TISSUE_CONTEXT.items():
+        d = pd.read_csv(path, usecols=["probeID"] + TABULAR_FEATURES + MISSING_FEATURES)
+        d = d[d["probeID"].astype(str).isin(wanted)].set_index("probeID")
+        out[tissue] = d
+        LOGGER.info("context source %-18s %6d of %d requested probes",
+                    tissue, len(d), len(wanted))
+    shared = set.intersection(*[set(d.index.astype(str)) for d in out.values()])
+    LOGGER.info("probes with context in ALL four tissues: %d of %d",
+                len(shared), len(wanted))
+    return {"by_tissue": out, "shared": shared}
+
+
+def _tissue_tensor(ctx: dict, tissue: str, probe_ids: list[str],
+                   tab: torch.Tensor, missing: torch.Tensor):
+    """Replace each row's context with the same probe's context in `tissue`.
+
+    Rows whose probe lacks a context in every tissue keep their native vector;
+    they are counted so the caller can assert the perturbation actually applied.
+    """
+    src = ctx["by_tissue"][tissue]
+    shared = ctx["shared"]
+    new_tab, new_missing = tab.clone(), missing.clone()
+    hits = 0
+    feat = src[TABULAR_FEATURES].to_numpy(dtype="float32")
+    miss = src[MISSING_FEATURES].to_numpy(dtype="float32")
+    index = {pid: i for i, pid in enumerate(src.index.astype(str))}
+    for row, pid in enumerate(probe_ids):
+        if pid in shared and pid in index:
+            j = index[pid]
+            new_tab[row] = torch.from_numpy(feat[j])
+            new_missing[row] = torch.from_numpy(miss[j])
+            hits += 1
+    return new_tab, new_missing, hits
+
+
+def _xtissue_mean_tensor(ctx: dict, probe_ids: list[str],
+                         tab: torch.Tensor, missing: torch.Tensor):
+    """Per-locus mean context across the four tissues.
+
+    The mean is over tissues at the SAME locus, not over loci -- locus identity
+    is preserved and only tissue identity is averaged away. Missing flags are
+    OR-ed: a feature absent in any tissue cannot contribute to an honest mean.
+    """
+    tissues = list(TISSUE_CONTEXT)
+    shared = ctx["shared"]
+    frames = {t: ctx["by_tissue"][t] for t in tissues}
+    index = {t: {pid: i for i, pid in enumerate(frames[t].index.astype(str))}
+             for t in tissues}
+    feats = {t: frames[t][TABULAR_FEATURES].to_numpy(dtype="float32") for t in tissues}
+    miss = {t: frames[t][MISSING_FEATURES].to_numpy(dtype="float32") for t in tissues}
+    new_tab, new_missing = tab.clone(), missing.clone()
+    hits = 0
+    for row, pid in enumerate(probe_ids):
+        if pid not in shared:
+            continue
+        stack, mstack = [], []
+        for t in tissues:
+            j = index[t].get(pid)
+            if j is None:
+                break
+            stack.append(feats[t][j]); mstack.append(miss[t][j])
+        else:
+            new_tab[row] = torch.from_numpy(np.mean(stack, axis=0))
+            new_missing[row] = torch.from_numpy(
+                (np.max(mstack, axis=0) > 0.5).astype("float32"))
+            hits += 1
+    return new_tab, new_missing, hits
+
+
 def permute(tab: torch.Tensor, missing: torch.Tensor, scheme: str,
-            rng: np.random.Generator):
+            rng: np.random.Generator, probe_ids=None, ctx=None):
     """Return (tab, missing) under one scheme. Never modifies the inputs.
 
     `missing` is permuted WITH `tab`, not independently: the missingness flags
@@ -114,6 +214,24 @@ def permute(tab: torch.Tensor, missing: torch.Tensor, scheme: str,
         med = tab.median(dim=0, keepdim=True).values
         med_missing = (missing.float().mean(dim=0, keepdim=True) > 0.5).to(missing.dtype)
         return (med.expand_as(tab).clone(), med_missing.expand_as(missing).clone())
+    if scheme.startswith("tissue_") or scheme == "xtissue_mean":
+        if ctx is None or probe_ids is None:
+            raise SystemExit(f"STOP: {scheme} needs the tissue context tables")
+        if scheme == "xtissue_mean":
+            t, m, hits = _xtissue_mean_tensor(ctx, probe_ids, tab, missing)
+        else:
+            tissue = scheme.removeprefix("tissue_")
+            if tissue not in TISSUE_CONTEXT:
+                raise SystemExit(f"STOP: unknown tissue {tissue!r}")
+            t, m, hits = _tissue_tensor(ctx, tissue, probe_ids, tab, missing)
+        LOGGER.info("  %s: context replaced for %d of %d rows (%.1f%%)",
+                    scheme, hits, len(probe_ids), 100 * hits / max(1, len(probe_ids)))
+        if hits < 0.9 * len(probe_ids):
+            raise SystemExit(
+                f"STOP: {scheme} only replaced {hits}/{len(probe_ids)} contexts; "
+                "the tissue builds do not cover this cohort well enough to make "
+                "the rung interpretable")
+        return t, m
     raise SystemExit(f"STOP: unknown scheme {scheme!r}")
 
 
@@ -222,6 +340,18 @@ def main(argv=None) -> int:
     all_missing = torch.cat([m for _, _, _, _, m in prepared], dim=0)
     LOGGER.info("context matrix: %s", tuple(all_tab.shape))
 
+    # Row-aligned probe IDs: the tissue rungs are per-locus lookups, so every
+    # row of all_tab must know which probe it belongs to. Built by concatenating
+    # the cohort frames in the SAME order the tensors were concatenated.
+    probe_ids = pd.concat([c for c, _, _, _, _ in prepared],
+                          ignore_index=True)["probeID"].astype(str).tolist()
+    if len(probe_ids) != all_tab.shape[0]:
+        raise SystemExit(f"STOP: {len(probe_ids)} probe ids for "
+                         f"{all_tab.shape[0]} context rows -- row alignment is broken")
+    needs_tissue = any(sc.startswith("tissue_") or sc == "xtissue_mean"
+                       for sc in args.schemes)
+    ctx = load_tissue_contexts(probe_ids) if needs_tissue else None
+
     weights = Path(args.weights_template.format(seed=args.seed, model="fusion"))
     if not weights.is_file():
         raise SystemExit(f"STOP: checkpoint not found: {weights}")
@@ -232,7 +362,19 @@ def main(argv=None) -> int:
     scored: dict[str, pd.DataFrame] = {}
     for scheme in args.schemes:
         LOGGER.info("scoring under scheme=%s", scheme)
-        p_tab, p_missing = permute(all_tab, all_missing, scheme, rng)
+        p_tab, p_missing = permute(all_tab, all_missing, scheme, rng,
+                                   probe_ids=probe_ids, ctx=ctx)
+        if scheme.startswith("tissue_") or scheme == "xtissue_mean":
+            # Conservation is not tissue-specific, so the two PhyloP columns must
+            # come back untouched. If they move, the swap has picked up the wrong
+            # columns and every rung below it is meaningless.
+            pidx = [TABULAR_FEATURES.index(PHYLOP_1), TABULAR_FEATURES.index(PHYLOP_2)]
+            shifted = float((p_tab[:, pidx] - all_tab[:, pidx]).abs().max())
+            LOGGER.info("  PhyloP max shift under %s: %.3e (expected 0)", scheme, shifted)
+            if shifted > 1e-5:
+                raise SystemExit(
+                    f"STOP: {scheme} moved PhyloP by {shifted:.3e}; conservation is "
+                    "tissue-invariant, so the context swap is reading wrong columns")
         if scheme != "identity":
             moved = float((p_tab != all_tab).any(dim=1).float().mean())
             LOGGER.info("  %.1f%% of loci received a different context vector",
@@ -268,9 +410,44 @@ def main(argv=None) -> int:
             stat.update({"scheme": scheme, "quantity": label, "column": col})
             rows.append(stat)
 
+    # --- Task B rung (a): methylation LEVEL accuracy against measured beta ----
+    # Scored at the REF allele and deduplicated to one row per probe, so this is
+    # an ordinary level prediction. It is the pair-probe subset of the held-out
+    # test set, not the whole test set -- stated explicitly because the two are
+    # easy to confuse and the subset is ~78% of it.
+    truth = {}
+    for split in ("test",):
+        tp = Path(args.split_template.format(split=split))
+        if tp.is_file():
+            t = pd.read_csv(tp, usecols=["probeID", "Median_Beta"])
+            truth.update(dict(zip(t["probeID"].astype(str), t["Median_Beta"])))
+    level_rows = []
+    if truth:
+        for scheme in args.schemes:
+            f = scored[scheme][["probeID", "WT_Beta_RC_Avg"]].copy()
+            f["probeID"] = f["probeID"].astype(str)
+            f = f.drop_duplicates("probeID")
+            f["true_beta"] = f["probeID"].map(truth)
+            f = f[f["true_beta"].notna()]
+            err = (f["WT_Beta_RC_Avg"] - f["true_beta"]).abs()
+            level_rows.append({
+                "scheme": scheme, "n_probes": int(len(f)),
+                "beta_mae": float(err.mean()),
+                "beta_rmse": float(np.sqrt((err ** 2).mean())),
+                "beta_pearson": float(np.corrcoef(f["WT_Beta_RC_Avg"], f["true_beta"])[0, 1]),
+            })
+            LOGGER.info("level  %-24s beta MAE %.4f  (n=%d)",
+                        scheme, level_rows[-1]["beta_mae"], len(f))
+    else:
+        LOGGER.warning("no test split found at %s; level MAE skipped",
+                       args.split_template)
+
     table = pd.DataFrame(rows)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     table.to_csv(args.output_dir / "agreement_with_identity.csv", index=False)
+    if level_rows:
+        pd.DataFrame(level_rows).to_csv(
+            args.output_dir / "level_accuracy_by_scheme.csv", index=False)
     for scheme, frame in scored.items():
         frame.to_csv(args.output_dir / f"pair_scores_{scheme}.csv", index=False)
 
