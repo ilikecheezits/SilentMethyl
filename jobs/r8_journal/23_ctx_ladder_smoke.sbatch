@@ -17,7 +17,7 @@ set -euo pipefail
 cd /ocean/projects/med250012p/szhang37/SilentMethyl
 source jobs/r8_journal/_common.sh
 
-OUT=/tmp/claude-102780/-ocean-projects-med250012p-szhang37-SilentMethyl/334d8211-9c0b-4da6-bb02-eba2c11fc798/scratchpad/ctx_smoke
+OUT=/tmp/claude-102780/-ocean-projects-med250012p-szhang37-SilentMethyl/5abf120e-fdcd-4283-8c4e-85a3993d7b4d/scratchpad/ctx_smoke
 mkdir -p "$OUT"
 STAMP=$(mktemp); stamp_start "$STAMP"; require_cuda
 echo "[*] host $(hostname) $(date -u +%FT%TZ)"

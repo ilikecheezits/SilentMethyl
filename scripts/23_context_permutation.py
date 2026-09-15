@@ -70,6 +70,20 @@ from scipy import stats
 HERE = Path(__file__).resolve().parent
 SCORER_PATH = HERE / "20_variant_scoring.py"
 
+# The tissue rungs read context columns straight off the per-tissue builds, so
+# they need the canonical feature order -- the same list the model was trained
+# on. Rungs 1/2 never touch it, which is why the omission only surfaced once
+# tissue_<Name> and xtissue_mean were added.
+if str(HERE) not in sys.path:
+    sys.path.insert(0, str(HERE))
+
+from training_common import (  # noqa: E402
+    MISSING_FEATURES,
+    PHYLOP_1,
+    PHYLOP_2,
+    TABULAR_FEATURES,
+)
+
 LOGGER = logging.getLogger("silentmethyl.ctxperm")
 
 SCHEMES = ("identity", "shuffle", "median", "xtissue_mean",
@@ -455,10 +469,10 @@ def main(argv=None) -> int:
     print("=" * 84)
     print("CONTEXT PERMUTATION -- agreement with the true-context run")
     print("=" * 84)
-    print(f"{'scheme':<10}{'quantity':<30}{'pearson':>9}{'spearman':>10}"
+    print(f"{'scheme':<14}{'quantity':<30}{'pearson':>9}{'spearman':>10}"
           f"{'MAE':>9}{'sign':>8}")
     for _, r in table.iterrows():
-        print(f"{r['scheme']:<10}{r['quantity']:<30}{r.get('pearson', float('nan')):>9.4f}"
+        print(f"{r['scheme']:<14}{r['quantity']:<30}{r.get('pearson', float('nan')):>9.4f}"
               f"{r.get('spearman', float('nan')):>10.4f}{r.get('mae', float('nan')):>9.4f}"
               f"{r.get('sign_agreement', float('nan')):>8.3f}")
     print("-" * 84)

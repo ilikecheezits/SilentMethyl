@@ -1,6 +1,6 @@
 {
   "analysis": "gate decomposition of the fusion model's variant effect",
-  "bootstrap": "400 draws over 1 Mb genomic blocks",
+  "bootstrap": "1000 draws over 1 Mb genomic blocks",
   "cohorts": {
     "egtex": {
       "cohort": "egtex",
@@ -11,8 +11,8 @@
           "pearson_r": 0.8909566155521806,
           "r2": 0.7938036907961972,
           "r2_block_bootstrap_95ci": [
-            0.6917590109655363,
-            0.8613070716437603
+            0.6944882554440919,
+            0.8614103160521578
           ],
           "residual_sd": 0.045361822372665866,
           "slope": 0.716564418048591
@@ -23,8 +23,8 @@
           "pearson_r": 0.8701779445454576,
           "r2": 0.7572096551733567,
           "r2_block_bootstrap_95ci": [
-            0.6853945730131862,
-            0.8134264115154843
+            0.6842625266904843,
+            0.8112958414604833
           ],
           "residual_sd": 0.04922273668236926,
           "slope": 33.709921996165804
@@ -35,8 +35,8 @@
           "pearson_r": 0.8839154086440689,
           "r2": 0.7813064496384106,
           "r2_block_bootstrap_95ci": [
-            0.7160221133536936,
-            0.8194531173498875
+            0.7162653440484579,
+            0.8194515112304631
           ],
           "residual_sd": 0.046716256846501165,
           "slope": 34.39071848111718
@@ -217,6 +217,43 @@
           "p99": 7.5579444805429,
           "sd": 38.701750124361
         },
+        "gate_subchannels": {
+          "corr_gdna_gepi": -0.15844254485713907,
+          "delta_m_gate_gdna_sequence_rescaling": {
+            "max": 2.4427319,
+            "mean": 0.0003844133012591169,
+            "median": 2.18153e-05,
+            "min": -0.8916542,
+            "n": 76893,
+            "p1": -0.1104276892,
+            "p25": -0.0061887503,
+            "p5": -0.0384905698,
+            "p75": 0.0064098835,
+            "p95": 0.03956622119999996,
+            "p99": 0.10797935280000003,
+            "sd": 0.04066076010536623
+          },
+          "delta_m_gate_gepi_context_content": {
+            "max": 0.779744,
+            "mean": -0.0002299944930036322,
+            "median": -5.6028366e-06,
+            "min": -2.38617,
+            "n": 76893,
+            "p1": -0.05487932699999999,
+            "p25": -0.0017362833,
+            "p5": -0.016319745599999998,
+            "p75": 0.0016126633,
+            "p95": 0.015483271999999994,
+            "p99": 0.05326862424000022,
+            "sd": 0.02472519875415161
+          },
+          "identity_max_abs_residual": 3.1600000038878306e-07,
+          "note": "g_dna moves dna_ALT's own weight -- no context content enters. g_epi re-weights a bit-identical epi vector, so it is the ONLY route by which context content reaches the variant effect.",
+          "variance_share_of_gate_channel_gdna": 0.8495640485702534,
+          "variance_share_of_gate_channel_gepi": 0.3141410728487484,
+          "variance_share_of_total_gdna": 0.16567482528894006,
+          "variance_share_of_total_gepi": 0.06126114617006746
+        },
         "identity_check_max_abs_residual": 2.400000003177638e-07,
         "pairs": 76893,
         "signal_attribution": {
@@ -227,13 +264,13 @@
           "n": 76893,
           "partial_spearman_dna_given_gate": 0.03591858814065425,
           "partial_spearman_dna_given_gate_95ci": [
-            0.02829324640551392,
-            0.04334380512208925
+            0.028463714334038,
+            0.04331286083566317
           ],
           "partial_spearman_gate_given_dna": 0.009061766969999151,
           "partial_spearman_gate_given_dna_95ci": [
-            0.0016532415912805093,
-            0.016803516694585602
+            0.0017059939560086774,
+            0.016008923890197327
           ],
           "predicted_gate_marginal_if_pure_inheritance": 0.033738824461551416,
           "spearman_gate_vs_dna_channel": 0.6300007107170027
@@ -255,8 +292,8 @@
           "pearson_r": 0.8928822323642597,
           "r2": 0.7972386808717834,
           "r2_block_bootstrap_95ci": [
-            0.7106365387966858,
-            0.8564468379704571
+            0.7099973103327216,
+            0.8552623712796557
           ],
           "residual_sd": 0.042043415028872516,
           "slope": 0.7082449458083128
@@ -267,8 +304,8 @@
           "pearson_r": 0.8733997882743678,
           "r2": 0.76282719015771,
           "r2_block_bootstrap_95ci": [
-            0.7043387723180189,
-            0.8073944993247562
+            0.7043611532806838,
+            0.8079120700751897
           ],
           "residual_sd": 0.045471353363722135,
           "slope": 33.94086005479861
@@ -279,8 +316,8 @@
           "pearson_r": 0.88148542047818,
           "r2": 0.7770165465155936,
           "r2_block_bootstrap_95ci": [
-            0.722100768733389,
-            0.8174063415556964
+            0.7212330435156052,
+            0.8188159384561404
           ],
           "residual_sd": 0.044090167586742626,
           "slope": 34.4822189421281
@@ -461,6 +498,43 @@
           "p99": 7.609259017617117,
           "sd": 58.78097782438508
         },
+        "gate_subchannels": {
+          "corr_gdna_gepi": -0.14531222576980796,
+          "delta_m_gate_gdna_sequence_rescaling": {
+            "max": 2.0940862,
+            "mean": 0.00034040888528857183,
+            "median": 1.1920929e-05,
+            "min": -0.69113624,
+            "n": 66495,
+            "p1": -0.10559655019999999,
+            "p25": -0.00600644945,
+            "p5": -0.038291765799999995,
+            "p75": 0.00619432325,
+            "p95": 0.03870429889999998,
+            "p99": 0.10550061235999957,
+            "sd": 0.036576535369672064
+          },
+          "delta_m_gate_gepi_context_content": {
+            "max": 0.6815109,
+            "mean": -0.0002777297416898058,
+            "median": -6.4373016e-06,
+            "min": -1.3156852,
+            "n": 66495,
+            "p1": -0.05229329085999999,
+            "p25": -0.001696825,
+            "p5": -0.016237855,
+            "p75": 0.0015817880999999998,
+            "p95": 0.015318635099999992,
+            "p99": 0.05187590401999973,
+            "sd": 0.023199246892674177
+          },
+          "identity_max_abs_residual": 1.0000000005838672e-07,
+          "note": "g_dna moves dna_ALT's own weight -- no context content enters. g_epi re-weights a bit-identical epi vector, so it is the ONLY route by which context content reaches the variant effect.",
+          "variance_share_of_gate_channel_gdna": 0.8210450380451626,
+          "variance_share_of_gate_channel_gepi": 0.3303007983235676,
+          "variance_share_of_total_gdna": 0.1534619742988754,
+          "variance_share_of_total_gepi": 0.06173670173309198
+        },
         "identity_check_max_abs_residual": 2.0000000011677344e-07,
         "pairs": 66495,
         "signal_attribution": {
@@ -471,13 +545,13 @@
           "n": 66495,
           "partial_spearman_dna_given_gate": 0.04453038287481103,
           "partial_spearman_dna_given_gate_95ci": [
-            0.0349082909645451,
-            0.05261405419747702
+            0.03553841789913623,
+            0.05245859676731954
           ],
           "partial_spearman_gate_given_dna": 0.015243637430544807,
           "partial_spearman_gate_given_dna_95ci": [
-            0.007475459508639856,
-            0.02365083884569456
+            0.006585024951495035,
+            0.024746482631116534
           ],
           "predicted_gate_marginal_if_pure_inheritance": 0.04421822616356403,
           "spearman_gate_vs_dna_channel": 0.632950640328152
@@ -491,7 +565,7 @@
       "sequence_pair_scores": "results/journal/ablation_breast_epithelium/genoa_variant_scoring/heldout/sequence/seed42/pair_scores.csv"
     }
   },
-  "generated_utc": "2026-09-15T00:00:59+00:00",
+  "generated_utc": "2026-09-15T02:17:18+00:00",
   "seed": 42,
   "single_seed_note": "Seed 42 only, by design. This analysis characterises one trained model's internal arithmetic; it is not a run-to-run variability estimate."
 }

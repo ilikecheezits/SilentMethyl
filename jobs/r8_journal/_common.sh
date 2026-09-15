@@ -21,9 +21,25 @@ stamp_start() { date '+%Y-%m-%d %H:%M:%S' > "$1"; echo "[*] clobber stamp: $(cat
 
 # $2.. are the subtrees this job is ALLOWED to write. Anything else under
 # results/journal/ is a bug.
+#
+# `--concurrent <subtree>` additionally exempts a subtree that a DIFFERENT
+# analysis is known to be writing at the same time. The check is wall-clock
+# (`-newermt`), so it cannot tell a sibling job's legitimate output from this
+# job clobbering a published path: on 14 Sep it failed 45997644 at the final
+# line, after a full hour of GPU work had already been written correctly,
+# because Task D wrote transfer_failure/ from the login node mid-run. Exemptions
+# are opt-in and stated in the sbatch so they stay visible; everything else
+# newer than the stamp still fails the job.
 check_no_clobber() {
   local stamp_file="$1" ; shift
-  local args=() ; local p
+  local args=() ; local p ; local allow=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --concurrent) allow+=("$2") ; shift 2 ;;
+      *)            allow+=("$1") ; shift ;;
+    esac
+  done
+  set -- "${allow[@]}"
   for p in "$@"; do args+=(-not -path "${p}/*"); done
   local touched
   touched=$(find results/journal -type f -newermt "$(cat "$stamp_file")" \
