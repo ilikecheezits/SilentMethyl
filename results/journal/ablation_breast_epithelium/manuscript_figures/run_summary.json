@@ -51,14 +51,14 @@
   },
   "input_sha256": {
     "results/journal/ablation_breast_epithelium/biological_context/fusion_gain_by_context.csv": "a73cd664e64f8db3f3be420c6e2aca0eba27a6e5ce1917303cdf25e83b5e2bff",
-    "results/journal/ablation_breast_epithelium/biological_context/variant_response_by_context.csv": "6990f6c050c344f11846fba8b5929035e7327c5392dd2416e4042fae69ee8ebe",
-    "results/journal/ablation_breast_epithelium/biological_context/variant_response_by_distance.csv": "aef1a56bfc991283012c95b92461b30e12869559633a23011c2eda85e2ce0f95",
+    "results/journal/ablation_breast_epithelium/biological_context/variant_response_by_context.csv": "25d1c71219ebbd62ed5749ae634e46afcbccf0d76de0db4f712036d048b28217",
+    "results/journal/ablation_breast_epithelium/biological_context/variant_response_by_distance.csv": "88388eb162e4dd81906fff00f2c74ae6378ff6b93011930dc1257935ddfa605e",
     "results/journal/ablation_breast_epithelium/candidates/candidate_matched_background_statistics.csv": "d26994e7e5c13cc6718f43f80e83037521e3e0738d94c3a680ef75f421c7e0aa",
     "results/journal/ablation_breast_epithelium/candidates/candidate_seed_scores_long.csv": "6af9e8fcecf3d96a45adb6a358e336aa06bddcb04f2bcd2a195b1a1fe58be176",
     "results/journal/ablation_breast_epithelium/candidates/top_candidate_matched_comparators_long.csv": "268d1ad95c0a766760f694435e2c3f16a8cf134c1572c68fbad16c218082605b",
-    "results/journal/ablation_breast_epithelium/paired_model_bootstrap/model_metrics_recomputed.csv": "bc4fd53a4b0c706bd7a0b5e7073bc628da02208705a8509e9f2e5697ebb972c3",
-    "results/journal/egtex_mqtl_positive_control/mqtl_predictions_seed_aggregate.csv": "2d3380bce6956572c02de0380c2cfc3326e301f66f3d892b9a8a8247a574545a",
-    "results/journal/literature_variant_screen/literature_variant_predictions_ranked.csv": "6f998d64dcc4f198f5249d3745f120bb4b1840530edf27a5dfa048d71bac7886"
+    "results/journal/ablation_breast_epithelium/egtex_mqtl_positive_control/mqtl_predictions_seed_aggregate.csv": "0591a4fee862027d53db0b840c5c8347f36848212f0c85bb1ce33046a9b9b432",
+    "results/journal/ablation_breast_epithelium/literature_variant_screen/literature_variant_predictions_ranked.csv": "8c1be9f340f4e932972b76c4bedb5dc6e752ef649f71edf08f17ebbce8fa7a62",
+    "results/journal/ablation_breast_epithelium/paired_model_bootstrap/model_metrics_recomputed.csv": "bc4fd53a4b0c706bd7a0b5e7073bc628da02208705a8509e9f2e5697ebb972c3"
   },
   "manuscript_figures": [
     "candidate_response_by_context.png",
@@ -70,10 +70,10 @@
   ],
   "mqtl": {
     "association_count": 81,
-    "direction_concordance": 0.7901234567901234,
+    "direction_concordance": 0.7777777777777778,
     "display_scale": "average-tie percentile ranks (0--100)",
-    "magnitude_spearman": 0.2165085817524842,
-    "signed_spearman": 0.6100948509485095
+    "magnitude_spearman": 0.24670280036133696,
+    "signed_spearman": 0.6056458897922312
   },
   "performance": {
     "seeds": [
@@ -86,16 +86,16 @@
     "delta_column": "Predicted_Delta_Beta_Mean",
     "highlighted_targets": {
       "rs148928808": {
-        "predicted_delta_beta": -0.0613468686739603,
+        "predicted_delta_beta": -0.0520454049110412,
         "probeID": "cg08681293"
       },
       "rs2145420809": {
-        "predicted_delta_beta": 0.0774335463841756,
+        "predicted_delta_beta": 0.089030643304189,
         "probeID": "cg16601904"
       }
     },
-    "unique_variant_count": 322,
-    "variant_cpg_pair_count": 322
+    "unique_variant_count": 321,
+    "variant_cpg_pair_count": 321
   },
   "top_candidate": {
     "Absolute_Delta_Beta_Rank": 1,

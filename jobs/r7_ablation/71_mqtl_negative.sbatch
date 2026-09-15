@@ -14,7 +14,11 @@ source /ocean/projects/med250012p/szhang37/SilentMethyl/jobs/r6_ablation/_common
 cd "$ROOT"
 STAMP=logs/r7_ablation/stamp_71_$SLURM_JOB_ID
 stamp_start "$STAMP"
+# The script default (data/BreastMammaryTissue.regular.perm.fdr.txt) is the path
+# the published run used; the file has since moved under data/external/egtex_breast/.
+# Verified byte-identical to the published input, sha256 604c34e4...03743da0.
 $PY scripts/71_mqtl_matched_negative.py \
+  --lead-mqtl-file data/external/egtex_breast/BreastMammaryTissue.regular.perm.fdr.txt \
   --test-csv data/datafiles_breast_epithelium/test.csv \
   --models fusion sequence \
   --seeds 42 43 44 \

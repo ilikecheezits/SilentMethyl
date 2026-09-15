@@ -1,0 +1,237 @@
+{
+  "analysis": "gate share vs measured cross-tissue methylation plasticity",
+  "bootstrap": "1000 draws over 1 Mb genomic blocks",
+  "correlations": {
+    "gate_dna_avg": {
+      "block_bootstrap_95ci": [
+        -0.6525806468634743,
+        -0.6168760579476696
+      ],
+      "block_bootstrap_draws": 1000,
+      "description": "raw DNA gate alone",
+      "n": 46536,
+      "n_blocks": 263,
+      "p_value": 0.0,
+      "partial_spearman_vs_var_given_mean_beta": -0.6059203589655435,
+      "spearman_rho": -0.6356520254285452,
+      "spearman_rho_vs_mean_beta": -0.37873141805213145,
+      "spearman_rho_vs_range": -0.6373426513137267,
+      "spearman_rho_vs_sd": -0.6356520254285452
+    },
+    "gate_dna_share_avg": {
+      "block_bootstrap_95ci": [
+        0.018823003231513393,
+        0.06206549500392075
+      ],
+      "block_bootstrap_draws": 1000,
+      "description": "learned DNA/context share (primary)",
+      "n": 46536,
+      "n_blocks": 263,
+      "p_value": 2.624035585934917e-19,
+      "partial_spearman_vs_var_given_mean_beta": -0.06061758448701351,
+      "spearman_rho": 0.04162671013487207,
+      "spearman_rho_vs_mean_beta": 0.39600284418238135,
+      "spearman_rho_vs_range": 0.04062942233726823,
+      "spearman_rho_vs_sd": 0.04162671013487207
+    },
+    "gate_epi_avg": {
+      "block_bootstrap_95ci": [
+        -0.48365151069979145,
+        -0.42494885211035427
+      ],
+      "block_bootstrap_draws": 1000,
+      "description": "raw context gate alone",
+      "n": 46536,
+      "n_blocks": 263,
+      "p_value": 0.0,
+      "partial_spearman_vs_var_given_mean_beta": -0.39510791531810235,
+      "spearman_rho": -0.4529457341253666,
+      "spearman_rho_vs_mean_beta": -0.5574222077140867,
+      "spearman_rho_vs_range": -0.45328290054580633,
+      "spearman_rho_vs_sd": -0.4529457341253666
+    },
+    "gate_total_avg": {
+      "block_bootstrap_95ci": [
+        -0.6410241879982911,
+        -0.5994144370359968
+      ],
+      "block_bootstrap_draws": 1000,
+      "description": "gate_dna + gate_epi, total fused-vector magnitude",
+      "n": 46536,
+      "n_blocks": 263,
+      "p_value": 0.0,
+      "partial_spearman_vs_var_given_mean_beta": -0.5953117745355863,
+      "spearman_rho": -0.6210827599504268,
+      "spearman_rho_vs_mean_beta": -0.4996545667016092,
+      "spearman_rho_vs_range": -0.6223495597577509,
+      "spearman_rho_vs_sd": -0.6210827599504268
+    }
+  },
+  "cross_tissue_variance_definition": "population variance (ddof=0) of Median_Beta across the four tissue builds at the same probe; measured targets, not predictions",
+  "decile_table": [
+    {
+      "cross_tissue_sd_median": 0.0519031513,
+      "cross_tissue_var_mean": 0.0074874746,
+      "cross_tissue_var_median": 0.0026939374,
+      "gate_dna_share_median": 0.2343767749,
+      "mean_beta_median": 0.4786554862,
+      "n": 4654,
+      "share_decile": 0
+    },
+    {
+      "cross_tissue_sd_median": 0.0300663652,
+      "cross_tissue_var_mean": 0.0053960635,
+      "cross_tissue_var_median": 0.0009039864,
+      "gate_dna_share_median": 0.3534330509,
+      "mean_beta_median": 0.3512541062,
+      "n": 4654,
+      "share_decile": 1
+    },
+    {
+      "cross_tissue_sd_median": 0.0037310812,
+      "cross_tissue_var_mean": 0.0024876709,
+      "cross_tissue_var_median": 1.3921e-05,
+      "gate_dna_share_median": 0.4075525938,
+      "mean_beta_median": 0.0530466318,
+      "n": 4653,
+      "share_decile": 2
+    },
+    {
+      "cross_tissue_sd_median": 0.0056680218,
+      "cross_tissue_var_mean": 0.0029516899,
+      "cross_tissue_var_median": 3.21265e-05,
+      "gate_dna_share_median": 0.4469713563,
+      "mean_beta_median": 0.0669824131,
+      "n": 4654,
+      "share_decile": 3
+    },
+    {
+      "cross_tissue_sd_median": 0.0172196022,
+      "cross_tissue_var_mean": 0.0042315419,
+      "cross_tissue_var_median": 0.0002965147,
+      "gate_dna_share_median": 0.4943310658,
+      "mean_beta_median": 0.2346219575,
+      "n": 4653,
+      "share_decile": 4
+    },
+    {
+      "cross_tissue_sd_median": 0.0271342219,
+      "cross_tissue_var_mean": 0.0045733069,
+      "cross_tissue_var_median": 0.0007362664,
+      "gate_dna_share_median": 0.5511870497,
+      "mean_beta_median": 0.6386906325,
+      "n": 4654,
+      "share_decile": 5
+    },
+    {
+      "cross_tissue_sd_median": 0.0280669568,
+      "cross_tissue_var_mean": 0.0044659208,
+      "cross_tissue_var_median": 0.0007877541,
+      "gate_dna_share_median": 0.6042846213,
+      "mean_beta_median": 0.816274385,
+      "n": 4653,
+      "share_decile": 6
+    },
+    {
+      "cross_tissue_sd_median": 0.0249037052,
+      "cross_tissue_var_mean": 0.0042706447,
+      "cross_tissue_var_median": 0.0006201945,
+      "gate_dna_share_median": 0.6490993246,
+      "mean_beta_median": 0.8539650762,
+      "n": 4654,
+      "share_decile": 7
+    },
+    {
+      "cross_tissue_sd_median": 0.0232745574,
+      "cross_tissue_var_mean": 0.0037450351,
+      "cross_tissue_var_median": 0.000541705,
+      "gate_dna_share_median": 0.6923366361,
+      "mean_beta_median": 0.8724479075,
+      "n": 4653,
+      "share_decile": 8
+    },
+    {
+      "cross_tissue_sd_median": 0.0254733749,
+      "cross_tissue_var_mean": 0.0042548008,
+      "cross_tissue_var_median": 0.0006488935,
+      "gate_dna_share_median": 0.7446933034,
+      "mean_beta_median": 0.8350489662,
+      "n": 4654,
+      "share_decile": 9
+    }
+  ],
+  "distribution_level_only": "Per-locus gate share is too noisy to quote for individual loci; every statement here is a distribution-level summary.",
+  "gate_measurement_noise": {
+    "gate_dna_share_fwd_rc_mae": 0.0567884081500685,
+    "gate_dna_share_q10_q90": [
+      0.30219739181171523,
+      0.7151759392317292
+    ],
+    "gate_dna_share_q10_q90_range": 0.41297854742001394,
+    "interpretation": "Forward/RC disagreement at the same locus is pure measurement noise in the gate. It attenuates every correlation below toward zero, so each is a lower bound. Not disattenuated by design.",
+    "noise_to_range_ratio": 0.13750934159859074
+  },
+  "gate_split": "joint all4 validation loci (chr10, chr11)",
+  "gates_csv": "checkpoints_joint/all4/seed42/fusion/best_validation_gates.csv",
+  "generated_utc": "2026-09-14T22:15:22+00:00",
+  "level_confound": {
+    "partial_spearman_gate_share_vs_variance_given_mean_beta": -0.06061758448701351,
+    "spearman_gate_share_vs_mean_beta": 0.39600284418238135,
+    "why": "Cross-tissue variance is mechanically compressed at beta~0 and beta~1. If the gate merely tracks methylation level, the raw correlation would be a level effect wearing a plasticity costume. The partial coefficient removes rank-linear level."
+  },
+  "probes": 46536,
+  "seed": 42,
+  "single_seed_note": "Seed 42 only, by design -- this characterises one trained model's learned gate, not run-to-run spread.",
+  "stratified_by_assigned_training_tissue": {
+    "BreastEpithelium": {
+      "block_bootstrap_95ci": [
+        0.05563068412305202,
+        0.113915304305102
+      ],
+      "block_bootstrap_draws": 1000,
+      "n": 11634,
+      "n_blocks": 260,
+      "p_value": 3.4381098341326814e-20,
+      "spearman_rho": 0.08518908563883411
+    },
+    "ColonTransverse": {
+      "block_bootstrap_95ci": [
+        0.011165182194069985,
+        0.07203155191820884
+      ],
+      "block_bootstrap_draws": 1000,
+      "n": 11634,
+      "n_blocks": 259,
+      "p_value": 9.75954867018283e-06,
+      "spearman_rho": 0.04098839284647193
+    },
+    "KidneyCortex": {
+      "block_bootstrap_95ci": [
+        -0.011836159134859135,
+        0.039353855662009676
+      ],
+      "block_bootstrap_draws": 1000,
+      "n": 11634,
+      "n_blocks": 256,
+      "p_value": 0.19405903573078312,
+      "spearman_rho": 0.012041023898951307
+    },
+    "Lung": {
+      "block_bootstrap_95ci": [
+        0.0027789271906887092,
+        0.050945053364048476
+      ],
+      "block_bootstrap_draws": 1000,
+      "n": 11634,
+      "n_blocks": 259,
+      "p_value": 0.0028454419074779706,
+      "spearman_rho": 0.027662535870076704
+    }
+  },
+  "tissue_sources": {
+    "BreastEpithelium": "data/datafiles_breast_epithelium/val.csv",
+    "ColonTransverse": "data/datafiles_multitissue/ColonTransverse/val.csv",
+    "KidneyCortex": "data/datafiles_multitissue/KidneyCortex/val.csv",
+    "Lung": "data/datafiles_multitissue/Lung/val.csv"
+  }
+}
