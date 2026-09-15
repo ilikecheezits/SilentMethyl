@@ -410,9 +410,13 @@ the analysis phase is essentially over and the bottleneck is writing.
 - **Loyfer WGBS atlas (GSE186458) instead of TCGA.** Would remove the field-
   cancerisation limitation. Large enough (205 samples, 39 cell types, 28.2M CpGs)
   but a substantial re-plumbing.
-- **Allele-specific methylation** (slot 53), pooled TCGA baseline, BEND
-  multi-task validation (manifest entry exists, data MISSING -- the Nature
-  Machine Intelligence criterion, and out of scope for this paper).
+- Pooled TCGA baseline, BEND multi-task validation (manifest entry exists, data
+  MISSING -- the Nature Machine Intelligence criterion, and out of scope for
+  this paper).
+- **Allele-specific methylation** (slot 53) is NO LONGER deferred, 15 Sep 2026 --
+  see section 6, `E (REOPENED)`. It was deferred, then dropped on a power
+  calculation that used the wrong denominator and the wrong catalogue. Slot 53
+  is live and awaiting authorisation.
 
 #### Closed, do not reopen
 - Multi-tissue joint training: declined on architectural grounds (R2), not
@@ -1721,9 +1725,11 @@ were — but it is a bet. Decide once, deliberately.
 - **Loyfer WGBS atlas (GSE186458) instead of TCGA.** Would remove the
   field-cancerisation limitation. Large enough (205 samples, 39 cell types,
   28.2M CpGs, hg38, public) but a substantial re-plumbing.
-- **Allele-specific methylation** (script slot 53), pooled TCGA baseline, BEND
-  multi-task validation (manifest entry exists, data MISSING — the Nature
-  Machine Intelligence criterion, out of scope for this paper).
+- Pooled TCGA baseline, BEND multi-task validation (manifest entry exists, data
+  MISSING — the Nature Machine Intelligence criterion, out of scope for this
+  paper).
+- **Allele-specific methylation** (script slot 53) is NO LONGER deferred,
+  15 Sep 2026 — see section 6, `E (REOPENED)`.
 
 ### Closed — do not reopen
 - Multi-tissue joint training: declined on architectural grounds (R2), not
@@ -1844,7 +1850,7 @@ own, so GENOA's marginal contribution is ancestry plus platform.
 
 ---
 
-## 6. R8 journal chain — five new analyses (14 Sep 2026)
+## 6. R8 journal chain — seven analyses (14–15 Sep 2026)
 
 Five analyses aimed at acceptance, budgeted under 40 of the 125 GPU hours.
 Single seed (42) everywhere **by design**: these characterise one trained
@@ -2164,7 +2170,20 @@ That is the expected tissue-variable/tissue-invariant division of the methylome,
 recovered without supervision from prediction error alone. This is the closest
 thing to a biological finding in the paper.
 
-### E. ASM validation — CHECKED 15 Sep 2026. DROP IT. Underpowered by ~15x.
+### E. ASM validation — SUPERSEDED 15 Sep 2026. The drop was OUR error.
+
+**Do not act on this subsection.** It is kept because the arithmetic in it is
+the arithmetic a reader will reconstruct, and the reason it is wrong is worth
+recording. The corrected check is `E (REOPENED)` below, and it reverses the
+decision. Two independent mistakes, either of which alone was enough to sink it:
+
+1. **Wrong denominator.** It assumed a scored CpG must be an HM450 probe
+   (26,570 / 28M = 0.095%). Nothing in the architecture requires that — see
+   below.
+2. **Wrong numerator.** It took the Nat Commun atlas's 34,426 ASM loci as the
+   ceiling and dismissed CanASM in one line as "tumour-focused, wrong tissue
+   context" without ever counting it. CanASM holds **5,003,877 SNV–CpG pairs**,
+   145x the number used as the ceiling.
 
 Catalogue check only, zero compute, no build attempted — per directive 4.
 
@@ -2209,7 +2228,132 @@ worse than not running it, and we already carry a documented pattern of null
 under-powered external results (four disease-variant tests). Slot `53` stays
 reserved and unused.
 
-### B. Context dose-response ladder — IN FLIGHT as `46007255` (14 Sep 2026)
+### E (REOPENED). ASM validation — the power calculation was wrong. 15 Sep 2026
+
+Catalogue check only, zero compute, nothing built — directive 4 still governs,
+and this is the "report usable n before building" step it asks for.
+
+#### What the old calculation got wrong
+
+**HM450 is a training-data constraint, not an inference constraint.** The model
+takes a 1,000-bp sequence window plus the context features and predicts
+methylation at the central CpG. Sequence, the seven bigWig tracks and phyloP are
+all genome-wide. Nothing in the forward pass asks whether the target CpG carries
+an Illumina probe. Held-out-ness is preserved by the **chromosome** split, not
+by the array: any CpG on chr8 or chr9 is as unseen as a probe on chr8 or chr9.
+
+So the filter is chromosomal, and it is ~93x weaker than assumed. Measured
+directly off our own reference rather than quoted:
+
+    hg38 primary assembly (chr1-22,X,Y)        3,088,269,832 bp
+      chr8 + chr9                                283,533,353 bp   =  9.181%
+
+    CpG dinucleotides, primary assembly            29,401,360
+      chr8 (1,338,200) + chr9 (1,255,728)           2,593,928     =  8.822%
+
+CpG fraction (8.82%) is the right one to apply to an ASM catalogue, since ASM
+records are CpGs and not random positions. Both agree with the mentor's ~9.2%.
+
+    basis                        restriction              fraction
+    old (Claude Code)            HM450 test probes          0.095%
+    corrected                    chr8+chr9, any CpG          8.82%
+
+#### The catalogue, counted rather than assumed
+
+**CanASM** (BMC Genomics 2025, `bioinfor.nefu.edu.cn/CanASM/`) — the resource the
+old check dismissed in a line:
+
+    unique SNV–CpG pairs                   5,003,877
+    index SNVs                             3,056,776   (2,634,406 are SNPs)
+    CpGs                                   4,157,508
+    samples                                      226 BS-seq, 31 cancer types,
+                                                     30 tissues, matched normals
+    genome build                              GRCh38   — same as ours, no liftOver
+    ASM test              Fisher's exact on the 2x2 of methylated/unmethylated
+                          reads by REF vs ALT allele; BH correction; per-allele
+                          read coverage floor 5, ceiling 200
+
+Breast, counted from the database's own sample table (284 GSM records embedded
+in the site bundle): **15 samples with `Tissue = Breast`** — 12 cancer, 3 normal
+(`GSM1279517`, `GSM4090863`, `GSM4090886`) — plus 4 breast-cancer PDX models, 2
+nipple aspirate fluid, and 1 breast-cancer plasma sample. Breast is the 7th
+best-represented tissue of 30.
+
+**The 1,000-bp window is nearly free, and this is the point that decides it.**
+CanASM's method section: *"For an SNV–CpG pair, overlapping reads were used for
+ASM identification through Fisher's exact test."* The SNV and the CpG must be
+covered by the **same reads** — that is what makes the allele assignment
+possible at all. SNV–CpG separation is therefore bounded by BS-seq read/fragment
+length, i.e. tens to a few hundred bp (the paper's own worked example,
+`rs1883832`, has all six CpGs within 40 bp). Essentially every CanASM pair
+already satisfies our 1,000-bp window. The "maybe a fifth survive" hedge is far
+too conservative; the survival rate is ~1.
+
+#### Usable n
+
+    5,003,877 pairs x 8.822% (chr8+chr9)   ~=  441,000 pairs, all tissues
+    x ~1.0 (1,000-bp window, see above)    ~=  441,000
+
+Breast-only is the number that matters and it cannot be read off the aggregate,
+because pairs are deduplicated across samples. Bounding it pessimistically: if
+breast contributed only **1%** of CanASM's pairs — far below its 15/226 = 6.6%
+sample share — that is 50,000 genome-wide, **~4,400 on chr8+chr9**. Nine times
+the ~500 floor under an assumption chosen to be unfair to the analysis.
+
+**Verdict: E clears the floor, by a wide margin, and is reopened.** The old
+"underpowered ~15x" line is withdrawn.
+
+#### The one thing still blocking a build
+
+`bioinfor.nefu.edu.cn/asm/*` is **returning 504 from every endpoint** as of
+15 Sep 2026 ~22:00 UTC — nginx answers, the application behind it does not.
+Tested: the bulk export (`/asm/download/snv_cpg?tissue=Breast`), the paginated
+browse (`/asm/snv_cpg?...&chr=chr8`), `/asm/getElementByTissue`, and
+`/asm/home/snv/search`, over ~25 minutes. The static site and JS bundle serve
+fine, which is how the sample table and endpoint list above were obtained.
+
+So the exact breast chr8+chr9 pair count is **not yet measured** — it is bounded,
+not counted. That is an availability problem, not a power problem, and it does
+not change the verdict. Retry before building; ASMdb is the fallback (below).
+
+**ASMdb is NOT a drop-in substitute — checked directly, 15 Sep 2026.** Its ASM
+records are *regions*, not SNV–CpG pairs. Pulling the actual table for a human
+sample (`GSM2191797`, via `/MethAelle/asmsqllist/`) returns columns
+`chrom, start, end, span, methCount, strand` and **612 rows** — no SNV column
+anywhere. The SNP calls ship separately as `Homo_sapiens.snp.tar.xz`, so using
+ASMdb means joining regions to SNPs ourselves and re-deriving the allele
+assignment CanASM already did. Usable as a second catalogue if CanASM stays
+down, but it is a build, not a download.
+
+#### Protocol, when it is authorised
+
+Same as GENOA/eGTEx, no new machinery:
+
+- direction concordance, signed Spearman, AUROC vs distance-matched negatives;
+- 10 bp matching tolerance, 1 Mb block bootstrap, distance-only baseline
+  reported alongside;
+- **not** exact effect-size agreement — the mentor is right that the scale
+  mismatch (allelic methylation difference within one individual vs our predicted
+  delta) makes agreement in magnitude the wrong target;
+- prioritise the 3 normal breast samples; report cancer and normal separately,
+  since 12 of 15 breast samples are tumour and tumour methylation is not a clean
+  stand-in for the breast-epithelium context the model carries.
+
+#### The caveat that must appear in the output, not just here
+
+The model was trained **only at HM450 positions**, which are enriched at
+promoters and CpG islands. Scoring arbitrary ASM CpGs is **out of distribution
+with respect to training positions** — a different thing from being out of
+distribution in sequence or in chromatin, and it should be named that precisely.
+It is a limitation to state, and it is also a generalisation test worth having:
+a model that holds up at CpGs the array never covered is a stronger claim than
+one evaluated only where it was fit. Report the position-class breakdown
+(island/shore/shelf/open sea, and HM450-covered vs not) alongside the headline
+so a reader can see how much of the result comes from array-like positions.
+
+**Budget: ~3 GPU h, unchanged. Slot `53` is now live, not reserved.**
+
+### B. Context dose-response ladder — COMPLETED as `46007255`, NOT YET ANALYSED
 
 `scripts/23_context_permutation.py`, `jobs/r8_journal/23_ctx_ladder.sbatch`,
 eGTEx heldout, 76,893 pairs, four rungs, seed 42:
@@ -2219,7 +2363,9 @@ eGTEx heldout, 76,893 pairs, four rungs, seed 42:
     rung 3  tissue_Lung   the SAME locus's context in a different tissue
     rung 4  xtissue_mean  per-locus mean across all four tissues
 
-**Status at handoff: submitted and PENDING (Priority).** ~4.9 GPU h projected
+**Status 15 Sep 2026: COMPLETED 0:0, elapsed 4:53:44, all four rung files on
+disk. The numbers have NOT been read into these notes yet.** (Status at handoff
+was: submitted and PENDING.) ~4.9 GPU h projected
 from the smoke's measured 0.0575 s/pair/scheme, inside an 8 h walltime. This is
 the last compute in the project. Nothing runs after it.
 
@@ -2282,11 +2428,239 @@ under `results/journal/` — but if a sibling analysis is running, exempt it wit
 `check_no_clobber "$STAMP" "${OUT}" --concurrent <subtree>` rather than dropping
 the guard.
 
+### F. Where the fusion gain concentrates — DONE 15 Sep 2026, zero GPU
+
+`scripts/57_fusion_gain_stratified.py` ->
+`results/journal/ablation_breast_epithelium/fusion_gain_stratified/`.
+Breast-epithelium held-out test set, 26,570 probes, chr8+chr9 — the same probe
+set as Task D, so the two are directly comparable. Seeds 42/43/44 ensembled to
+match `22_context_stratification.py`; ATAC and H3K27ac reproduce that script's
+frozen `fusion_gain_by_context.csv` to the fourth decimal, which is the
+regression test. 2,000 replicates, 1 Mb block bootstrap, per stratum.
+
+This is the analysis Results 3.2 needs and did not have. It extends the existing
+stratification in two directions: **all seven tracks** (not just ATAC and
+H3K27ac), and a **paired AUROC difference** alongside the paired beta MAE.
+
+**Every stratum's fusion gain is significant.** All 33 strata have both the beta
+MAE difference and the AUROC difference with 95% block-bootstrap intervals
+excluding zero. There is no region where context fails to help. The finding is
+about *how much*, not *whether*.
+
+#### Read the relative column, not the absolute one
+
+Absolute beta-MAE gain is capped by the sequence-only error in the stratum, so a
+stratum that starts worse can post the biggest absolute gain with no greater
+fractional benefit. The two columns rank the strata differently and that
+disagreement is the substance of 3.2:
+
+    stratum                     n      seq MAE   abs gain     rel [95% CI]      dAUROC
+    all held-out CpGs       26,570      0.1079    -0.0182    16.9%             +0.0166
+    ---- CpG island context ----
+    Island                   7,972      0.0793    -0.0146    18.4%            +0.0178
+    Shore                    6,713      0.1333    -0.0230    17.3%            +0.0281
+    Shelf                    2,217      0.0979    -0.0123    12.6%            +0.0275
+    Open sea                 9,668      0.1161    -0.0192    16.5%            +0.0399
+    ---- top vs bottom quartile, selected tracks ----
+    H3K27me3  Q1 low         6,643      0.0861    -0.0206    23.9% [22.2,25.4] +0.0111
+    H3K27me3  Q4 high        6,643      0.1321    -0.0136    10.3% [ 9.0,11.5] +0.0171
+    H3K27ac   Q4 high        6,643      0.0767    -0.0175    22.9% [20.7,25.0] +0.0107
+    ATAC      Q4 high        6,643      0.0802    -0.0180    22.4% [20.6,24.1] +0.0152
+    ATAC      Q1 low         6,642      0.1104    -0.0167    15.1%            +0.0292
+    H3K4me3   Q4 high        6,643      0.0583    -0.0131    22.4%            +0.0264
+    H3K4me1   Q4 high        6,643      0.1424    -0.0241    16.9%            +0.0229
+    H3K4me1   Q1 low         6,642      0.0853    -0.0173    20.3%            +0.0056
+
+#### The mentor's two specific questions, answered
+
+**Shores — yes on absolute, no on relative, and the distinction matters.** Shores
+carry the largest absolute gain of the four island classes (-0.0230). But shores
+also carry the largest sequence-only error (0.1333, vs 0.0793 at islands), and in
+fractional terms they are unremarkable: 17.3%, below islands at 18.4%. Write the
+shore result as *shores are where the most absolute error is removed*, and do not
+let that slide into *shores are where context matters most*. It is not supported.
+
+**High ATAC and high H3K27ac — yes, and this is the clean version of the claim.**
+Top-quartile ATAC (22.4%) and top-quartile H3K27ac (22.9%) sit at the top of
+their own ladders, each with an interval clear of the quartile below. The mentor's
+hypothesis holds, but only in the relative column; in absolute terms both are
+middling (-0.0180, -0.0175), which is why the existing
+`fusion_gain_by_context.csv` looked flat across ATAC quartiles and concealed this.
+
+**The counter-current worth reporting.** ΔAUROC runs the *opposite* way in those
+same strata: ATAC Q4 high is the weakest AUROC gain of its ladder (+0.0152 vs
++0.0292 at Q1), and H3K27ac Q4 high is the weakest of its (+0.0107 vs +0.0243 at
+Q3). Open sea has the largest AUROC gain of any island class (+0.0399) while
+being middling on beta MAE. Open, accessible chromatin is where context sharpens
+the *value* the most and the *call* the least — sequence alone already gets the
+binary call right there. Both directions are significant; report both.
+
+#### Against Task D — a partial parallel, and it must not be forced
+
+Task D found transfer failure concentrating at **shores** (log2 enrichment
++0.525), **H3K4me1** (rank-biserial +0.219) and **H3K27me3** (+0.122), with
+islands depleted (-0.556). Testing each against the fusion gain:
+
+    Task D: transfer fails at ...   fusion gain there                  pairing
+    Shore                           largest absolute of 4 classes       HOLDS
+    H3K4me1 high                    -0.0241, largest of all 33 strata   HOLDS
+    H3K27me3 high                   10.3% relative, SMALLEST of all 33  INVERTS
+
+Two of three hold and the third inverts cleanly. The polycomb inversion is
+monotone across the whole ladder — H3K27me3 Q1 23.9% [22.2, 25.4] down to Q4
+10.3% [9.0, 11.5], non-overlapping, a 2.3x gradient — so it is not noise and not
+a boundary artefact.
+
+**So the coherent-pairing sentence is available for shores and enhancer
+chromatin, and is false for polycomb.** The honest framing: context rescues
+sequence exactly where methylation is tissue-plastic *in the enhancer direction*
+(H3K4me1, shores), and rescues it least at polycomb-marked CpGs, which are the
+regions where transfer fails AND context does not help. Those are simply hard for
+both arms — neither the sequence window nor the seven tracks carry what is needed.
+That is a more interesting sentence than the forced parallel, and it is what the
+data says. Do not write "context helps most exactly where sequence alone
+transfers worst" without the polycomb exception attached.
+
+#### Seed sensitivity
+
+Seed 42 alone (the standing single-seed constraint) vs the 42/43/44 ensemble:
+relative reductions shift by at most 0.031 and uniformly *upward* (the ensemble
+helps the sequence arm slightly more), ΔAUROC by at most 0.015, and the stratum
+ranking is preserved (Spearman 0.94). Every conclusion above is seed-robust.
+Ensemble is reported because it matches the frozen `22` artifact; `--seeds 42`
+reproduces the single-seed version.
+
+### G. Results section structure — the mentor's proposal, and the mapping
+
+Recorded 15 Sep 2026. This is the **target structure for `main_revised.tex`**.
+`main_revised.tex` is NOT restructured yet — that happens in the one wording pass
+(directive 2). This subsection exists so the pass knows where everything lands.
+
+#### The mentor's proposal, verbatim
+
+> 3.1 Multimodal integration improves CpG methylation prediction across genomic partitions
+> Include the original sequence-only/context-only/fusion comparison together with the additional chromosome-block splits.
+>
+> 3.2 Epigenomic context provides genomic-region-specific predictive gains
+> Show where fusion contributes most, including CpG shores and regions with high ATAC-seq or H3K27ac signal.
+>
+> 3.3 Single-nucleotide perturbation reveals sequence-driven methylation responses
+> Introduce the WT–MUT framework and include the context-swapping analysis here.
+>
+> 3.4 Independent validation of variant-associated methylation effects
+> Include the current mQTL validation and, if successful, the ASM validation. The Melody comparison could be presented as a secondary benchmark or moved to the Supplementary Results.
+>
+> 3.5 Variant-associated methylation responses are organized by genomic context and CpG proximity
+> Include promoter/TSS versus UTR versus gene-body differences, variant-to-CpG distance, and related regulatory-context analyses.
+>
+> 3.6 Biological applications of SilentMethyl
+> Use NCOA2 as the synonymous-variant prioritization example and STK11 as an example showing that the framework can also be applied to clinically relevant nonsynonymous variants. If the eQTL analysis produces useful results, it could also be integrated into these case studies.
+
+#### Why this structure is safe to adopt
+
+**3.3 is the paper's central finding, and he got there independently.** He wrote
+"single-nucleotide perturbation reveals sequence-driven methylation responses"
+without having seen Task A or Task B. That is our dissociation claim — variant
+effects are sequence-driven, context sets the baseline — arrived at from the
+analyses he *had* seen. The framing risk flagged earlier is gone: the dissociation
+story fits this structure rather than fighting it.
+
+#### Mapping
+
+    3.1  Multimodal integration ... across genomic partitions
+         R1     sequence / context / fusion + published baselines
+                scripts 10,11,12,13,14,15,16
+                results/journal/{seed42,seed43,seed44}, paired_model_bootstrap,
+                published_baselines, sequence_baselines
+         NEW    chromosome-block splits, script 17 -> results/journal/folds/
+                (fold1..3, whole-chromosome blocked, probe-disjointness asserted)
+         also   R1's honesty constraint: 0.017 beta MAE is NOT "substantial";
+                see section 1 R1. Carry that wording into 3.1.
+
+    3.2  Epigenomic context provides genomic-region-specific gains
+         F      NEW, script 57 -> ablation_breast_epithelium/fusion_gain_stratified/
+                all seven tracks + paired AUROC, 1 Mb block bootstrap.
+                THIS IS THE ANALYSIS 3.2 WAS MISSING.
+         R2a    script 22 -> biological_context/fusion_gain_by_context.csv
+                (genomic-region rows: promoter/UTR/gene body/intergenic)
+         caveat report the RELATIVE column when comparing strata; the shore
+                result is absolute-only and must not be written as "context
+                matters most at shores". See F above.
+
+    3.3  Single-nucleotide perturbation reveals sequence-driven responses
+         R2     the dissociation itself — scripts 20,21
+                context permutation (identity/shuffle/median), script 23
+         B      four-rung context ladder, 46007255 COMPLETED 0:0 (4:53:44),
+                -> ablation_breast_epithelium/context_ladder/
+                This is the "context-swapping analysis" he asks for.
+         A      gate decomposition + sub-channel split, script 54
+                -> gate_decomposition/. Sequence self-rescaling is 82-85% of the
+                gate channel's variance. The allele-invariance claim is WRONG as
+                originally written; 3.3 must carry the corrected version.
+         C      gate share vs measured tissue plasticity, script 55 — NULL.
+                Report as a null or drop to Supplementary; do not oversell.
+         hard   the R2 constraint stands: we may NOT claim epigenomic context
+                improves variant-effect prediction anywhere in the paper.
+
+    3.4  Independent validation of variant-associated effects
+         R7     GENOA + eGTEx replication, cross-cohort/ancestry/platform
+                rho_meta 0.1775 [0.0678, 0.2829], I2 = 0
+         R2b    mQTL positive control + distance-matched negative, scripts 70,71
+         E      ASM validation — REOPENED, see E (REOPENED) above. Not yet run.
+                If it lands it belongs here; if it does not, 3.4 stands without it.
+         Melody head-to-head, scripts 33,34,35 -> secondary benchmark or
+                Supplementary, per his suggestion. Section 2 of these notes has
+                the full positioning and must not be flattened into one line —
+                the Fig 3H tension and the ovary gift both need to survive.
+
+    3.5  Responses organized by genomic context and CpG proximity
+         R2c    script 22 -> variant_response_by_context.csv (promoter/TSS, UTR,
+                gene body, intergenic) and variant_response_by_distance.csv
+                (0-50, 51-100, 101-250, 251-500 bp)
+         R5     motif disruption with k-mer-matched null, script 50
+                RC-disagreement as calibrated uncertainty, script 51
+                GWAS regulatory enrichment (two powered tests only), script 52
+
+    3.6  Biological applications
+         R6     scripts 60-64 -> candidates/, known_variant_application/,
+                literature_variant_screen/
+                NCOA2 = synonymous prioritisation; STK11 = nonsynonymous.
+                Both retained per mentor instruction.
+         eQTL   not run. Only integrate if it produces something.
+
+#### The one real gap in his structure — R3, R4 and Task D have no home
+
+He proposed 3.1-3.6 without having seen Task D, and the structure has **no slot
+for cross-tissue transfer**. That is not a small omission:
+
+- **R3** — zero-shot transfer across nine tissues, and its reframing: single-tissue
+  methylation models transfer, and the training tissue matters far less than
+  assumed, demonstrated in two architectures (ours and Melody-ST) sharing nothing
+  but the task. Distance-matched AUROC excludes 0.5 in 7/9 tissues.
+- **R4** — can the model separate tissue-specific from shared mQTLs? Answer NO
+  (§4). Winner's curse, not mechanism. A recorded, pre-specified falsification
+  test that failed, which we report.
+- **D** — where transfer fails: island shores with H3K4me1 and H3K27me3, islands
+  with promoter chromatin succeed. These notes call it "the closest thing to a
+  biological finding in the paper", and F above now pairs against it.
+
+**Recommendation, not a decision.** Widen 3.1 to "across genomic partitions **and
+tissues**" and let it carry R3, or add a section between 3.3 and 3.4 for transfer.
+The second is cleaner: transfer is a generalisation result, not a benchmarking
+result, and burying it in 3.1 next to the baseline table will lose it. Task D
+then sits with R3, and F (3.2) references it across the section boundary.
+
+**Raise this with the mentor rather than silently filing R3/R4/D somewhere.** He
+has not seen Task D, and where transfer lands changes what 3.1 and 3.4 each claim.
+
 ### Standing directives for the rest of R8 (14 Sep 2026)
 
-1. **Scope is FROZEN**: A + sub-channel split, B, C, D. Nothing else is added. If
-   B or D turns up something interesting, record it as a lead here and **do not
-   chase it** — the project is moving to writing.
+1. **Scope is FROZEN**: A + sub-channel split, B, C, D — and, added 15 Sep 2026
+   on mentor feedback, **E (reopened)** and **F (fusion-gain stratification)**.
+   Both are justified rather than scope creep: E was dropped on our own
+   arithmetic error, and F is the analysis Results 3.2 requires and lacked.
+   **After these, scope is frozen again.** If B, D or F turns up something
+   interesting, record it as a lead here and **do not chase it**.
 2. **ONE wording pass, at the very end**, after the split, B and D have all
    landed. Not after the split. B's rung 4 can touch the same R2 sentences and two
    passes is exactly the churn being avoided.
@@ -2295,34 +2669,54 @@ the guard.
    marginally separable from zero* (CI [+0.0017, +0.0168]). Do **not** write
    "confirmed in both cohorts" — a reviewer reading a +0.0017 lower bound against
    that phrasing will not be generous.
-4. **E**: catalogue check only, zero compute. Report usable n after intersecting
-   with test probes, and tissue match, **before building anything**. n ≥ ~500 →
-   ask for authorisation. Under → drop it and tell the mentor no adequately
-   powered public ASM resource intersects the probe set.
+4. **E** — REVISED 15 Sep 2026, the original wording contained the error.
+   The old text said "after intersecting with test probes", which is what caused
+   the 93x power miscalculation. **The restriction is chr8+chr9, not HM450.**
+   Catalogue check done (E REOPENED above): usable n clears the ~500 floor by
+   roughly an order of magnitude even under pessimistic assumptions.
+   **Still zero compute, still nothing built.** The scoring run needs explicit
+   authorisation, and CanASM's server must come back up first.
 5. `main.tex` is never touched. Corrections go to `main_revised.tex` only.
+6. **`main_revised.tex` is not restructured yet.** Subsection G records the target
+   3.1–3.6 structure and the mapping; the restructure happens inside the single
+   wording pass, not before it.
+7. **Single seed** remains the standing constraint for anything new. Where an
+   existing frozen artifact is seed-ensembled (script 22, and F which must
+   reproduce it), match the artifact and report the single-seed sensitivity
+   alongside — F does this.
 
-### Where this stands — 14 Sep 2026, 22:40 UTC
+### Where this stands — 15 Sep 2026
 
-**All five analyses are resolved. `46007255` is the last compute in the
-project.** When it lands, coding is finished and everything remaining is prose.
+**`46007255` landed: COMPLETED 0:0, elapsed 4:53:44.** Task B is done and all
+four rungs wrote. That was the last GPU compute in the project as planned; the
+only compute that could follow is E's scoring run, which is not authorised yet.
 
 | task | state |
 |---|---|
 | A. gate decomposition | DONE, `45992001` COMPLETED 0:0, committed |
-| A. sub-channel split | **DONE**, `45997644` (FAILED 1:0 on the guard only — outputs correct, analysed, committed) |
-| B. context ladder | **IN FLIGHT, `46007255`**, PENDING at handoff, ~4.9 GPU h |
+| A. sub-channel split | DONE, `45997644` (FAILED 1:0 on the guard only — outputs correct, analysed, committed) |
+| B. context ladder | **DONE**, `46007255` COMPLETED 0:0, 4:53:44, outputs on disk — **not yet analysed** |
 | C. gate plasticity | DONE, null, zero GPU |
 | D. transfer failure | DONE, hypothesis holds, zero GPU |
-| E. ASM validation | DROPPED — underpowered ~15×, final |
+| E. ASM validation | **REOPENED** — the drop was our error; n clears the floor; blocked on CanASM server + authorisation |
+| F. fusion gain by region | **DONE** 15 Sep 2026, zero GPU, script 57 |
 
-Budget: ~17.5 GPU h spent of 125 (the ~2.4 h in `45997644` was **not** wasted —
-it bought the split's outputs, which is why the job was not resubmitted).
+Budget: ~22.4 GPU h spent of 125 (17.5 + B's 4.9). E is ~3 h if authorised.
 
-**The one wording pass (directive 2) is now blocked only on `46007255`.** Both
-of its other inputs have landed. When it finishes, the pass covers R2,
-LAB_NOTES and `main_revised.tex` together — one pass, not two — and must fold in
-all three of: the split's sequence-dominance result above, B's four-rung ladder,
-and the smoke's allele-invariance banner **as re-measured at full scale**.
+**What the wording pass must now fold in.** Its three original inputs have all
+landed, and there are two more:
 
-No further jobs are to be submitted. Anything B turns up is a lead for these
-notes, not a new run (directive 1).
+1. the sub-channel split's sequence-dominance result (A);
+2. B's four-rung ladder, **and the smoke's allele-invariance banner as
+   re-measured at full scale** — read it off `46007255`, never off the smoke;
+3. D's transfer-failure localisation;
+4. **F's fusion-gain stratification**, including the absolute-vs-relative
+   distinction and the polycomb inversion against D (subsection F);
+5. **the 3.1–3.6 restructure** (subsection G), including the R3/R4/D gap.
+
+**Read B's outputs before writing anything that touches R2.** `46007255`
+completed but its numbers have not been read into these notes, and rung 4 can
+change R2 sentences. That is the next action, ahead of the wording pass itself.
+
+No further jobs are to be submitted without authorisation. E's scoring run is the
+single exception under discussion, and it is not authorised yet.
