@@ -1,6 +1,6 @@
 {
   "analysis": "gate decomposition of the fusion variant effect (instrumented forward pass)",
-  "channel_definition": "Delta_M_DNA_Channel = head(g(REF)_d*dna_ALT + g(REF)_e*epi) - m_REF; Delta_M_Gate_Channel = m_ALT - head(g(REF)_d*dna_ALT + g(REF)_e*epi). They sum exactly to Delta_M_Total by construction.",
+  "channel_definition": "Delta_M_DNA_Channel = head(g(REF)_d*dna_ALT + g(REF)_e*epi) - m_REF; Delta_M_Gate_Channel = m_ALT - head(g(REF)_d*dna_ALT + g(REF)_e*epi). They sum exactly to Delta_M_Total by construction. The gate channel splits further: Delta_M_Gate_gdna (g_dna moves, g_epi held at REF -- sequence self-rescaling) plus Delta_M_Gate_gepi (g_epi moves against a FIXED epi vector -- the context-content term). Those two sum exactly to Delta_M_Gate_Channel.",
   "cohort": "genoa",
   "construction_counters": {
     "alters_target_cpg": 0,
@@ -13,7 +13,7 @@
     "unexpected_window_difference": 0,
     "window_not_cpg_centred": 0
   },
-  "generated_utc": "2026-09-14T23:23:58+00:00",
+  "generated_utc": "2026-09-15T01:07:57+00:00",
   "input_csv": "data/external/genoa_meqtl/scoring/genoa_scoring_input_heldout.csv",
   "input_sha256": "df19807e106c01b7e9a7004a45e7a7c40cee7faf4e1c668f98411357b45239d7",
   "masked_probe_pairs_dropped": 0,
