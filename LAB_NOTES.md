@@ -38,6 +38,12 @@ channel alone recovers ~99% of the model's correlation with measured effects,
 which is why R2 still holds. Do not write "context cannot create a variant
 effect" anywhere. The corrected wording is in §6 A.
 
+**Task D is a positive result.** Held-out transfer error rises monotonically with
+measured cross-tissue methylation variance (ρ = +0.488, +0.475 after mean-β
+control; 4.4× MAE spread across deciles), and the failures are **island shores
+with enhancer/polycomb chromatin** while **CpG islands with promoter chromatin**
+transfer cleanly. Closest thing to a biological finding in the paper. §6 D.
+
 **Task C** is done and came back **null**:
 the gate's DNA/context *share* does not track measured cross-tissue methylation
 variance (ρ = +0.042, and −0.061 once methylation level is partialled out). Do
@@ -2053,8 +2059,70 @@ just failing to find something.
 Per the standing note, every statement here is distribution-level; no per-locus
 gate share is quoted.
 
-### B, D, E — not started
+### D. Where zero-shot transfer fails — DONE 14 Sep 2026. Hypothesis HOLDS.
 
-Gated on A landing. D depends on the Task C per-probe variance file, which now
-exists (`gate_plasticity_per_probe.csv`) and can be joined straight onto the
-held-out-breast predictions.
+`scripts/56_transfer_failure.py` → `results/journal/joint/transfer_failure/`.
+Zero GPU. 26,558 held-out breast test probes (chr8+chr9), 99.95% of the 26,570.
+
+**Split discipline — do not conflate with Task C.** Task C's plasticity null is on
+joint **validation** probes (chr10+chr11). This is on held-out **test** probes
+(chr8+chr9). The two sets are **disjoint — zero probe overlap** — so the
+cross-tissue variance here is recomputed from the four tissues' own `test.csv` by
+the same method. Both are legitimate; they are not the same analysis and must
+never be written as one.
+
+**Error rises monotonically with measured tissue plasticity.** Spearman
+ρ = **+0.488** between sequence-arm absolute β error and cross-tissue variance,
+and **+0.475** after partialling out mean β — so it is not the level confound
+that killed Task C. The decile table is monotone across all ten bins:
+
+| decile | cross-tissue var | sequence MAE | fusion MAE |
+|---|---|---|---|
+| d1 | 0.00000 | 0.0448 | 0.0343 |
+| d5 | 0.00026 | 0.0944 | 0.0815 |
+| d10 | 0.02121 | **0.1965** | 0.1753 |
+
+A **4.4× spread** in error, ordered perfectly by plasticity. Top-decile-error
+probes carry **13.5×** the cross-tissue variance of the rest (0.00449 vs
+0.00033).
+
+**The failures have regulatory character, and it is coherent.** Reported as it
+came out — no story was hunted for:
+
+| annotation | top decile vs rest | direction |
+|---|---|---|
+| CpG-island **Shore** | 34.8% vs 24.2% (log2 **+0.53**) | enriched |
+| CpG **Island** | 21.1% vs 31.0% (log2 **−0.56**) | depleted |
+| Shelf | 6.1% vs 8.6% (log2 −0.48) | depleted |
+| OpenSea | 38.0% vs 36.2% (log2 +0.07) | flat |
+| **H3K4me1** (enhancer) | rb **+0.219**, p=1.4e-76 | enriched |
+| H3K27me3 (polycomb) | rb +0.122, p=4.0e-25 | enriched |
+| H3K4me3 (promoter) | rb −0.072, p=1.4e-09 | slightly depleted |
+| ATAC | rb −0.056, p=2.0e-06 | slightly depleted |
+
+Transfer fails at **island shores carrying enhancer (H3K4me1) and polycomb
+(H3K27me3) chromatin**, and succeeds at **CpG islands with promoter chromatin**.
+That is the expected tissue-variable/tissue-invariant division of the methylome,
+recovered without supervision from prediction error alone. This is the closest
+thing to a biological finding in the paper.
+
+### B — next. E — catalogue check only.
+
+### Standing directives for the rest of R8 (14 Sep 2026)
+
+1. **Scope is FROZEN**: A + sub-channel split, B, C, D. Nothing else is added. If
+   B or D turns up something interesting, record it as a lead here and **do not
+   chase it** — the project is moving to writing.
+2. **ONE wording pass, at the very end**, after the split, B and D have all
+   landed. Not after the split. B's rung 4 can touch the same R2 sentences and two
+   passes is exactly the churn being avoided.
+3. **Wording for the partial-correlation result**: write it as *consistent in sign
+   across two independent cohorts, small in magnitude, and in eGTEx only
+   marginally separable from zero* (CI [+0.0017, +0.0168]). Do **not** write
+   "confirmed in both cohorts" — a reviewer reading a +0.0017 lower bound against
+   that phrasing will not be generous.
+4. **E**: catalogue check only, zero compute. Report usable n after intersecting
+   with test probes, and tissue match, **before building anything**. n ≥ ~500 →
+   ask for authorisation. Under → drop it and tell the mentor no adequately
+   powered public ASM resource intersects the probe set.
+5. `main.tex` is never touched.

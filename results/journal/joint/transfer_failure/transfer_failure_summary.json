@@ -1,0 +1,320 @@
+{
+  "analysis": "where zero-shot cross-tissue transfer fails",
+  "arms": [
+    "sequence",
+    "fusion",
+    "epi"
+  ],
+  "bootstrap": "400 draws over 1 Mb blocks",
+  "error_vs_variance": {
+    "decile_table": [
+      {
+        "cross_tissue_sd_median": 0.001255941875045087,
+        "cross_tissue_var_median": 1.57739001166275e-06,
+        "decile": 1,
+        "mae_epi": 0.03784986572352048,
+        "mae_epi_95ci": [
+          0.033749302041729906,
+          0.04179549001563635
+        ],
+        "mae_fusion": 0.034331244137593926,
+        "mae_fusion_95ci": [
+          0.029920327074265344,
+          0.038998896075547525
+        ],
+        "mae_sequence": 0.044796193870105624,
+        "mae_sequence_95ci": [
+          0.03908904539361611,
+          0.050872339369632195
+        ],
+        "mean_beta_median": 0.02192565825,
+        "n": 2656
+      },
+      {
+        "cross_tissue_sd_median": 0.0026122418067096825,
+        "cross_tissue_var_median": 6.82380738633697e-06,
+        "decile": 2,
+        "mae_epi": 0.04403617310987119,
+        "mae_epi_95ci": [
+          0.04000822812792372,
+          0.04819354819452288
+        ],
+        "mae_fusion": 0.039580927681702384,
+        "mae_fusion_95ci": [
+          0.03570592238250877,
+          0.04359450019877332
+        ],
+        "mae_sequence": 0.04988170302920432,
+        "mae_sequence_95ci": [
+          0.04458456943822227,
+          0.055179781518108914
+        ],
+        "mean_beta_median": 0.050980344375,
+        "n": 2656
+      },
+      {
+        "cross_tissue_sd_median": 0.004721446156164821,
+        "cross_tissue_var_median": 2.229205386970234e-05,
+        "decile": 3,
+        "mae_epi": 0.0614760839247077,
+        "mae_epi_95ci": [
+          0.05690385610757601,
+          0.06566865893213802
+        ],
+        "mae_fusion": 0.05151682301965841,
+        "mae_fusion_95ci": [
+          0.04732916699738519,
+          0.05593528036505315
+        ],
+        "mae_sequence": 0.06243729799163961,
+        "mae_sequence_95ci": [
+          0.05701272485962736,
+          0.06812488940950709
+        ],
+        "mean_beta_median": 0.1370495475,
+        "n": 2656
+      },
+      {
+        "cross_tissue_sd_median": 0.008664827702280303,
+        "cross_tissue_var_median": 7.507923911020416e-05,
+        "decile": 4,
+        "mae_epi": 0.07389070238013047,
+        "mae_epi_95ci": [
+          0.06993240751784073,
+          0.07789479034765101
+        ],
+        "mae_fusion": 0.06379049472693216,
+        "mae_fusion_95ci": [
+          0.0604514653036929,
+          0.06722621720359678
+        ],
+        "mae_sequence": 0.07459036287221976,
+        "mae_sequence_95ci": [
+          0.07013783444142327,
+          0.07908175805679424
+        ],
+        "mean_beta_median": 0.8988727525,
+        "n": 2655
+      },
+      {
+        "cross_tissue_sd_median": 0.016178347917408714,
+        "cross_tissue_var_median": 0.00026173895227362174,
+        "decile": 5,
+        "mae_epi": 0.08413734470552996,
+        "mae_epi_95ci": [
+          0.07979523298880026,
+          0.08868964558133571
+        ],
+        "mae_fusion": 0.08154109861008842,
+        "mae_fusion_95ci": [
+          0.07667326496704976,
+          0.08642233152422646
+        ],
+        "mae_sequence": 0.09438756221403218,
+        "mae_sequence_95ci": [
+          0.08841368485960398,
+          0.10014268016583805
+        ],
+        "mean_beta_median": 0.8763355025000001,
+        "n": 2656
+      },
+      {
+        "cross_tissue_sd_median": 0.028665039197202827,
+        "cross_tissue_var_median": 0.00082168447369635,
+        "decile": 6,
+        "mae_epi": 0.10092126623852207,
+        "mae_epi_95ci": [
+          0.09496469764515232,
+          0.10655070566087439
+        ],
+        "mae_fusion": 0.10334009595716043,
+        "mae_fusion_95ci": [
+          0.09737594795097775,
+          0.11009318430137718
+        ],
+        "mae_sequence": 0.11862683123298805,
+        "mae_sequence_95ci": [
+          0.11091443930293021,
+          0.12748261642580977
+        ],
+        "mean_beta_median": 0.84113337,
+        "n": 2656
+      },
+      {
+        "cross_tissue_sd_median": 0.04614982424058513,
+        "cross_tissue_var_median": 0.0021298062774368987,
+        "decile": 7,
+        "mae_epi": 0.14502152701148763,
+        "mae_epi_95ci": [
+          0.137178392808554,
+          0.1526284371967016
+        ],
+        "mae_fusion": 0.1283305052555606,
+        "mae_fusion_95ci": [
+          0.12199106447286578,
+          0.1355728802604077
+        ],
+        "mae_sequence": 0.14125424097949835,
+        "mae_sequence_95ci": [
+          0.13370103894651206,
+          0.1491811016980465
+        ],
+        "mean_beta_median": 0.7445543125,
+        "n": 2655
+      },
+      {
+        "cross_tissue_sd_median": 0.06765524835119761,
+        "cross_tissue_var_median": 0.004577232629556919,
+        "decile": 8,
+        "mae_epi": 0.16457497148777367,
+        "mae_epi_95ci": [
+          0.15788134528688022,
+          0.17108789755548837
+        ],
+        "mae_fusion": 0.14357091432664518,
+        "mae_fusion_95ci": [
+          0.1386253589293088,
+          0.14906081675184477
+        ],
+        "mae_sequence": 0.15713262864380106,
+        "mae_sequence_95ci": [
+          0.1506797896653407,
+          0.16344951443829447
+        ],
+        "mean_beta_median": 0.6582435325,
+        "n": 2656
+      },
+      {
+        "cross_tissue_sd_median": 0.09616431673011577,
+        "cross_tissue_var_median": 0.009247575937673957,
+        "decile": 9,
+        "mae_epi": 0.17981148701608574,
+        "mae_epi_95ci": [
+          0.17430353899486078,
+          0.18564422189380592
+        ],
+        "mae_fusion": 0.15600249389605872,
+        "mae_fusion_95ci": [
+          0.15063331361769997,
+          0.16146383996994265
+        ],
+        "mae_sequence": 0.17233823547216906,
+        "mae_sequence_95ci": [
+          0.16647568455119455,
+          0.17801332137908307
+        ],
+        "mean_beta_median": 0.6025249337499999,
+        "n": 2656
+      },
+      {
+        "cross_tissue_sd_median": 0.1456451140678487,
+        "cross_tissue_var_median": 0.021212499255959798,
+        "decile": 10,
+        "mae_epi": 0.17737116987209667,
+        "mae_epi_95ci": [
+          0.17034749673893068,
+          0.18457252984951594
+        ],
+        "mae_fusion": 0.17529208735241666,
+        "mae_fusion_95ci": [
+          0.16862845042257518,
+          0.18311486933640253
+        ],
+        "mae_sequence": 0.19651588065520276,
+        "mae_sequence_95ci": [
+          0.1892705745304612,
+          0.2047867968498596
+        ],
+        "mean_beta_median": 0.59590005125,
+        "n": 2656
+      }
+    ],
+    "partial_spearman_given_mean_beta": 0.47527568593283553,
+    "spearman_p": 0.0,
+    "spearman_rho": 0.48815686044724377
+  },
+  "generated_utc": "2026-09-15T00:08:11+00:00",
+  "model": "results/journal/joint/holdout_BreastEpithelium/seed42",
+  "primary_arm": "sequence",
+  "probes": 26558,
+  "seed": 42,
+  "single_seed_note": "Seed 42 only, by design; this localises one model's errors.",
+  "split_discipline": "Held-out TEST probes, chr8+chr9. Task C's plasticity null is on joint VALIDATION probes, chr10+chr11. The two probe sets are disjoint; cross-tissue variance here is recomputed from the four tissues' own test.csv by the same method. Both valid, not the same analysis.",
+  "top_decile_error": {
+    "cgi_class_enrichment": {
+      "Island": {
+        "fraction_rest": 0.31001589825119236,
+        "fraction_top_decile": 0.21084337349397592,
+        "log2_enrichment": -0.5561705212722797,
+        "n_top": 560
+      },
+      "OpenSea": {
+        "fraction_rest": 0.36206175215463143,
+        "fraction_top_decile": 0.3795180722891566,
+        "log2_enrichment": 0.06793280705397504,
+        "n_top": 1008
+      },
+      "Shelf": {
+        "fraction_rest": 0.08585055643879173,
+        "fraction_top_decile": 0.06137048192771084,
+        "log2_enrichment": -0.48428257240002653,
+        "n_top": 163
+      },
+      "Shore": {
+        "fraction_rest": 0.2420717931553845,
+        "fraction_top_decile": 0.3482680722891566,
+        "log2_enrichment": 0.5247632364500248,
+        "n_top": 925
+      }
+    },
+    "chromatin_contrast": {
+      "Ref_ATAC_Signal": {
+        "mann_whitney_p": 1.9727210658699255e-06,
+        "median_rest": 1.207613,
+        "median_top_decile": 1.15702375,
+        "rank_biserial": -0.05616609186305932
+      },
+      "Ref_H3K27ac_Signal": {
+        "mann_whitney_p": 0.00038051290200231106,
+        "median_rest": 1.09888885,
+        "median_top_decile": 1.1173978,
+        "rank_biserial": -0.04196035354706418
+      },
+      "Ref_H3K27me3_Signal": {
+        "mann_whitney_p": 4.000119663998635e-25,
+        "median_rest": 0.64497825,
+        "median_top_decile": 0.7968129,
+        "rank_biserial": 0.12227441898797609
+      },
+      "Ref_H3K36me3_Signal": {
+        "mann_whitney_p": 0.024064586039589317,
+        "median_rest": 0.4965347,
+        "median_top_decile": 0.49229694,
+        "rank_biserial": -0.026637935097430954
+      },
+      "Ref_H3K4me1_Signal": {
+        "mann_whitney_p": 1.346511607502289e-76,
+        "median_rest": 0.90810145,
+        "median_top_decile": 1.1972399,
+        "rank_biserial": 0.21873887903719313
+      },
+      "Ref_H3K4me3_Signal": {
+        "mann_whitney_p": 1.3595434700534561e-09,
+        "median_rest": 0.9732307,
+        "median_top_decile": 0.98772315,
+        "rank_biserial": -0.07156211974498272
+      },
+      "Ref_H3K9me3_Signal": {
+        "mann_whitney_p": 3.71834199405515e-06,
+        "median_rest": 0.43198004,
+        "median_top_decile": 0.460075785,
+        "rank_biserial": 0.05463362003784522
+      }
+    },
+    "cross_tissue_var_median_rest": 0.00033125867536018983,
+    "cross_tissue_var_median_top": 0.004485727389329468,
+    "fold_difference": 13.541463886046065,
+    "n": 2656,
+    "threshold_abs_beta_error": 0.298917880654335
+  }
+}
