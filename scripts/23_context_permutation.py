@@ -70,6 +70,20 @@ from scipy import stats
 HERE = Path(__file__).resolve().parent
 SCORER_PATH = HERE / "20_variant_scoring.py"
 
+# The tissue rungs read context columns straight off the per-tissue builds, so
+# they need the canonical feature order -- the same list the model was trained
+# on. Rungs 1/2 never touch it, which is why the omission only surfaced once
+# tissue_<Name> and xtissue_mean were added.
+if str(HERE) not in sys.path:
+    sys.path.insert(0, str(HERE))
+
+from training_common import (  # noqa: E402
+    MISSING_FEATURES,
+    PHYLOP_1,
+    PHYLOP_2,
+    TABULAR_FEATURES,
+)
+
 LOGGER = logging.getLogger("silentmethyl.ctxperm")
 
 SCHEMES = ("identity", "shuffle", "median", "xtissue_mean",
@@ -455,14 +469,33 @@ def main(argv=None) -> int:
     print("=" * 84)
     print("CONTEXT PERMUTATION -- agreement with the true-context run")
     print("=" * 84)
-    print(f"{'scheme':<10}{'quantity':<30}{'pearson':>9}{'spearman':>10}"
-          f"{'MAE':>9}{'sign':>8}")
+    print(f"{'scheme':<14}{'quantity':<30}{'normMAE':>9}{'pearson':>9}"
+          f"{'spearman':>10}{'MAE':>9}{'sign':>8}")
     for _, r in table.iterrows():
-        print(f"{r['scheme']:<10}{r['quantity']:<30}{r.get('pearson', float('nan')):>9.4f}"
-              f"{r.get('spearman', float('nan')):>10.4f}{r.get('mae', float('nan')):>9.4f}"
+        sd = float(r.get("sd_reference", float("nan")))
+        mae = float(r.get("mae", float("nan")))
+        norm = mae / sd if sd else float("nan")
+        print(f"{r['scheme']:<14}{r['quantity']:<30}{norm:>9.4f}"
+              f"{r.get('pearson', float('nan')):>9.4f}"
+              f"{r.get('spearman', float('nan')):>10.4f}{mae:>9.4f}"
               f"{r.get('sign_agreement', float('nan')):>8.3f}")
     print("-" * 84)
 
+    # The verdict is decided on NORMALISED MAE, not Pearson.
+    #
+    # This banner used to test `deltas_pearson > levels_pearson`. That comparison
+    # is invalid here and section 1 R2 of LAB_NOTES had already documented why:
+    # methylation levels are bimodal with SD ~3.18 M-units, so a high Pearson on
+    # levels is cheap and is not comparable against the same statistic computed on
+    # deltas, whose SD is ~0.10. On the realistic rungs the two quantities also
+    # barely move at all (levels Spearman 0.9865 vs deltas 0.9856 under
+    # xtissue_mean), so every correlation-based statistic saturates and flips sign
+    # on noise. Dividing each quantity by its own SD puts them on one scale and
+    # keeps resolution in that regime.
+    #
+    # Both are reported. Pearson is kept visible precisely because it disagrees:
+    # a reviewer who recomputes it will find the disagreement, and the honest move
+    # is to show it rather than to select the metric that agrees with us.
     verdict = {}
     for scheme in args.schemes:
         if scheme == "identity":
@@ -472,18 +505,34 @@ def main(argv=None) -> int:
         if lvl.empty or dlt.empty:
             continue
         lp, dp = float(lvl.iloc[0]["pearson"]), float(dlt.iloc[0]["pearson"])
-        verdict[scheme] = {"levels_pearson": lp, "deltas_pearson": dp,
-                           "deltas_preserved_more": bool(dp > lp)}
-        print(f"{scheme}: levels r={lp:.4f}   deltas r={dp:.4f}")
-    if all(v["deltas_preserved_more"] for v in verdict.values()):
-        print("\nDeltas survive the perturbation better than levels in every scheme.")
-        print("Context determines the methylation LEVEL and contributes little to")
-        print("the predicted variant EFFECT -- the allele-invariance argument,")
-        print("measured rather than asserted.")
-    else:
-        print("\nAt least one scheme moved the deltas as much as the levels.")
-        print("The allele-invariance argument does NOT hold empirically here.")
-        print("Do not claim it; report this instead.")
+        ln = float(lvl.iloc[0]["mae"]) / float(lvl.iloc[0]["sd_reference"])
+        dn = float(dlt.iloc[0]["mae"]) / float(dlt.iloc[0]["sd_reference"])
+        verdict[scheme] = {
+            "levels_normalised_mae": ln,
+            "deltas_normalised_mae": dn,
+            "levels_over_deltas_ratio": (ln / dn) if dn else float("nan"),
+            "deltas_preserved_more_normalised_mae": bool(dn < ln),
+            "levels_pearson": lp,
+            "deltas_pearson": dp,
+            "deltas_preserved_more_pearson": bool(dp > lp),
+        }
+        print(f"{scheme:<14} normMAE levels {ln:.4f}  deltas {dn:.4f}"
+              f"  ({ln / dn:.2f}x)   [pearson {lp:.4f} / {dp:.4f}]")
+
+    primary = [v["deltas_preserved_more_normalised_mae"] for v in verdict.values()]
+    secondary = [v["deltas_preserved_more_pearson"] for v in verdict.values()]
+    if primary and all(primary):
+        print("\nOn normalised error, deltas survive the perturbation better than")
+        print("levels in EVERY scheme. Context sets the methylation LEVEL and")
+        print("contributes comparatively little to the predicted variant EFFECT.")
+        if not all(secondary):
+            print("\nNOTE: Pearson disagrees for at least one scheme. That is expected")
+            print("and is not a counter-result: levels are bimodal (SD ~3.18 M-units)")
+            print("so their Pearson is inflated and not comparable against the deltas'.")
+            print("Report the disagreement explicitly rather than omitting it.")
+    elif primary:
+        print("\nOn normalised error, at least one scheme moved the deltas as much as")
+        print("the levels. Do not claim allele invariance from this run; report it.")
     print("=" * 84)
 
     with (args.output_dir / "run_summary.json").open("w") as fh:
@@ -491,6 +540,15 @@ def main(argv=None) -> int:
             "analysis": "context permutation: does the context vector carry allele "
                         "information?",
             "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "verdict_metric": (
+                "normalised MAE (mae / sd_reference), computed per quantity so "
+                "M-unit levels and delta-scale effects are on one scale. Pearson "
+                "is reported alongside but does NOT decide the verdict: levels are "
+                "bimodal with SD ~3.18 M-units, so their Pearson is inflated and "
+                "not comparable against the deltas'. Under realistic context "
+                "substitution both quantities barely move, so correlation-based "
+                "statistics saturate and flip on noise. Changed 15 Sep 2026; "
+                "before that the verdict was decided on Pearson and was wrong."),
             "prediction_made_before_running": (
                 "absolute methylation degrades under permutation; predicted variant "
                 "effects do not, because the context vector is identical for "

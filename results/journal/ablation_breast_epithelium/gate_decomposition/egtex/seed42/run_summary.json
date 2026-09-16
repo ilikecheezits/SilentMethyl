@@ -1,6 +1,6 @@
 {
   "analysis": "gate decomposition of the fusion variant effect (instrumented forward pass)",
-  "channel_definition": "Delta_M_DNA_Channel = head(g(REF)_d*dna_ALT + g(REF)_e*epi) - m_REF; Delta_M_Gate_Channel = m_ALT - head(g(REF)_d*dna_ALT + g(REF)_e*epi). They sum exactly to Delta_M_Total by construction.",
+  "channel_definition": "Delta_M_DNA_Channel = head(g(REF)_d*dna_ALT + g(REF)_e*epi) - m_REF; Delta_M_Gate_Channel = m_ALT - head(g(REF)_d*dna_ALT + g(REF)_e*epi). They sum exactly to Delta_M_Total by construction. The gate channel splits further: Delta_M_Gate_gdna (g_dna moves, g_epi held at REF -- sequence self-rescaling) plus Delta_M_Gate_gepi (g_epi moves against a FIXED epi vector -- the context-content term). Those two sum exactly to Delta_M_Gate_Channel.",
   "cohort": "egtex",
   "construction_counters": {
     "alters_target_cpg": 0,
@@ -13,7 +13,7 @@
     "unexpected_window_difference": 0,
     "window_not_cpg_centred": 0
   },
-  "generated_utc": "2026-09-14T23:33:03+00:00",
+  "generated_utc": "2026-09-15T01:18:00+00:00",
   "input_csv": "data/external/egtex_breast/scoring/egtex_scoring_input_heldout.csv",
   "input_sha256": "c4ea37954c9b946384f37b5c26c0d5d32076fef806b9c577902d740d40006c80",
   "masked_probe_pairs_dropped": 0,

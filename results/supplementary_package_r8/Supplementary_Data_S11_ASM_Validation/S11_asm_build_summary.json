@@ -1,0 +1,69 @@
+{
+  "analysis": "ASM validation (Task E1) scoring input",
+  "analysis_status": "COMPLETE",
+  "asm_snp_loci_all_chroms": 55203,
+  "asm_snp_loci_lifted": 55079,
+  "asm_snp_loci_test_chroms": 5489,
+  "breast_pairs": 2877,
+  "breast_positives": 1690,
+  "contrasts": {
+    "positive_vs_background": {
+      "breast_pairs": 2292,
+      "negatives": 14072,
+      "positives": 14072
+    },
+    "positive_vs_bimodal_non_asm": {
+      "breast_pairs": 585,
+      "negatives": 3455,
+      "positives": 3455
+    }
+  },
+  "distance_tolerance_bp": 10,
+  "generated_utc": "2026-09-15T23:48:45.235104+00:00",
+  "held_out_by": "chromosome split (chr8+chr9), NOT array membership",
+  "inputs": {
+    "data/datafiles_breast_epithelium/feature_imputation.json": "892108fb057a29e3b5871abff70e55dc8964910e83b65da636c6c7c90d7e8e5b",
+    "data/external/asm_atlas_natcommun2025/41467_2025_57433_MOESM4_ESM.xlsx": "111c5fa049b93a9e732a6eedece1260527d9eae8809fea2d4bde777c48690349"
+  },
+  "liftover_counters": {
+    "chrom_changed": 0,
+    "inverted": 222,
+    "region_unmapped": 21,
+    "snp_unmapped": 103
+  },
+  "model_window_offsets": [
+    -499,
+    500
+  ],
+  "negative_tier_note": "positive_vs_bimodal_non_asm is the controlled contrast and the one to lead with: it holds the bimodal/enhancer-like regional character fixed, so separation cannot come from recognising region class alone. positive_vs_background is the weaker, less specific test.",
+  "out_of_distribution_caveat": "The model was trained only at HM450 probe positions, which are enriched at promoters and CpG islands. Every CpG scored here is an arbitrary genomic CpG, so this is out of distribution with respect to training POSITIONS -- distinct from being out of distribution in sequence or in chromatin. State this as a limitation and report the island-context breakdown alongside the headline.",
+  "outputs": {
+    "data/external/asm_atlas/scoring/asm_cpg_records.csv": "7ca2260530abe3d1526aeb2604705eea281f0500f426186b7ada2f9cdc6ed602",
+    "data/external/asm_atlas/scoring/asm_scoring_pairs.csv": "9dcd21588c88c3351c92e52a97174fb994a8f84abda11a6b8b9e2ca75006dc4f"
+  },
+  "pair_counters": {
+    "allele_unresolved": 537,
+    "cpg_out_of_bounds": 0,
+    "negative_background": 14072,
+    "negative_bimodal": 3455,
+    "other_asm_region_dropped": 4190,
+    "positive": 82747,
+    "protected_offset": 702,
+    "sequence_not_cpg_centred": 0,
+    "snp_out_of_bounds": 0
+  },
+  "pairs_after_matching": 35054,
+  "pairs_before_matching": 100274,
+  "protected_offsets": [
+    0,
+    1
+  ],
+  "seed": 42,
+  "source": "Rosenski et al. Nat Commun 16:2141 (2025), Supplementary Table S3 'ASM SNPs'; underlying WGBS GEO GSE186458",
+  "test_chromosomes": [
+    "chr8",
+    "chr9"
+  ],
+  "unique_cpgs": 27510,
+  "unique_variants": 4796
+}

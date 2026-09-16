@@ -1,0 +1,73 @@
+{
+  "absolute_vs_relative_note": "Absolute beta-MAE gain is bounded by the sequence-only error in the stratum, so strata that start worse can show the largest absolute gain with no greater fractional benefit. Compare strata on Relative_Beta_MAE_Reduction.",
+  "analysis": "where the fusion gain concentrates, by genomic region",
+  "analysis_status": "COMPLETE",
+  "arms": [
+    "sequence",
+    "fusion"
+  ],
+  "block_size_bp": 1000000,
+  "bootstrap_replicates": 2000,
+  "generated_utc": "2026-09-15T22:00:29.915128+00:00",
+  "heldout_cpg_count": 26570,
+  "inputs": {
+    "data/HM450.hg38.manifest.CpGIsland.tsv.gz": "b5117ddedbc8d40ba9603d6de1e51970c719919a97c62d5b7f29289dedd58cc5",
+    "data/datafiles_breast_epithelium/test.csv": "a15f3ff0fe820fd3ce786df34afd7ee5d87ad7349f7293dc766a154626b43224",
+    "results/journal/ablation_breast_epithelium/seed42/fusion/predictions.csv": "cda023f08f83b18db64335714f4912926d0f7101d7a7e416e0e537e9e01e061b",
+    "results/journal/ablation_breast_epithelium/seed42/sequence/predictions.csv": "0a90be817a7a3a1464a9fcccea6a503b1b0a2695fc4387aad94c262b5e3e6647",
+    "results/journal/ablation_breast_epithelium/seed43/fusion/predictions.csv": "746f3ebbbcbec6c2983d26a2cceacf33fcb824846a4bb6532f1c50e9ac0b035e",
+    "results/journal/ablation_breast_epithelium/seed43/sequence/predictions.csv": "e7dd0070b2d881070f8db95cc997e184d20c8aa86bc8a2ff6e2c6f5a475ce82d",
+    "results/journal/ablation_breast_epithelium/seed44/fusion/predictions.csv": "430188e0a3d25d300bf8a30813a14f68eef9e5608bf4e3bdba197148bd968847",
+    "results/journal/ablation_breast_epithelium/seed44/sequence/predictions.csv": "7299a2e4e17448931bf32850892817a94e043a8704be55a70d3153bf9b7d46ef"
+  },
+  "interpretation": "Post hoc descriptive stratification of frozen held-out predictions; not an additional training experiment and not a causal claim. Negative Fusion_Minus_Sequence_Beta_MAE and positive Fusion_Minus_Sequence_ROC_AUC both mean fusion is better.",
+  "island_context_relative_gain": {
+    "Island": 0.18351426739705595,
+    "Open sea": 0.1652218849812901,
+    "Shelf": 0.1259258726305588,
+    "Shore": 0.17251843151913468
+  },
+  "largest_absolute_beta_gain": {
+    "grouping": "Ref_H3K4me1_Signal_Stratum",
+    "n": 6643,
+    "stratum": "Q4 high",
+    "value": -0.024095997578079426
+  },
+  "largest_auroc_gain": {
+    "grouping": "CpG_Island_Context",
+    "n": 9668,
+    "stratum": "Open sea",
+    "value": 0.03986398256212775
+  },
+  "largest_relative_beta_gain": {
+    "grouping": "Ref_H3K27me3_Signal_Stratum",
+    "n": 6643,
+    "stratum": "Q1 low",
+    "value": 0.23872984846698195
+  },
+  "random_seed": 20260915,
+  "seed_note": "Seed-ensembled predictions, matching 22_context_stratification.py so the ATAC and H3K27ac rows reproduce that script's frozen numbers.",
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "top_quartile_relative_gain_by_track": {
+    "Ref_ATAC_Signal": 0.22382056353920762,
+    "Ref_H3K27ac_Signal": 0.22866083789511618,
+    "Ref_H3K27me3_Signal": 0.10329767925781387,
+    "Ref_H3K36me3_Signal": 0.20176579103725686,
+    "Ref_H3K4me1_Signal": 0.16922254045863852,
+    "Ref_H3K4me3_Signal": 0.224280519698571,
+    "Ref_H3K9me3_Signal": 0.16343389361604216
+  },
+  "tracks": [
+    "Ref_ATAC_Signal",
+    "Ref_H3K4me3_Signal",
+    "Ref_H3K27ac_Signal",
+    "Ref_H3K27me3_Signal",
+    "Ref_H3K9me3_Signal",
+    "Ref_H3K36me3_Signal",
+    "Ref_H3K4me1_Signal"
+  ]
+}
