@@ -29,8 +29,9 @@ snATAC in those primary tissues largely does not exist -- what they have is
 bulk ATAC-seq. So this script resolves BULK ATAC for every tissue INCLUDING
 breast, giving one assay and one processing type across all five. The cost is
 that breast's accessibility feature changes, which is why the plan calls for one
-extra single-tissue breast run as the matched control. The published MCF-10A
-model is untouched and remains the paper's primary result.
+extra single-tissue breast run as the matched control. (That control became the
+published model: since 11 Sep 2026 the paper's single-tissue context is primary
+breast epithelium, and the MCF-10A model is a superseded historical record.)
 
 Everything is recorded before anything is downloaded. Each ENCODE file carries
 an md5 from the portal, so downloads are verified rather than trusted -- which
@@ -1012,9 +1013,8 @@ def main(argv=None) -> int:
         print("mismatch aborts rather than leaving an unverified track in place.")
         return 0
 
-    # The joint model's breast tracks and the published model's breast tracks
-    # are both MCF-10A, carry the same filenames, and share six of seven
-    # accessions -- only the locally converted ATAC differs. Writing either into
+    # The per-tissue directories and the superseded MCF-10A tracks at the root
+    # carry the same filenames, so writing either into
     # the other's directory would silently swap one model's context for the
     # other's, and nothing downstream would notice.
     for tissue in plan["tissues"]:
@@ -1165,16 +1165,29 @@ def main(argv=None) -> int:
         if not files:
             continue
         d = args.reference_root / tissue
-        lines = [
-            f"# {tissue} context tracks -- JOINT MULTI-TISSUE MODEL",
-            "",
-            "These belong to the multi-tissue model ONLY.",
-            "",
-            f"The published single-tissue model reads {args.reference_root}/*.bw",
-            "directly -- the files one level up from here. Those are a different",
-            "track set and must not be swapped with these, even for breast,",
-            "where both are MCF-10A and the filenames are identical.",
-            "",
+        if tissue == "BreastEpithelium":
+            role = [
+                f"# {tissue} context tracks -- THE PUBLISHED MODEL'S CONTEXT",
+                "",
+                "Since 11 Sep 2026 these seven tracks are the context of every published",
+                "single-tissue SilentMethyl result (data/datafiles_breast_epithelium,",
+                "checkpoints_ablation/breast_epithelium) and the breast arm of the joint",
+                "multi-tissue model.",
+                "",
+                f"The seven bigWigs directly in {args.reference_root}/ are the SUPERSEDED",
+                "MCF-10A set. They share these filenames; never swap the directories.",
+                "",
+            ]
+        else:
+            role = [
+                f"# {tissue} context tracks -- JOINT MULTI-TISSUE MODEL",
+                "",
+                "These belong to the multi-tissue model ONLY. The published single-tissue",
+                f"model reads {args.reference_root}/BreastEpithelium/; the seven bigWigs",
+                f"directly in {args.reference_root}/ are the superseded MCF-10A set.",
+                "",
+            ]
+        lines = role + [
             f"generated {plan['generated_utc']}",
             "",
             "| feature | accession | biosample | source |",

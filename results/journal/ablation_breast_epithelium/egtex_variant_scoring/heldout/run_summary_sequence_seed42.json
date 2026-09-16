@@ -30,9 +30,10 @@
   "pairs_after_probe_qc": 76893,
   "precision": "fp32",
   "purpose": "mentor requirement 6: independent variant evaluation",
+  "relabelled": "tissue_caveat rewritten in place 16 Sep 2026: the original, hardcoded by scripts/20_variant_scoring.py, named MCF-10A context although these runs scored checkpoints_journal/seed42/sequence/best_weights.pth against data/datafiles_breast_epithelium/{split}.csv. No number changed.",
   "reporting_guidance": "Report the heldout stratum as primary. Never pool the strata. Report CpG-creating/destroying variants separately from the rest.",
   "shard": 0,
   "smoke_test_limit": 0,
   "stratum": "heldout",
-  "tissue_caveat": "GENOA measured blood; the fusion model's context features are MCF-10A breast tracks. Fusion results here are cross-tissue transfer, not tissue-matched validation. The sequence-only model is tissue-agnostic and is the comparator that makes the fusion result interpretable."
+  "tissue_caveat": "The sequence-only model reads DNA only and consumes no context features, so no context source applies. Whether a cohort is tissue-matched is a property of the cohort (GENOA: blood; eGTEx Breast Mammary Tissue: breast; other eGTEx tissues: not breast)."
 }

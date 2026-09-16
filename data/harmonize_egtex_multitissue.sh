@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 set -uo pipefail
+# Probe split assignments and sequences are identical in every context build;
+# a fresh clone has data/datafiles_breast_epithelium.
+SPLIT_DIR="${SPLIT_DIR:?set SPLIT_DIR, e.g. SPLIT_DIR=data/datafiles_breast_epithelium}"
 SL=data/external/egtex_multitissue/within600
 BR=data/external/egtex_breast/egtex_breast_within600.tsv.gz
 
@@ -10,7 +13,7 @@ run () {  # run <tissue> <slice>
   [ -s "$out/egtex_scoring_summary.json" ] && { echo "SKIP $T (done)"; return; }
   echo "=== $T ==="; mkdir -p "$out"
   python -u data/harmonize_egtex_mqtl.py \
-      --prefiltered "$slice" --output-dir "$out" 2>&1 | tee "logs/harmonize_${T}.log"
+      --prefiltered "$slice" --split-dir "$SPLIT_DIR" --output-dir "$out" 2>&1 | tee "logs/harmonize_${T}.log"
 }
 
 run BreastMammaryTissue "$BR"

@@ -49,7 +49,9 @@ A pair significant in one and not the other is by default far more likely to be
 
 The chromatin stage, which never touches the model
 ---------------------------------------------------
-Every probe carries seven MCF-10A breast chromatin tracks and two phyloP scores.
+Every probe carries seven breast chromatin tracks (whichever context build
+--split-template points at; published: primary breast epithelium) and two
+phyloP scores.
 A meQTL discovered in blood that does NOT replicate in breast should, if the
 tissue interpretation is right, sit in sequence that is chromatin-INACTIVE in
 breast. If blood-specific meQTLs are depleted for breast ATAC and H3K27ac
@@ -614,7 +616,7 @@ def run_chromatin(args, loaded: dict) -> int:
 
     print()
     print("=" * 78)
-    print("A. CHROMATIN BY CLASS  (MCF-10A breast tracks, one row per probe)")
+    print(f"A. CHROMATIN BY CLASS  (breast tracks from {args.split_template}, one row per probe)")
     print("   Positive rank-biserial = higher in tissue-SHARED meQTLs.")
     print("   This analysis never uses the model's predictions.")
     print(f"{'feature':<34}{'shared':>10}{'specific':>10}{'rank-bis':>10}{'p':>12}")
@@ -669,6 +671,14 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
+
+    # --stage all cannot honour one --output-dir for two stages, and used to drop
+    # it silently, writing both stages to their published default paths. On
+    # 12 Sep 2026 that overwrote four published results. Refuse instead.
+    if args.stage == "all" and args.output_dir is not None:
+        raise SystemExit("STOP: --stage all ignores --output-dir and would write to "
+                         "the published default paths. Run --stage matched and "
+                         "--stage chromatin separately, each with its own --output-dir.")
 
     cohorts = parse_cohorts(args.cohort or DEFAULT_COHORTS)
     if len(cohorts) < 2:

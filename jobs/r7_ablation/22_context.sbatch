@@ -9,7 +9,7 @@
 #SBATCH --error=logs/r7_ablation/22_%j.err
 set -euo pipefail
 umask 027
-source /ocean/projects/med250012p/szhang37/SilentMethyl/jobs/r6_ablation/_common.sh
+source "${SILENTMETHYL_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}"/jobs/r6_ablation/_common.sh
 cd "$ROOT"
 STAMP=logs/r7_ablation/stamp_22_$SLURM_JOB_ID
 stamp_start "$STAMP"

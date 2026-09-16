@@ -36,11 +36,11 @@
 #SBATCH --error=logs/data_build/acquire_mt_%j.err
 set -eo pipefail
 
-ROOT=/ocean/projects/med250012p/szhang37/SilentMethyl
+ROOT="${SILENTMETHYL_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 cd "$ROOT"
 mkdir -p logs/data_build
 
-PY=/jet/home/szhang37/.conda/envs/silentmethyl/bin/python
+PY="${SILENTMETHYL_PY:-python}"
 
 echo "=== host $(hostname)  $(date -u +%FT%TZ) ==="
 

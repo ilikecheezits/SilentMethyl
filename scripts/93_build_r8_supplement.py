@@ -33,7 +33,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import shutil
+import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -41,6 +43,88 @@ from pathlib import Path
 
 JOURNAL = Path("results/journal")
 ABL = JOURNAL / "ablation_breast_epithelium"
+
+# ---------------------------------------------------------------------------
+# MCF-10A guard, shared with 90_build_supplement_package.py.
+#
+# The context changed from MCF-10A to primary breast epithelium on 11 Sep 2026.
+# Two independent checks stop a superseded product reaching a package:
+#
+#   1. TEXT MARKERS. No packaged file may name the MCF-10A context: the cell
+#      line in any spelling, the Mint-ChIP assay, or any accession of the seven
+#      MCF-10A tracks. PDFs are checked through pdftotext. PNGs cannot be read
+#      and are covered by check 2 only.
+#   2. PROVENANCE. A number carries no marker, so every packaged source must
+#      also resolve under a breast-epithelium or context-free path. Pre-swap
+#      results live directly under results/journal/<analysis>/ and are refused
+#      unless listed in CONTEXT_FREE_SOURCES.
+# ---------------------------------------------------------------------------
+MCF10A_MARKERS = re.compile(
+    r"MCF[\s_-]*10\s*A|\bMCF\b|Mint[\s_-]*ChIP|"
+    r"ENCFF548SFG|ENCFF282YCX|ENCFF274LWG|ENCFF423DKY|ENCFF634LDP|ENCFF714NIL|"
+    r"ENCFF021PIS|ENCSR037XNN|ENCAN638MKH",
+    re.IGNORECASE)
+BREAST_EPITHELIUM_SOURCES = (
+    "results/journal/ablation_breast_epithelium/",
+    "results/journal/asm_validation/",
+    "results/journal/asm_validation_tycko/",
+    "results/journal/joint/",
+    "data/datafiles_breast_epithelium/",
+    "data/reference/BreastEpithelium/",
+    "data/external/",
+)
+# Provenance records and dependency pins, which carry no model output.
+CONTEXT_FREE_SOURCES = (
+    "reproducibility/",
+    "requirements.txt",
+)
+# Individual context-free files outside those trees (none at present).
+CONTEXT_FREE_FILES: set[str] = set()
+
+
+def source_is_allowed(source: Path | str) -> bool:
+    text = Path(source).as_posix()
+    if text in CONTEXT_FREE_FILES:
+        return True
+    return text.startswith(BREAST_EPITHELIUM_SOURCES + CONTEXT_FREE_SOURCES)
+
+
+def marker_hits(package_dir: Path) -> list[str]:
+    """Every MCF-10A marker in every file under package_dir, as 'file:line: text'."""
+    hits: list[str] = []
+    for path in sorted(p for p in Path(package_dir).rglob("*") if p.is_file()):
+        rel = path.relative_to(package_dir).as_posix()
+        if path.suffix.lower() == ".png":
+            continue
+        if path.suffix.lower() == ".pdf":
+            try:
+                text = subprocess.run(["pdftotext", str(path), "-"], check=True,
+                                      capture_output=True, text=True).stdout
+            except (OSError, subprocess.CalledProcessError) as exc:
+                hits.append(f"{rel}: PDF could not be checked ({exc})")
+                continue
+        else:
+            text = path.read_bytes().decode("utf-8", errors="replace")
+        for lineno, line in enumerate(text.splitlines(), 1):
+            if MCF10A_MARKERS.search(line):
+                hits.append(f"{rel}:{lineno}: {line.strip()[:160]}")
+    return hits
+
+
+def enforce_context_guard(package_dir: Path, sources: list[Path | str]) -> int:
+    """Return 0 if clean. Otherwise print every violation, delete the package, return 3."""
+    bad_sources = [str(s) for s in sources if not source_is_allowed(s)]
+    hits = marker_hits(package_dir)
+    if not bad_sources and not hits:
+        print(f"[guard] MCF-10A guard clean: {len(sources)} sources, no markers")
+        return 0
+    print("[guard] MCF-10A GUARD FAILED -- package removed", file=sys.stderr)
+    for s in bad_sources:
+        print(f"  source outside breast-epithelium/context-free paths: {s}", file=sys.stderr)
+    for h in hits:
+        print(f"  marker: {h}", file=sys.stderr)
+    shutil.rmtree(package_dir, ignore_errors=True)
+    return 3
 
 
 @dataclass(frozen=True)
@@ -256,6 +340,9 @@ def run(args: argparse.Namespace) -> int:
 
     (args.output_dir / "README.md").write_text(readme_text(present, missing),
                                                encoding="utf-8")
+    rc = enforce_context_guard(args.output_dir, [i.source for i in present])
+    if rc:
+        return rc
     lines = [f"{digest}  {name}" for name, digest in sorted(copied)]
     readme_digest = sha256_file(args.output_dir / "README.md")
     lines.append(f"{readme_digest}  README.md")
@@ -299,8 +386,20 @@ def parse_args() -> argparse.Namespace:
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--output-dir", type=Path,
                    default=Path("results/supplementary_package_r8"))
+    p.add_argument("--check-package", type=Path, default=None,
+                   help="Only scan an existing package directory for MCF-10A "
+                        "markers and exit non-zero on any hit. Nothing is deleted.")
     return p.parse_args()
 
 
+def check_only(package_dir: Path) -> int:
+    hits = marker_hits(package_dir)
+    for h in hits:
+        print(f"  marker: {h}", file=sys.stderr)
+    print(f"[guard] {package_dir}: {len(hits)} MCF-10A marker(s)")
+    return 3 if hits else 0
+
+
 if __name__ == "__main__":
-    sys.exit(run(parse_args()))
+    ARGS = parse_args()
+    sys.exit(check_only(ARGS.check_package) if ARGS.check_package else run(ARGS))

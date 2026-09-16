@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
-"""Build the SilentMethyl supplementary data package from frozen result tables."""
+"""Build the SilentMethyl supplementary data package (S1-S6) from frozen result tables.
+
+Every result source is the breast-epithelium context build
+(results/journal/ablation_breast_epithelium/ and data/datafiles_breast_epithelium/).
+Until 16 Sep 2026 this manifest pointed at the superseded MCF-10A results directly
+under results/journal/. The build now runs the shared MCF-10A guard from
+93_build_r8_supplement.py: it fails, and deletes the package, if any packaged file
+names the MCF-10A context or any source lies outside a breast-epithelium or
+context-free path.
+"""
 
 from __future__ import annotations
 
@@ -14,6 +23,16 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
+import importlib.util
+
+
+def _load_guard():
+    spec = importlib.util.spec_from_file_location(
+        "r8_supplement", Path(__file__).resolve().parent / "93_build_r8_supplement.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["r8_supplement"] = module
+    spec.loader.exec_module(module)
+    return module.enforce_context_guard
 
 
 SEEDS = (42, 43, 44)
@@ -30,120 +49,120 @@ class Item:
 
 
 STATIC_ITEMS = (
-    Item("S1", "results/journal/candidates/candidate_matched_background_statistics.csv",
+    Item("S1", "results/journal/ablation_breast_epithelium/candidates/candidate_matched_background_statistics.csv",
          "Supplementary_Data_S1_Candidates/S1_complete_candidate_ranking.csv",
          "Complete 440-candidate fusion-ensemble ranking with matched-background and orientation diagnostics."),
-    Item("S1", "results/journal/candidates/candidate_seed_scores_long.csv",
+    Item("S1", "results/journal/ablation_breast_epithelium/candidates/candidate_seed_scores_long.csv",
          "Supplementary_Data_S1_Candidates/S1_candidate_scores_by_seed.csv",
          "Per-seed forward, reverse-complement, and averaged fusion candidate scores."),
-    Item("S1", "results/journal/candidates/eligible_heldout_model_visible_cohort.csv",
+    Item("S1", "results/journal/ablation_breast_epithelium/candidates/eligible_heldout_model_visible_cohort.csv",
          "Supplementary_Data_S1_Candidates/S1_eligible_candidate_cohort.csv",
          "Probe-QC-passing, chromosome-held-out, model-visible candidate cohort."),
-    Item("S1", "results/journal/candidates/stability/candidate_run_consensus.csv",
+    Item("S1", "results/journal/ablation_breast_epithelium/candidates/stability/candidate_run_consensus.csv",
          "Supplementary_Data_S1_Candidates/S1_candidate_cross_seed_consensus.csv",
          "Cross-seed consensus ranking and sign consistency."),
-    Item("S1", "results/journal/candidates/stability/pairwise_run_stability.csv",
+    Item("S1", "results/journal/ablation_breast_epithelium/candidates/stability/pairwise_run_stability.csv",
          "Supplementary_Data_S1_Candidates/S1_pairwise_seed_stability.csv",
          "Pairwise cross-seed candidate stability."),
-    Item("S1", "results/journal/candidates/stability/per_run_orientation_stability.csv",
+    Item("S1", "results/journal/ablation_breast_epithelium/candidates/stability/per_run_orientation_stability.csv",
          "Supplementary_Data_S1_Candidates/S1_orientation_stability_by_seed.csv",
          "Forward/reverse-complement stability for each seed."),
-    Item("S1", "results/journal/candidates/model_comparison/candidate_sequence_vs_fusion.csv",
+    Item("S1", "results/journal/ablation_breast_epithelium/candidates/model_comparison/candidate_sequence_vs_fusion.csv",
          "Supplementary_Data_S1_Candidates/S1_sequence_vs_fusion_candidates.csv",
          "Candidate-level sequence-only versus fusion comparison."),
-    Item("S1", "results/journal/candidates/model_comparison/pairwise_seed_stability_by_model.csv",
+    Item("S1", "results/journal/ablation_breast_epithelium/candidates/model_comparison/pairwise_seed_stability_by_model.csv",
          "Supplementary_Data_S1_Candidates/S1_seed_stability_by_model.csv",
          "Fusion and sequence-only seed-stability comparison."),
-    Item("S1", "results/journal/candidates/top_candidate_matched_comparators_long.csv",
+    Item("S1", "results/journal/ablation_breast_epithelium/candidates/top_candidate_matched_comparators_long.csv",
          "Supplementary_Data_S1_Candidates/S1_top_candidate_comparators.csv",
          "Comparator records for the rank-1 matched-background figure."),
-    Item("S1", "results/journal/candidates/candidate_analysis_summary.json",
+    Item("S1", "results/journal/ablation_breast_epithelium/candidates/candidate_analysis_summary.json",
          "Supplementary_Data_S1_Candidates/S1_candidate_analysis_summary.json",
          "Candidate-analysis configuration and checkpoint hashes."),
-    Item("S1", "results/journal/candidates/top_candidate_case_study.csv",
+    Item("S1", "results/journal/ablation_breast_epithelium/candidates/top_candidate_case_study.csv",
          "Supplementary_Data_S1_Candidates/S1_top_candidate_case_study.csv",
          "Data underlying the rank-1 candidate case-study figure."),
 
-    Item("S2", "results/journal/egtex_mqtl_positive_control/validated_heldout_cohort.csv",
+    Item("S2", "results/journal/ablation_breast_epithelium/egtex_mqtl_positive_control/validated_heldout_cohort.csv",
          "Supplementary_Data_S2_mQTL_Positive_Control/S2_all_81_associations.csv",
          "Complete held-out 81-association eGTEx breast mQTL cohort with probe geometry."),
-    Item("S2", "results/journal/egtex_mqtl_positive_control/mqtl_predictions_seed_aggregate.csv",
+    Item("S2", "results/journal/ablation_breast_epithelium/egtex_mqtl_positive_control/mqtl_predictions_seed_aggregate.csv",
          "Supplementary_Data_S2_mQTL_Positive_Control/S2_cross_seed_predictions.csv",
          "Cross-seed mQTL prediction aggregates for both models."),
-    Item("S2", "results/journal/egtex_mqtl_positive_control/mqtl_positive_control_metrics.csv",
+    Item("S2", "results/journal/ablation_breast_epithelium/egtex_mqtl_positive_control/mqtl_positive_control_metrics.csv",
          "Supplementary_Data_S2_mQTL_Positive_Control/S2_primary_metrics.csv",
          "Cluster-aware signed-rank, direction, and AUROC results."),
-    Item("S2", "results/journal/egtex_mqtl_positive_control/mqtl_probe_overlap_sensitivity_metrics.csv",
+    Item("S2", "results/journal/ablation_breast_epithelium/egtex_mqtl_positive_control/mqtl_probe_overlap_sensitivity_metrics.csv",
          "Supplementary_Data_S2_mQTL_Positive_Control/S2_probe_overlap_sensitivity_metrics.csv",
          "Post hoc conservative probe-footprint sensitivity statistics."),
-    Item("S2", "results/journal/egtex_mqtl_positive_control/mqtl_leave_one_variant_out.csv",
+    Item("S2", "results/journal/ablation_breast_epithelium/egtex_mqtl_positive_control/mqtl_leave_one_variant_out.csv",
          "Supplementary_Data_S2_mQTL_Positive_Control/S2_leave_one_variant_out.csv",
          "Leave-one-variant-out robustness results."),
-    Item("S2", "results/journal/egtex_mqtl_positive_control/hm450_probe_overlap_audit.json",
+    Item("S2", "results/journal/ablation_breast_epithelium/egtex_mqtl_positive_control/hm450_probe_overlap_audit.json",
          "Supplementary_Data_S2_mQTL_Positive_Control/S2_probe_overlap_audit.json",
          "HM450 probe-footprint coordinate audit."),
-    Item("S2", "results/journal/egtex_mqtl_positive_control/run_summary.json",
+    Item("S2", "results/journal/ablation_breast_epithelium/egtex_mqtl_positive_control/run_summary.json",
          "Supplementary_Data_S2_mQTL_Positive_Control/S2_run_summary.json",
          "Positive-control inputs, checkpoint hashes, parameters, and nested results."),
 
-    Item("S3", "results/journal/egtex_mqtl_matched_negative/matched_lead_cohort.csv",
+    Item("S3", "results/journal/ablation_breast_epithelium/egtex_mqtl_matched_negative/matched_lead_cohort.csv",
          "Supplementary_Data_S3_mQTL_Matched_Negative/S3_matched_35_pair_cohort.csv",
          "Final 35 significant/nonsignificant matched pairs (70 rows)."),
-    Item("S3", "results/journal/egtex_mqtl_matched_negative/match_sets.csv",
+    Item("S3", "results/journal/ablation_breast_epithelium/egtex_mqtl_matched_negative/match_sets.csv",
          "Supplementary_Data_S3_mQTL_Matched_Negative/S3_match_assignments.csv",
          "Pair assignments, matching tiers, and costs."),
-    Item("S3", "results/journal/egtex_mqtl_matched_negative/matching_balance.csv",
+    Item("S3", "results/journal/ablation_breast_epithelium/egtex_mqtl_matched_negative/matching_balance.csv",
          "Supplementary_Data_S3_mQTL_Matched_Negative/S3_matching_balance.csv",
          "Balance diagnostics for matched variables."),
-    Item("S3", "results/journal/egtex_mqtl_matched_negative/matched_lead_predictions_seed_aggregate.csv",
+    Item("S3", "results/journal/ablation_breast_epithelium/egtex_mqtl_matched_negative/matched_lead_predictions_seed_aggregate.csv",
          "Supplementary_Data_S3_mQTL_Matched_Negative/S3_cross_seed_predictions.csv",
          "Cross-seed matched-lead prediction aggregates."),
-    Item("S3", "results/journal/egtex_mqtl_matched_negative/matched_negative_metrics.csv",
+    Item("S3", "results/journal/ablation_breast_epithelium/egtex_mqtl_matched_negative/matched_negative_metrics.csv",
          "Supplementary_Data_S3_mQTL_Matched_Negative/S3_discrimination_metrics.csv",
          "AUROC, average precision, confidence intervals, and within-set permutation results."),
-    Item("S3", "results/journal/egtex_mqtl_matched_negative/run_summary.json",
+    Item("S3", "results/journal/ablation_breast_epithelium/egtex_mqtl_matched_negative/run_summary.json",
          "Supplementary_Data_S3_mQTL_Matched_Negative/S3_run_summary.json",
          "Matching specification, eligibility audit, checkpoint hashes, and metrics."),
 
-    Item("S4", "results/journal/paired_model_bootstrap/model_metrics_recomputed.csv",
+    Item("S4", "results/journal/ablation_breast_epithelium/paired_model_bootstrap/model_metrics_recomputed.csv",
          "Supplementary_Data_S4_Model_Performance/S4_model_metrics_recomputed.csv",
          "Per-seed and ensemble held-out metrics recomputed from aligned predictions."),
-    Item("S4", "results/journal/paired_model_bootstrap/paired_model_difference_bootstrap.csv",
+    Item("S4", "results/journal/ablation_breast_epithelium/paired_model_bootstrap/paired_model_difference_bootstrap.csv",
          "Supplementary_Data_S4_Model_Performance/S4_paired_genomic_block_bootstrap.csv",
          "Paired 1-Mb genomic-block bootstrap differences and intervals."),
-    Item("S4", "results/journal/paired_model_bootstrap/run_summary.json",
+    Item("S4", "results/journal/ablation_breast_epithelium/paired_model_bootstrap/run_summary.json",
          "Supplementary_Data_S4_Model_Performance/S4_bootstrap_run_summary.json",
          "Bootstrap parameters and comparison manifest."),
-    Item("S4", "results/journal/biological_context/locus_metrics_by_context.csv",
+    Item("S4", "results/journal/ablation_breast_epithelium/biological_context/locus_metrics_by_context.csv",
          "Supplementary_Data_S4_Model_Performance/S4_locus_metrics_by_context.csv",
          "Held-out performance stratified by genomic region, CpG-island context, ATAC, and H3K27ac."),
-    Item("S4", "results/journal/biological_context/fusion_gain_by_context.csv",
+    Item("S4", "results/journal/ablation_breast_epithelium/biological_context/fusion_gain_by_context.csv",
          "Supplementary_Data_S4_Model_Performance/S4_fusion_gain_by_context.csv",
          "Fusion-versus-sequence Beta-MAE gain by genomic and epigenomic context."),
-    Item("S4", "results/journal/biological_context/variant_response_by_distance.csv",
+    Item("S4", "results/journal/ablation_breast_epithelium/biological_context/variant_response_by_distance.csv",
          "Supplementary_Data_S4_Model_Performance/S4_variant_response_by_distance.csv",
          "Candidate response and mQTL agreement summarized by variant-to-CpG distance."),
-    Item("S4", "results/journal/biological_context/variant_response_by_context.csv",
+    Item("S4", "results/journal/ablation_breast_epithelium/biological_context/variant_response_by_context.csv",
          "Supplementary_Data_S4_Model_Performance/S4_variant_response_by_context.csv",
          "Candidate response summarized by variant and target-CpG context, with mQTL agreement by target-CpG context."),
-    Item("S4", "results/journal/manuscript_figures/run_summary.json",
+    Item("S4", "results/journal/ablation_breast_epithelium/manuscript_figures/run_summary.json",
          "Supplementary_Data_S4_Model_Performance/S4_manuscript_figure_run_summary.json",
          "Input hashes and numerical summaries for the generated manuscript figures."),
 
-    Item("S5", "results/journal/target_qc/hm450_manifest_audit.json",
+    Item("S5", "results/journal/ablation_breast_epithelium/target_qc/hm450_manifest_audit.json",
          "Supplementary_Data_S5_Target_QC/S5_hm450_manifest_audit.json",
          "Manifest identity and split-level MASK_general audit."),
-    Item("S5", "results/journal/target_qc/coverage_threshold_metrics.csv",
+    Item("S5", "results/journal/ablation_breast_epithelium/target_qc/coverage_threshold_metrics.csv",
          "Supplementary_Data_S5_Target_QC/S5_coverage_threshold_metrics.csv",
          "Held-out metrics across minimum normal-sample coverage thresholds."),
-    Item("S5", "results/journal/target_qc/coverage_bin_metrics.csv",
+    Item("S5", "results/journal/ablation_breast_epithelium/target_qc/coverage_bin_metrics.csv",
          "Supplementary_Data_S5_Target_QC/S5_coverage_bin_metrics.csv",
          "Held-out metrics in nonoverlapping normal-sample coverage bins."),
-    Item("S5", "results/journal/target_qc/coverage_error_correlations.csv",
+    Item("S5", "results/journal/ablation_breast_epithelium/target_qc/coverage_error_correlations.csv",
          "Supplementary_Data_S5_Target_QC/S5_coverage_error_correlations.csv",
          "Coverage versus absolute prediction-error correlations."),
 
-    Item("S6", "reproducibility/data_purity_audit.json",
+    Item("S6", "reproducibility/data_purity_audit_breast_epithelium.json",
          "Supplementary_Data_S6_Reproducibility/S6_data_purity_audit.json",
          "Processed-data leakage, sequence, split, and feature audit."),
     Item("S6", "reproducibility/tcga_methylation_input_audit.json",
@@ -161,41 +180,41 @@ STATIC_ITEMS = (
     Item("S6", "reproducibility/environment_snapshot.txt",
          "Supplementary_Data_S6_Reproducibility/S6_environment_snapshot.txt",
          "Software and compute-environment snapshot."),
-    Item("S6", "reproducibility/analysis_audit.txt",
+    Item("S6", "reproducibility/analysis_code_sha256.txt",
          "Supplementary_Data_S6_Reproducibility/S6_active_code_sha256.txt",
          "SHA-256 manifest for active analysis code."),
-    Item("S6", "reproducibility/processed_data_sha256.txt",
+    Item("S6", "reproducibility/processed_data_sha256_breast_epithelium.txt",
          "Supplementary_Data_S6_Reproducibility/S6_processed_data_sha256.txt",
          "SHA-256 manifest for processed modeling inputs."),
-    Item("S6", "reproducibility/reference_audit.txt",
+    Item("S6", "reproducibility/reference_audit_breast_epithelium.txt",
          "Supplementary_Data_S6_Reproducibility/S6_reference_sha256.txt",
          "SHA-256 manifest for reference resources."),
     Item("S6", "reproducibility/external_input_sha256.txt",
          "Supplementary_Data_S6_Reproducibility/S6_external_input_sha256.txt",
          "SHA-256 manifest for public and frozen external inputs.", required=False),
-    Item("S6", "data/datafiles/split_manifest.json",
+    Item("S6", "data/datafiles_breast_epithelium/split_manifest.json",
          "Supplementary_Data_S6_Reproducibility/S6_split_manifest.json",
          "Chromosome split definition and counts."),
-    Item("S6", "data/datafiles/feature_imputation.json",
+    Item("S6", "data/datafiles_breast_epithelium/feature_imputation.json",
          "Supplementary_Data_S6_Reproducibility/S6_feature_imputation.json",
          "Training-derived feature-imputation values."),
-    Item("S6", "data/datafiles/training_data_manifest.json",
+    Item("S6", "data/datafiles_breast_epithelium/training_data_manifest.json",
          "Supplementary_Data_S6_Reproducibility/S6_training_data_manifest.json",
          "Training-target construction manifest."),
-    Item("S6", "data/datafiles/candidate_cohort_manifest.json",
+    Item("S6", "data/datafiles_breast_epithelium/candidate_cohort_manifest.json",
          "Supplementary_Data_S6_Reproducibility/S6_candidate_cohort_manifest.json",
          "Somatic candidate-cohort construction manifest."),
-    Item("S6", "instructions.md",
-         "Supplementary_Data_S6_Reproducibility/S6_reproduction_instructions.md",
-         "End-to-end command guide."),
+    # REPRODUCE.md is deliberately NOT packaged: it documents the superseded
+    # MCF-10A record, so it would (correctly) trip the MCF-10A guard. The package
+    # README points readers to it in the code repository instead.
     Item("S6", "requirements.txt",
          "Supplementary_Data_S6_Reproducibility/S6_python_requirements.txt",
          "Recorded Python dependencies."),
 
-    Item("SF", "results/journal/biological_context/plots/information_source_gains.png",
+    Item("SF", "results/journal/ablation_breast_epithelium/biological_context/plots/information_source_gains.png",
          "Supplementary_Figures/SF1_information_source_gains.png",
          "Residual gains from adding sequence or context to the other modality.", False),
-    Item("SF", "results/journal/biological_context/plots/fusion_gain_by_genomic_region.png",
+    Item("SF", "results/journal/ablation_breast_epithelium/biological_context/plots/fusion_gain_by_genomic_region.png",
          "Supplementary_Figures/SF2_fusion_gain_by_genomic_region.png",
          "Fusion improvement by GENCODE genomic region.", False),
 )
@@ -257,8 +276,8 @@ def false_like(value: str) -> bool:
 
 
 def derive_probe_filtered_tables(project: Path, package: Path) -> list[tuple[str, Path, str]]:
-    cohort_path = project / "results/journal/egtex_mqtl_positive_control/validated_heldout_cohort.csv"
-    aggregate_path = project / "results/journal/egtex_mqtl_positive_control/mqtl_predictions_seed_aggregate.csv"
+    cohort_path = project / "results/journal/ablation_breast_epithelium/egtex_mqtl_positive_control/validated_heldout_cohort.csv"
+    aggregate_path = project / "results/journal/ablation_breast_epithelium/egtex_mqtl_positive_control/mqtl_predictions_seed_aggregate.csv"
     if not cohort_path.is_file() or not aggregate_path.is_file():
         return []
 
@@ -307,7 +326,7 @@ def dynamic_items() -> list[Item]:
             items.append(
                 Item(
                     "S4",
-                    f"results/journal/seed{seed}/{model}/metrics.json",
+                    f"results/journal/ablation_breast_epithelium/seed{seed}/{model}/metrics.json",
                     f"Supplementary_Data_S4_Model_Performance/per_seed/seed{seed}_{model}_metrics.json",
                     f"Held-out metrics for {model}, seed {seed}.",
                 )
@@ -317,11 +336,11 @@ def dynamic_items() -> list[Item]:
 
 def validate_primary_tables(project: Path) -> None:
     checks = {
-        "results/journal/candidates/candidate_matched_background_statistics.csv": 440,
-        "results/journal/egtex_mqtl_positive_control/validated_heldout_cohort.csv": 81,
-        "results/journal/egtex_mqtl_matched_negative/matched_lead_cohort.csv": 70,
-        "results/journal/biological_context/heldout_cpg_context_assignments.csv": 26_570,
-        "results/journal/candidates/top_candidate_case_study.csv": 1,
+        "results/journal/ablation_breast_epithelium/candidates/candidate_matched_background_statistics.csv": 440,
+        "results/journal/ablation_breast_epithelium/egtex_mqtl_positive_control/validated_heldout_cohort.csv": 81,
+        "results/journal/ablation_breast_epithelium/egtex_mqtl_matched_negative/matched_lead_cohort.csv": 70,
+        "results/journal/ablation_breast_epithelium/biological_context/heldout_cpg_context_assignments.csv": 26_570,
+        "results/journal/ablation_breast_epithelium/candidates/top_candidate_case_study.csv": 1,
     }
     for relative, expected in checks.items():
         path = project / relative
@@ -364,7 +383,8 @@ unless a file explicitly states otherwise.
 - **Supplementary Data S5 — target QC:** HM450 mask audit and coverage
   sensitivity summaries.
 - **Supplementary Data S6 — reproducibility:** construction manifests, audits,
-  environment information, and SHA-256 manifests.
+  environment information, and SHA-256 manifests. End-to-end reproduction
+  instructions are `REPRODUCE.md` in the code repository.
 - **Supplementary Figures:** only the two manuscript-aligned panels that are
   not main-text figures (`information_source_gains` and
   `fusion_gain_by_genomic_region`). Exploratory plot directories and known-variant
@@ -477,6 +497,10 @@ def main() -> None:
             "bytes": derived_path.stat().st_size,
             "sha256": sha256_file(derived_path),
         })
+
+    guard_sources = [item.source for item in items if (project / item.source).is_file()]
+    if _load_guard()(temporary, guard_sources):
+        raise SystemExit(3)
 
     manifest_path = temporary / "supplement_manifest.csv"
     fields = ["supplement_id", "packaged_path", "source_path", "description", "required", "status", "bytes", "sha256"]

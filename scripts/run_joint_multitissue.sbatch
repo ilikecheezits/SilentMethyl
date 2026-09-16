@@ -74,7 +74,7 @@
 #SBATCH --error=logs/joint/%x_%j.err
 set -eo pipefail
 
-PY=/jet/home/szhang37/.conda/envs/silentmethyl/bin/python
+PY="${SILENTMETHYL_PY:-python}"
 CONFIG=${CONFIG:-all4}
 SEED=${SEED:-42}
 STAGE=${STAGE:-seq}

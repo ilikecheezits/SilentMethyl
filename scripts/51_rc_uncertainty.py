@@ -982,6 +982,13 @@ def main(argv=None) -> int:
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 
+    # --stage all writes every stage to its published default path and used to
+    # ignore --output-dir without saying so. Refuse the combination.
+    if args.stage == "all" and args.output_dir is not None:
+        raise SystemExit("STOP: --stage all ignores --output-dir and would write to "
+                         "the published default paths. Run --stage base, "
+                         "conditional (per --strata) and figure separately.")
+
     if args.stage == "base":
         return run_base(args)
 

@@ -45,11 +45,16 @@ magnitudes, or any claim of magnitude calibration against GENOA, is not.
 
 Tissue caveat to carry into the write-up
 ----------------------------------------
-GENOA measured blood. The fusion model's context features are MCF-10A breast
-tracks. Scoring GENOA with the fusion model is therefore cross-tissue transfer,
-not tissue-matched validation. The sequence-only model is tissue-agnostic and is
-the honest comparator -- which is why --models defaults to running both, and why
-the fusion-minus-sequence difference is the quantity worth reporting.
+GENOA measured blood. The fusion model's context features are whatever
+--split-template points at (published: primary breast epithelium, from
+data/datafiles_breast_epithelium). Scoring GENOA with the fusion model is
+therefore cross-tissue transfer, not tissue-matched validation. The sequence-only
+model reads no context and is the honest comparator -- which is why --models
+defaults to running both, and why the fusion-minus-sequence difference is the
+quantity worth reporting. The caveat written into run_summary*.json is derived
+from the weights and split paths actually used (describe_tissue_caveat), never
+hardcoded: a hardcoded "MCF-10A" string outlived the 11 Sep 2026 context swap
+and mislabelled every breast-epithelium scoring run.
 
 Usage (run from the repository root)
 ------------------------------------
@@ -110,6 +115,50 @@ from matched_background_utils import (  # noqa: E402
 )
 
 LOGGER = logging.getLogger("silentmethyl.genoa")
+
+# Which chromatin context a path carries. Checkpoint roots name the context the
+# weights were TRAINED on; split files name the context FED at scoring time.
+# Longest key wins, so "data/datafiles_breast_epithelium" is not read as
+# "data/datafiles".
+CONTEXT_BY_PATH = {
+    "checkpoints_ablation/breast_epithelium": "breast_epithelium",
+    "data/datafiles_breast_epithelium": "breast_epithelium",
+    "checkpoints_journal": "mcf10a",
+    "checkpoints_folds": "mcf10a",
+    "data/datafiles/": "mcf10a",
+}
+CONTEXT_LABELS = {
+    "breast_epithelium": ("primary breast epithelium (ENCODE; ATAC-seq and six "
+                          "histone ChIP-seq tracks, fold change over control)"),
+    "mcf10a": "MCF-10A (the pre-11 Sep 2026 context, superseded)",
+}
+
+
+def context_of(path: str) -> str | None:
+    text = str(path).replace("\\", "/")
+    hits = [key for key in CONTEXT_BY_PATH if key in text or key.rstrip("/") == text]
+    return CONTEXT_BY_PATH[max(hits, key=len)] if hits else None
+
+
+def describe_tissue_caveat(model_type: str, weights_path: str,
+                           split_template: str) -> str:
+    """Tissue caveat derived from what was scored, never hardcoded."""
+    if model_type == "sequence":
+        return ("The sequence-only model reads DNA only and consumes no context "
+                "features, so no context source applies. Whether a cohort is "
+                "tissue-matched is a property of the cohort (GENOA: blood; eGTEx "
+                "Breast Mammary Tissue: breast; other eGTEx tissues: not breast).")
+    trained, fed = context_of(weights_path), context_of(split_template)
+    source = CONTEXT_LABELS.get(fed or "", f"unrecognised ({split_template})")
+    clause = (f"The {model_type} model's context features are {source}")
+    if trained and fed and trained != fed:
+        clause += (f" -- BUT its weights were trained on {CONTEXT_LABELS[trained]}; "
+                   "this run is a hybrid and is not a valid result")
+    return (clause + ". For a cohort measured outside breast (GENOA: blood; "
+            "non-breast eGTEx tissues) fusion results are cross-tissue transfer, "
+            "not tissue-matched validation. The sequence-only model is "
+            "tissue-agnostic and is the comparator that makes the fusion result "
+            "interpretable.")
 
 # Index of the target CpG's C inside the 5,000-bp stored sequence. centered_crop()
 # takes seq[2000:3000] for a 1,000-bp window, mapping index 2499 -> 499, which is
@@ -637,6 +686,12 @@ def main() -> int:
     for model_type in args.models:
         for seed in dict.fromkeys(int(s) for s in args.seeds):
             weights = Path(args.weights_template.format(seed=seed, model=model_type))
+            trained, fed = context_of(str(weights)), context_of(args.split_template)
+            if model_type != "sequence" and trained and fed and trained != fed:
+                raise SystemExit(
+                    f"HYBRID REFUSED: {weights} was trained on {trained} context but "
+                    f"--split-template {args.split_template} feeds {fed} context. "
+                    "Point both at the same context build.")
             if not weights.is_file():
                 raise SystemExit(f"checkpoint not found: {weights}")
             weights_sha = sha256_file(weights)
@@ -682,11 +737,12 @@ def main() -> int:
                 "GENOA effect sizes are on a normalized-phenotype scale, not the beta "
                 "or M scale the model predicts. Spearman rho, direction agreement and "
                 "AUROC are meaningful; magnitude calibration against GENOA is not."),
-            "tissue_caveat": (
-                "GENOA measured blood; the fusion model's context features are MCF-10A "
-                "breast tracks. Fusion results here are cross-tissue transfer, not "
-                "tissue-matched validation. The sequence-only model is tissue-agnostic "
-                "and is the comparator that makes the fusion result interpretable."),
+            "tissue_caveat": " ".join(dict.fromkeys(
+                describe_tissue_caveat(m, args.weights_template.format(seed=s, model=m),
+                                       args.split_template)
+                for m in args.models for s in args.seeds)),
+            "split_template": args.split_template,
+            "weights_template": args.weights_template,
             "reporting_guidance": (
                 "Report the heldout stratum as primary. Never pool the strata. Report "
                 "CpG-creating/destroying variants separately from the rest."),

@@ -63,25 +63,26 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
     # build_training_data.py gained --reference-dir/--out-dir for the context
     # swap; this script did not, so the candidate cohort could only ever be
-    # built against the published MCF-10A tracks in <data-dir>/reference. That
+    # built against the then-default MCF-10A tracks in <data-dir>/reference. That
     # left 60_candidate_background.py with no breast-epithelium cohort to score,
     # and pointing it at the published one would have paired new fusion weights
     # with old context columns. Same two flags, same meanings.
     parser.add_argument(
-        "--reference-dir", type=Path, default=None,
-        help="Directory holding the seven context bigWigs. Defaults to "
-             "<data-dir>/reference, the published MCF-10A tracks. Point it at "
-             "e.g. data/reference/BreastEpithelium to build an alternative "
-             "context. phyloP is always read from <data-dir>/reference, since "
-             "conservation is not tissue-specific.")
+        "--reference-dir", type=Path, required=True,
+        help="Directory holding the seven context bigWigs. REQUIRED: the old "
+             "default, <data-dir>/reference, is the superseded MCF-10A track set. "
+             "The published model uses data/reference/BreastEpithelium. phyloP "
+             "is always read from <data-dir>/reference, since conservation is "
+             "not tissue-specific.")
     parser.add_argument(
-        "--out-dir", type=Path, default=None,
+        "--out-dir", type=Path, required=True,
         help="Where the candidate cohort is written, and where split_manifest "
-             "and feature_imputation are read from. Defaults to "
-             "<data-dir>/datafiles. Set it when building an alternative context "
-             "so the published candidate cohort is left intact; it must be the "
+             "and feature_imputation are read from. REQUIRED, and refused if it "
+             "already holds testing_data.csv unless --overwrite is given; it must be the "
              "matching --out-dir from build_training_data.py, because the split "
              "and the imputation statistics have to come from the same build.")
+    parser.add_argument("--overwrite", action="store_true",
+                        help="allow replacing an existing candidate cohort in --out-dir")
     parser.add_argument(
         "--refresh-gdc",
         action="store_true",
@@ -640,7 +641,11 @@ def main() -> None:
     args = parse_args()
     data_dir = args.data_dir.resolve()
     published_datafiles = data_dir / "datafiles"
-    datafiles_dir = (args.out_dir.resolve() if args.out_dir else published_datafiles)
+    datafiles_dir = args.out_dir.resolve()
+    if (datafiles_dir / "testing_data.csv").exists() and not args.overwrite:
+        raise SystemExit(
+            f"STOP: {datafiles_dir} already holds a candidate cohort "
+            "(testing_data.csv). Write to a new --out-dir, or pass --overwrite.")
     datafiles_dir.mkdir(parents=True, exist_ok=True)
 
     fasta_path = data_dir / "hg38.fa"

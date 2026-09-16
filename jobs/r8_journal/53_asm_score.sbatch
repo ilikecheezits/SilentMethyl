@@ -27,7 +27,7 @@
 # Inference only, FP32, seed 42 only. No gradient steps, no new weights.
 #   sbatch jobs/r8_journal/53_asm_score.sbatch
 set -euo pipefail
-cd /ocean/projects/med250012p/szhang37/SilentMethyl
+cd "${SILENTMETHYL_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 source jobs/r8_journal/_common.sh
 
 # --output-dir MUST be passed. Both scripts default under results/journal/, and

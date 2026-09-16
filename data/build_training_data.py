@@ -52,17 +52,20 @@ def parse_args() -> argparse.Namespace:
     # splits in data/datafiles/. Both are separable now, so an alternative
     # context can be built and compared without touching either.
     parser.add_argument(
-        "--reference-dir", type=Path, default=None,
-        help="Directory holding the seven context bigWigs. Defaults to "
-             "<data-dir>/reference, the published MCF-10A tracks. Point it at "
-             "e.g. data/reference/BreastEpithelium to build an alternative "
-             "context. phyloP is always read from <data-dir>/reference, since "
-             "conservation is not tissue-specific.")
+        "--reference-dir", type=Path, required=True,
+        help="Directory holding the seven context bigWigs. REQUIRED: the old "
+             "default, <data-dir>/reference, is the superseded MCF-10A track set. "
+             "The published model uses data/reference/BreastEpithelium. phyloP "
+             "is always read from <data-dir>/reference, since conservation is "
+             "not tissue-specific.")
     parser.add_argument(
-        "--out-dir", type=Path, default=None,
-        help="Where train/val/test are written. Defaults to "
-             "<data-dir>/datafiles. Set it when building an alternative context "
-             "so the published splits are left intact.")
+        "--out-dir", type=Path, required=True,
+        help="Where train/val/test are written. REQUIRED, and refused if it "
+             "already holds a train.csv unless --overwrite is given: both "
+             "data/datafiles/ and data/datafiles_breast_epithelium/ are "
+             "published builds that trained checkpoints depend on.")
+    parser.add_argument("--overwrite", action="store_true",
+                        help="allow replacing an existing build in --out-dir")
     # The methylation matrix was hardcoded to TCGA-BRCA. The joint multi-tissue
     # model needs one build per tissue, and two of the four tissues pool two
     # cohorts each (lung = LUAD + LUSC, colon = COAD + READ), so this takes a
@@ -78,6 +81,11 @@ def parse_args() -> argparse.Namespace:
              "single-tissue targets. Give several to pool cohorts, e.g. "
              "--methylation data/targets/TCGA-LUAD.methylation450.tsv.gz "
              "data/targets/TCGA-LUSC.methylation450.tsv.gz")
+    parser.add_argument(
+        "--m-value-precision", choices=("float64", "float32"), default="float64",
+        help="dtype of M_Value_Target. float64 reproduces the published single-tissue "
+             "build (data/datafiles_breast_epithelium); float32 reproduces the "
+             "joint-model builds in data/datafiles_multitissue/.")
     parser.add_argument("--val-chroms", nargs="+", default=list(DEFAULT_VAL_CHROMS))
     parser.add_argument("--test-chroms", nargs="+", default=list(DEFAULT_TEST_CHROMS))
     parser.add_argument(
@@ -134,7 +142,8 @@ def is_normal_sample_column(column: str) -> bool:
 
 
 def pooled_normal_targets(meth_paths: list[Path],
-                          relevant_probes: set) -> tuple[pd.DataFrame, dict]:
+                          relevant_probes: set,
+                          m_value_precision: str = "float64") -> tuple[pd.DataFrame, dict]:
     """Median beta per probe over solid-tissue-normal samples, pooled.
 
     One matrix reproduces the published single-tissue behaviour exactly. Several
@@ -209,7 +218,12 @@ def pooled_normal_targets(meth_paths: list[Path],
     targets = pd.DataFrame({
         "probeID": probes,
         "Median_Beta": median.astype(np.float32),
-        "M_Value_Target": np.log2(clipped / (1.0 - clipped)).astype(np.float32),
+        # Precision of the M-value target. The published single-tissue build
+        # (data/datafiles_breast_epithelium, 11 Sep 2026, script sha256 89ee4ea4...)
+        # kept the float64 log2; the multi-tissue refactor that followed cast it to
+        # float32, and data/datafiles_multitissue/* were built that way. The two
+        # differ by < 5e-7 in M. The flag reproduces either build byte for byte.
+        "M_Value_Target": np.log2(clipped / (1.0 - clipped)).astype(m_value_precision),
         "Binary_State_Target": (median > 0.5).astype(np.int8),
     })
 
@@ -311,8 +325,11 @@ def summarize_split(df: pd.DataFrame) -> dict:
 def main() -> None:
     args = parse_args()
     data_dir = args.data_dir.resolve()
-    datafiles_dir = (args.out_dir.resolve() if args.out_dir
-                     else data_dir / "datafiles")
+    datafiles_dir = args.out_dir.resolve()
+    if (datafiles_dir / "train.csv").exists() and not args.overwrite:
+        raise SystemExit(
+            f"STOP: {datafiles_dir} already holds a build (train.csv). Write to a "
+            "new --out-dir, or pass --overwrite if replacing it is intended.")
     datafiles_dir.mkdir(parents=True, exist_ok=True)
 
     fasta_path = data_dir / "hg38.fa"
@@ -401,7 +418,8 @@ def main() -> None:
     del df_manifest, sequences, valid_rows
     gc.collect()
 
-    target_map, target_summary = pooled_normal_targets(meth_paths, relevant_probes)
+    target_map, target_summary = pooled_normal_targets(meth_paths, relevant_probes,
+                                                       args.m_value_precision)
     normal_columns = [c for rec in target_summary["matrices"]
                       for c in rec["normal_columns"]]
 

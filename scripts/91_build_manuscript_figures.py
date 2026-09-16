@@ -700,8 +700,24 @@ def plot_candidate(
     axis.set_ylim(0, peak * 1.22)
     right = max(float(comparator_values.max()), x) * 1.06
     axis.set_xlim(0, right)
+    # The label is read from the candidate outputs, never typed in. It was once
+    # the literal "NCOA2: -0.1798 +- 0.0198", the three-seed value from the
+    # superseded MCF-10A context, and it survived onto a breast-epithelium figure
+    # built from one seed. A mean +- SD is shown only when more than one seed
+    # exists; otherwise the single value is labelled with the seed it came from.
+    n_seeds = int(seed_values.size)
+    if n_seeds > 1:
+        # Predicted_Delta_Beta is the across-seed mean and _SD the population SD
+        # exported by 60_candidate_background.py; checked against the seed rows.
+        if not np.isclose(float(seed_values.mean()), target_effect, atol=1e-6):
+            raise ValueError(f"{candidate_path} mean for {uid} disagrees with {seed_path}")
+        label = f"{gene}: ${target_effect:.4f} \\pm {exported_sd:.4f}$"
+    elif n_seeds == 1:
+        label = f"{gene}: ${target_effect:.4f}$ (seed {int(seeds['Seed'].iloc[0])} only)"
+    else:
+        raise ValueError(f"no per-seed scores for the rank-1 candidate {uid} in {seed_path}")
     axis.annotate(
-        r"NCOA2: $-0.1798 \pm 0.0198$",
+        label,
         xy=(x, peak * 1.04),
         xytext=(-4, 0),
         textcoords="offset points",
@@ -735,6 +751,8 @@ def plot_candidate(
         "Absolute_Delta_Beta_Rank": 1,
         "Variant_UID": uid,
         "Predicted_Delta_Beta": target_effect,
+        "Seed_Count": n_seeds,
+        "Figure_Label": label,
     }
     save_csv(pd.DataFrame([summary]), case_output)
     return summary

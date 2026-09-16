@@ -3,33 +3,64 @@
 #SBATCH --partition=RM-shared
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=33
-#SBATCH --mem=64GB
+#SBATCH --cpus-per-task=32
+#SBATCH --mem=64000M
 #SBATCH --time=06:00:00
 #SBATCH --output=logs/data_build/build_data_%j.out
 #SBATCH --error=logs/data_build/build_data_%j.err
+#
+# Builds the processed cohort for the PUBLISHED model: TCGA-BRCA normal-breast
+# methylation targets on HM450 probes, with the seven primary breast-epithelium
+# context tracks (data/reference/BreastEpithelium) and phyloP, plus the somatic
+# synonymous candidate cohort and the four chromosome-blocked folds.
+#
+#   mkdir -p logs/data_build
+#   sbatch --export=ALL,OUT_DIR=data/datafiles_breast_epithelium build_data.sh
+#
+# Verify a rebuild against a build you already have, without touching it:
+#
+#   sbatch --export=ALL,OUT_DIR=repro_check/datafiles_breast_epithelium,VERIFY_AGAINST=data/datafiles_breast_epithelium build_data.sh
+#
+# OUT_DIR is required and is never defaulted: data/datafiles/ (the superseded
+# MCF-10A build) and data/datafiles_breast_epithelium/ are both published builds
+# that trained checkpoints depend on, and every builder below refuses to write
+# into a directory that already holds its outputs.
+#
+# REFERENCE_DIR defaults to the published context. Setting it to data/reference
+# rebuilds the superseded MCF-10A context (historical record only).
 
 set -euo pipefail
 umask 027
 
-ROOT=/ocean/projects/med250012p/szhang37/SilentMethyl
+ROOT="${SILENTMETHYL_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 cd "$ROOT"
 
-module load anaconda3
-source "$(conda info --base)/etc/profile.d/conda.sh"
-conda activate silentmethyl
+PY="${SILENTMETHYL_PY:-python}"
+if [[ -z "${SILENTMETHYL_PY:-}" ]]; then
+  command -v conda >/dev/null || module load anaconda3
+  source "$(conda info --base)/etc/profile.d/conda.sh"
+  conda activate silentmethyl
+fi
 
-mkdir -p logs/data_build logs/reproducibility reproducibility
+: "${OUT_DIR:?set OUT_DIR, e.g. --export=ALL,OUT_DIR=data/datafiles_breast_epithelium}"
+REFERENCE_DIR="${REFERENCE_DIR:-data/reference/BreastEpithelium}"
+
+mkdir -p logs/data_build "$OUT_DIR"
 
 for required in \
   data/build_training_data.py \
   data/build_testing_data.py \
   data/audit_data_purity.py \
+  scripts/17_chromosome_splits.py \
   data/TCGA-BRCA.methylation450.tsv.gz \
   data/HM450.hg38.manifest.tsv.gz \
+  data/HM450.hg38.manifest.CpGIsland.tsv.gz \
   data/hg38.fa \
   data/hg38.fa.fai \
-  data/datafiles/gdc_tcga_brca_synonymous_raw.json.gz; do
+  data/reference/hg38.phyloP100way.bw \
+  data/reference/gencode.v44.annotation.gtf.gz \
+  data/datafiles/gdc_tcga_brca_synonymous_raw.json.gz \
+  "$REFERENCE_DIR"/{ATAC_seq,H3K4me3,H3K27ac,H3K27me3,H3K9me3,H3K36me3,H3K4me1}.bw; do
   if [[ ! -s "$required" ]]; then
     echo "[!] Missing required file: $required" >&2
     exit 2
@@ -42,35 +73,49 @@ export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
 echo "[*] Host: $(hostname)"
 echo "[*] Job ID: ${SLURM_JOB_ID:-NA}"
 echo "[*] Git commit: $(git rev-parse HEAD 2>/dev/null || echo unavailable)"
+echo "[*] Context: $REFERENCE_DIR -> $OUT_DIR"
 
-echo "[*] Phase 0a: Building Leakage-Resistant Training & Validation Data..."
-python -u data/build_training_data.py \
+echo "[*] Phase 0a: training, validation and test splits..."
+"$PY" -u data/build_training_data.py \
   --data-dir data \
+  --reference-dir "$REFERENCE_DIR" \
+  --out-dir "$OUT_DIR" \
+  --m-value-precision float64 \
   --val-chroms chr10 chr11 \
   --test-chroms chr8 chr9
 
-echo "[*] Phase 0b: Building Cleaned Somatic Synonymous Testing Cohort..."
-python -u data/build_testing_data.py \
-  --data-dir data
+echo "[*] Phase 0b: somatic synonymous candidate cohort..."
+"$PY" -u data/build_testing_data.py \
+  --data-dir data \
+  --reference-dir "$REFERENCE_DIR" \
+  --out-dir "$OUT_DIR"
 
-echo "[*] Phase 0c: Auditing processed-data integrity..."
-python -u data/audit_data_purity.py \
-  --data-dir data/datafiles \
-  --output data/datafiles/data_purity_audit.json
+echo "[*] Phase 0c: processed-data integrity audit..."
+"$PY" -u data/audit_data_purity.py \
+  --data-dir "$OUT_DIR" \
+  --output "$OUT_DIR/data_purity_audit.json"
+"$PY" -m json.tool "$OUT_DIR/data_purity_audit.json" >/dev/null
 
-python -m json.tool data/datafiles/data_purity_audit.json >/dev/null
-cp data/datafiles/data_purity_audit.json \
-  reproducibility/data_purity_audit.json
+echo "[*] Phase 0d: chromosome-blocked folds..."
+"$PY" -u scripts/17_chromosome_splits.py \
+  --datafiles "$OUT_DIR" \
+  --out-root "$OUT_DIR/splits" \
+  --folds 4
 
-sha256sum \
-  data/datafiles/train.csv \
-  data/datafiles/val.csv \
-  data/datafiles/test.csv \
-  data/datafiles/testing_data_test_only.csv \
-  data/datafiles/split_manifest.json \
-  data/datafiles/feature_imputation.json \
-  data/datafiles/candidate_cohort_manifest.json \
-  data/egtex_breast_mqtl_heldout_qc.csv \
-  > reproducibility/processed_data_sha256.txt
+(cd "$OUT_DIR" && find . -type f \( -name '*.csv' -o -name '*.fasta' \) | sort \
+   | xargs sha256sum) > "$OUT_DIR/SHA256SUMS.txt"
+echo "[*] checksums: $OUT_DIR/SHA256SUMS.txt"
 
-echo "[✓] Data build and purity audit complete. Ready for model training."
+if [[ -n "${VERIFY_AGAINST:-}" ]]; then
+  echo "[*] Comparing against $VERIFY_AGAINST ..."
+  (cd "$VERIFY_AGAINST" && find . -type f \( -name '*.csv' -o -name '*.fasta' \) | sort \
+     | xargs sha256sum) > "$OUT_DIR/SHA256SUMS.reference.txt"
+  if diff "$OUT_DIR/SHA256SUMS.reference.txt" "$OUT_DIR/SHA256SUMS.txt"; then
+    echo "[✓] byte-identical to $VERIFY_AGAINST"
+  else
+    echo "[!] differs from $VERIFY_AGAINST (lines above)" >&2
+    exit 3
+  fi
+fi
+
+echo "[✓] Data build complete. Ready for model training."

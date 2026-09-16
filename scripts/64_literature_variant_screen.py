@@ -102,8 +102,16 @@ def parse_args() -> argparse.Namespace:
         default=Path("data/egtex_breast_mqtl_heldout_qc.csv"),
     )
     parser.add_argument(
+        # Moved under data/external/egtex_breast/ with the rest of the cohort;
+        # the flat data/ path stays as a fallback for older checkouts.
         "--raw-breast-mqtl", type=Path,
-        default=Path("data/BreastMammaryTissue.regular.perm.fdr.txt"),
+        default=next(
+            (p for p in (
+                Path("data/external/egtex_breast/BreastMammaryTissue.regular.perm.fdr.txt"),
+                Path("data/BreastMammaryTissue.regular.perm.fdr.txt"),
+            ) if p.is_file()),
+            Path("data/external/egtex_breast/BreastMammaryTissue.regular.perm.fdr.txt"),
+        ),
     )
     parser.add_argument(
         "--allow-existing-mqtl-variants", action="store_true",
