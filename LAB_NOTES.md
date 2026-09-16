@@ -2727,14 +2727,32 @@ predicted variant effect is comparatively robust to it, increasingly so for
 variants with larger measured effects — but under realistic context substitution
 both quantities move so little that rank-based metrics cannot separate them.*
 
-#### On the banner itself
+#### On the banner itself — FIXED 15 Sep 2026
 
-`23_context_permutation.py`'s verdict banner should not be trusted as written —
-it tests a Pearson inequality that §1 R2 had already documented as the wrong
-comparison. Either fix it to use normalised MAE or delete it; leaving it in
-place means the next person to run this script gets the same wrong verdict.
-**Not fixed in this pass** — scope is frozen and the script's outputs are
-correct; this is a lead, recorded per directive 1.
+`23_context_permutation.py`'s verdict banner tested a Pearson inequality that
+§1 R2 had already documented as the wrong comparison, so the next person to run
+the script would have got the same wrong verdict. Now fixed:
+
+- the verdict is decided on **normalised MAE** (each quantity over its own SD);
+- Pearson is still printed, and the banner **says explicitly when the two
+  disagree and why** rather than hiding the disagreement;
+- the bare `deltas_preserved_more` key is **removed**, not redefined. Anything
+  assuming the old Pearson semantics now fails loudly instead of silently reading
+  a different verdict under the same name. Replaced by
+  `deltas_preserved_more_normalised_mae` and `deltas_preserved_more_pearson`,
+  plus a `verdict_metric` field in `run_summary.json` explaining the choice.
+
+Replayed against the frozen `46007255` table, the corrected logic flips the
+verdict from *"the allele-invariance argument does NOT hold"* to *deltas survive
+better in every scheme*, with the Pearson disagreement noted — matching
+subsection B's independent analysis.
+
+**The job was NOT re-run** (~4.9 GPU h, and no data would change — only the
+derived verdict). **`run_summary.json` in `context_ladder/` was NOT edited**; it
+records what the job actually produced. Instead
+`results/journal/ablation_breast_epithelium/context_ladder/VERDICT_CORRECTION.md`
+sits next to it and explains the discrepancy, so a reader who opens the frozen
+JSON or the job log cannot take the old verdict at face value.
 
 #### Why `45998301` failed, and what the fix was
 
