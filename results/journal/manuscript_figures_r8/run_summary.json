@@ -1,6 +1,6 @@
 {
   "analysis": "R8 manuscript figures",
-  "analysis_status": "PARTIAL",
+  "analysis_status": "COMPLETE",
   "drawing_decisions": {
     "pairing_not_forced": "Figure 3 colours the H3K27me3 inversion differently rather than omitting it. Two of three strata agree with Task D; one inverts.",
     "relative_not_absolute": "Figure 1 leads with relative beta-MAE reduction. Absolute gain is bounded by the sequence-only error per stratum, so it ranks strata by how bad they start rather than by how much context helps."
@@ -9,17 +9,17 @@
     "fig_r8_1_fusion_gain_relative.png",
     "fig_r8_2_context_ladder.png",
     "fig_r8_3_transfer_vs_gain.png",
+    "fig_r8_4_asm_discrimination.png",
     "fig_r8_5_gate_decomposition.png"
   ],
-  "figures_skipped": {
-    "fig_r8_4": "results/journal/asm_validation/asm_discrimination.csv not present -- rerun after the ASM job lands"
-  },
-  "generated_utc": "2026-09-16T00:12:04.537900+00:00",
+  "figures_skipped": {},
+  "generated_utc": "2026-09-16T01:15:15.706938+00:00",
   "note": "Separate from 91_build_manuscript_figures.py, which deletes any file in its output directory not on its own whitelist. Script 91 is not modified by this script.",
   "output_sha256": {
     "fig_r8_1_fusion_gain_relative.png": "eb40b486406ceb1b9546fb8c2360604211779889f89c585538290a01e9dfc9b5",
     "fig_r8_2_context_ladder.png": "76527033146e42b79429fea2387d056626b2f356d781a64820593e4bab8d4f39",
     "fig_r8_3_transfer_vs_gain.png": "e013b51a6833ebdf7be823ff5fff7be70bc1c09fd676a29bdeed6408adee8861",
+    "fig_r8_4_asm_discrimination.png": "aa689fa85da2c26641dc1c8b0f7d5cbe94e7fd5817e7360b99396ea3a536afb4",
     "fig_r8_5_gate_decomposition.png": "2fa0ea134c9d4e5b7470101ba03ea1fe2ecae2f095735d6a46903f3d8883d1fc"
   }
 }

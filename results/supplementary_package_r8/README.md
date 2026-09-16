@@ -4,16 +4,7 @@ Companion to the published S1-S6 package built by
 `scripts/90_build_supplement_package.py`. These sections cover the R8
 analyses. Merge the two directories at submission.
 
-Generated 2026-09-16T00:13:52.495520+00:00.
-
-## INCOMPLETE PACKAGE
-
-The following files were not present when this package was built, so
-their sections are absent or partial. Rebuild once they exist:
-
-- `results/journal/asm_validation/asm_discrimination.csv` (section S11)
-- `results/journal/asm_validation/asm_matching_balance.csv` (section S11)
-- `results/journal/asm_validation/evaluation_summary.json` (section S11)
+Generated 2026-09-16T01:15:18.673879+00:00.
 
 ## S7 — Gate decomposition of the fusion model's variant effect (Task A)
 
@@ -51,6 +42,9 @@ Directory: `Supplementary_Data_S10_Fusion_Gain_By_Region/`
 
 Directory: `Supplementary_Data_S11_ASM_Validation/`
 
+- **S11_asm_discrimination.csv** — AUROC separating ASM SNV-CpG pairs from distance-matched non-ASM pairs, per contrast, stratum and model arm, with block-bootstrap intervals.
+- **S11_asm_matching_balance.csv** — Variant-to-CpG distance balance between matched positives and negatives.
+- **S11_asm_evaluation_summary.json** — Provenance, the distance-baseline sanity check, and the statistics that the source catalogue does NOT support (direction concordance, signed Spearman).
 - **S11_asm_build_summary.json** — How the ASM pairs were constructed: liftOver counters, window arithmetic, positive/negative tier definitions and counts.
 - **S11_asm_source_provenance.txt** — Citation, download URLs and contents of the source ASM catalogue.
 

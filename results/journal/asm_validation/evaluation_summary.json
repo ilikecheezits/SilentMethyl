@@ -1,0 +1,161 @@
+{
+  "analysis": "ASM validation (Task E1) -- discrimination against distance-matched negatives",
+  "analysis_status": "COMPLETE",
+  "block_size_bp": 1000000,
+  "bootstrap_replicates": 2000,
+  "distance_only_baseline_auroc": {
+    "positive_vs_background | all tissues": 0.5015982431455415,
+    "positive_vs_background | breast": 0.4718959121399008,
+    "positive_vs_bimodal_non_asm | all tissues": 0.5017159216806532,
+    "positive_vs_bimodal_non_asm | breast": 0.5375627315791942
+  },
+  "generated_utc": "2026-09-16T01:13:07.274083+00:00",
+  "inputs": {
+    "results/journal/asm_validation/asm_pair_scores.csv": "52d7e0bc8dd833eb8422172db0f25ee47fcc12586992404d6defc1a4cf6482a0"
+  },
+  "matching_sane": true,
+  "matching_sanity_note": "The distance-only baseline must sit near 0.5 after matching. If it does not, the matching failed and the headline AUROC is confounded by distance rather than measuring the model.",
+  "not_measured": {
+    "direction_concordance": "requires a signed allelic methylation difference; absent from the atlas tables",
+    "signed_spearman": "same reason"
+  },
+  "out_of_distribution_caveat": "Trained only at HM450 probe positions, which are enriched at promoters and CpG islands. Every CpG here is an arbitrary genomic CpG, so this is out of distribution with respect to training POSITIONS. A limitation to state, and also a generalisation test.",
+  "random_seed": 20260915,
+  "results": [
+    {
+      "N_Pairs": 28144,
+      "N_Positive": 14072,
+      "Score": "fusion",
+      "Stratum": "positive_vs_background | all tissues",
+      "auroc": 0.576155958142337,
+      "ci_high": 0.5977396162001405,
+      "ci_low": 0.5544806780745593,
+      "n_blocks": 261,
+      "p_le_half": 0.0
+    },
+    {
+      "N_Pairs": 28144,
+      "N_Positive": 14072,
+      "Score": "sequence",
+      "Stratum": "positive_vs_background | all tissues",
+      "auroc": 0.5819629126144403,
+      "ci_high": 0.6051785039657386,
+      "ci_low": 0.5563484925023817,
+      "n_blocks": 261,
+      "p_le_half": 0.0
+    },
+    {
+      "N_Pairs": 28144,
+      "N_Positive": 14072,
+      "Score": "distance_only_baseline",
+      "Stratum": "positive_vs_background | all tissues",
+      "auroc": 0.5015982431455415,
+      "ci_high": 0.5193368132662872,
+      "ci_low": 0.4796019506501139,
+      "n_blocks": 261,
+      "p_le_half": 0.4065
+    },
+    {
+      "N_Pairs": 2292,
+      "N_Positive": 1381,
+      "Score": "fusion",
+      "Stratum": "positive_vs_background | breast",
+      "auroc": 0.5725639083341348,
+      "ci_high": 0.6439119733895379,
+      "ci_low": 0.5199018358990246,
+      "n_blocks": 108,
+      "p_le_half": 0.0035
+    },
+    {
+      "N_Pairs": 2292,
+      "N_Positive": 1381,
+      "Score": "sequence",
+      "Stratum": "positive_vs_background | breast",
+      "auroc": 0.5844839522737226,
+      "ci_high": 0.6644777535653518,
+      "ci_low": 0.5224520812395728,
+      "n_blocks": 108,
+      "p_le_half": 0.002
+    },
+    {
+      "N_Pairs": 2292,
+      "N_Positive": 1381,
+      "Score": "distance_only_baseline",
+      "Stratum": "positive_vs_background | breast",
+      "auroc": 0.4718959121399008,
+      "ci_high": 0.5478966169091763,
+      "ci_low": 0.4068029485430198,
+      "n_blocks": 108,
+      "p_le_half": 0.6475
+    },
+    {
+      "N_Pairs": 6910,
+      "N_Positive": 3455,
+      "Score": "fusion",
+      "Stratum": "positive_vs_bimodal_non_asm | all tissues",
+      "auroc": 0.5624798054791709,
+      "ci_high": 0.5925682860584723,
+      "ci_low": 0.5329998441559782,
+      "n_blocks": 242,
+      "p_le_half": 0.0
+    },
+    {
+      "N_Pairs": 6910,
+      "N_Positive": 3455,
+      "Score": "sequence",
+      "Stratum": "positive_vs_bimodal_non_asm | all tissues",
+      "auroc": 0.5735888129580025,
+      "ci_high": 0.6009013647418204,
+      "ci_low": 0.5446831042585242,
+      "n_blocks": 242,
+      "p_le_half": 0.0
+    },
+    {
+      "N_Pairs": 6910,
+      "N_Positive": 3455,
+      "Score": "distance_only_baseline",
+      "Stratum": "positive_vs_bimodal_non_asm | all tissues",
+      "auroc": 0.5017159216806532,
+      "ci_high": 0.5239827974983023,
+      "ci_low": 0.4780108312225967,
+      "n_blocks": 242,
+      "p_le_half": 0.448
+    },
+    {
+      "N_Pairs": 585,
+      "N_Positive": 309,
+      "Score": "fusion",
+      "Stratum": "positive_vs_bimodal_non_asm | breast",
+      "auroc": 0.5878945640448384,
+      "ci_high": 0.6825894976445764,
+      "ci_low": 0.482659007972332,
+      "n_blocks": 78,
+      "p_le_half": 0.0525
+    },
+    {
+      "N_Pairs": 585,
+      "N_Positive": 309,
+      "Score": "sequence",
+      "Stratum": "positive_vs_bimodal_non_asm | breast",
+      "auroc": 0.6044744617982272,
+      "ci_high": 0.6878933254984025,
+      "ci_low": 0.5115664335700224,
+      "n_blocks": 78,
+      "p_le_half": 0.0155
+    },
+    {
+      "N_Pairs": 585,
+      "N_Positive": 309,
+      "Score": "distance_only_baseline",
+      "Stratum": "positive_vs_bimodal_non_asm | breast",
+      "auroc": 0.5375627315791942,
+      "ci_high": 0.6159651807517847,
+      "ci_low": 0.46348963545508687,
+      "n_blocks": 78,
+      "p_le_half": 0.176
+    }
+  ],
+  "score_column": "Absolute_Delta_M",
+  "which_contrast_to_lead_with": "positive_vs_bimodal_non_asm -- it holds the bimodal/enhancer-like region class fixed. positive_vs_background cannot distinguish detecting ASM from detecting the region class.",
+  "worst_baseline_deviation_from_half": 0.03756273157919421
+}

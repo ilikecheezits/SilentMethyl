@@ -2228,7 +2228,7 @@ worse than not running it, and we already carry a documented pattern of null
 under-powered external results (four disease-variant tests). Slot `53` stays
 reserved and unused.
 
-### E (REOPENED). ASM validation — UNBLOCKED. 12,550 breast pairs, counted. 15 Sep 2026
+### E (REOPENED). ASM validation — E1 DONE, modest positive. 15 Sep 2026
 
 Catalogue check only, zero compute, nothing built — directive 4 still governs,
 and this is the "report usable n before building" step it asks for.
@@ -2554,6 +2554,92 @@ per-allele beta**. Direction concordance and signed Spearman — the two statist
 the mentor named first — are therefore unavailable from this source. That is E2,
 and it needs CanASM (dead) or a build on GSE186458's read-level data. **Do not
 substitute |delta| agreement for direction agreement.**
+
+#### E1 RESULT — `46096838`, 15 Sep 2026. It works, and it is modest.
+
+**Job state first, because `sacct` will mislead you.** `46096838` reads
+**FAILED 1:0** with elapsed **01:09:50**. The science completed and every output
+is on disk. This is the `45997644` pattern exactly: full-length elapsed, correct
+outputs, guard tripped at the final line.
+
+**Cause, and it was self-inflicted.** `check_no_clobber` fired on six files:
+
+    results/journal/ablation_breast_epithelium/context_ladder/VERDICT_CORRECTION.md
+    results/journal/manuscript_figures_r8/{run_summary.json, fig_r8_1..5.png}
+
+All were written **from the login node while the job was running** — the R8
+figures (subsection H) and the script-23 correction sidecar. Both live under
+`results/journal/` and outside the job's declared subtree, so the guard did
+exactly its job. This is the *same* mistake recorded in `_common.sh`'s own
+comment about 14 Sep, made again. **Do not write anything under
+`results/journal/` while a job is in flight**, or declare the subtree with
+`--concurrent`. The outputs were not resubmitted; nothing is wrong with them.
+
+#### The numbers
+
+Absolute predicted M-scale effect (`Absolute_Delta_M`), AUROC against
+distance-matched negatives, 1 Mb block bootstrap, 2,000 replicates:
+
+    contrast / stratum                      arm        AUROC   95% CI          excl 0.5
+    positive_vs_bimodal_non_asm  all tissues fusion    0.5625  [0.533, 0.593]   yes
+    positive_vs_bimodal_non_asm  all tissues sequence  0.5736  [0.545, 0.601]   yes
+    positive_vs_bimodal_non_asm  all tissues distance  0.5017  [0.478, 0.524]   -
+    positive_vs_bimodal_non_asm  breast      fusion    0.5879  [0.483, 0.683]   NO
+    positive_vs_bimodal_non_asm  breast      sequence  0.6045  [0.512, 0.688]   yes
+    positive_vs_background       all tissues fusion    0.5762  [0.554, 0.598]   yes
+    positive_vs_background       all tissues sequence  0.5820  [0.556, 0.605]   yes
+    positive_vs_background       breast      fusion    0.5726  [0.520, 0.644]   yes
+    positive_vs_background       breast      sequence  0.5845  [0.522, 0.664]   yes
+
+**Matching is sound.** Worst distance-only baseline deviation from 0.5 is 0.0376,
+and the all-tissue baselines sit at 0.5016 and 0.5017. The headline AUROCs are
+not distance leaking back in.
+
+#### What this licenses, and what it does not
+
+**1. The controlled contrast separates. This is the result.** Against
+bimodal-but-not-ASM CpGs — holding the CpG-dense, intermediate-methylation,
+enhancer-like regional character fixed — both arms exclude 0.5 on all tissues
+(fusion 0.5625, sequence 0.5736). So the model is **not** merely recognising
+region class. It carries some genuine signal about which CpGs are
+allele-specifically methylated, at positions no array probe covers and on
+chromosomes it never saw. That is a real external validation.
+
+**2. It is weak, and must be reported as weak.** AUROC 0.56-0.57. Write it as
+*modest but reproducible discrimination*, never as "the model predicts ASM".
+A reviewer comparing 0.56 against the mQTL work's numbers will not be generous
+to an overclaim.
+
+**3. Sequence >= fusion in every single stratum.** 0.5736 vs 0.5625 all-tissue
+controlled; the same ordering in all four. The intervals overlap heavily so this
+is not a significant difference, but the direction is consistent and it is an
+**independent confirmation of the R2 hard constraint**: epigenomic context does
+not improve variant-effect prediction. E1 was not designed to test that and does
+it anyway, in a third cohort type. Worth one sentence in 3.4.
+
+**4. Breast alone is underpowered, exactly as flagged before the run.** In the
+controlled contrast the breast fusion interval spans 0.5 ([0.483, 0.683],
+p(<=0.5) = 0.0525) on n=585. The sequence arm clears it, barely. **Do not lead
+with a breast-specific ASM number.** The powered result is all-tissue.
+
+#### Wording for 3.4
+
+> On held-out chromosomes, at CpGs outside the training array entirely,
+> SilentMethyl's predicted variant effects distinguish allele-specifically
+> methylated SNV-CpG pairs from distance-matched pairs in bimodal regions that
+> are not allele-specific (AUROC 0.56-0.57, 95% CI excluding 0.5; distance-only
+> baseline 0.502). The effect is modest, the sequence-only arm matches or exceeds
+> the fusion arm, and the breast-restricted subset is underpowered.
+
+State the two limitations in the same paragraph: **positional
+out-of-distribution** (trained only at HM450 positions, enriched at promoters and
+islands) and **no signed statistics** (the catalogue publishes significance, not
+per-allele methylation, so direction concordance and signed Spearman are not
+available — see E2).
+
+Outputs: `results/journal/asm_validation/`. Figure:
+`manuscript_figures_r8/fig_r8_4_asm_discrimination.png`. Supplement: S11, now
+complete at 5 files.
 
 #### The caveat that must appear in the output, not just here
 
@@ -3158,13 +3244,15 @@ only compute that could follow is E's scoring run, which is not authorised yet.
 | B. context ladder | **DONE and ANALYSED** 15 Sep 2026 — dissociation holds, verdict banner is a Pearson artefact |
 | C. gate plasticity | DONE, null, zero GPU |
 | D. transfer failure | DONE, hypothesis holds, zero GPU |
-| E. ASM validation | **REOPENED and UNBLOCKED** — Nat Commun 2025 atlas on disk; 12,550 breast / 136,065 all-tissue chr8+9 pairs counted; needs authorisation only |
+| E1. ASM discrimination | **DONE** `46096838` (FAILED 1:0 on the clobber guard only — outputs correct). Controlled contrast AUROC 0.5625 fusion / 0.5736 sequence, both exclude 0.5 |
+| E2. ASM signed statistics | **NOT POSSIBLE** — catalogue has no per-allele methylation; CanASM dead |
 | F. fusion gain by region | **DONE** 15 Sep 2026, zero GPU, script 57 |
 
 Budget: ~22.4 GPU h spent of 125 (17.5 + B's 4.9). E is ~3 h if authorised.
 
-**What the wording pass must now fold in.** Its three original inputs have all
-landed, and there are two more:
+**All compute is finished. `46096838` was the last job.**
+
+**What the wording pass must now fold in.** Every input has landed:
 
 1. the sub-channel split's sequence-dominance result (A);
 2. B's four-rung ladder, **and the resolution of the allele-invariance banner**:
@@ -3175,7 +3263,9 @@ landed, and there are two more:
 3. D's transfer-failure localisation;
 4. **F's fusion-gain stratification**, including the absolute-vs-relative
    distinction and the polycomb inversion against D (subsection F);
-5. **the 3.1–3.6 restructure** (subsection G), including the R3/R4/D gap.
+5. **the 3.1–3.6 restructure** (subsection G), including the R3/R4/D gap;
+6. **E1's ASM result** (subsection E, REOPENED) — modest, ~0.56-0.57, sequence
+   >= fusion, breast underpowered — plus E2 stated as a limitation.
 
 **B is read in and R2's required change is now known** (subsection B). The
 wording pass is no longer blocked on compute — every input has landed. Its
