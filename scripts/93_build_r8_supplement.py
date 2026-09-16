@@ -62,6 +62,9 @@ SECTION_TITLES = {
             "Where the fusion gain concentrates, by genomic region (Task F)"),
     "S11": ("Supplementary_Data_S11_ASM_Validation",
             "Allele-specific methylation validation (Task E1)"),
+    "S12": ("Supplementary_Data_S12_ASM_Signed_Validation",
+            "Allele-specific methylation, signed validation and replication "
+            "(Tasks E1 + E2, Do & Tycko 2020)"),
 }
 
 ITEMS = (
@@ -123,9 +126,10 @@ ITEMS = (
          "Variant-to-CpG distance balance between matched positives and negatives."),
     Item("S11", JOURNAL / "asm_validation/evaluation_summary.json",
          "S11_asm_evaluation_summary.json",
-         "Provenance, the distance-baseline sanity check, and the statistics that "
-         "the source catalogue does NOT support (direction concordance, signed "
-         "Spearman)."),
+         "Provenance and the distance-baseline sanity check. This catalogue "
+         "publishes ASM significance but no signed allelic difference, so "
+         "direction concordance and signed Spearman are not computable here; "
+         "they are in S12, from Do & Tycko 2020."),
     Item("S11", Path("data/external/asm_atlas/scoring/build_summary.json"),
          "S11_asm_build_summary.json",
          "How the ASM pairs were constructed: liftOver counters, window "
@@ -133,6 +137,41 @@ ITEMS = (
     Item("S11", Path("data/external/asm_atlas_natcommun2025/SOURCE.txt"),
          "S11_asm_source_provenance.txt",
          "Citation, download URLs and contents of the source ASM catalogue."),
+
+    Item("S12", JOURNAL / "asm_validation_tycko/tycko_e2_signed_agreement.csv",
+         "S12_asm_signed_agreement.csv",
+         "Direction concordance, signed Spearman and positive-versus-negative "
+         "AUROC per ASM index SNP (n=722), by stratum and model arm, with 1 Mb "
+         "block-bootstrap intervals. The unit is one SNP: the prediction is the "
+         "mean predicted delta over the CpGs scored inside that SNP's ASM DMR, "
+         "matching how the published effect was averaged. The mammary stratum "
+         "(n=53) is underpowered and is not a headline. The |effect| >= 20 pp "
+         "stratum is post-hoc and was not pre-registered."),
+    Item("S12", JOURNAL / "asm_validation_tycko/tycko_e1_discrimination.csv",
+         "S12_asm_discrimination_replication.csv",
+         "Discrimination of ASM CpGs from distance-matched non-DMR CpGs in the "
+         "second, independent catalogue, with the distance-only null baseline. "
+         "Compare against S11: the two catalogues' estimates lie inside each "
+         "other's confidence intervals."),
+    Item("S12", JOURNAL / "asm_validation_tycko/tycko_evaluation_summary.json",
+         "S12_asm_signed_evaluation_summary.json",
+         "Provenance, bootstrap settings, and the scale caveat: observed effects "
+         "are percentage points of methylation and predicted deltas are on the "
+         "model's M scale, so only sign, rank and AUROC are compared and no "
+         "magnitude calibration is claimed."),
+    Item("S12", JOURNAL / "asm_validation_tycko/score_summary.json",
+         "S12_asm_score_summary.json",
+         "Scoring provenance: checkpoints and their hashes, seed, and the "
+         "input-validation counters (reference-base mismatches, off-window and "
+         "non-CpG-centred pairs, all zero)."),
+    Item("S12", Path("data/external/asm_tycko_gb2020/scoring/build_summary.json"),
+         "S12_asm_build_summary.json",
+         "How the SNP-CpG pairs were built: the hg19 DMR liftOver, the GRCh38 "
+         "SNP positions from Ensembl (deliberately NOT lifted), the multi-allelic "
+         "exclusion, and the REF-versus-hg38 sign-convention check."),
+    Item("S12", Path("data/external/asm_tycko_gb2020/SOURCE.txt"),
+         "S12_asm_source_provenance.txt",
+         "Citation, download URL and contents of the Do & Tycko 2020 catalogue."),
 )
 
 

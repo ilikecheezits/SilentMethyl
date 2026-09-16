@@ -4,7 +4,7 @@ Companion to the published S1-S6 package built by
 `scripts/90_build_supplement_package.py`. These sections cover the R8
 analyses. Merge the two directories at submission.
 
-Generated 2026-09-16T01:15:18.673879+00:00.
+Generated 2026-09-16T10:40:27.196522+00:00.
 
 ## S7 — Gate decomposition of the fusion model's variant effect (Task A)
 
@@ -44,9 +44,20 @@ Directory: `Supplementary_Data_S11_ASM_Validation/`
 
 - **S11_asm_discrimination.csv** — AUROC separating ASM SNV-CpG pairs from distance-matched non-ASM pairs, per contrast, stratum and model arm, with block-bootstrap intervals.
 - **S11_asm_matching_balance.csv** — Variant-to-CpG distance balance between matched positives and negatives.
-- **S11_asm_evaluation_summary.json** — Provenance, the distance-baseline sanity check, and the statistics that the source catalogue does NOT support (direction concordance, signed Spearman).
+- **S11_asm_evaluation_summary.json** — Provenance and the distance-baseline sanity check. This catalogue publishes ASM significance but no signed allelic difference, so direction concordance and signed Spearman are not computable here; they are in S12, from Do & Tycko 2020.
 - **S11_asm_build_summary.json** — How the ASM pairs were constructed: liftOver counters, window arithmetic, positive/negative tier definitions and counts.
 - **S11_asm_source_provenance.txt** — Citation, download URLs and contents of the source ASM catalogue.
+
+## S12 — Allele-specific methylation, signed validation and replication (Tasks E1 + E2, Do & Tycko 2020)
+
+Directory: `Supplementary_Data_S12_ASM_Signed_Validation/`
+
+- **S12_asm_signed_agreement.csv** — Direction concordance, signed Spearman and positive-versus-negative AUROC per ASM index SNP (n=722), by stratum and model arm, with 1 Mb block-bootstrap intervals. The unit is one SNP: the prediction is the mean predicted delta over the CpGs scored inside that SNP's ASM DMR, matching how the published effect was averaged. The mammary stratum (n=53) is underpowered and is not a headline. The |effect| >= 20 pp stratum is post-hoc and was not pre-registered.
+- **S12_asm_discrimination_replication.csv** — Discrimination of ASM CpGs from distance-matched non-DMR CpGs in the second, independent catalogue, with the distance-only null baseline. Compare against S11: the two catalogues' estimates lie inside each other's confidence intervals.
+- **S12_asm_signed_evaluation_summary.json** — Provenance, bootstrap settings, and the scale caveat: observed effects are percentage points of methylation and predicted deltas are on the model's M scale, so only sign, rank and AUROC are compared and no magnitude calibration is claimed.
+- **S12_asm_score_summary.json** — Scoring provenance: checkpoints and their hashes, seed, and the input-validation counters (reference-base mismatches, off-window and non-CpG-centred pairs, all zero).
+- **S12_asm_build_summary.json** — How the SNP-CpG pairs were built: the hg19 DMR liftOver, the GRCh38 SNP positions from Ensembl (deliberately NOT lifted), the multi-allelic exclusion, and the REF-versus-hg38 sign-convention check.
+- **S12_asm_source_provenance.txt** — Citation, download URL and contents of the Do & Tycko 2020 catalogue.
 
 ## Two cautions carried from the analyses
 

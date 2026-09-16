@@ -1,0 +1,40 @@
+{
+  "analysis": "ASM validation (Task E1) scoring",
+  "analysis_status": "COMPLETE",
+  "device": "cuda",
+  "generated_utc": "2026-09-16T04:08:50.675639+00:00",
+  "input_counters": {
+    "alters_target_cpg": 0,
+    "bad_sequence_length": 0,
+    "cpg_record_missing": 0,
+    "outside_model_window": 0,
+    "reference_base_mismatch": 0,
+    "scoreable": 15195,
+    "sequence_not_cpg_centred": 0,
+    "unexpected_window_difference": 0,
+    "window_not_cpg_centred": 0
+  },
+  "inputs": {
+    "data/external/asm_tycko_gb2020/scoring/tycko_cpg_records.csv": "5d82ae511f6c305c8bcf27005ad37fd5f4d775a8ceafd4fadc89eb2db5ec12b0",
+    "data/external/asm_tycko_gb2020/scoring/tycko_scoring_pairs.csv": "50e67a6500da43ffddc86a062ee6efa0352b217cf34560a44e782afb6751438b"
+  },
+  "models": [
+    "fusion",
+    "sequence"
+  ],
+  "pairs_in": 15195,
+  "pairs_scored": 15195,
+  "rows_written": 30390,
+  "seed": 42,
+  "single_seed_note": "Seed 42 only, per the standing directive.",
+  "weights": {
+    "fusion": {
+      "path": "checkpoints_ablation/breast_epithelium/seed42/fusion/best_weights.pth",
+      "sha256": "8e8917433f25a6960788c6ff3a7bf1a915793e04eaec8c00cd16f59c1c97c0c3"
+    },
+    "sequence": {
+      "path": "checkpoints_journal/seed42/sequence/best_weights.pth",
+      "sha256": "3fd35bc0b373e1a0392aa878454e1c44ee93173f41419c5ba414db8abe541310"
+    }
+  }
+}

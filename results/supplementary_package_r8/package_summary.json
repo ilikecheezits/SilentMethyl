@@ -1,8 +1,8 @@
 {
   "analysis": "R8 supplementary data package (S7-S11)",
   "analysis_status": "COMPLETE",
-  "files_copied": 17,
-  "generated_utc": "2026-09-16T01:15:18.676532+00:00",
+  "files_copied": 23,
+  "generated_utc": "2026-09-16T10:40:27.199083+00:00",
   "missing_inputs": [],
   "note": "Separate from the published S1-S6 package; script 90 is not modified. Merge the two directories at submission time.",
   "sections": [
@@ -10,6 +10,7 @@
     "S8",
     "S9",
     "S10",
-    "S11"
+    "S11",
+    "S12"
   ]
 }

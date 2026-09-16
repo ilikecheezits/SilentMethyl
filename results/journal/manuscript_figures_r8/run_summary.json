@@ -13,7 +13,7 @@
     "fig_r8_5_gate_decomposition.png"
   ],
   "figures_skipped": {},
-  "generated_utc": "2026-09-16T01:15:15.706938+00:00",
+  "generated_utc": "2026-09-16T10:39:47.219497+00:00",
   "note": "Separate from 91_build_manuscript_figures.py, which deletes any file in its output directory not on its own whitelist. Script 91 is not modified by this script.",
   "output_sha256": {
     "fig_r8_1_fusion_gain_relative.png": "eb40b486406ceb1b9546fb8c2360604211779889f89c585538290a01e9dfc9b5",

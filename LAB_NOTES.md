@@ -44,6 +44,14 @@ control; 4.4× MAE spread across deciles), and the failures are **island shores
 with enhancer/polycomb chromatin** while **CpG islands with promoter chromatin**
 transfer cleanly. Closest thing to a biological finding in the paper. §6 D.
 
+**The ASM validation landed, 16 Sep 2026 (§6 J).** Job `46109189` ran clean.
+Discrimination reproduces across two independently built catalogues (Rosenski
+0.5625/0.5736, Do & Tycko 0.5419/0.5432, mutually inside CIs, both baselines
+null). Signed agreement is now measurable and modestly positive: direction
+concordance 0.590 [0.550, 0.630] on 722 SNPs. **That missed the pre-registered
+0.60-0.70 band and is written up as a miss** — the model calls the methylated
+allele above chance, but less well than the mQTL cohorts predicted.
+
 **Task C** is done and came back **null**:
 the gate's DNA/context *share* does not track measured cross-tissue methylation
 variance (ρ = +0.042, and −0.061 once methylation level is partialled out). Do
@@ -69,7 +77,7 @@ came back **no**, with an identified mechanism (winner's curse).
 | 6 | independent variant evaluation | **met** — two cohorts, meta-analysis, null control, distance-matched AUROC |
 | 7 | regulatory enrichment | **met, reinterpreted** — ETS coupling is compositional; the k-mer control reproduced it more strongly |
 | 8 | multi-tissue jointly-trained framework | **declined on architectural grounds** — see §1 R2. Context is allele-invariant; the proposed build cannot answer the question it was proposed for |
-| 9 | functional validation (ASM, ATAC, TFBS, eQTL, eQTM) | **the one real gap** — see §3 |
+| 9 | functional validation (ASM, ATAC, TFBS, eQTL, eQTM) | **partially met, 16 Sep 2026** — ASM validated against two independent catalogues (§6 J). Discrimination replicates (0.54-0.57, both exclude 0.5); signed agreement on n=722 Do & Tycko SNPs gives direction 0.590, Spearman 0.241, AUROC 0.628. ATAC/TFBS/eQTL/eQTM remain the gap — see §3 |
 
 ### Standing constraints
 
@@ -3199,6 +3207,227 @@ finished one. **Rerun both 92 and 93 after the job completes.**
 - **Everything else remaining is prose** plus the mentor's decision on where
   R3/R4/D sit in the 3.1-3.6 structure (subsection G).
 
+### I. ASM validation moves to Do & Tycko 2020 — E1 + E2 from ONE catalogue
+
+Recorded 15 Sep 2026, **before the scoring job was submitted**. The prediction
+below is pre-specified deliberately, following the §4 precedent for R4: E2 has a
+real chance of landing near the null, and writing the expectation down first is
+what makes either outcome reportable rather than rationalised afterwards.
+
+#### Why the source changed
+
+The Nat Commun 2025 atlas (subsection E, REOPENED) publishes ASM **significance**
+but no signed allelic difference, which capped that analysis at discrimination
+and made direction concordance and signed Spearman impossible. I reported those
+two as impossible. **That was wrong** — not impossible, just unavailable from the
+catalogue I had picked.
+
+**Do C, Dumont ELP, Salas M, ... Tycko B. Genome Biology 21:153 (2020)**,
+doi 10.1186/s13059-020-02059-3, Additional file 3 "Table S2" publishes, per ASM
+index SNP:
+
+    snp avg avg meth read ref    % methylation on REF-allele reads
+    snp avg avg meth read alt    % methylation on ALT-allele reads
+    snp avg diff alt ref         signed ALT - REF, percentage points
+
+Keyed REF->ALT, the same convention as the model's MUT-minus-WT delta. **All
+three statistics the mentor named are therefore computable from this one
+catalogue**, which is why it is now the sole ASM source. 17,931 ASM index SNPs
+over 15,112 DMRs, 13 tissues including `mammary`.
+
+#### Build, and the checks that matter
+
+`scripts/53d_tycko_build.py` ->
+`data/external/asm_tycko_gb2020/scoring/`. Provenance in that directory's
+`SOURCE.txt`.
+
+    Table S2 rows, all chromosomes              17,931
+    chr8+chr9, resolved to GRCh38 via Ensembl    1,831
+    multi-allelic, EXCLUDED                      1,109
+    biallelic analysis set                         722   all FDR < 0.05
+      observed sign split                    328 pos / 393 neg
+      annotated mammary                             53
+      median |observed effect|                    45.8 pp
+    DMR liftOver hg19->hg38                        722 kept, 0 unmapped
+    ASM CpG pairs (positives)                    9,822   median ~13 CpGs / SNP
+    distance-matched negatives                   5,373
+    unique CpGs needing context                 12,999
+
+**Two traps, both handled explicitly:**
+
+1. **Mixed coordinate builds.** `dmr` is hg19; SNP positions are absent from the
+   table entirely (rsID only) and come from Ensembl REST, which returns
+   **GRCh38**. So regions need lifting and positions must NOT be lifted. Verified
+   on rs67165842: DMR reads 1:100015940, GRCh38 is 99550369. Reversing this would
+   mis-place every variant while still "working".
+2. **Sign convention.** If a site's alleles are swapped relative to hg38, the
+   sign of `diff alt ref` must flip with them, and a silent error there inverts
+   the whole direction result. The build re-derives REF from hg38 and negates the
+   effect when needed. **It fired zero times: all 722 REF alleles agree with
+   hg38** (`ref_matches_hg38: 722`, `alleles_swapped_sign_flipped: 0`,
+   `ref_matches_neither_dropped: 0`). The convention is confirmed, not assumed.
+
+**Multi-allelic exclusion is deliberate and costly** — 1,109 of 1,831 sites.
+Ensembl gives REF plus several ALTs and Table S2 does not say which ALT its
+methylation refers to. Guessing (e.g. taking the minor allele) would score a
+different substitution than the one measured and could invert the sign. 722 is
+sufficient for all three statistics, so the conservative exclusion was taken.
+
+#### Unit of analysis for E2 — do not get this wrong
+
+The published effect is **per SNP, averaged over the CpGs in its ASM DMR**. So
+the prediction is aggregated the same way: the mean predicted delta over that
+SNP's scored DMR CpGs. Comparing one CpG's prediction against a DMR-wide
+measurement is a unit mismatch and would understate agreement.
+
+#### PREDICTION, recorded before the run
+
+Stated so the result cannot be reinterpreted to fit afterwards.
+
+- **Direction concordance: 0.60-0.70, clearly above 0.5.** The mQTL work already
+  shows the model gets variant-effect direction right well above chance in two
+  cohorts, and these are large effects (median 45.8 pp) which should be the
+  easiest to call. Below 0.55 would be a genuine surprise and a real limit on the
+  paper's central claim.
+- **Signed Spearman: +0.15 to +0.35.** Bounded above by the scale mismatch and by
+  the DMR-averaging; GENOA's rho_meta was 0.1775 on a cleaner comparison.
+- **AUROC positive vs negative: 0.62-0.72**, tracking direction concordance.
+- **Sequence arm >= fusion arm**, as in every previous variant-effect comparison
+  and as the R2 constraint requires.
+- **Mammary (n=53) will not be separately significant.** Reported as a stratum
+  only; do not lead with it.
+
+**If direction concordance lands at or below ~0.55, that is a result and gets
+reported as one.** It would mean the model ranks *which* CpGs are
+allele-specifically methylated without predicting *which allele* carries the
+methylation — a real limit on "variant effects are sequence-encoded", and far
+better found by us now than by a reviewer.
+
+#### What happens to the Nat Commun E1 result
+
+**Not deleted, and not yet demoted.** `results/journal/asm_validation/` stands.
+If the Tycko discrimination lands near the atlas's 0.5625/0.5736 that is
+independent replication across two catalogues built by different groups from
+different data, which is worth more than either alone. If they diverge, that
+needs explaining before either goes in the paper. **Decide after the number
+exists**, not before.
+
+#### Job
+
+`jobs/r8_journal/53d_tycko_score.sbatch` — 15,195 pairs x 2 arms, seed 42, FP32,
+~30 min estimated. Evaluation is `scripts/53e_tycko_evaluate.py`, in the same job.
+
+**Nothing may be written under `results/journal/` while it is in flight.** That
+is what failed `46096838` on the clobber guard with the science already correct,
+and `45997644` before it. The sbatch carries the warning in its header.
+
+### J. Tycko ASM validation — E1 + E2 RESULT. `46109189` COMPLETED. 16 Sep 2026
+
+The job the §I prediction was written for. **It ran clean end-to-end**, unlike
+the two before it: `COMPLETED`, `00:29:52`, exit `0:0`, and the run's own guard
+logged `clobber check clean: nothing outside results/journal/asm_validation_tycko
+was written`. `grep "PUBLISHED-PATH CLOBBER"` on the `.err` returns 0 hits. 53e
+also ran inside the job and did **not** seize on the input load as its CPU smoke
+test had — no rerun was needed. All outputs in
+`results/journal/asm_validation_tycko/`; `tycko_pair_scores.csv`
+(sha `bfe5b0bd…`) is the input to the evaluation summary.
+
+    15,195 pairs x 2 arms scored, 0 dropped
+    scoreable 15,195 / reference_base_mismatch 0 / outside_model_window 0
+    seed 42, FP32, V100, fusion = breast_epithelium/seed42, sequence = journal/seed42
+
+#### E2 — the three statistics the mentor named, scored against §I
+
+Unit is one ASM index SNP, prediction = mean predicted delta over that SNP's
+scored DMR CpGs, as §I required. n = 722 SNPs, 328 observed-positive. CIs are
+2,000-replicate bootstrap over 179 1-Mb genomic blocks.
+
+    statistic                    predicted (§I)   fusion    sequence   verdict
+    direction concordance        0.60 - 0.70      0.5900    0.5914     MISSED, low
+                                                  [0.550,   [0.554,
+                                                   0.630]    0.629]
+    signed Spearman              +0.15 - +0.35    0.2410    0.2503     HIT
+                                                  [0.180,   [0.193,
+                                                   0.299]    0.306]
+    AUROC positive vs negative   0.62 - 0.72      0.6277    0.6308     HIT
+                                                  [0.584,   [0.588,
+                                                   0.669]    0.671]
+    sequence arm >= fusion arm   yes              — sequence higher on all 3 —  HIT
+    mammary (n=53) not sep. sig. yes              p 0.152-0.196, CIs span null  HIT
+
+**Four of five hit; direction concordance missed on the low side.** It came in at
+0.590/0.591 against a pre-specified floor of 0.60 — short by about one point, not
+a collapse. **It is written down as a miss and not re-banded.** The §I text set
+0.55 as the threshold below which the result would be "a real limit on the
+paper's central claim"; the observed value is above that, and its bootstrap CI
+excludes 0.5 (`P_LE_Half = 0.0`, CI low 0.550 fusion / 0.554 sequence). So the
+model calls the methylated allele better than chance, reliably, but less well
+than the mQTL cohorts led us to predict. The honest sentence for the paper is
+**"above chance and below what we expected"**, not "as predicted".
+
+Signed Spearman and AUROC both landed inside their bands, and the sequence-arm
+ordering held on all three statistics — though by margins (0.0014, 0.0093,
+0.0031) far too small to be called a separation. Report it as "sequence is not
+worse", consistent with R2, not as a sequence advantage.
+
+**Mammary, n = 53, is a stratum and never the headline.** Direction 0.5660 both
+arms, every CI spanning the null (direction p = 0.152 fusion / 0.196 sequence).
+This is exactly the pre-specified expectation — underpowered, reported, not led
+with.
+
+**One stratum was NOT pre-registered and is flagged as such**: restricting to
+`|observed effect| >= 20 pp` (n = 578) raises direction to 0.6055/0.6125,
+Spearman to 0.2575/0.2670, AUROC to 0.6516/0.6566. Every statistic moves the
+right way with effect size, which is the same dose-dependence subsection B found.
+It supports the B wording, but it is post-hoc and must be labelled post-hoc.
+
+**Magnitudes are not compared and no calibration is claimed.** Observed effects
+are percentage points of methylation; predicted deltas are on the model's M
+scale. Only sign, rank and AUROC are used — this is recorded in the summary
+JSON's `scale_note` as well.
+
+#### E1 — does Tycko's discrimination reproduce the Rosenski atlas?
+
+    catalogue                    contrast                       fusion   sequence
+    Rosenski/Dor/Kaplan 2025     pos vs bimodal non-ASM         0.5625   0.5736
+      (n=6,910, 242 blocks)                             CI   [.533,.593] [.545,.601]
+    Do & Tycko 2020              pos vs distance-matched non-DMR 0.5419  0.5432
+      (n=10,746, 179 blocks)                            CI   [.508,.580] [.502,.585]
+    distance-only baseline       Tycko 0.5030 [.480,.531] p=0.39
+                                 Rosenski 0.5017 [.478,.524] p=0.45
+
+**It reproduces. Both catalogues stay.** The Rosenski point estimates (0.5625,
+0.5736) sit inside the Tycko confidence intervals, and the Tycko estimates sit
+inside the Rosenski intervals; both exclude 0.5 (Tycko p = 0.008 fusion / 0.017
+sequence). The distance-only baseline is null in both, so neither result is
+carried by how the negatives were positioned. Two catalogues, built by different
+groups from different sequencing data with different ASM tests, landing on
+0.54-0.57 with sequence >= fusion in both, is **independent replication**, and
+that is worth more than either number alone.
+
+The Tycko estimate is the lower of the two, by ~0.02-0.03. That is well inside
+overlapping CIs and does not need explaining away, but the likely reason is the
+negatives: Rosenski's headline contrast uses bimodal non-ASM CpGs — sites that
+look methylation-variable but are not allele-specific — while Tycko's are
+distance-matched non-DMR CpGs. Neither is the harder control in an obvious
+direction, and we should not claim one is.
+
+**No mentor decision is needed on retiring Rosenski.** §I made that conditional
+on divergence; there is none.
+
+#### What this changes for the write-up
+
+1. **E2 is no longer a limitation.** §I's closing bullet in the "what the wording
+   pass must fold in" list says "E2 stated as a limitation" — that is now stale.
+   E2 exists, with all three statistics, and must be written as a result.
+2. **E1's number in the R8 table stays as the Rosenski figure**, now with Tycko
+   as independent replication alongside it.
+3. **The direction-concordance miss goes in the paper as a miss.** 0.59 with a CI
+   of [0.55, 0.63] is a real, modest, above-chance result, and the pre-registered
+   0.60-0.70 band is what makes it reportable in that form.
+4. Out-of-distribution caveat carries over unchanged: the model was trained only
+   at HM450 positions, and every CpG scored here is an arbitrary genomic CpG.
+
 ### Standing directives for the rest of R8 (14 Sep 2026)
 
 1. **Scope is FROZEN**: A + sub-channel split, B, C, D — and, added 15 Sep 2026
@@ -3244,13 +3473,14 @@ only compute that could follow is E's scoring run, which is not authorised yet.
 | B. context ladder | **DONE and ANALYSED** 15 Sep 2026 — dissociation holds, verdict banner is a Pearson artefact |
 | C. gate plasticity | DONE, null, zero GPU |
 | D. transfer failure | DONE, hypothesis holds, zero GPU |
-| E1. ASM discrimination | **DONE** `46096838` (FAILED 1:0 on the clobber guard only — outputs correct). Controlled contrast AUROC 0.5625 fusion / 0.5736 sequence, both exclude 0.5 |
-| E2. ASM signed statistics | **NOT POSSIBLE** — catalogue has no per-allele methylation; CanASM dead |
+| E1. ASM discrimination | **DONE, AND REPLICATED** — Rosenski `46096838` 0.5625 fusion / 0.5736 sequence; Do & Tycko `46109189` 0.5419 / 0.5432. Mutually inside CIs, both exclude 0.5, both baselines null (subsection J) |
+| E2. ASM signed statistics | **DONE** `46109189` COMPLETED 0:0, 16 Sep 2026. n=722 SNPs. Direction 0.590/0.591 (pre-registered 0.60-0.70 — MISSED low, still excludes 0.5), signed Spearman 0.241/0.250 HIT, AUROC 0.628/0.631 HIT (subsection J) |
 | F. fusion gain by region | **DONE** 15 Sep 2026, zero GPU, script 57 |
 
-Budget: ~22.4 GPU h spent of 125 (17.5 + B's 4.9). E is ~3 h if authorised.
+Budget: ~22.9 GPU h spent of 125 (17.5 + B's 4.9 + E's 0.5).
 
-**All compute is finished. `46096838` was the last job.**
+**All compute is finished. `46109189` was the last job — it ran clean, and it is the
+only R8 job that neither tripped the clobber guard nor needed a rerun.**
 
 **What the wording pass must now fold in.** Every input has landed:
 
@@ -3264,13 +3494,18 @@ Budget: ~22.4 GPU h spent of 125 (17.5 + B's 4.9). E is ~3 h if authorised.
 4. **F's fusion-gain stratification**, including the absolute-vs-relative
    distinction and the polycomb inversion against D (subsection F);
 5. **the 3.1–3.6 restructure** (subsection G), including the R3/R4/D gap;
-6. **E1's ASM result** (subsection E, REOPENED) — modest, ~0.56-0.57, sequence
-   >= fusion, breast underpowered — plus E2 stated as a limitation.
+6. **the ASM result, E1 AND E2** (subsection J, superseding the E-REOPENED
+   framing). E1 is modest, ~0.54-0.57, and now **replicated across two
+   independent catalogues**. E2 is **no longer a limitation** — it exists, with
+   all three statistics the mentor named. Write the direction-concordance miss
+   (0.59 against a pre-registered 0.60-0.70) as a miss.
 
 **B is read in and R2's required change is now known** (subsection B). The
 wording pass is no longer blocked on compute — every input has landed. Its
 remaining dependency is a decision from the mentor on where R3/R4/D sit in the
 3.1-3.6 structure (subsection G).
 
-No further jobs are to be submitted without authorisation. E's scoring run is the
-single exception under discussion, and it is not authorised yet.
+No further jobs are to be submitted without authorisation. **There is no code left
+to write and no job left to run.** Everything remaining is prose: the single
+wording pass, whose one open dependency is the mentor's decision on where R3/R4/D
+sit in the 3.1-3.6 structure (subsection G).

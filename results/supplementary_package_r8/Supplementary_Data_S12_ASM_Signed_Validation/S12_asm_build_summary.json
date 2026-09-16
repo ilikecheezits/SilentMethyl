@@ -1,0 +1,52 @@
+{
+  "analysis": "ASM scoring input from Do & Tycko 2020 (Tasks E1 + E2)",
+  "analysis_status": "COMPLETE",
+  "coordinate_builds": {
+    "dmr": "hg19, lifted to hg38 here",
+    "snp_position": "GRCh38 direct from Ensembl REST (cached)"
+  },
+  "distance_tolerance_bp": 10,
+  "generated_utc": "2026-09-16T02:50:09.497635+00:00",
+  "held_out_by": "chromosome split (chr8+chr9), not array membership",
+  "inputs": {
+    "data/datafiles_breast_epithelium/feature_imputation.json": "892108fb057a29e3b5871abff70e55dc8964910e83b65da636c6c7c90d7e8e5b",
+    "data/external/asm_tycko_gb2020/13059_2020_2059_MOESM3_ESM.xlsx": "a90c0cb743db32b953958ffb2fd2b10bafad46fe632ec1804fdd4d53e263a9c7",
+    "data/external/asm_tycko_gb2020/ensembl_grch38_chr8_chr9_cache.csv": "d2930f061ca88ce56629715e3a6dd43715c1b6329411c2b4492b595c8a7c9e85"
+  },
+  "liftover_counters": {
+    "dmr_inverted": 1,
+    "dmr_unmapped": 0
+  },
+  "negatives": 5373,
+  "observed_sign_split": {
+    "negative": 393,
+    "positive": 328
+  },
+  "out_of_distribution_caveat": "Trained only at HM450 positions, enriched at promoters and islands. Every CpG here is an arbitrary genomic CpG -- out of distribution with respect to training POSITIONS.",
+  "pair_counters": {
+    "alleles_swapped_sign_flipped": 0,
+    "cpg_out_of_bounds": 0,
+    "negative": 11674,
+    "positive": 9822,
+    "protected_offset": 103,
+    "ref_matches_hg38": 722,
+    "ref_matches_neither_dropped": 0,
+    "snp_out_of_bounds": 0,
+    "snp_with_no_cpg": 0
+  },
+  "positives": 9822,
+  "rows": 15195,
+  "seed": 42,
+  "sign_convention": "observed_diff_alt_ref is ALT minus REF in percentage points, keyed to the hg38 reference base. Where hg38's reference matched their ALT the alleles were swapped AND the sign negated; that count is `alleles_swapped_sign_flipped`.",
+  "source": "Do C et al., Genome Biology 21:153 (2020), Additional file 3 Table S2",
+  "table_counters": {
+    "biallelic_joined": 722,
+    "multiallelic_excluded": 1109,
+    "resolved_chr8_chr9": 1831,
+    "total_rows": 17931,
+    "with_parsable_dmr": 722
+  },
+  "unique_asm_snps_mammary": 53,
+  "unique_asm_snps_scored": 722,
+  "unique_cpgs": 12999
+}
