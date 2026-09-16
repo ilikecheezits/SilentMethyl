@@ -1,0 +1,29 @@
+{
+  "analysis": "context-ladder dissociation, stratified by effect size",
+  "analysis_status": "COMPLETE",
+  "dissociation_holds_in_every_quintile": false,
+  "generated_utc": "2026-09-15T22:19:13.428602+00:00",
+  "inputs": {
+    "results/journal/ablation_breast_epithelium/context_ladder/pair_scores_identity.csv": "57eee4a7f9da3fc2d57c87f6ddfa42495e8e4ddd3c40f1ea65ed299a0d01ccb6",
+    "results/journal/ablation_breast_epithelium/context_ladder/pair_scores_shuffle.csv": "1d5b4d571319cee58eedbe0522438c63ded78216a7da524656e53be1487abf1b",
+    "results/journal/ablation_breast_epithelium/context_ladder/pair_scores_tissue_Lung.csv": "695f30d733348cce02c215ce3473129439002a855f741ff89aea075476ceb653",
+    "results/journal/ablation_breast_epithelium/context_ladder/pair_scores_xtissue_mean.csv": "c6876038f20ebde05cf12968fcaf7b82caea30b4abb47f1bce22bb6460cfd008"
+  },
+  "n_dropped_missing_stratifier": 0,
+  "n_pairs": 76893,
+  "normalization": "Each quantity divided by its own within-bin SD, so M-unit levels and delta-scale effects are compared on equal footing inside each stratum.",
+  "pooled_ratio_by_rung": {
+    "shuffle": 2.321166347417135,
+    "tissue_Lung": 1.366434249040431,
+    "xtissue_mean": 1.1913214872465006
+  },
+  "ratio_definition": "Ratio_Levels_Over_Deltas > 1 means the context swap moved predicted levels more than predicted variant effects, i.e. the dissociation holds.",
+  "ratio_monotone_increasing_with_effect_size": {
+    "shuffle": true,
+    "tissue_Lung": true,
+    "xtissue_mean": true
+  },
+  "source_job": "46007255",
+  "stratifier": "predicted",
+  "stratifier_note": "observed = beta_ref_to_alt, measured and independent of every rung -- the valid choice. predicted = |Predicted_Delta_M| from the identity run, which is INVALID: selecting on a rung's own value induces regression to the mean and manufactures a reversal in the smallest bin. Reproduced only to document it as an artefact."
+}

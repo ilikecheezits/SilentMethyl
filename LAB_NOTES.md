@@ -2228,7 +2228,7 @@ worse than not running it, and we already carry a documented pattern of null
 under-powered external results (four disease-variant tests). Slot `53` stays
 reserved and unused.
 
-### E (REOPENED). ASM validation — the power calculation was wrong. 15 Sep 2026
+### E (REOPENED). ASM validation — UNBLOCKED. 12,550 breast pairs, counted. 15 Sep 2026
 
 Catalogue check only, zero compute, nothing built — directive 4 still governs,
 and this is the "report usable n before building" step it asks for.
@@ -2305,25 +2305,158 @@ the ~500 floor under an assumption chosen to be unfair to the analysis.
 
 #### The one thing still blocking a build
 
-`bioinfor.nefu.edu.cn/asm/*` is **returning 504 from every endpoint** as of
-15 Sep 2026 ~22:00 UTC — nginx answers, the application behind it does not.
-Tested: the bulk export (`/asm/download/snv_cpg?tissue=Breast`), the paginated
-browse (`/asm/snv_cpg?...&chr=chr8`), `/asm/getElementByTissue`, and
-`/asm/home/snv/search`, over ~25 minutes. The static site and JS bundle serve
-fine, which is how the sample table and endpoint list above were obtained.
+`bioinfor.nefu.edu.cn/asm/*` is **dead** as of 15 Sep 2026, 22:00-22:45 UTC.
+nginx answers; the application behind it never does.
+
+Diagnosed rather than assumed, because "the server is down" is the kind of claim
+that is usually a malformed request:
+
+    /CanASM/  and the 5.9 MB JS bundle      200, 1.2-3.9 s
+    /zzz_not_a_real_path                    404 in 1.2 s   (nginx answers)
+    /asm  (no trailing slash)               404 in 1.2 s   (no location match)
+    /asm/zzz_not_a_real_endpoint            504 after 61 s
+    /asm/snv_cpg?...  (a real endpoint)     504 after 61 s
+
+The fourth line is decisive: a **nonexistent** path under `/asm/` behaves
+identically to a real one, so nginx matches `location /asm/`, proxies, and gets
+no reply for *any* path. A live backend would 404 the bogus path instantly.
+
+The request shape was verified against the app's own axios wrapper
+(`get(e,a){return r.get("https://bioinfor.nefu.edu.cn/asm"+e,{params:a})}`), and
+variants were tested: `sampleType=Cancer` vs empty, `chr=chr8` vs `chr=8`, no
+params, and with browser `Referer`/`Origin`/`User-Agent`/`Accept` headers. All
+hang identically. It is not our request.
+
+**Temporary or permanent — unresolved, leaning temporary.** The Wayback Machine
+has exactly one `/CanASM/` snapshot (8 Apr 2025, around the preprint) and has
+never crawled `/asm/`, so the archive cannot date the outage. But the site's JS
+bundle has changed since that snapshot (`app.bca47efc.js` -> `app.aab82547.js`),
+which means the site *is* maintained. Note also that the app sets its client
+timeout to **3e6 ms (50 minutes)**, implying the developers expect these queries
+to be extremely slow — while nginx gives up at 60 s. A normal browser would
+therefore 504 too, so this may be chronic rather than a passing outage.
 
 So the exact breast chr8+chr9 pair count is **not yet measured** — it is bounded,
 not counted. That is an availability problem, not a power problem, and it does
 not change the verdict. Retry before building; ASMdb is the fallback (below).
 
-**ASMdb is NOT a drop-in substitute — checked directly, 15 Sep 2026.** Its ASM
-records are *regions*, not SNV–CpG pairs. Pulling the actual table for a human
-sample (`GSM2191797`, via `/MethAelle/asmsqllist/`) returns columns
-`chrom, start, end, span, methCount, strand` and **612 rows** — no SNV column
-anywhere. The SNP calls ship separately as `Homo_sapiens.snp.tar.xz`, so using
-ASMdb means joining regions to SNPs ourselves and re-deriving the allele
-assignment CanASM already did. Usable as a second catalogue if CanASM stays
-down, but it is a build, not a download.
+**ASMdb — investigated properly 15 Sep 2026. It is blocked, but not for the
+reason first recorded here.**
+
+*Correction to an earlier claim in this subsection.* It said ASMdb returns "612
+rows" for a human sample, implying the resource is tiny. That was `GSM2191797`,
+an atypically sparse dataset. Breast samples are two orders of magnitude larger:
+
+    GSM1279517  Breast normal, WGBS     49,608 ASM regions
+    GSM1328112  Breast MCF7,   WGBS     32,009 ASM regions
+    GSM2191797  (the one first checked)     612 ASM regions
+
+ASMdb holds **2,242 human datasets**, 1,319 of them methylation assays (918
+WGBS, 253 RRBS, 82 Bisulfite-Seq, plus oxBS/TAB/hairpin variants), of which
+**47 are breast-related** — including `GSM1279517`, the same normal breast WGBS
+sample CanASM uses. On scale alone ASMdb would be ample: ~8.8% of ~50,000
+regions is ~4,400 on chr8+chr9 from the normal breast sample by itself.
+
+**The blocker is the SNV linkage, and it is hard.** Every queryable ASMdb table
+was enumerated (`asmsqllist` = ASM regions, `asmincpgsqllist` = ASM in CpG
+islands, `datasetssqllist` = sample metadata). **None carries an SNV, SNP,
+allele, REF or ALT column** — the ASM table is `chrom, start, end, span,
+methCount, strand`. ASM records are *regions*, not SNV–CpG pairs.
+
+The per-species SNP calls that would supply the linkage are **not downloadable**.
+Every bulk link on `/MethAelle/download` — including `Homo_sapiens.snp.tar.xz`
+(listed at **20 G**) — points at `/MethAelle/underrequest`, which serves the text
+*"Under Request! will published soon!"*. No form, no contact address, no data.
+The ASMdb paper is from 2022 and the site's own visitor counter stopped in
+Sep 2021, so "soon" has not arrived in four years.
+
+**So ASMdb cannot produce SNV–CpG pairs**, and the earlier framing ("a build, not
+a download") was too optimistic: there is nothing to build *from*, because the
+allele-level data never shipped.
+
+**One degraded variant of E remains available without CanASM**, and it should be
+offered rather than silently dropped: pair a public variant catalogue (dbSNP /
+1000G) to ASMdb ASM regions on chr8+chr9 and test whether SilentMethyl's
+predicted |delta| is higher for variants inside ASM regions than for
+distance-matched variants in matched non-ASM regions. That is an **AUROC-style
+discrimination test of exactly the kind the project already runs**, and it is
+genuinely informative. But it **cannot** deliver direction concordance or signed
+Spearman — the two statistics the mentor named first — because ASMdb never
+exposes which allele is methylated. Treat it as a fallback worth one paragraph,
+not as a replacement for the CanASM analysis.
+
+#### THE RESOURCE THAT ACTUALLY UNBLOCKS E — counted, not bounded, 15 Sep 2026
+
+**We were never restricted to the two catalogues the mentor named.** The
+Rosenski/Dor/Kaplan atlas (*Atlas of imprinted and allele-specific DNA
+methylation in the human body*, Nat Commun 2025, `PMC11897249`,
+doi 10.1038/s41467-025-57433-1) publishes its ASM calls as **open-access
+supplementary tables**. No server, no request form, no gate. Downloaded and
+verified on disk:
+
+    https://static-content.springer.com/esm/art%3A10.1038%2Fs41467-025-57433-1/
+      MediaObjects/41467_2025_57433_MOESM4_ESM.xlsx    15.5 MB  (Tables S2-S16)
+      MediaObjects/41467_2025_57433_MOESM3_ESM.zip     32.4 MB  (Data S1, 531 MB tsv)
+
+Sheet **`S3. ASM SNPs`** is the one that matters: **55,271 ASM SNP loci**, with
+`chrom`, `SNP pos (hg19)`, `dbSNP id`, `Alleles`, `ASM bimodal region (hg19)`,
+per-sample Fisher exact p, BH-adjusted p, and the sample names the call fired in.
+
+**This is the same GSE186458 atlas already listed in §3 as "deferred, public,
+hg38".** We had it on the deferred list for a different purpose and never
+connected it to E.
+
+**Usable n, measured end-to-end** — parsed, lifted hg19->hg38 with the project's
+existing `data/reference/hg19ToHg38.over.chain.gz` (99.6% clean), then CpGs
+counted directly in `data/hg38.fa` within 1,000 bp of each SNP and inside its
+ASM region:
+
+    chr8 + chr9, ALL tissues        5,489 ASM SNPs  ->  136,065 SNV-CpG pairs
+    chr8 + chr9, breast epithelium    390 ASM SNPs  ->   12,550 SNV-CpG pairs
+                                   (median 19 and 26 CpGs per SNP respectively)
+
+**Breast alone clears the ~500 floor by 25x.** All-tissue clears it by 270x.
+The 9.98% chr8+chr9 share of the 55,271 loci matches the 8.8-9.2% expectation
+from CpG and bp fractions, which is a useful sanity check on the whole
+denominator argument.
+
+**The tissue match is better than CanASM's, not worse.** Seven purified breast
+samples, all normal: `Breast-Basal-Epithelial` x4 (`Z000000V6`, `Z000000VG`,
+`Z000000VL`, `Z0000043E`) and `Breast-Luminal-Epithelial` x3 (`Z000000V2`,
+`Z000000VJ`, `Z000000VN`). CanASM's breast is 12 tumour / 3 normal of 15.
+**Our model's context is breast epithelium**, so purified normal breast
+epithelium is the closest tissue match any ASM resource offers us.
+
+#### The limitation, and it decides which statistics are available
+
+**The supplementary publishes significance, not direction.** `S3`/`S4` carry
+Fisher p and FDR per sample but **no signed allelic methylation difference** and
+no per-allele beta. `Data S1` is a binary 0/1 presence matrix of bimodal regions
+by sample, not methylation values. So from these tables alone:
+
+    AUROC, ASM SNPs vs distance-matched non-ASM SNPs      AVAILABLE, well powered
+    direction concordance                                 NOT available
+    signed Spearman                                       NOT available
+
+The mentor named direction concordance and signed Spearman first. Getting them
+needs a per-allele methylation value, which means either CanASM (server dead) or
+computing it ourselves from GSE186458's read-level `pat` files plus donor
+genotypes — a genuine build, not a download.
+
+**So E splits into two tiers, and the first is unblocked right now:**
+
+- **E1 — discrimination, zero blockers.** 12,550 breast / 136,065 all-tissue
+  chr8+chr9 pairs. Does predicted |delta| separate ASM SNV-CpG pairs from
+  distance-matched non-ASM pairs? Same protocol as GENOA/eGTEx: 10 bp matching
+  tolerance, 1 Mb block bootstrap, distance-only baseline alongside. ~3 GPU h.
+  This is a real external validation and it is the one we can actually run.
+- **E2 — signed agreement.** Needs CanASM to come back, or a GSE186458 build.
+  Do not promise it.
+
+**Recommendation: run E1, state E2 as a limitation.** E1 answers the mentor's
+underlying question — does the model recognise allele-specific methylation it
+was never trained on — and the tissue match is better than the resource he
+suggested. Report the OOD-position caveat exactly as recorded above.
 
 #### Protocol, when it is authorised
 
@@ -2339,6 +2472,89 @@ Same as GENOA/eGTEx, no new machinery:
   since 12 of 15 breast samples are tumour and tumour methylation is not a clean
   stand-in for the breast-epithelium context the model carries.
 
+#### E1 BUILT AND SUBMITTED — `46096838`, 15 Sep 2026
+
+Scope note: this is the **authorised** build of E1, not a scope expansion. E was
+reopened on the corrected power calculation above; the mentor asked for ASM
+validation; this is it.
+
+**Scripts (slot 53, reserved for ASM since the R2 framework was written):**
+
+    53_asm_build.py      atlas -> scoreable pairs + context      CPU, done
+    53b_asm_score.py     frozen-checkpoint inference             GPU
+    53c_asm_evaluate.py  AUROC, block bootstrap, baselines       CPU
+    jobs/r8_journal/53_asm_score.sbatch                          both stages
+
+**Script 20 is NOT touched.** It reads target CpGs out of the split CSVs and then
+hard-fails any probeID absent from the HM450 manifest — both assumptions are
+exactly what this analysis exists to escape. `53b` path-loads script 20 for
+`build_model` / `score_chunk` (the idiom script 23 already uses), so numerics are
+identical to GENOA/eGTEx — FP32, forward/RC averaging, phyloP swap on the RC
+context — while every frozen analysis depending on script 20 is unaffected.
+
+**Window arithmetic — a real error caught during the build.** The model window is
+`seq[2000:3000]`, so the target C sits at index 499 and the variant must fall at
+offset **-499 to +500**: an asymmetric +/-500 bp, **not** +/-1000. The "12,550
+breast pairs" figure recorded earlier in this subsection used +/-1000 and is
+therefore roughly 2x too generous. The build uses the correct range; the counts
+below supersede it.
+
+**Counts as built** (`data/external/asm_atlas/scoring/build_summary.json`):
+
+    ASM SNP loci, all chromosomes          55,203
+    lifted hg19 -> hg38                    55,079   (99.8%, chain already in repo)
+    on chr8+chr9                            5,489
+    SNV-CpG pairs constructed              100,274
+      positive  (CpG in its ASM region)     82,747
+      negative  (bimodal, not ASM)           3,455
+      negative  (background)                14,072
+      dropped   (in some OTHER ASM region)   4,190
+    after 1:1 distance matching             35,054 rows, 2 contrasts
+    unique CpGs / unique variants      27,510 / 4,796
+
+**Two contrasts, and the second one is why this is worth believing.**
+
+    positive_vs_bimodal_non_asm   3,455 + 3,455   CONTROLLED -- lead with this
+    positive_vs_background       14,072 + 14,072   weaker, less specific
+
+ASM regions are a subset of the atlas's *bimodal* methylation regions —
+CpG-dense, intermediate-methylation, enhancer-like. Against plain background CpGs
+the model could separate them by recognising that regional character alone, with
+nothing allele-specific involved, and a reviewer will say exactly that. The
+bimodal-but-not-ASM tier holds the character fixed. **If background separates and
+bimodal does not, the honest conclusion is that the model recognises region
+class, not ASM** — `53c` prints that verdict itself so it cannot be quietly spun.
+
+**A matching bug, caught and fixed.** The first build kept all 82,747 positives
+against 17,527 negatives instead of pairing 1:1. Rewritten as greedy 1:1 with a
+two-tier preference (same variant first, then same chromosome), each negative
+consumed at most once, and **unmatched positives dropped**. Balance after the fix:
+
+    contrast                      label   n        median |dist|   mean |dist|
+    positive_vs_background          0   14,072         339           319.2
+    positive_vs_background          1   14,072         339           318.5
+    positive_vs_bimodal_non_asm     0    3,455         352           328.3
+    positive_vs_bimodal_non_asm     1    3,455         351           327.5
+
+So the distance-only baseline should pin at 0.5. If it does not, the matching
+failed and neither AUROC is interpretable — `53c` checks this and says so.
+
+**Smoke test, CPU, 64 pairs: all 64 scoreable, every rejection counter zero.**
+The one that matters is `reference_base_mismatch: 0` — an off-by-one between the
+build's `cpg_pos0`, the variant coordinate and the hg38 sequence would have sent
+essentially every row into that bucket. It did not.
+
+**Breast is thin in the controlled contrast** — 309 positives / 276 negatives
+(585 pairs). Reportable with wide intervals; the powered result is the all-tissue
+bimodal contrast at 3,455 per side. Do not lead with the breast number.
+
+**Still not measured, and not by choice.** The atlas tables carry significance and
+sample membership but **no signed allelic methylation difference and no
+per-allele beta**. Direction concordance and signed Spearman — the two statistics
+the mentor named first — are therefore unavailable from this source. That is E2,
+and it needs CanASM (dead) or a build on GSE186458's read-level data. **Do not
+substitute |delta| agreement for direction agreement.**
+
 #### The caveat that must appear in the output, not just here
 
 The model was trained **only at HM450 positions**, which are enriched at
@@ -2353,7 +2569,7 @@ so a reader can see how much of the result comes from array-like positions.
 
 **Budget: ~3 GPU h, unchanged. Slot `53` is now live, not reserved.**
 
-### B. Context dose-response ladder — COMPLETED as `46007255`, NOT YET ANALYSED
+### B. Context dose-response ladder — DONE 15 Sep 2026. `46007255` analysed.
 
 `scripts/23_context_permutation.py`, `jobs/r8_journal/23_ctx_ladder.sbatch`,
 eGTEx heldout, 76,893 pairs, four rungs, seed 42:
@@ -2363,11 +2579,8 @@ eGTEx heldout, 76,893 pairs, four rungs, seed 42:
     rung 3  tissue_Lung   the SAME locus's context in a different tissue
     rung 4  xtissue_mean  per-locus mean across all four tissues
 
-**Status 15 Sep 2026: COMPLETED 0:0, elapsed 4:53:44, all four rung files on
-disk. The numbers have NOT been read into these notes yet.** (Status at handoff
-was: submitted and PENDING.) ~4.9 GPU h projected
-from the smoke's measured 0.0575 s/pair/scheme, inside an 8 h walltime. This is
-the last compute in the project. Nothing runs after it.
+**Status: COMPLETED 0:0, elapsed 4:53:44, ~4.9 GPU h as projected. Analysed
+15 Sep 2026 — see RESULT below.** This was the last compute in the project.
 
 **It is single-shot — there is no separate analyse step.** On success the job
 writes, under `results/journal/ablation_breast_epithelium/context_ladder/`:
@@ -2375,6 +2588,153 @@ writes, under `results/journal/ablation_breast_epithelium/context_ladder/`:
 `pair_scores_{identity,shuffle,tissue_Lung,xtissue_mean}.csv`, and
 `run_summary.json`. Confirm `sacct -j 46007255` is COMPLETED 0:0 **and** that
 the log's per-rung guards fired (below) before reading any number.
+
+#### RESULT — read 15 Sep 2026. Guards clean. The banner is WRONG, and here is why.
+
+**Guards, verified before reading any number** (per the standing instruction):
+
+    train split contributed      0 target probes     <- split discipline clean
+    val   split contributed      0 target probes
+    test  split contributed 20,634 target probes
+    all four tissue builds resolved; 20,632 of 20,634 present in ALL four (99.99%)
+    tissue_Lung   context replaced 76,884 / 76,893 rows (100.0%)
+    xtissue_mean  context replaced 76,884 / 76,893 rows (100.0%)
+    PhyloP max shift, both rungs   0.000e+00 (expected exactly 0)
+    clobber check clean; nothing written outside the context_ladder subtree
+
+(The notes predicted 26,558/26,570 probe coverage. The actual target count is
+20,634 — 26,570 is the full test probe set, and only 20,634 of those carry
+scoreable variants. The ratio is as expected; the earlier figure was the wrong
+denominator, harmless here.)
+
+**Level accuracy against truth — a clean dose-response** (`level_accuracy_by_scheme.csv`,
+20,634 probes):
+
+    rung            beta MAE   vs identity   beta Pearson
+    identity          0.0899        --           0.9261
+    xtissue_mean      0.0916      +1.9%          0.9246
+    tissue_Lung       0.1029     +14.5%          0.9069
+    shuffle           0.2260    +151.4%          0.5634
+
+The ladder behaves exactly as designed: the more realistic the substituted
+context, the smaller the cost. **The cross-tissue mean context costs 1.9%** — a
+locus's average context across four tissues is very nearly as good as its own.
+That is a result in its own right and it supports R3: if averaged context is
+almost free, tissue-specific context is carrying little for level prediction.
+
+#### The banner fired at full scale — and it is an artefact. Do not act on it.
+
+The job printed, on all 76,893 pairs, the same verdict the smoke did:
+
+> At least one scheme moved the deltas as much as the levels.
+> The allele-invariance argument does NOT hold empirically here.
+
+**The banner is implemented on Pearson only** — visible in the log's own
+`levels r= / deltas r=` lines. §1 R2 already records why Pearson is the wrong
+metric here: methylation levels are bimodal with SD 3.18 M-units, so a high
+Pearson on levels is cheap and not comparable across the two quantities.
+
+Pooled agreement with identity, all four metrics:
+
+    rung          normMAE_lev  normMAE_del  ratio | Spear_l  Spear_d | sign_l  sign_d | Pear_l  Pear_d
+    shuffle          0.5260       0.2266    2.32x |  0.6180   0.7755 | 0.7522  0.8440 | 0.6324  0.7528
+    tissue_Lung      0.1577       0.1154    1.37x |  0.9581   0.9564 | 0.9596  0.9473 | 0.9709  0.9527
+    xtissue_mean     0.0774       0.0650    1.19x |  0.9865   0.9856 | 0.9767  0.9737 | 0.9927  0.9827
+
+Normalised MAE favours the deltas at **every** rung (2.32x, 1.37x, 1.19x).
+Spearman, sign agreement and Pearson favour the deltas **only under shuffle**,
+and reverse weakly at the two tissue rungs. That reversal is what trips the
+banner — and it is why this could not be settled from the pooled table alone.
+
+**This kills the §1 R2 defence as currently written.** That text says the
+dissociation holds "on normalised error, Spearman and sign agreement". At the
+realistic rungs, Spearman and sign agreement no longer support it. The sentence
+must change regardless of how the rest resolves.
+
+#### Why the reversal is not evidence against the dissociation
+
+Two independent checks, and the second is the one that settles it.
+
+**1. The rank metrics have no dynamic range left at rungs 3 and 4.** At
+`xtissue_mean`, levels Spearman is 0.9865 and deltas 0.9856 — a gap of 0.0009,
+with both quantities essentially unmoved. A correlation cannot resolve which of
+two nearly-unchanged quantities changed less. Only normalised error retains
+resolution in that regime, and it keeps the same sign throughout.
+
+**2. Stratifying by effect size — and the stratifier matters enormously.**
+
+Binning on the model's own `|Predicted_Delta_M|` from the identity run appears
+to show the dissociation *reversing* for small deltas (ratio 0.10x-0.28x in the
+smallest quintile, rising monotonically to 1.37x-2.00x in the largest). **That is
+regression to the mean and must not be reported.** Selecting pairs whose
+identity-run delta happened to land near zero guarantees the other rung's delta
+sits relatively further away, purely by selection.
+
+Re-binning on the **observed** effect size `beta_ref_to_alt`, which is
+model-independent and therefore bias-free, removes the artefact completely.
+Reproduce both with `scripts/58_ladder_effect_size_stratification.py`
+(`--stratifier observed` for the result, `--stratifier predicted` to regenerate
+the artefact) ->
+`results/journal/ablation_breast_epithelium/context_ladder_stratified/`:
+
+    quintile of observed |beta|   shuffle   tissue_Lung   xtissue_mean
+      Q1 smallest                  2.09x       1.20x         1.06x
+      Q2                           2.17x       1.24x         1.08x
+      Q3                           2.13x       1.22x         1.09x
+      Q4                           2.31x       1.34x         1.15x
+      Q5 largest                   2.56x       1.63x         1.40x
+    (ratio = normMAE_levels / normMAE_deltas, within-quintile SD; >1 = deltas
+     move LESS. Delta sign agreement is flat and high across quintiles:
+     ~0.84 shuffle, ~0.95 tissue_Lung, ~0.97 xtissue_mean.)
+
+**The dissociation holds at every quintile of every rung, and is strongest for
+the largest observed effects.** State the trend carefully: it is **not strictly
+monotone** — only `xtissue_mean` increases at every step; `shuffle` (2.09, 2.17,
+2.13, 2.31, 2.56) and `tissue_Lung` (1.20, 1.24, 1.22, 1.34, 1.63) wobble across
+the lower three quintiles. The honest description is **flat across Q1-Q3, then
+rising clearly in Q4 and Q5**, with Q5 vs Q1 of 2.56 vs 2.09, 1.63 vs 1.20, and
+1.40 vs 1.06. The monotonicity flag in `58`'s summary records this per rung; do
+not write "monotonic" in the manuscript.
+
+Even stated that way it is the strongest form of the R2 result the project has
+produced: the variants with the largest *measured* effects are the ones whose
+predicted effects are most robust to having their context replaced, and the
+dissociation never reverses anywhere.
+
+#### What R2 must now say, and must not say
+
+**Must not say:** the blanket allele-invariance claim, and the current "on
+normalised error, Spearman and sign agreement" phrasing. Both are now
+contradicted by the pooled table.
+
+**Must say**, and this is well supported:
+
+- corrupting context degrades predicted **levels** more than predicted **variant
+  effects**, on scale-fair normalised error, at all three perturbation rungs;
+- the separation is **dose-dependent** — 2.32x under a random context, 1.37x
+  under another tissue's context at the same locus, 1.19x under the cross-tissue
+  mean — and shrinks as the perturbation becomes realistic;
+- the separation is **largest for the largest observed effects** (Q5 vs Q1 at
+  every rung), so it is not a small-effect noise artefact — but it is flat across
+  the bottom three quintiles and must not be called monotonic;
+- **report the Pearson/Spearman reversal at rungs 3-4 explicitly**, with the
+  saturation explanation. A reviewer who recomputes it will find it, and the same
+  transparency argument already applied to the original Pearson discrepancy in
+  §1 R2 applies here. Do not quietly select the metric that agrees with us.
+
+**The honest one-line version:** *context sets the methylation baseline and the
+predicted variant effect is comparatively robust to it, increasingly so for
+variants with larger measured effects — but under realistic context substitution
+both quantities move so little that rank-based metrics cannot separate them.*
+
+#### On the banner itself
+
+`23_context_permutation.py`'s verdict banner should not be trusted as written —
+it tests a Pearson inequality that §1 R2 had already documented as the wrong
+comparison. Either fix it to use normalised MAE or delete it; leaving it in
+place means the next person to run this script gets the same wrong verdict.
+**Not fixed in this pass** — scope is frozen and the script's outputs are
+correct; this is a lead, recorded per directive 1.
 
 #### Why `45998301` failed, and what the fix was
 
@@ -2410,7 +2770,7 @@ Level MAE on the smoke's 105 probes, for orientation only — **n is far too sma
 to read as the result**: identity 0.0912, xtissue_mean 0.0907, tissue_Lung
 0.0959, shuffle 0.1074.
 
-#### A flag on the smoke's verdict banner — do not act on it yet
+#### A flag on the smoke's verdict banner — RESOLVED, see RESULT above
 
 The smoke printed: *"At least one scheme moved the deltas as much as the levels.
 The allele-invariance argument does NOT hold empirically here. Do not claim it;
@@ -2419,7 +2779,11 @@ re-evaluates it from scratch. It is flagged here only because it can touch the
 same R2 sentences as the sub-channel split, which is exactly the churn
 directive 2 exists to prevent. **Read it off `46007255`, not off the smoke.**
 
-#### If `46007255` fails
+**RESOLVED 15 Sep 2026.** The banner did fire at full scale, and it is a Pearson
+artefact — see `RESULT` above. The dissociation holds. The smoke was not
+misleading about *whether* the banner would fire, only about what it means.
+
+#### If `46007255` fails — MOOT, it completed 0:0. Kept for the clobber-guard idiom.
 
 Check `sacct` elapsed first, per the `45997644` post-mortem above: a full-length
 elapsed with outputs on disk means the science landed and only a guard tripped.
@@ -2653,6 +3017,84 @@ then sits with R3, and F (3.2) references it across the section boundary.
 **Raise this with the mentor rather than silently filing R3/R4/D somewhere.** He
 has not seen Task D, and where transfer lands changes what 3.1 and 3.4 each claim.
 
+### H. Figures and supplement for R8 — DONE 15 Sep 2026, zero GPU
+
+The R8 analyses had **no figures and no supplement entries at all**. Both now
+exist. Neither of the frozen builders (91, 90) was modified.
+
+#### Figures — `scripts/92_build_r8_figures.py` -> `results/journal/manuscript_figures_r8/`
+
+    fig_r8_1_fusion_gain_relative.png   Task F   -> Results 3.2
+    fig_r8_2_context_ladder.png         Task B   -> Results 3.3
+    fig_r8_3_transfer_vs_gain.png       D x F    -> Results 3.2/3.3 boundary
+    fig_r8_4_asm_discrimination.png     Task E1  -> Results 3.4  [awaits 46096838]
+    fig_r8_5_gate_decomposition.png     Task A   -> Results 3.3
+
+**Why a new script rather than extending 91.** Script 91 ends with
+`keep_manuscript_outputs()`, which **deletes every file in its output directory
+that is not on its own hard-coded whitelist**. Extending it would mean editing
+that whitelist and re-running a frozen builder across published outputs. Script
+92 writes to its own directory; 91 is untouched.
+
+**An earlier claim in this session was wrong and is withdrawn.** I said the
+manuscript figure `fusion_gain_by_epigenomic_context.png` was stale because it
+was built on MCF-10A. The published `results/journal/manuscript_figures/` copy
+is indeed MCF-10A, but a correct breast-epithelium rebuild already exists at
+`results/journal/ablation_breast_epithelium/manuscript_figures/` (13 Sep). The
+real gap was never a stale figure; it was that **R8 had no figures**.
+
+**Two drawing decisions, both made to stop a figure overstating the result:**
+
+1. **Figure 1 leads with RELATIVE gain, not absolute.** Absolute gain is bounded
+   by the sequence-only error in each stratum, so plotting it ranks strata by how
+   badly they start. On the absolute measure shores look like where context
+   matters most; on the relative one they are 10th of 32 and islands beat them.
+2. **Figure 3 does not force the D-F pairing.** It draws both measures for the
+   three strata Task D flagged, with each stratum's rank out of 32:
+
+        stratum          absolute gain    relative gain
+        Shore              rank  3/32       rank 10/32
+        H3K4me1 high       rank  1/32       rank 12/32
+        H3K27me3 high      rank 30/32       rank 32/32
+
+   So the pairing holds for 2 of 3 on absolute and for **none** on relative, and
+   H3K27me3 inverts on both. The figure says so in its own panel titles. The
+   sentence "context helps most exactly where sequence alone transfers worst" is
+   defensible only on the absolute measure and only with the polycomb exception
+   attached — and it should probably not be written at all.
+
+#### Supplement — `scripts/93_build_r8_supplement.py` -> `results/supplementary_package_r8/`
+
+Sections **S7-S11**, continuing the published S1-S6 numbering. Same layout as
+script 90 (numbered section folders, README naming every file, SHA256SUMS.txt),
+built into a separate directory so script 90 and the published sections are not
+touched. Merge the two at submission.
+
+    S7   gate decomposition + sub-channel split        1 file
+    S8   context ladder + effect-size stratification   6 files
+    S9   transfer failure                              2 files
+    S10  fusion gain by region                         3 files
+    S11  ASM validation                                2 files, PARTIAL
+
+**S8 deliberately ships the artefact table.** `ladder_effect_size_stratification
+_predicted.csv` is the invalid predicted-delta binning, included and named
+`_ARTEFACT` so the regression-to-the-mean trap is on the record rather than
+rediscovered. The README says it is not a result.
+
+**S11 is partial until `46096838` lands** — three of its five files do not exist
+yet. The builder reports missing inputs instead of failing, and the README states
+which sections are incomplete, so a partial package cannot be mistaken for a
+finished one. **Rerun both 92 and 93 after the job completes.**
+
+#### What is NOT done, and is not figures or supplement
+
+- **E2** — signed statistics. Not buildable from the atlas; CanASM still 504.
+- **`23_context_permutation.py`'s verdict banner** still tests a Pearson
+  inequality this file already documents as the wrong comparison. Its outputs are
+  correct, so this is a recorded lead, not a defect. Not fixed: scope.
+- **Everything else remaining is prose** plus the mentor's decision on where
+  R3/R4/D sit in the 3.1-3.6 structure (subsection G).
+
 ### Standing directives for the rest of R8 (14 Sep 2026)
 
 1. **Scope is FROZEN**: A + sub-channel split, B, C, D — and, added 15 Sep 2026
@@ -2685,7 +3127,7 @@ has not seen Task D, and where transfer lands changes what 3.1 and 3.4 each clai
    reproduce it), match the artifact and report the single-seed sensitivity
    alongside — F does this.
 
-### Where this stands — 15 Sep 2026
+### Where this stands — 15 Sep 2026, B analysed
 
 **`46007255` landed: COMPLETED 0:0, elapsed 4:53:44.** Task B is done and all
 four rungs wrote. That was the last GPU compute in the project as planned; the
@@ -2695,10 +3137,10 @@ only compute that could follow is E's scoring run, which is not authorised yet.
 |---|---|
 | A. gate decomposition | DONE, `45992001` COMPLETED 0:0, committed |
 | A. sub-channel split | DONE, `45997644` (FAILED 1:0 on the guard only — outputs correct, analysed, committed) |
-| B. context ladder | **DONE**, `46007255` COMPLETED 0:0, 4:53:44, outputs on disk — **not yet analysed** |
+| B. context ladder | **DONE and ANALYSED** 15 Sep 2026 — dissociation holds, verdict banner is a Pearson artefact |
 | C. gate plasticity | DONE, null, zero GPU |
 | D. transfer failure | DONE, hypothesis holds, zero GPU |
-| E. ASM validation | **REOPENED** — the drop was our error; n clears the floor; blocked on CanASM server + authorisation |
+| E. ASM validation | **REOPENED and UNBLOCKED** — Nat Commun 2025 atlas on disk; 12,550 breast / 136,065 all-tissue chr8+9 pairs counted; needs authorisation only |
 | F. fusion gain by region | **DONE** 15 Sep 2026, zero GPU, script 57 |
 
 Budget: ~22.4 GPU h spent of 125 (17.5 + B's 4.9). E is ~3 h if authorised.
@@ -2707,16 +3149,20 @@ Budget: ~22.4 GPU h spent of 125 (17.5 + B's 4.9). E is ~3 h if authorised.
 landed, and there are two more:
 
 1. the sub-channel split's sequence-dominance result (A);
-2. B's four-rung ladder, **and the smoke's allele-invariance banner as
-   re-measured at full scale** — read it off `46007255`, never off the smoke;
+2. B's four-rung ladder, **and the resolution of the allele-invariance banner**:
+   it fires at full scale but is a Pearson artefact. R2's current "on normalised
+   error, Spearman and sign agreement" phrasing is now false and MUST be
+   rewritten; the supported claim is dose-dependent and strengthens with observed
+   effect size. Subsection B has the exact wording to use and to avoid;
 3. D's transfer-failure localisation;
 4. **F's fusion-gain stratification**, including the absolute-vs-relative
    distinction and the polycomb inversion against D (subsection F);
 5. **the 3.1–3.6 restructure** (subsection G), including the R3/R4/D gap.
 
-**Read B's outputs before writing anything that touches R2.** `46007255`
-completed but its numbers have not been read into these notes, and rung 4 can
-change R2 sentences. That is the next action, ahead of the wording pass itself.
+**B is read in and R2's required change is now known** (subsection B). The
+wording pass is no longer blocked on compute — every input has landed. Its
+remaining dependency is a decision from the mentor on where R3/R4/D sit in the
+3.1-3.6 structure (subsection G).
 
 No further jobs are to be submitted without authorisation. E's scoring run is the
 single exception under discussion, and it is not authorised yet.

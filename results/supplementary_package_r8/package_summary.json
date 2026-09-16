@@ -1,0 +1,28 @@
+{
+  "analysis": "R8 supplementary data package (S7-S11)",
+  "analysis_status": "PARTIAL",
+  "files_copied": 14,
+  "generated_utc": "2026-09-16T00:13:52.498028+00:00",
+  "missing_inputs": [
+    {
+      "section": "S11",
+      "source": "results/journal/asm_validation/asm_discrimination.csv"
+    },
+    {
+      "section": "S11",
+      "source": "results/journal/asm_validation/asm_matching_balance.csv"
+    },
+    {
+      "section": "S11",
+      "source": "results/journal/asm_validation/evaluation_summary.json"
+    }
+  ],
+  "note": "Separate from the published S1-S6 package; script 90 is not modified. Merge the two directories at submission time.",
+  "sections": [
+    "S7",
+    "S8",
+    "S9",
+    "S10",
+    "S11"
+  ]
+}
