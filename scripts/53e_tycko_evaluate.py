@@ -154,9 +154,12 @@ def evaluate_snp_level(snps: pd.DataFrame, label: str, args, offset: int) -> lis
             "Signed_Spearman": rho,
             "Spearman_CI_Low": r_lo, "Spearman_CI_High": r_hi,
             "Spearman_P_LE_Zero": float(np.mean(r_draws <= 0)) if len(r_draws) else float("nan"),
-            "AUROC_Positive_vs_Negative": auroc,
-            "AUROC_CI_Low": a_lo, "AUROC_CI_High": a_hi,
-            "AUROC_P_LE_Half": float(np.mean(a_draws <= 0.5)) if len(a_draws) else float("nan"),
+            # NOT case-vs-control: every SNP here is an ASM SNP. The two classes
+            # are the SIGN of the measured ALT-REF difference, so this ranks
+            # alleles within ASM sites. E1's AUROC_Detection ranks sites.
+            "AUROC_Directional": auroc,
+            "AUROC_Directional_CI_Low": a_lo, "AUROC_Directional_CI_High": a_hi,
+            "AUROC_Directional_P_LE_Half": float(np.mean(a_draws <= 0.5)) if len(a_draws) else float("nan"),
             "N_Genomic_Blocks": int(n_blocks),
         })
     return rows
@@ -191,7 +194,7 @@ def evaluate_discrimination(pairs: pd.DataFrame, label: str, args,
         rows.append({
             "Stratum": label, "Score": name, "N_Pairs": int(len(block)),
             "N_Positive": int(y.sum()),
-            "AUROC": float(roc_auc_score(y, value)),
+            "AUROC_Detection": float(roc_auc_score(y, value)),
             "CI_Low": lo, "CI_High": hi,
             "P_LE_Half": float(np.mean(draws <= 0.5)) if len(draws) else float("nan"),
             "N_Genomic_Blocks": int(n_blocks),
@@ -246,7 +249,7 @@ def run(args: argparse.Namespace) -> int:
     if not e1.empty:
         atomic_csv(e1, args.output_dir / "tycko_e1_discrimination.csv")
 
-    baseline = e1[e1["Score"] == "distance_only_baseline"]["AUROC"] if not e1.empty else []
+    baseline = e1[e1["Score"] == "distance_only_baseline"]["AUROC_Detection"] if not e1.empty else []
     baseline_value = float(baseline.iloc[0]) if len(baseline) else float("nan")
 
     summary = {
@@ -257,6 +260,17 @@ def run(args: argparse.Namespace) -> int:
         "e2_unit": "one ASM index SNP; prediction = mean predicted delta over the "
                    "CpGs scored inside that SNP's ASM DMR, matching how the "
                    "published effect was averaged over the DMR",
+        "auroc_note": (
+            "TWO DIFFERENT AUROCs, and they answer different questions. "
+            "E2's AUROC_Directional contains NO non-ASM entities: every SNP in "
+            "it is an ASM SNP and the two classes are the SIGN of the measured "
+            "ALT-REF difference, so it asks which ALLELE carries the "
+            "methylation. It is a continuous-margin restatement of direction "
+            "concordance and is NOT independent of it. E1's AUROC_Detection "
+            "separates ASM CpGs from distance-matched non-DMR CpGs and asks "
+            "which SITE is allele-specifically methylated. Do not compare the "
+            "two numbers to each other, and do not read either column name as "
+            "case-versus-control."),
         "scale_note": (
             "Observed effects are percentage points of methylation; predicted "
             "deltas are on the model's M scale. Magnitudes are NOT comparable and "
@@ -282,19 +296,19 @@ def run(args: argparse.Namespace) -> int:
     print("E2 -- signed agreement with observed allelic methylation (Do & Tycko 2020)")
     print("=" * 96)
     print(f"  {'stratum':<22}{'arm':<10}{'n':>6}{'direction':>11}{'95% CI':>18}"
-          f"{'sSpearman':>11}{'AUROC+/-':>10}")
+          f"{'sSpearman':>11}{'AUROCdir':>10}")
     for _, r in e2.iterrows():
         print(f"  {r['Stratum']:<22}{r['Arm']:<10}{int(r['N_SNPs']):>6}"
               f"{r['Direction_Concordance']:>11.4f}"
               f"   [{r['Direction_CI_Low']:.3f}, {r['Direction_CI_High']:.3f}]"
-              f"{r['Signed_Spearman']:>11.4f}{r['AUROC_Positive_vs_Negative']:>10.4f}")
+              f"{r['Signed_Spearman']:>11.4f}{r['AUROC_Directional']:>10.4f}")
     if not e1.empty:
         print("\n" + "=" * 96)
         print("E1 -- discrimination, ASM CpGs vs distance-matched non-DMR CpGs")
         print("=" * 96)
         for _, r in e1.iterrows():
             print(f"  {r['Stratum']:<22}{r['Score']:<26}{int(r['N_Pairs']):>7,}"
-                  f"{r['AUROC']:>9.4f}   [{r['CI_Low']:.3f}, {r['CI_High']:.3f}]")
+                  f"{r['AUROC_Detection']:>9.4f}   [{r['CI_Low']:.3f}, {r['CI_High']:.3f}]")
         print(f"\n  distance-only baseline = {baseline_value:.4f}")
     print("=" * 96)
     print(f"wrote {e2_path}")

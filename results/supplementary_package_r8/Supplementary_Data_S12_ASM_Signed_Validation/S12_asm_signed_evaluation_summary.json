@@ -1,12 +1,13 @@
 {
   "analysis": "ASM validation against Do & Tycko 2020 (E1 + E2)",
   "analysis_status": "COMPLETE",
+  "auroc_note": "TWO DIFFERENT AUROCs, and they answer different questions. E2's AUROC_Directional contains NO non-ASM entities: every SNP in it is an ASM SNP and the two classes are the SIGN of the measured ALT-REF difference, so it asks which ALLELE carries the methylation. It is a continuous-margin restatement of direction concordance and is NOT independent of it. E1's AUROC_Detection separates ASM CpGs from distance-matched non-DMR CpGs and asks which SITE is allele-specifically methylated. Do not compare the two numbers to each other, and do not read either column name as case-versus-control.",
   "block_size_bp": 1000000,
   "bootstrap_replicates": 2000,
   "e1_distance_only_baseline": 0.5029861309636325,
   "e1_results": [
     {
-      "AUROC": 0.5029861309636325,
+      "AUROC_Detection": 0.5029861309636325,
       "CI_High": 0.5309179609190173,
       "CI_Low": 0.47974809997345935,
       "N_Genomic_Blocks": 179,
@@ -17,7 +18,7 @@
       "Stratum": "all tissues"
     },
     {
-      "AUROC": 0.5419262389246312,
+      "AUROC_Detection": 0.5419262389246312,
       "CI_High": 0.5797952806298304,
       "CI_Low": 0.5078280391400819,
       "N_Genomic_Blocks": 179,
@@ -28,7 +29,7 @@
       "Stratum": "all tissues"
     },
     {
-      "AUROC": 0.543189023818488,
+      "AUROC_Detection": 0.543189023818488,
       "CI_High": 0.5848072467164642,
       "CI_Low": 0.5017380551512488,
       "N_Genomic_Blocks": 179,
@@ -41,10 +42,10 @@
   ],
   "e2_results": [
     {
-      "AUROC_CI_High": 0.6694878885726571,
-      "AUROC_CI_Low": 0.5841321248492133,
-      "AUROC_P_LE_Half": 0.0,
-      "AUROC_Positive_vs_Negative": 0.6277083075399281,
+      "AUROC_Directional": 0.6277083075399281,
+      "AUROC_Directional_CI_High": 0.6694878885726571,
+      "AUROC_Directional_CI_Low": 0.5841321248492133,
+      "AUROC_Directional_P_LE_Half": 0.0,
       "Arm": "fusion",
       "Direction_CI_High": 0.6299442521242639,
       "Direction_CI_Low": 0.550253913141358,
@@ -60,10 +61,10 @@
       "Stratum": "all tissues"
     },
     {
-      "AUROC_CI_High": 0.6709834209301186,
-      "AUROC_CI_Low": 0.5881406779353364,
-      "AUROC_P_LE_Half": 0.0,
-      "AUROC_Positive_vs_Negative": 0.6308344682431596,
+      "AUROC_Directional": 0.6308344682431596,
+      "AUROC_Directional_CI_High": 0.6709834209301186,
+      "AUROC_Directional_CI_Low": 0.5881406779353364,
+      "AUROC_Directional_P_LE_Half": 0.0,
       "Arm": "sequence",
       "Direction_CI_High": 0.6292539988968561,
       "Direction_CI_Low": 0.5538216492791707,
@@ -79,10 +80,10 @@
       "Stratum": "all tissues"
     },
     {
-      "AUROC_CI_High": 0.7266818181818181,
-      "AUROC_CI_Low": 0.43649178981937603,
-      "AUROC_P_LE_Half": 0.1575,
-      "AUROC_Positive_vs_Negative": 0.574712643678161,
+      "AUROC_Directional": 0.574712643678161,
+      "AUROC_Directional_CI_High": 0.7266818181818181,
+      "AUROC_Directional_CI_Low": 0.43649178981937603,
+      "AUROC_Directional_P_LE_Half": 0.1575,
       "Arm": "fusion",
       "Direction_CI_High": 0.6939219165927238,
       "Direction_CI_Low": 0.4426229508196721,
@@ -98,10 +99,10 @@
       "Stratum": "mammary"
     },
     {
-      "AUROC_CI_High": 0.7240428571428569,
-      "AUROC_CI_Low": 0.43162537321083055,
-      "AUROC_P_LE_Half": 0.173,
-      "AUROC_Positive_vs_Negative": 0.5675287356321839,
+      "AUROC_Directional": 0.5675287356321839,
+      "AUROC_Directional_CI_High": 0.7240428571428569,
+      "AUROC_Directional_CI_Low": 0.43162537321083055,
+      "AUROC_Directional_P_LE_Half": 0.173,
       "Arm": "sequence",
       "Direction_CI_High": 0.7059077079107504,
       "Direction_CI_Low": 0.42592592592592593,
@@ -117,10 +118,10 @@
       "Stratum": "mammary"
     },
     {
-      "AUROC_CI_High": 0.6986966768459208,
-      "AUROC_CI_Low": 0.6004107780854893,
-      "AUROC_P_LE_Half": 0.0,
-      "AUROC_Positive_vs_Negative": 0.6515808752650858,
+      "AUROC_Directional": 0.6515808752650858,
+      "AUROC_Directional_CI_High": 0.6986966768459208,
+      "AUROC_Directional_CI_Low": 0.6004107780854893,
+      "AUROC_Directional_P_LE_Half": 0.0,
       "Arm": "fusion",
       "Direction_CI_High": 0.652494839631629,
       "Direction_CI_Low": 0.5569948425624321,
@@ -136,10 +137,10 @@
       "Stratum": "|effect| >= 20.0pp"
     },
     {
-      "AUROC_CI_High": 0.7028567375408155,
-      "AUROC_CI_Low": 0.6054212091391242,
-      "AUROC_P_LE_Half": 0.0,
-      "AUROC_Positive_vs_Negative": 0.6565572585309427,
+      "AUROC_Directional": 0.6565572585309427,
+      "AUROC_Directional_CI_High": 0.7028567375408155,
+      "AUROC_Directional_CI_Low": 0.6054212091391242,
+      "AUROC_Directional_P_LE_Half": 0.0,
       "Arm": "sequence",
       "Direction_CI_High": 0.6552317717708708,
       "Direction_CI_Low": 0.565527780842684,
@@ -156,7 +157,7 @@
     }
   ],
   "e2_unit": "one ASM index SNP; prediction = mean predicted delta over the CpGs scored inside that SNP's ASM DMR, matching how the published effect was averaged over the DMR",
-  "generated_utc": "2026-09-16T04:09:32.163862+00:00",
+  "generated_utc": "2026-09-16T11:07:00.540667+00:00",
   "inputs": {
     "results/journal/asm_validation_tycko/tycko_pair_scores.csv": "bfe5b0bd66b857d8ca51ecee4d8cfe6827e9c4b977f107f263b071c1caa61974"
   },

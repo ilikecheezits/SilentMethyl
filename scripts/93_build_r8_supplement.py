@@ -140,17 +140,24 @@ ITEMS = (
 
     Item("S12", JOURNAL / "asm_validation_tycko/tycko_e2_signed_agreement.csv",
          "S12_asm_signed_agreement.csv",
-         "Direction concordance, signed Spearman and positive-versus-negative "
-         "AUROC per ASM index SNP (n=722), by stratum and model arm, with 1 Mb "
-         "block-bootstrap intervals. The unit is one SNP: the prediction is the "
-         "mean predicted delta over the CpGs scored inside that SNP's ASM DMR, "
-         "matching how the published effect was averaged. The mammary stratum "
-         "(n=53) is underpowered and is not a headline. The |effect| >= 20 pp "
-         "stratum is post-hoc and was not pre-registered."),
+         "Direction concordance, signed Spearman and AUROC_Directional per ASM "
+         "index SNP (n=722), by stratum and model arm, with 1 Mb block-bootstrap "
+         "intervals. The unit is one SNP: the prediction is the mean predicted "
+         "delta over the CpGs scored inside that SNP's ASM DMR, matching how the "
+         "published effect was averaged. AUROC_Directional is NOT case-versus-"
+         "control: every SNP in it is an ASM SNP and the classes are the sign of "
+         "the measured ALT-REF difference, so it is a continuous-margin "
+         "restatement of direction concordance and is not independent of it. All "
+         "three columns are one signed agreement measured three ways. The mammary "
+         "stratum (n=53) is underpowered and is not a headline. The |effect| >= "
+         "20 pp stratum is post-hoc and was not pre-registered."),
     Item("S12", JOURNAL / "asm_validation_tycko/tycko_e1_discrimination.csv",
          "S12_asm_discrimination_replication.csv",
-         "Discrimination of ASM CpGs from distance-matched non-DMR CpGs in the "
-         "second, independent catalogue, with the distance-only null baseline. "
+         "AUROC_Detection: discrimination of ASM CpGs from distance-matched "
+         "non-DMR CpGs in the second, independent catalogue, with the "
+         "distance-only null baseline. This asks which SITE is allele-specifically "
+         "methylated and is a different question from S12's AUROC_Directional; "
+         "the two numbers are not comparable to each other. "
          "Compare against S11: the two catalogues' estimates lie inside each "
          "other's confidence intervals."),
     Item("S12", JOURNAL / "asm_validation_tycko/tycko_evaluation_summary.json",

@@ -77,7 +77,7 @@ came back **no**, with an identified mechanism (winner's curse).
 | 6 | independent variant evaluation | **met** — two cohorts, meta-analysis, null control, distance-matched AUROC |
 | 7 | regulatory enrichment | **met, reinterpreted** — ETS coupling is compositional; the k-mer control reproduced it more strongly |
 | 8 | multi-tissue jointly-trained framework | **declined on architectural grounds** — see §1 R2. Context is allele-invariant; the proposed build cannot answer the question it was proposed for |
-| 9 | functional validation (ASM, ATAC, TFBS, eQTL, eQTM) | **partially met, 16 Sep 2026** — ASM validated against two independent catalogues (§6 J). Discrimination replicates (0.54-0.57, both exclude 0.5); signed agreement on n=722 Do & Tycko SNPs gives direction 0.590, Spearman 0.241, AUROC 0.628. ATAC/TFBS/eQTL/eQTM remain the gap — see §3 |
+| 9 | functional validation (ASM, ATAC, TFBS, eQTL, eQTM) | **partially met, 16 Sep 2026** — ASM validated against two independent catalogues (§6 J). Discrimination replicates (0.54-0.57, both exclude 0.5); signed agreement on n=722 Do & Tycko SNPs gives direction 0.590, Spearman 0.241, directional AUROC 0.628 — these three are one signed agreement measured three ways, not independent, see §6 J. ATAC/TFBS/eQTL/eQTM remain the gap — see §3 |
 
 ### Standing constraints
 
@@ -3343,32 +3343,72 @@ scored DMR CpGs, as §I required. n = 722 SNPs, 328 observed-positive. CIs are
 2,000-replicate bootstrap over 179 1-Mb genomic blocks.
 
     statistic                    predicted (§I)   fusion    sequence   verdict
+    -- signed agreement: SAME 722 SNPs, same checkpoints, NOT independent --
     direction concordance        0.60 - 0.70      0.5900    0.5914     MISSED, low
                                                   [0.550,   [0.554,
                                                    0.630]    0.629]
+    directional AUROC            0.62 - 0.72      0.6277    0.6308     HIT
+      (§I called this "AUROC                      [0.584,   [0.588,
+       positive vs negative")                      0.669]    0.671]
     signed Spearman              +0.15 - +0.35    0.2410    0.2503     HIT
                                                   [0.180,   [0.193,
                                                    0.299]    0.306]
-    AUROC positive vs negative   0.62 - 0.72      0.6277    0.6308     HIT
-                                                  [0.584,   [0.588,
-                                                   0.669]    0.671]
+    -- structurally independent of the three above --
     sequence arm >= fusion arm   yes              — sequence higher on all 3 —  HIT
     mammary (n=53) not sep. sig. yes              p 0.152-0.196, CIs span null  HIT
 
-**Four of five hit; direction concordance missed on the low side.** It came in at
-0.590/0.591 against a pre-specified floor of 0.60 — short by about one point, not
-a collapse. **It is written down as a miss and not re-banded.** The §I text set
-0.55 as the threshold below which the result would be "a real limit on the
-paper's central claim"; the observed value is above that, and its bootstrap CI
-excludes 0.5 (`P_LE_Half = 0.0`, CI low 0.550 fusion / 0.554 sequence). So the
-model calls the methylated allele better than chance, reliably, but less well
-than the mQTL cohorts led us to predict. The honest sentence for the paper is
-**"above chance and below what we expected"**, not "as predicted".
+**Do NOT write this up as "four of five independent predictions hit."** That is
+technically true and will not survive a careful reader. Three of the five are
+signed-agreement statistics computed on the same 722 SNPs from the same two
+checkpoints, so they cannot confirm one another:
 
-Signed Spearman and AUROC both landed inside their bands, and the sequence-arm
-ordering held on all three statistics — though by margins (0.0014, 0.0093,
-0.0031) far too small to be called a separation. Report it as "sequence is not
-worse", consistent with R2, not as a sequence advantage.
+- **direction concordance** — `sign(pred) x sign(obs)`, discards both magnitudes;
+- **directional AUROC** — `predicted magnitude x sign(obs)`: the *same label* as
+  direction concordance, differing only in that the predicted margin is kept;
+- **signed Spearman** — `rank(pred) x rank(obs)`, keeps both.
+
+Direction concordance and the directional AUROC are the tightest pair — **one
+quantity measured two ways.** Spearman is a third view of the same signed
+agreement, not independent corroboration of it. The two genuinely independent
+predictions are the arm ordering and the mammary power call.
+
+The defensible framing, and the one to use: **two independent predictions, plus
+one quantity measured three ways.**
+
+#### Why the twin split — direction missed, its continuous version hit
+
+State this rather than leave it to be discovered. Direction concordance landed
+0.01 *below* its band while the directional AUROC landed *inside* its own, and a
+reader who notices the two are the same quantity will ask how.
+
+The mechanism: **a sign error costs direction concordance a full count however
+small the margin, but costs the AUROC almost nothing when the misranked SNP sits
+near the middle of the predicted ordering.** The two therefore diverge exactly
+when sign errors concentrate on SNPs the model predicts weakly. The split is not
+an inconsistency — it says the model gets *marginal* effect directions wrong more
+often than large ones, which is the expected failure mode and the same
+dose-dependence subsection B found.
+
+**Half of that is evidenced and half is structural — do not blur them.**
+Restricting to `|observed effect| >= 20 pp` raises direction concordance from
+0.590 to 0.6055 (fusion) and 0.591 to 0.6125 (sequence), into the predicted band:
+direct evidence that sign errors concentrate on small *measured* effects. The
+*predicted*-margin half of the mechanism was never measured, and measuring it
+would be a new analysis. Write the evidenced half, and label the stratum post-hoc.
+
+**The miss is a miss and is not re-banded.** 0.590/0.591 against a pre-specified
+floor of 0.60 is short by about a point, not a collapse. §I set 0.55 as the
+threshold below which the result would be "a real limit on the paper's central
+claim"; the observed value is above that, and its bootstrap CI excludes 0.5
+(`P_LE_Half = 0.0`, CI low 0.550 fusion / 0.554 sequence). The model calls the
+methylated allele better than chance, reliably, but less well than the mQTL
+cohorts led us to predict. The honest sentence is **"above chance and below what
+we expected"**, not "as predicted".
+
+The sequence-arm ordering held on all three statistics — but by margins of
+0.0014, 0.0093 and 0.0031, far too small to be a separation, and across coupled
+statistics, so it is **one** observation and not three. Report it as "sequence is
+not worse", consistent with R2, not as a sequence advantage.
 
 **Mammary, n = 53, is a stratum and never the headline.** Direction 0.5660 both
 arms, every CI spanning the null (direction p = 0.152 fusion / 0.196 sequence).
@@ -3377,7 +3417,7 @@ with.
 
 **One stratum was NOT pre-registered and is flagged as such**: restricting to
 `|observed effect| >= 20 pp` (n = 578) raises direction to 0.6055/0.6125,
-Spearman to 0.2575/0.2670, AUROC to 0.6516/0.6566. Every statistic moves the
+Spearman to 0.2575/0.2670, directional AUROC to 0.6516/0.6566. Every statistic moves the
 right way with effect size, which is the same dose-dependence subsection B found.
 It supports the B wording, but it is post-hoc and must be labelled post-hoc.
 
@@ -3474,7 +3514,7 @@ only compute that could follow is E's scoring run, which is not authorised yet.
 | C. gate plasticity | DONE, null, zero GPU |
 | D. transfer failure | DONE, hypothesis holds, zero GPU |
 | E1. ASM discrimination | **DONE, AND REPLICATED** — Rosenski `46096838` 0.5625 fusion / 0.5736 sequence; Do & Tycko `46109189` 0.5419 / 0.5432. Mutually inside CIs, both exclude 0.5, both baselines null (subsection J) |
-| E2. ASM signed statistics | **DONE** `46109189` COMPLETED 0:0, 16 Sep 2026. n=722 SNPs. Direction 0.590/0.591 (pre-registered 0.60-0.70 — MISSED low, still excludes 0.5), signed Spearman 0.241/0.250 HIT, AUROC 0.628/0.631 HIT (subsection J) |
+| E2. ASM signed statistics | **DONE** `46109189` COMPLETED 0:0, 16 Sep 2026. n=722 SNPs. Direction 0.590/0.591 (pre-registered 0.60-0.70 — MISSED low, still excludes 0.5), signed Spearman 0.241/0.250 HIT, directional AUROC 0.628/0.631 HIT — one signed agreement measured three ways, NOT independent (subsection J) |
 | F. fusion gain by region | **DONE** 15 Sep 2026, zero GPU, script 57 |
 
 Budget: ~22.9 GPU h spent of 125 (17.5 + B's 4.9 + E's 0.5).

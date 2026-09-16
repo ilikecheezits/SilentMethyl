@@ -4,7 +4,7 @@ Companion to the published S1-S6 package built by
 `scripts/90_build_supplement_package.py`. These sections cover the R8
 analyses. Merge the two directories at submission.
 
-Generated 2026-09-16T10:40:27.196522+00:00.
+Generated 2026-09-16T11:11:33.827686+00:00.
 
 ## S7 — Gate decomposition of the fusion model's variant effect (Task A)
 
@@ -52,8 +52,8 @@ Directory: `Supplementary_Data_S11_ASM_Validation/`
 
 Directory: `Supplementary_Data_S12_ASM_Signed_Validation/`
 
-- **S12_asm_signed_agreement.csv** — Direction concordance, signed Spearman and positive-versus-negative AUROC per ASM index SNP (n=722), by stratum and model arm, with 1 Mb block-bootstrap intervals. The unit is one SNP: the prediction is the mean predicted delta over the CpGs scored inside that SNP's ASM DMR, matching how the published effect was averaged. The mammary stratum (n=53) is underpowered and is not a headline. The |effect| >= 20 pp stratum is post-hoc and was not pre-registered.
-- **S12_asm_discrimination_replication.csv** — Discrimination of ASM CpGs from distance-matched non-DMR CpGs in the second, independent catalogue, with the distance-only null baseline. Compare against S11: the two catalogues' estimates lie inside each other's confidence intervals.
+- **S12_asm_signed_agreement.csv** — Direction concordance, signed Spearman and AUROC_Directional per ASM index SNP (n=722), by stratum and model arm, with 1 Mb block-bootstrap intervals. The unit is one SNP: the prediction is the mean predicted delta over the CpGs scored inside that SNP's ASM DMR, matching how the published effect was averaged. AUROC_Directional is NOT case-versus-control: every SNP in it is an ASM SNP and the classes are the sign of the measured ALT-REF difference, so it is a continuous-margin restatement of direction concordance and is not independent of it. All three columns are one signed agreement measured three ways. The mammary stratum (n=53) is underpowered and is not a headline. The |effect| >= 20 pp stratum is post-hoc and was not pre-registered.
+- **S12_asm_discrimination_replication.csv** — AUROC_Detection: discrimination of ASM CpGs from distance-matched non-DMR CpGs in the second, independent catalogue, with the distance-only null baseline. This asks which SITE is allele-specifically methylated and is a different question from S12's AUROC_Directional; the two numbers are not comparable to each other. Compare against S11: the two catalogues' estimates lie inside each other's confidence intervals.
 - **S12_asm_signed_evaluation_summary.json** — Provenance, bootstrap settings, and the scale caveat: observed effects are percentage points of methylation and predicted deltas are on the model's M scale, so only sign, rank and AUROC are compared and no magnitude calibration is claimed.
 - **S12_asm_score_summary.json** — Scoring provenance: checkpoints and their hashes, seed, and the input-validation counters (reference-base mismatches, off-window and non-CpG-centred pairs, all zero).
 - **S12_asm_build_summary.json** — How the SNP-CpG pairs were built: the hg19 DMR liftOver, the GRCh38 SNP positions from Ensembl (deliberately NOT lifted), the multi-allelic exclusion, and the REF-versus-hg38 sign-convention check.
