@@ -1,5 +1,5 @@
 # Shared guards for the R6 breast-epithelium chain.
-ROOT=/ocean/projects/med250012p/szhang37/SilentMethyl
+ROOT="${SILENTMETHYL_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 ABL=results/journal/ablation_breast_epithelium
 CAND=$ABL/candidates
 COHORT=data/datafiles_breast_epithelium/testing_data_test_only.csv
@@ -8,7 +8,7 @@ FUSION_W='checkpoints_ablation/breast_epithelium/seed{seed}/fusion/best_weights.
 # so it legitimately stays on the published checkpoints. There is no
 # checkpoints_ablation/breast_epithelium/*/sequence and there should not be.
 SEQ_W='checkpoints_journal/seed{seed}/sequence/best_weights.pth'
-PY=/jet/home/szhang37/.conda/envs/silentmethyl/bin/python
+PY="${SILENTMETHYL_PY:-python}"
 
 stamp_start() { date '+%Y-%m-%d %H:%M:%S' > "$1"; echo "[*] clobber stamp: $(cat "$1")"; }
 

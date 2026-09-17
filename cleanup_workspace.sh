@@ -463,3 +463,72 @@ cat <<'NOTE'
       URL, byte count and sha256 are in data/external/external_manifest.json,
       so it is one documented download away.
 NOTE
+
+# ===========================================================================
+# RECORD OF THE 16 Sep 2026 PASS (applied by hand, not by this script)
+# ===========================================================================
+#
+# The sections above had already been applied and now free only ~2 MB. This
+# pass removed a further ~9.3 GB and ~500 files. Recorded here so the tree's
+# current state is auditable and every removal has a restore path.
+#
+# REMOVED -- resume state, 6.32 GB, 18 files
+#   checkpoints_ablation/*/*/latest_checkpoint.pt
+#   checkpoints_joint/*/*/latest_checkpoint.pt
+#     Same argument section 4d already made for checkpoints_folds, verified
+#     again: the three training scripts (10/11/12) WRITE this file and nothing
+#     READS it. Scoring loads best_weights.pth. All 36 best_weights.pth are
+#     intact. The only lost capability is resuming to more epochs, which would
+#     invalidate the reported numbers anyway.
+#     RESTORE: not restorable, and deliberately so -- retraining is the only
+#     path, and it would supersede rather than reproduce these runs.
+#
+# ARCHIVED then removed -- training telemetry, 33 MB -> 11 MB, 36 dirs
+#   checkpoints_{ablation,joint}/*/*/tensorboard
+#     -> _archive/tensorboard_events_ablation_joint.tar.gz  (36 entries)
+#     Matches the treatment checkpoints_folds got in section 4d.
+#
+# ARCHIVED then removed -- API response cache, 25 MB -> 1.7 MB, 499 files
+#   data/cache/literature_variant_screen/*.{xml,json}
+#     -> _archive/literature_screen_api_cache.tar.gz  (500 entries, gzip -t OK)
+#     Content-addressed PubMed/Entrez responses for scripts/64. Nineteen percent
+#     of the repository's file count for 0.02% of its bytes. Archived rather
+#     than deleted because it is the record of what the API returned at the
+#     time; the screen's resolved outputs are already final under
+#     results/journal/literature_variant_screen/.
+#     RESTORE: tar -xzf _archive/literature_screen_api_cache.tar.gz
+#
+# COMPRESSED in place -- 234 MB, lossless
+#   logs/joint/jt-all4-s42-fuse_45812872.err  ->  .gz
+#   logs/joint/jt-ho-fuse_45812874.err        ->  .gz
+#     The only two uncompressed .err files left; every sibling was already .gz.
+#
+# REMOVED -- python bytecode caches
+#   data/__pycache__, scripts/__pycache__, 12 *.pyc
+#
+# ---------------------------------------------------------------------------
+# NOT DONE, and left for an explicit decision. Both are large and both were
+# deliberately not taken unilaterally.
+#
+#   data/{datafiles,datafiles_breast_epithelium}/splits/fold*/{train,val,test}.csv
+#     16.76 GB, 24 files. Deterministically regenerable:
+#         python -u scripts/17_chromosome_splits.py --folds 4
+#         python -u scripts/17_chromosome_splits.py --folds 4 \
+#             --datafiles data/datafiles_breast_epithelium \
+#             --out-root  data/datafiles_breast_epithelium/splits
+#     and md5-verifiable against checkpoints_folds/*/split_checksums.txt and
+#     checkpoints_ablation/breast_epithelium/*/input_checksums.txt. This meets
+#     the script's own "restorable by a single documented command" bar.
+#     splits_summary.json must be KEPT in both trees -- it is the provenance.
+#
+#   The 27 pre-11-Sep result directories duplicated under
+#   results/journal/ablation_breast_epithelium/
+#     2.91 GB, 408 files. Every one predates the 11 Sep context swap and was
+#     re-run into the ablation tree; LAB_NOTES section 0 says single-tissue
+#     numbers must be read from there and that figures built before 12 Sep must
+#     not be circulated. Having both copies is the live hazard -- the stale one
+#     sits at the shorter, more guessable path.
+#     BLOCKER: scripts, main_revised.tex and RESULTS_REVISED.md still reference
+#     the stale top-level paths (genoa_variant_scoring 7, candidates 6,
+#     egtex_multitissue_scoring 4, ...). Deleting without repointing those
+#     references first would break them. Do the two together or not at all.

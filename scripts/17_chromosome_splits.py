@@ -30,13 +30,17 @@ much data each fold happens to test on. Chromosomes are never split.
 
 Usage (run from the repository root)
 ------------------------------------
-    python -u scripts/17_chromosome_splits.py --dry-run
-    python -u scripts/17_chromosome_splits.py --folds 4
+    python -u scripts/17_chromosome_splits.py --dry-run \
+        --datafiles data/datafiles_breast_epithelium \
+        --out-root data/datafiles_breast_epithelium/splits
+    python -u scripts/17_chromosome_splits.py --folds 4 \
+        --datafiles data/datafiles_breast_epithelium \
+        --out-root data/datafiles_breast_epithelium/splits
 
 If the source CSVs carry no chromosome column, supply a mapping:
 
-    python -u scripts/17_chromosome_splits.py \
-        --manifest data/datafiles/probe_chrom_map.csv
+    python -u scripts/17_chromosome_splits.py --datafiles <build> --out-root <build>/splits \
+        --manifest <build>/probe_chrom_map.csv
 """
 
 from __future__ import annotations
@@ -187,13 +191,22 @@ def build_folds(counts: "pd.Series", n_folds: int) -> list[dict]:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--datafiles", type=Path, default=Path("data/datafiles"))
+    # Both paths are REQUIRED. --out-root used to default to data/datafiles/splits
+    # independently of --datafiles, so pointing --datafiles at a new context build
+    # silently overwrote the published fold splits that checkpoints_folds/ were
+    # trained on. There is no safe default for either.
+    ap.add_argument("--datafiles", type=Path, required=True,
+                    help="context build to re-split, e.g. data/datafiles_breast_epithelium")
     ap.add_argument("--sources", default="train.csv,val.csv,test.csv",
                     help="CSVs under --datafiles to pool before re-splitting")
     ap.add_argument("--manifest", type=Path, default=None,
                     help="probeID -> chromosome CSV, if the sources lack one")
     ap.add_argument("--folds", type=int, default=4)
-    ap.add_argument("--out-root", type=Path, default=Path("data/datafiles/splits"))
+    ap.add_argument("--out-root", type=Path, required=True,
+                    help="where fold{N}/ are written; refused if it already holds "
+                         "a fold unless --overwrite is given")
+    ap.add_argument("--overwrite", action="store_true",
+                    help="allow replacing folds already present under --out-root")
     ap.add_argument("--fold0-hardcoded", action="store_true",
                     help="use the built-in published-split constants instead of "
                          "reading the chromosome sets out of val.csv/test.csv")
@@ -203,6 +216,12 @@ def main(argv=None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
     if args.folds < 2:
         raise SystemExit("STOP: --folds must be at least 2 to be 'repeated'")
+    existing = sorted(args.out_root.glob("fold*/train.csv")) if args.out_root.is_dir() else []
+    if existing and not args.dry_run and not args.overwrite:
+        raise SystemExit(
+            f"STOP: {args.out_root} already holds {len(existing)} fold(s). These may be "
+            "published splits that trained checkpoints depend on. Write to a new "
+            "--out-root, or pass --overwrite if replacing them is intended.")
 
     global PUBLISHED_VAL, PUBLISHED_TEST
     if not args.fold0_hardcoded:

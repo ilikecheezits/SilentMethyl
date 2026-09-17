@@ -1259,9 +1259,11 @@ Outputs land in `checkpoints_ablation/breast_epithelium/<tag>/{epi,fusion}` and
   defaults to `data/datafiles/splits` independently. Running it with only
   `--datafiles` pointed at the new context **overwrites the published fold
   splits** that `checkpoints_folds/fold{1,2,3}` were trained against. Always set
-  both flags.
+  both flags. *(16 Sep 2026: both are now required, and an `--out-root` that
+  already holds folds is refused without `--overwrite`.)*
 - **`build_training_data.py --reference-dir` without `--out-dir`** would
-  overwrite `data/datafiles/`. The script now refuses this outright.
+  overwrite `data/datafiles/`. *(16 Sep 2026: both flags are required in both
+  builders, and an existing build is refused without `--overwrite`.)*
 - **Fold sequence-tower reuse is only valid if the split is identical.** The
   sbatch verifies train/val/test probe sets against `data/datafiles/splits/foldN`
   before touching the GPU. Without it a mismatch completes normally while testing
@@ -1698,8 +1700,9 @@ and pre-empts the "different splits" objection.
    MCF-10A results. The fold table, the seed table and every variant analysis
    need their values swapped. The mentor email quotes pre-swap numbers — either
    send it before the reruns land or update it, but do not let the two drift.
-9. **Fix the `caveats.tissue` string in `21_variant_evaluation.py`** — it still
-   says MCF-10A and is written into every `run_summary.json`.
+9. ~~**Fix the `caveats.tissue` string in `21_variant_evaluation.py`**~~ **Done
+   16 Sep 2026** (§7): 21 derives it, 20 no longer hardcodes it, and the 19
+   stale `run_summary.json` files were relabelled in place (numbers unchanged).
 10. ~~**Fix `64_literature_variant_screen.py` to forward `--weights-template`**
    before running the candidate chain. As written it silently scores the old
    MCF-10A checkpoints through `63`, and the output looks correct.~~

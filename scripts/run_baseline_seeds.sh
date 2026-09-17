@@ -17,13 +17,18 @@
 #     sbatch scripts/run_baseline_seeds.sh
 
 set -euo pipefail
-PY=/jet/home/szhang37/.conda/envs/silentmethyl/bin/python
+PY="${SILENTMETHYL_PY:-python}"
+# CpGenie and DeepCpG read DNA only, so either context build gives identical
+# inputs; DATA is explicit because a fresh clone has only the breast-epithelium
+# build. OUT_DIR defaults to the published location.
+: "${DATA:?set DATA, e.g. --export=ALL,DATA=data/datafiles_breast_epithelium}"
+OUT_DIR="${OUT_DIR:-results/journal/published_baselines}"
 mkdir -p logs/baselines
 COMBOS=("cpgenie:42" "cpgenie:43" "cpgenie:44" "deepcpg:42" "deepcpg:43" "deepcpg:44")
 ENTRY="${COMBOS[${SLURM_ARRAY_TASK_ID}]}"
 ARCH="${ENTRY%%:*}"
 SEED="${ENTRY##*:}"
-SEL="results/journal/published_baselines/${ARCH}/selected_hyperparameters.json"
+SEL="${OUT_DIR}/${ARCH}/selected_hyperparameters.json"
 
 test -f "${SEL}" || { echo "missing ${SEL}; run the grid phase first"; exit 1; }
 DROPOUT=$("${PY}" -c "import json;print(json.load(open('${SEL}'))['dropout'])")
@@ -34,6 +39,8 @@ echo "[*] Started $(date)"
 
 "${PY}" -u scripts/15_baselines_published.py \
   --arch "${ARCH}" --seed "${SEED}" --dropout "${DROPOUT}" --lr "${LR}" \
-  --epochs 10 --batch-size 128 --num-workers 5
+  --epochs 10 --batch-size 128 --num-workers 5 \
+  --train "${DATA}/train.csv" --val "${DATA}/val.csv" --test "${DATA}/test.csv" \
+  --output-dir "${OUT_DIR}"
 
 echo "[done] ${ARCH} seed ${SEED} $(date)"

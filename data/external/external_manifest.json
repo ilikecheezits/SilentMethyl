@@ -517,23 +517,27 @@
     },
     "data/external/hocomoco/hocomoco_core_pwm.tar.gz": {
       "acquisition": "manual",
+      "bytes": 381420,
       "citation": "HOCOMOCO",
       "genome_build": "n/a",
       "needs_liftover_to_hg38": false,
       "purpose": "regulatory enrichment; second motif reference",
+      "sha256": "35e21832b3c892ebe24e8620c86d7aff3a91cc4c73b036f24a4492efc9a35c7e",
       "source": "hocomoco",
-      "status": "MISSING",
+      "status": "present",
       "title": "HOCOMOCO core motif collection",
       "url": null
     },
     "data/external/jaspar/JASPAR_CORE_vertebrates_non-redundant_pfms_jaspar.txt": {
       "acquisition": "manual",
+      "bytes": 283814,
       "citation": "JASPAR",
       "genome_build": "n/a",
       "needs_liftover_to_hg38": false,
       "purpose": "regulatory enrichment; motif recovery",
+      "sha256": "2a6c7c24afb0614ed418c9f02b68845adebf38f80f6cebabbcd5de804eaacb59",
       "source": "jaspar",
-      "status": "MISSING",
+      "status": "present",
       "title": "JASPAR CORE vertebrates, non-redundant PFMs",
       "url": null
     }
@@ -551,12 +555,10 @@
     ]
   },
   "missing": [
-    "data/external/godmc_mqtl/godmc_mqtl_results.tsv.gz",
+    "data/external/bend/BEND_repo",
     "data/external/egtex_mqtl/egtex_mqtl_by_tissue.tar",
-    "data/external/jaspar/JASPAR_CORE_vertebrates_non-redundant_pfms_jaspar.txt",
-    "data/external/hocomoco/hocomoco_core_pwm.tar.gz",
     "data/external/gnomad_af/gnomad_sites_af.tsv.gz",
-    "data/external/bend/BEND_repo"
+    "data/external/godmc_mqtl/godmc_mqtl_results.tsv.gz"
   ],
   "missing_count": 6,
   "reference_tracks": {
@@ -1422,20 +1424,36 @@
     },
     "root": {
       "Ref_ATAC_Signal": {
-        "accession": null,
+        "accession": "ENCFF021PIS",
         "assembly_inferred": "hg38/GRCh38",
-        "biosample": null,
+        "biosample": "MCF 10A",
         "bytes": 266798513,
         "chr1_length": 248956422,
         "chrom_naming": "chr-prefixed",
         "derivation_command": null,
-        "derived_from_accession": null,
-        "encode": null,
-        "encode_assay": null,
-        "encode_assembly": null,
-        "encode_experiment": null,
-        "encode_file_type": null,
-        "fingerprinted_utc": "2026-09-10T09:48:44+00:00",
+        "derived_from_accession": "ENCFF021PIS",
+        "encode": {
+          "accession": "ENCFF021PIS",
+          "assay_title": "snATAC-seq",
+          "assembly": "GRCh38",
+          "biosample": "MCF 10A",
+          "dataset": "/experiments/ENCSR037XNN/",
+          "derived": true,
+          "derived_from_accession": "ENCFF021PIS",
+          "encode_status": "released",
+          "experiment": "ENCSR037XNN",
+          "file_format": "bam",
+          "file_url": "https://www.encodeproject.org/files/ENCFF021PIS/@@download/ENCFF021PIS.bam",
+          "lab": "Michael Snyder, Stanford",
+          "output_type": "alignments",
+          "replication_type": "unreplicated",
+          "target": null
+        },
+        "encode_assay": "snATAC-seq",
+        "encode_assembly": "GRCh38",
+        "encode_experiment": "ENCSR037XNN",
+        "encode_file_type": "alignments",
+        "fingerprinted_utc": "2026-09-16T21:38:29+00:00",
         "fraction_of_genome_covered": 1.0,
         "has_alt_contigs": true,
         "header": {
@@ -1458,10 +1476,10 @@
           "mean": 0.1509,
           "region": "chr1:1,000,000-1,100,000"
         },
-        "provenance_status": "UNKNOWN -- no ENCODE match; file is not a pristine download",
+        "provenance_status": "produced locally from ENCFF021PIS; CONVERSION COMMAND NOT RECORDED",
         "sha256": "b256de0d7c517809733601dfe2093b2d4458ea8ad94d3ccb309be327f5838578",
-        "source": null,
-        "url": null
+        "source": "encode",
+        "url": "https://www.encodeproject.org/files/ENCFF021PIS/@@download/ENCFF021PIS.bam"
       },
       "Ref_H3K27ac_Signal": {
         "accession": "ENCFF282YCX",
@@ -1491,7 +1509,7 @@
         "encode_assembly": "GRCh38",
         "encode_experiment": "ENCSR685JSL",
         "encode_file_type": "fold change over control",
-        "fingerprinted_utc": "2026-09-10T09:48:44+00:00",
+        "fingerprinted_utc": "2026-09-16T21:38:29+00:00",
         "fraction_of_genome_covered": 0.9992,
         "has_alt_contigs": true,
         "header": {
@@ -1547,7 +1565,7 @@
         "encode_assembly": "GRCh38",
         "encode_experiment": "ENCSR884WUC",
         "encode_file_type": "fold change over control",
-        "fingerprinted_utc": "2026-09-10T09:48:44+00:00",
+        "fingerprinted_utc": "2026-09-16T21:38:29+00:00",
         "fraction_of_genome_covered": 0.9992,
         "has_alt_contigs": true,
         "header": {
@@ -1603,7 +1621,7 @@
         "encode_assembly": "GRCh38",
         "encode_experiment": "ENCSR362VGZ",
         "encode_file_type": "fold change over control",
-        "fingerprinted_utc": "2026-09-10T09:48:44+00:00",
+        "fingerprinted_utc": "2026-09-16T21:38:29+00:00",
         "fraction_of_genome_covered": 0.999,
         "has_alt_contigs": true,
         "header": {
@@ -1659,7 +1677,7 @@
         "encode_assembly": "GRCh38",
         "encode_experiment": "ENCSR585PIL",
         "encode_file_type": "fold change over control",
-        "fingerprinted_utc": "2026-09-10T09:48:44+00:00",
+        "fingerprinted_utc": "2026-09-16T21:38:29+00:00",
         "fraction_of_genome_covered": 0.9994,
         "has_alt_contigs": true,
         "header": {
@@ -1715,7 +1733,7 @@
         "encode_assembly": "GRCh38",
         "encode_experiment": "ENCSR291QUA",
         "encode_file_type": "fold change over control",
-        "fingerprinted_utc": "2026-09-10T09:48:44+00:00",
+        "fingerprinted_utc": "2026-09-16T21:38:29+00:00",
         "fraction_of_genome_covered": 0.999,
         "has_alt_contigs": true,
         "header": {
@@ -1771,7 +1789,7 @@
         "encode_assembly": "GRCh38",
         "encode_experiment": "ENCSR049WGG",
         "encode_file_type": "fold change over control",
-        "fingerprinted_utc": "2026-09-10T09:48:44+00:00",
+        "fingerprinted_utc": "2026-09-16T21:38:29+00:00",
         "fraction_of_genome_covered": 0.9994,
         "has_alt_contigs": true,
         "header": {
@@ -1813,7 +1831,7 @@
         "encode_assembly": null,
         "encode_experiment": null,
         "encode_file_type": null,
-        "fingerprinted_utc": "2026-09-10T09:48:44+00:00",
+        "fingerprinted_utc": "2026-09-16T21:38:29+00:00",
         "fraction_of_genome_covered": 0.918,
         "has_alt_contigs": true,
         "header": {

@@ -89,7 +89,7 @@
 #SBATCH --error=logs/ablation_analyses/%x_%A_%a.err
 set -eo pipefail
 
-PY=/jet/home/szhang37/.conda/envs/silentmethyl/bin/python
+PY="${SILENTMETHYL_PY:-python}"
 STAGE=${STAGE:-link}
 
 # Everything the ablation produces lives under one root.

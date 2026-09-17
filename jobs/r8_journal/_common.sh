@@ -6,7 +6,7 @@
 # was touched. Several of the underlying scripts default to the PUBLISHED
 # manuscript paths, and on 12 Sep one of them overwrote four MCF-10A results
 # because a single --output-dir was left off.
-ROOT=/ocean/projects/med250012p/szhang37/SilentMethyl
+ROOT="${SILENTMETHYL_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 ABL=results/journal/ablation_breast_epithelium
 JOINT=results/journal/joint
 COHORT=data/datafiles_breast_epithelium/testing_data_test_only.csv
@@ -15,7 +15,7 @@ FUSION_W='checkpoints_ablation/breast_epithelium/seed{seed}/fusion/best_weights.
 # The sequence arm has no context tower and was never retrained for the swap, so
 # it legitimately stays on the published checkpoints.
 SEQ_W='checkpoints_journal/seed{seed}/sequence/best_weights.pth'
-PY=/jet/home/szhang37/.conda/envs/silentmethyl/bin/python
+PY="${SILENTMETHYL_PY:-python}"
 
 stamp_start() { date '+%Y-%m-%d %H:%M:%S' > "$1"; echo "[*] clobber stamp: $(cat "$1")"; }
 

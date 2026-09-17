@@ -1,6 +1,10 @@
 #!/bin/bash
 # Context ablation: primary breast epithelium in place of MCF-10A.
 #
+# SINCE 11 SEP 2026 THIS IS THE PUBLISHED MODEL. Every epi and fusion checkpoint
+# behind a reported number is under checkpoints_ablation/breast_epithelium/. The
+# "published MCF-10A" wording below describes the question as it stood before.
+#
 # The question
 # ------------
 # The published model's context is MCF-10A, a clonal cell line, while the
@@ -60,7 +64,7 @@
 #SBATCH --error=logs/ablation/ctxabl_%j.err
 set -eo pipefail
 
-PY=/jet/home/szhang37/.conda/envs/silentmethyl/bin/python
+PY="${SILENTMETHYL_PY:-python}"
 SEED=${SEED:-42}
 FOLD=${FOLD:-0}
 
@@ -85,12 +89,19 @@ else
   DATA="data/datafiles_breast_epithelium/splits/fold${FOLD}"
   PUBLISHED_SEQ="checkpoints_folds/fold${FOLD}/sequence_seed42/best_weights.pth"
   BASELINE="results/journal/folds/fold${FOLD}/fusion/metrics.json"
-  PUBLISHED_SPLIT="data/datafiles/splits/fold${FOLD}"
+  # The split the reused tower was actually trained on, read from its own
+  # run_config.json. Ours is data/datafiles/splits/foldN (same probes as the
+  # breast-epithelium folds); a fresh clone's is whatever run_folds.sbatch used.
+  PUBLISHED_SPLIT=$(dirname "$("$PY" -c "import json,sys; print(json.load(open(sys.argv[1]))['train_path'])" "$(dirname "${PUBLISHED_SEQ}")/run_config.json")")
 fi
 
 OUT="checkpoints_ablation/breast_epithelium/${TAG}"
 RES="results/journal/ablation_breast_epithelium/${TAG}"
 
+if [ -s "${OUT}/fusion/best_weights.pth" ] || [ -s "${OUT}/epi/best_weights.pth" ]; then
+  echo "STOP: ${OUT} already holds trained weights; refusing to overwrite." >&2
+  exit 2
+fi
 mkdir -p logs/ablation "${OUT}"
 
 # Fail fast if the allocated node cannot do CUDA. Node v005 has returned error

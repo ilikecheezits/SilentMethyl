@@ -25,7 +25,7 @@
 # Inference only, FP32, seed 42 only.
 #   sbatch jobs/r8_journal/23_ctx_ladder.sbatch
 set -euo pipefail
-cd /ocean/projects/med250012p/szhang37/SilentMethyl
+cd "${SILENTMETHYL_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 source jobs/r8_journal/_common.sh
 
 # --output-dir MUST be passed: script 23 defaults to results/journal/

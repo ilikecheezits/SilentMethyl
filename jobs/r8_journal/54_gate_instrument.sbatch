@@ -17,7 +17,7 @@
 # in the time of one; each writes its own directory, so no write collision.
 #   sbatch jobs/r8_journal/54_gate_instrument.sbatch
 set -euo pipefail
-cd /ocean/projects/med250012p/szhang37/SilentMethyl
+cd "${SILENTMETHYL_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 source jobs/r8_journal/_common.sh
 
 OUT="${ABL}/gate_decomposition"

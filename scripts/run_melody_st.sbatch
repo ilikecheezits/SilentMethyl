@@ -31,7 +31,7 @@
 #SBATCH --error=logs/melody_st/%j.err
 set -eo pipefail
 
-PY=/jet/home/szhang37/.conda/envs/melody/bin/python
+PY="${MELODY_PY:-python}"
 
 # Fail fast if the allocated node cannot actually do CUDA. Node v005 returned
 # CUDA error 803 more than once; torch then falls back to CPU *silently* and the

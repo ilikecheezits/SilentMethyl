@@ -792,14 +792,29 @@ def genomic_region_audit(
     return pd.DataFrame(rows)
 
 
-def plot_context_gain(gain: pd.DataFrame, output_path: Path) -> None:
+def context_label(test_path: Path) -> str:
+    """Name the context build a test CSV came from, for panel titles.
+
+    The titles used to say "MCF-10A" unconditionally, which outlived the
+    11 Sep 2026 context swap and mislabelled the breast-epithelium plots.
+    """
+    text = Path(test_path).as_posix()
+    if "datafiles_breast_epithelium" in text:
+        return "Breast-epithelium"
+    if "datafiles/" in text or text.startswith("datafiles"):
+        return "MCF-10A"
+    return "Context"
+
+
+def plot_context_gain(gain: pd.DataFrame, output_path: Path,
+                      context: str = "Context") -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fig, axes = plt.subplots(4, 1, figsize=(3.45, 8.4), sharey=False)
     specifications = [
         ("Genomic_Region", list(GENOMIC_REGION_ORDER), "Genomic region"),
         ("CpG_Island_Context", list(ISLAND_ORDER), "CpG-island context"),
-        ("ATAC_Stratum", list(ATAC_ORDER), "MCF-10A ATAC signal"),
-        ("H3K27ac_Stratum", list(H3K27AC_ORDER), "MCF-10A H3K27ac signal"),
+        ("ATAC_Stratum", list(ATAC_ORDER), f"{context} ATAC signal"),
+        ("H3K27ac_Stratum", list(H3K27AC_ORDER), f"{context} H3K27ac signal"),
     ]
     for axis, (grouping, order, title) in zip(axes, specifications):
         current = gain[gain["Grouping"] == grouping].copy()
@@ -1008,7 +1023,8 @@ def main() -> None:
     )
     atomic_csv(response_context, output / "variant_response_by_context.csv")
 
-    plot_context_gain(gain, output / "plots" / "fusion_gain_by_context.png")
+    plot_context_gain(gain, output / "plots" / "fusion_gain_by_context.png",
+                      context_label(args.test_path))
     plot_distance_summary(
         distance_summary,
         output / "plots" / "variant_response_by_distance.png",

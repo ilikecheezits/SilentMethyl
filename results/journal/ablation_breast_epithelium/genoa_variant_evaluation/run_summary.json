@@ -4,10 +4,10 @@
   "caveats": {
     "dependence": "Pairs are in LD. All intervals are 1 Mb block bootstraps; naive intervals would be far too narrow.",
     "effect_scale": "GENOA betas are on a normalized-phenotype scale. Rank and sign comparisons only; no magnitude calibration claim is available.",
-    "tissue": "GENOA is peripheral blood; SilentMethyl is trained on breast and its context features are unrecorded (no weights path found under results/journal/ablation_breast_epithelium/genoa_variant_scoring); check the scoring run_summary before quoting this. This is cross-tissue, cross-ancestry transfer, not tissue-matched validation."
+    "tissue": "GENOA is peripheral blood; SilentMethyl is trained on breast and its context features are primary breast epithelium (ENCODE, bulk ATAC-seq and six histone ChIP-seq tracks, all fold change over control, one biosample). This is cross-tissue, cross-ancestry transfer, not tissue-matched validation."
   },
   "cohort": "GENOA",
-  "context_source": "unrecorded (no weights path found under results/journal/ablation_breast_epithelium/genoa_variant_scoring); check the scoring run_summary before quoting this",
+  "context_source": "primary breast epithelium (ENCODE, bulk ATAC-seq and six histone ChIP-seq tracks, all fold change over control, one biosample)",
   "generated_utc": "2026-09-12T20:55:08+00:00",
   "matching": {
     "negatives_per_positive": 1,
@@ -26,6 +26,7 @@
     "equivalence": "fusion minus sequence, paired and bootstrapped. An interval spanning zero is the expected result: the context vector is identical for REF and ALT, so it cannot create a variant effect, only modulate one through the gate."
   },
   "purpose": "mentor requirement 6: independent variant evaluation",
+  "relabelled": "context_source and caveats.tissue rewritten in place 16 Sep 2026 with the derivation now in scripts/21_variant_evaluation.py (describe_context_source, describe_model_clause); the originals were stale. No number changed.",
   "seed_minus_one_means": "mean delta across seeds (ensemble)",
   "seeds": [
     42,

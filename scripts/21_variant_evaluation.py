@@ -76,7 +76,7 @@ from sklearn.metrics import roc_auc_score
 
 LOGGER = logging.getLogger("silentmethyl.genoa_eval")
 
-# Categorical palette carried over from scripts/18_uncertainty_figure.py, where it
+# Categorical palette carried over from scripts/51_rc_uncertainty.py, where it
 # passed the project's contrast checks. Colour is never the only channel: marker
 # and dash carry the same distinction so the figures survive greyscale printing.
 COLOURS = {"fusion": "#B03A2E", "sequence": "#1F6FB2", "baseline": "#B4761A"}
@@ -156,11 +156,11 @@ CONTEXT_SOURCES = {
         "primary breast epithelium (ENCODE, bulk ATAC-seq and six histone "
         "ChIP-seq tracks, all fold change over control, one biosample)",
     "checkpoints_journal":
-        "MCF-10A (six Mint-ChIP tracks plus a locally converted snATAC "
-        "coverage track)",
+        "MCF-10A (pre-11 Sep 2026 context, superseded; six Mint-ChIP tracks "
+        "plus a locally converted snATAC coverage track)",
     "checkpoints_folds":
-        "MCF-10A (six Mint-ChIP tracks plus a locally converted snATAC "
-        "coverage track)",
+        "MCF-10A (pre-11 Sep 2026 context, superseded; six Mint-ChIP tracks "
+        "plus a locally converted snATAC coverage track)",
 }
 
 # Models that have no context tower at all. For these the honest answer is
@@ -170,11 +170,11 @@ CONTEXT_SOURCES = {
 # kmer_ridge / composition baselines, whose run_summary.json claimed the context
 # features were "unrecorded (no weights path found ...)" when the correct
 # statement is that these models do not consume context features.
-CONTEXT_FREE_MODELS = {"sequence", "kmer_ridge", "composition"}
+CONTEXT_FREE_MODELS = {"sequence", "kmer_ridge", "composition", "cpgenie", "deepcpg"}
 
 # Of those, these are not SilentMethyl at all -- they are the published-baseline
 # arms, and no claim about SilentMethyl's training tissue applies to them.
-BASELINE_MODELS = {"kmer_ridge", "composition"}
+BASELINE_MODELS = {"kmer_ridge", "composition", "cpgenie", "deepcpg"}
 
 
 def describe_context_source(scores_dir: Path, models: Sequence[str] = ()) -> str:
@@ -265,8 +265,8 @@ def describe_model_clause(models: Sequence[str], context_source: str) -> str:
     named = [str(m) for m in models]
     if named and all(m in BASELINE_MODELS for m in named):
         listed = ", ".join(sorted(set(named)))
-        return (f"the scored models ({listed}) are sequence-only published "
-                "baselines, not SilentMethyl, and use no context features")
+        return (f"the scored models ({listed}) are sequence-only baselines, "
+                "not SilentMethyl, and use no context features")
     return ("SilentMethyl is trained on breast and its context features are "
             f"{context_source}")
 

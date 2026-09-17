@@ -27,7 +27,7 @@
 # the login node while this is in flight. That is what failed 46096838 (and
 # 45997644 before it) on the clobber guard with the science already correct.
 set -euo pipefail
-cd /ocean/projects/med250012p/szhang37/SilentMethyl
+cd "${SILENTMETHYL_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 source jobs/r8_journal/_common.sh
 
 OUT=results/journal/asm_validation_tycko

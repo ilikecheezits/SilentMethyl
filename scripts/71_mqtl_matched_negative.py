@@ -45,6 +45,18 @@ def find_project_root(start: str | Path) -> Path:
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = find_project_root(SCRIPT_DIR)
 
+# The eGTEx permutation/FDR table was moved under data/external/egtex_breast/
+# with the rest of the cohort. Prefer where it lives now, keep the old flat
+# data/ path as a fallback so an older checkout still resolves, and report the
+# current location when neither exists rather than the stale one.
+_PERM_FDR_CANDIDATES = (
+    PROJECT_ROOT / "data" / "external" / "egtex_breast" / "BreastMammaryTissue.regular.perm.fdr.txt",
+    PROJECT_ROOT / "data" / "BreastMammaryTissue.regular.perm.fdr.txt",
+)
+DEFAULT_LEAD_MQTL = next(
+    (p for p in _PERM_FDR_CANDIDATES if p.is_file()), _PERM_FDR_CANDIDATES[0]
+)
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -55,7 +67,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--lead-mqtl-file",
-        default=str(PROJECT_ROOT / "data" / "BreastMammaryTissue.regular.perm.fdr.txt"),
+        default=str(DEFAULT_LEAD_MQTL),
     )
     parser.add_argument(
         "--test-csv",
