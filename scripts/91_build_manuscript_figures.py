@@ -102,7 +102,7 @@ def arguments() -> argparse.Namespace:
         default=Path("results/journal/manuscript_figures"),
     )
     parser.add_argument(
-        "--case-study-path",
+        "--case-study-output",
         type=Path,
         default=Path("results/journal/candidates/top_candidate_case_study.csv"),
     )
@@ -938,7 +938,7 @@ def main() -> None:
         args.candidate_seed_path,
         args.comparator_path,
         args.output_dir / "top_candidate_matched_background.png",
-        args.case_study_path,
+        args.case_study_output,
     )
     stk11 = plot_stk11_nonsynonymous_screen(
         args.literature_variant_path,

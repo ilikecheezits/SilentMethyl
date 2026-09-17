@@ -29,7 +29,7 @@ $PY scripts/91_build_manuscript_figures.py \
   --candidate-path "$CAND/candidate_matched_background_statistics.csv" \
   --candidate-seed-path "$CAND/candidate_seed_scores_long.csv" \
   --comparator-path "$CAND/top_candidate_matched_comparators_long.csv" \
-  --case-study-path "$CAND/top_candidate_case_study.csv" \
+  --case-study-output "$CAND/top_candidate_case_study.csv" \
   --literature-variant-path "$LIT" \
   --output-dir "$ABL/manuscript_figures" \
   --stk11-case-output "$ABL/literature_variant_screen/stk11_case_study_figure_values.csv" \
