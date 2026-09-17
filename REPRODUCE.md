@@ -519,7 +519,7 @@ $PY -u scripts/91_build_manuscript_figures.py \
     --candidate-path "$ABL/candidates/candidate_matched_background_statistics.csv" \
     --candidate-seed-path "$ABL/candidates/candidate_seed_scores_long.csv" \
     --comparator-path "$ABL/candidates/top_candidate_matched_comparators_long.csv" \
-    --case-study-path "$ABL/candidates/top_candidate_case_study.csv" \
+    --case-study-path "$OUT/candidates/top_candidate_case_study.csv" \
     --literature-variant-path "$ABL/literature_variant_screen/literature_variant_predictions_ranked.csv" \
     --output-dir "$OUT/manuscript_figures" \
     --stk11-case-output "$OUT/literature_variant_screen/stk11_case_study_figure_values.csv" \
@@ -664,7 +664,7 @@ On 16 Sep 2026, on Bridges-2, from this commit's code:
 | §5.1 context build | `sbatch --export=ALL,OUT_DIR=repro_check/datafiles_breast_epithelium,VERIFY_AGAINST=data/datafiles_breast_epithelium build_data.sh` (job `46189068`, with `--m-value-precision float64`) | **pass**: COMPLETED 0:0; purity audit PASS (0 errors, 0 warnings); 4 chromosome-blocked folds written; output **byte-identical** to `data/datafiles_breast_epithelium` |
 | §5.6 CPU block | the block above, extracted verbatim and run with `OUT=repro_check/abl` (job `46187803`) | **pass**: COMPLETED 0:0; all 32 script invocations (16, 22, 01, 21, 30, 31, 40, 41, 51, 52, 50, 57, 58, 54, 55, 56, 53c, 53e, 91, 92, 93, 90) ran with no traceback; MCF-10A guard clean (23 and 55 sources). `repro_check/abl/target_qc` is byte-identical to the installed `$ABL/target_qc` (6/6 files). Two caveats below |
 | — S1–S6 package (90) | same job | **status INCOMPLETE**: 6 required files missing. S1 ×3 (`candidates/stability/*`, the seed-42-only gap in §10) and S6 ×3 (`reproducibility/{data_purity_audit_breast_epithelium.json,analysis_code_sha256.txt,processed_data_sha256_breast_epithelium.txt}`, which do not exist). R8 package S7–S12: 23 files, complete |
-| — published-tree writes | the job's clobber check | 91 rewrote `$ABL/candidates/top_candidate_case_study.csv` (the block passes `--case-study-path "$ABL/…"`, which 91 writes to); content is the seed-42 NCOA2 label (−0.1539). The file is git-ignored, so the previous bytes cannot be compared |
+| — published-tree writes | the job's clobber check | 91 rewrote `$ABL/candidates/top_candidate_case_study.csv`; content is the seed-42 NCOA2 label (−0.1539). The file is git-ignored, so the previous bytes cannot be compared. **Cause and fix:** `--case-study-path` is an *output* despite its name — inside `plot_candidate` the parameter is `case_output` — and the block pointed it at `$ABL` instead of `$OUT`. The block above now passes `"$OUT/candidates/top_candidate_case_study.csv"`, so a check run no longer writes into the published tree. The flag should be renamed `--case-study-output` to match `--stk11-case-output` / `--genomic-region-output`; until then its name is the trap |
 | script 91 regression | 91 on the **pre-swap** inputs with the new label code | all 7 outputs byte-identical to the published pre-swap build, including the NCOA2 label |
 | guard | injected `MCF-10A` into a packaged CSV; marker in a source; pre-swap source with no marker | all three refused (exit 3, package deleted); clean package passes |
 | trap guards | 17 without `--out-root`; builders without paths; 17/builders into existing builds; 40/51 `--stage all --output-dir` | all refused |
