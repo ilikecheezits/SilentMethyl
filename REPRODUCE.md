@@ -661,17 +661,16 @@ On 16 Sep 2026, on Bridges-2, from this commit's code:
 | §2 environment | `$PY --version`; imports | Python 3.10.20, torch 2.6.0+cu124, transformers 5.8.0, pandas 2.3.3 |
 | §4.2 context tracks | resolve-only run of the command as written, `--plan` to scratch; md5 of local files | live portal returns the same 7 accessions and md5s; 7/7 local files match |
 | §4.3 external check | `acquire_external_cohorts.py --check` | **GENOA endpoint timed out** (TimeoutError); run stopped after 300 s |
-| §5.1 context build | `sbatch --export=ALL,OUT_DIR=repro_check/datafiles_breast_epithelium,VERIFY_AGAINST=data/datafiles_breast_epithelium build_data.sh` | see `VALIDATION` note below |
-| §5.6 CPU block | the block above, extracted verbatim and run with `OUT=repro_check/abl` | see `VALIDATION` note below |
+| §5.1 context build | `sbatch --export=ALL,OUT_DIR=repro_check/datafiles_breast_epithelium,VERIFY_AGAINST=data/datafiles_breast_epithelium build_data.sh` (job `46189068`, with `--m-value-precision float64`) | **pass**: COMPLETED 0:0; purity audit PASS (0 errors, 0 warnings); 4 chromosome-blocked folds written; output **byte-identical** to `data/datafiles_breast_epithelium` |
+| §5.6 CPU block | the block above, extracted verbatim and run with `OUT=repro_check/abl` (job `46187803`) | **pass**: COMPLETED 0:0; all 32 script invocations (16, 22, 01, 21, 30, 31, 40, 41, 51, 52, 50, 57, 58, 54, 55, 56, 53c, 53e, 91, 92, 93, 90) ran with no traceback; MCF-10A guard clean (23 and 55 sources). `repro_check/abl/target_qc` is byte-identical to the installed `$ABL/target_qc` (6/6 files). Two caveats below |
+| — S1–S6 package (90) | same job | **status INCOMPLETE**: 6 required files missing. S1 ×3 (`candidates/stability/*`, the seed-42-only gap in §10) and S6 ×3 (`reproducibility/{data_purity_audit_breast_epithelium.json,analysis_code_sha256.txt,processed_data_sha256_breast_epithelium.txt}`, which do not exist). R8 package S7–S12: 23 files, complete |
+| — published-tree writes | the job's clobber check | 91 rewrote `$ABL/candidates/top_candidate_case_study.csv` (the block passes `--case-study-path "$ABL/…"`, which 91 writes to); content is the seed-42 NCOA2 label (−0.1539). The file is git-ignored, so the previous bytes cannot be compared |
 | script 91 regression | 91 on the **pre-swap** inputs with the new label code | all 7 outputs byte-identical to the published pre-swap build, including the NCOA2 label |
 | guard | injected `MCF-10A` into a packaged CSV; marker in a source; pre-swap source with no marker | all three refused (exit 3, package deleted); clean package passes |
 | trap guards | 17 without `--out-root`; builders without paths; 17/builders into existing builds; 40/51 `--stage all --output-dir` | all refused |
 
 Not executed (documented only): downloads (§4.3 beyond the check), every GPU step
 in §5.2–5.5 and §5.7, the joint-model data builds, LaTeX.
-
-VALIDATION: results of the two long validations are recorded in LAB_NOTES §7
-("16 Sep 2026 reproducibility pass").
 
 ---
 
@@ -704,7 +703,6 @@ manuscript decision.
 |---|---|---|
 | **candidate chain is seed 42 only** | S1 cross-seed statistics, `candidates/stability/`, NCOA2 mean ± SD | GPU: `sbatch --export=ALL jobs/r6_ablation/60_candidates.sbatch` with `--seeds 42 43 44` added, then `61_candidate_stability.py --seeds 42 43 44 --scores-template "$ABL/candidates/seed{seed}/candidate_scores.csv" --output-dir $ABL/candidates/stability`, then 62, 22, 91 |
 | **eight eGTEx tissues other than Lung** | R3 transfer AUROCs and Melody head-to-heads on breast-epithelium fusion | GPU: `run_egtex_multitissue_scoring.sh` over `union_scoring_input_heldout.csv` with the §5.3 overrides, then `data/split_predictions_by_tissue.py`, `31`, `32`, `34`, `35`, `40` |
-| S5 target QC on breast epithelium | produced and validated in `repro_check/abl/target_qc`, not installed | copy into `$ABL/target_qc` (awaiting sign-off) |
 | frozen intermediates without code | bimodal BED, Ensembl rsID cache, multi-tissue union input | shipped in `reproducibility/frozen_inputs.tar.gz` with SHA-256 |
 | GENOA download endpoint | timed out during validation | URL and SHA-256 in `data/external/external_manifest.json` |
 | baseline eGTEx scoring layout | `published_baselines_egtex/variant_scoring/heldout/` was scored with `15 --score-pairs --stratum heldout_egtex --pairs data/external/egtex_breast/scoring/egtex_scoring_input_heldout.csv --output-dir results/journal/published_baselines` and then moved; the move is inferred from `scoring_summary.json`, not recorded | rerun and move as described |

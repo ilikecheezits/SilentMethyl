@@ -50,12 +50,13 @@ whose output did not yet exist.
 | A2 | `main_revised.tex`: context-dependent numbers are pre-swap (e.g. fusion β MAE 0.0993 = MCF-10A mean of 0.0971/0.0988/0.1020; breast epithelium is 0.0914) and the text says "MCF-10A" at lines 194, 363, 1174 | spot-checked against both `metrics.json` trees; last written 9 Sep, before the swap | full line table in the appendix | manuscript rewrite, not done here |
 | A3 | `ablation…/manuscript_figures/top_candidate_matched_background.png` carries the label `NCOA2: −0.1798 ± 0.0198` (the pre-swap three-seed value) over breast-epithelium data | the literal was hardcoded at `scripts/91_build_manuscript_figures.py:704` | 91 now derives the label. On pre-swap inputs it regenerates the published pre-swap figure **byte-identically**. On breast-epithelium inputs it reads `NCOA2: −0.1539 (seed 42 only)`, and the other 5 figures and 3 side outputs are byte-identical to the published build | corrected figure built in scratch, **not installed**. **A three-seed breast-epithelium NCOA2 value does not exist**, and nothing was substituted |
 | A4 | `RESULTS_REVISED.md` R3: eight non-Lung tissue AUROCs carried over from the MCF-10A fusion model | stated in its own header | GPU rescoring command in `REPRODUCE.md` §10 | GPU job |
-| A5 | **new in this pass:** `results/journal/target_qc/coverage_{error_correlations,threshold_metrics,bin_metrics}.csv`, packaged as Supplementary S5, were computed from MCF-10A epi and fusion predictions (epi β MAE 0.1396) | 01_target_qc defaults to `results/journal/seed42/{model}/predictions.csv` | breast-epithelium rerun (2 min, CPU) in `repro_check/abl/target_qc`; sequence rows byte-identical, epi 0.1022 / fusion 0.0885 | install into `ablation…/target_qc` was **blocked** (published tree); awaiting sign-off |
+| A5 | **new in this pass:** `results/journal/target_qc/coverage_{error_correlations,threshold_metrics,bin_metrics}.csv`, packaged as Supplementary S5, were computed from MCF-10A epi and fusion predictions (epi β MAE 0.1396) | 01_target_qc defaults to `results/journal/seed42/{model}/predictions.csv` | breast-epithelium rerun (2 min, CPU) in `repro_check/abl/target_qc`; sequence rows byte-identical, epi 0.1022 / fusion 0.0885 | **installed** in `ablation…/target_qc` (16 Sep 2026); byte-identical to the `repro_check` rerun in job `46187803` |
 | A6 | `scripts/90_build_supplement_package.py` (S1–S6) packaged the pre-swap trees and the MCF-10A build manifests | its manifest | repointed to breast epithelium, guard added (§5) | fixed in code; no S1–S6 package had been built |
 
-Untraced manuscript numbers (sources not found in either tree): tumour
-shifted-target MAE 0.0975 → 0.1180 (lines 588–592), and direction by precision
-quintile 0.521–0.566 (line 1209).
+Removed as untraceable (16 Sep 2026): tumour shifted-target MAE 0.0975 → 0.1180
+(lines 588–592) and direction by precision quintile 0.521–0.566 (line 1209). No
+source exists in either tree; both are being cut from the manuscript, so they are
+no longer tracked as gaps.
 
 ## 3. Bucket (b): wrong labels — all fixed
 
@@ -125,7 +126,7 @@ context-dependent product.
 | S9 transfer failure | 93 | `joint/transfer_failure` ← `joint/holdout_BreastEpithelium/seed42` ← `datafiles_joint` composed from `datafiles_breast_epithelium` | yes |
 | S10 fusion gain | 93 | `ablation…/fusion_gain_stratified`, `ablation…/biological_context` | yes |
 | S11/S12 ASM | 93 | `asm_validation(_tycko)` ← `checkpoints_ablation/…/seed42/fusion` + `checkpoints_journal/seed42/sequence`; features from `data/reference/BreastEpithelium` (53/53d default and build summary) | yes |
-| S1–S6 | 90 | repointed to `ablation…` and `data/datafiles_breast_epithelium` (A6); S5 awaits A5 | yes after A5 |
+| S1–S6 | 90 | repointed to `ablation…` and `data/datafiles_breast_epithelium` (A6); S5 installed (A5) | yes |
 | tables in `main_revised.tex` | — | see appendix | pending rewrite (A2) |
 
 The rebuilt S7–S12 package is byte-identical to `results/supplementary_package_r8`
@@ -184,7 +185,6 @@ epithelium is 0.0885/0.0873/0.0934/0.0862.
 | 445–452, tab:performance 492–494, 500–502 | Context and Fusion columns; % reductions; fusion−sequence CI | `ablation…/seed4x/{epi,fusion}`, `ablation…/paired_model_bootstrap` | replaceable. Composition, k-mer, CpGenie, DeepCpG, and Sequence columns are context-free and stay |
 | 530, tab:folds 539–542, 547–572 | fold fusion MAE/AUC, gain ranges, "published split largest" | `ablation…/seed42/fusion`, `ablation…/fold{1,2,3}/fusion` | replaceable. The **qualitative claims must be re-checked** (e.g. which fold has the largest gain) |
 | 577–580 | fusion gain by region/island/ATAC/H3K27ac | `ablation…/biological_context/fusion_gain_by_context.csv` | replaceable. Values roughly double (e.g. shore 0.0230), and "largest in highest ATAC quartile" **no longer holds** (Q4 0.0180 < Q2 0.0191) |
-| 588–592 | tumour shifted-target 0.0975 → 0.1180 | **no source found** in either tree | **untraced**, fixed predictions from pre-swap fusion |
 | 599–617, tab:genoa 634–638, tab:cohorts 663–669, 644–646, 675–684 | eGTEx/GENOA ρ, direction, calibration, meta-analysis, gradient | `ablation…/{genoa,egtex}_variant_evaluation`, `ablation…/variant_effect_synthesis`, `ablation…/egtex_mqtl_{positive_control,matched_negative}` | replaceable (3 seeds exist). Sequence column and distance-only AUROC are context-free |
 | 706–714, 729–733 | matched AUROC 0.570; fusion vs DeepCpG/CpGenie | `ablation…/genoa_variant_evaluation`, `ablation…/paired_model_comparison_genoa` | replaceable. k-mer 0.503 is context-free |
 | 740–782, tab:ctxperm 760–763 | context permutation | `ablation…/context_permutation` | replaceable |
@@ -199,7 +199,6 @@ epithelium is 0.0885/0.0873/0.0934/0.0862.
 | 1089–1105 | STK11 Δβ 0.0774 / −0.0613 | `ablation…/literature_variant_screen` (3 seeds) | replaceable |
 | 1122–1130 | GWAS top-5% share | `ablation…/gwas_regulatory_enrichment` | replaceable |
 | 1147–1172 | Discussion restates ρ 0.178, AUROC 0.570, shores/ATAC claim | as above | follows the replacements |
-| 1209 | direction by precision quintile 0.521–0.566 | not located | **untraced** |
 | tab:gradient 1329–1331, tab:distance 1347–1352 | GENOA gradient and distance bins | `ablation…/genoa_variant_evaluation/{significance_gradient,distance_bins}.csv` | replaceable |
 | tab:splits 1312–1314 | loci counts, mean β | context-free | OK |
 | 1383–1412 | supplementary figures | see A1 | wrong files |
