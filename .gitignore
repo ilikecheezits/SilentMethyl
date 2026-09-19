@@ -186,3 +186,10 @@ logs/
 
 # local reproduction checks (REPRODUCE.md section 5.6 / 7)
 repro_check/
+
+# LaTeX build artefacts
+*.aux
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
