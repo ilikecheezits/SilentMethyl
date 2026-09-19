@@ -114,9 +114,6 @@ def ensemble_frame(ev, directory: Path, model: str, seeds: list[int],
     frame = long[long["Seed"] == -1]
     if frame.empty:
         raise SystemExit(f"STOP: no ensemble rows for {model} in {directory}")
-    # Non-CpG-altering only -- the same restriction scripts/20 applies before any
-    # headline number. A variant that creates or destroys the target CpG is not a
-    # regulatory-effect prediction and is excluded there too.
     frame = frame[~frame["cpg_altering"].astype(bool)]
     if frame["Pair_UID"].duplicated().any():
         raise SystemExit(f"STOP: duplicate Pair_UIDs for {model}")
@@ -219,7 +216,6 @@ def main() -> int:
         print(f"{model:<10} {len(frames[model]):>7,} non-CpG-altering pairs "
               f"from {directory}")
 
-    # ---- one shared cohort. Every model is scored on exactly the same rows.
     common = set.intersection(*(set(f["Pair_UID"]) for f in frames.values()))
     if not common:
         print("STOP: the models share no Pair_UIDs -- different cohorts or "
@@ -265,15 +261,11 @@ def main() -> int:
 
     significant_only = wide[wide["significant"] == 1]
 
-    # (metric function, frame it is computed on, human label)
     plan = [
         (ev.marginal_auroc, matched, "AUROC, distance-matched"),
         (ev.signed_rho, significant_only, "signed rho (significant)"),
         (ev.direction_agreement, significant_only, "direction agreement"),
     ]
-    # Tail enrichment on the UNMATCHED cohort, which is where the comparison
-    # against distance is meaningful: matching neutralises distance by design,
-    # so the model-versus-ruler question can only be asked before matching.
     for frac in TAIL_FRACTIONS:
         plan.append((tail_enrichment(frac), wide,
                      f"tail enrichment, top {frac*100:g}%"))
@@ -299,10 +291,6 @@ def main() -> int:
                 "interval_excludes_zero": excludes_zero,
             })
 
-    # ---- distance baseline: the number the model must beat ----------------
-    # Reported per tail fraction, with the model-minus-distance difference
-    # bootstrapped over the SAME blocks so the interval is paired rather than
-    # two marginal intervals a reader has to eyeball against each other.
     tails = []
     for frac in TAIL_FRACTIONS:
         d_fn = distance_tail(frac)

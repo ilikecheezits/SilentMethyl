@@ -53,14 +53,10 @@ LOGGER = logging.getLogger("melody.st_by_tissue")
 
 KEY = ["probeID", "Variant_ID"]
 
-# Columns describing SilentMethyl's own run. Carrying them onto a Melody row
-# would be actively misleading -- a gate value has no meaning for a model with
-# no gate.
 DROP_PREFIXES = ("Predicted_Delta_Beta", "Absolute_Delta_Beta", "Delta_Beta_",
                  "WT_M_RC", "MUT_M_RC", "WT_Beta_RC", "MUT_Beta_RC",
                  "Weights_Path", "Weights_SHA256")
 
-# (arm label, filename stem, tissues it covers)
 ARMS = [
     ("melody_st_breast", "st_breast_{tissue}",
      ["BreastMammaryTissue", "ColonTransverse", "KidneyCortex", "Lung",

@@ -7,6 +7,8 @@
 #SBATCH --time=04:00:00
 #SBATCH --output=logs/r7_ablation/22_%j.out
 #SBATCH --error=logs/r7_ablation/22_%j.err
+# Slurm job: run the context stratification analysis (script 22).
+
 set -euo pipefail
 umask 027
 source "${SILENTMETHYL_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}"/jobs/r6_ablation/_common.sh

@@ -25,9 +25,6 @@ random.seed(7)
 def build_fasta(root: Path, chrom_len: int) -> dict:
     """One chromosome of random sequence, with CpGs planted at known offsets."""
     seq = [random.choice("ACGT") for _ in range(chrom_len)]
-    # First four drive the window / split / masking assertions. The rest exist
-    # only to give the sign check enough variants to be powered, the way the
-    # real file will be.
     cpg_starts = [1000, 5000, 9000, 13000] + [20000 + 500 * i for i in range(40)]
     for s in cpg_starts:
         seq[s] = "C"
@@ -93,25 +90,18 @@ def build_raw(root: Path, fasta: dict, probes: dict) -> list[dict]:
 
     p0, p1, p2, p3 = "cg00000000", "cg00000001", "cg00000002", "cg00000003"
 
-    # --- rows that must survive into `heldout` (probe cg00000001, split=test) --
-    # d=0 and d=+1 are deliberately absent: those hit the target CpG itself and
-    # are excluded by design, so they are exercised separately below.
     for d in (-499, -100, 2, 250, 500):
-        pos1 = probes[p1] + d + 1               # 1-based
+        pos1 = probes[p1] + d + 1
         ref = seq[pos1 - 1]
         alt = "A" if ref != "A" else "T"
-        # avoid accidentally hitting the target CpG
         add(p1, pos1, ref, alt, 0.3, 1e-9, f"heldout keep d={d}")
 
-    # --- window boundaries that must be dropped -------------------------------
     for d in (-500, 501):
         pos1 = probes[p1] + d + 1
         ref = seq[pos1 - 1]
         alt = "A" if ref != "A" else "T"
         add(p1, pos1, ref, alt, 0.3, 1e-9, f"outside window d={d}")
 
-    # --- target-CpG-altering: must be excluded from output, used by sign check --
-    # C -> A at the C of the CpG destroys it; slope must be negative in truth.
     sign_probes = [p for p in probes if p not in (p0, p2)]
     for probe in sign_probes:
         c0 = probes[probe]
@@ -120,37 +110,31 @@ def build_raw(root: Path, fasta: dict, probes: dict) -> list[dict]:
         add(probe, c0 + 2, "G", "T", random.gauss(-0.5, 0.2), 1e-12,
             "destroys target CpG (G>T)")
 
-    # --- model_visible rows (train/val probes) --------------------------------
     for probe in (p0, p3):
         pos1 = probes[probe] + 60 + 1
         ref = seq[pos1 - 1]
         alt = "A" if ref != "A" else "T"
         add(probe, pos1, ref, alt, 0.2, 1e-6, "model_visible keep")
 
-    # --- masked probe: must be dropped ----------------------------------------
     pos1 = probes[p2] + 40 + 1
     add(p2, pos1, seq[pos1 - 1], "A" if seq[pos1 - 1] != "A" else "T",
         0.4, 1e-8, "masked probe, dropped")
 
-    # --- EPIC-only probe: must be dropped -------------------------------------
     lines.append("\t".join(["cg99999999", "chr1_1200_A_G_b38", "100",
                             "50", "12", "0.12", "1e-8", "0.3", "0.05"]))
     expect.append({"note": "EPIC-only probe, dropped"})
 
-    # --- indel: must be dropped -----------------------------------------------
     pos1 = probes[p1] + 30 + 1
     lines.append("\t".join([p1, f"chr1_{pos1}_{seq[pos1-1]}_{seq[pos1-1]}AT_b38",
                             str(30), "50", "12", "0.12", "1e-8", "0.3", "0.05"]))
     expect.append({"note": "indel, dropped"})
 
-    # --- REF disagreeing with hg38: must be dropped ---------------------------
     pos1 = probes[p1] + 200 + 1
     wrong = "A" if seq[pos1 - 1] != "A" else "T"
     lines.append("\t".join([p1, f"chr1_{pos1}_{wrong}_{seq[pos1-1]}_b38",
                             str(200), "50", "12", "0.12", "1e-8", "0.3", "0.05"]))
     expect.append({"note": "REF mismatch, dropped"})
 
-    # --- far-away row the prefilter must remove -------------------------------
     lines.append("\t".join([p1, "chr1_400000_A_G_b38", "394999",
                             "50", "12", "0.12", "1e-8", "0.3", "0.05"]))
     expect.append({"note": "beyond +/-600 bp, removed by stage 1"})
@@ -246,7 +230,6 @@ def main() -> int:
     if summary["distance_reported_minus_recomputed"].get("0", 0) < 5:
         failures.append("distance agreement diagnostic did not report a modal 0")
 
-    # --- reversed-sign scenario: the guard must fire -------------------------
     print()
     print("=" * 72)
     print("REVERSED-SIGN SCENARIO (the guard must refuse to write)")

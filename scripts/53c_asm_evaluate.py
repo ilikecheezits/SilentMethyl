@@ -144,9 +144,6 @@ def evaluate(frame: pd.DataFrame, label: str, args: argparse.Namespace,
         rows.append({"Stratum": label, "Score": arm, "N_Pairs": int(len(sub)),
                      "N_Positive": int((sub["asm_label"] == 1).sum()), **stats})
 
-    # Distance-only baseline. Shorter variant-to-CpG distance is the naive
-    # predictor of a larger effect, so the score is -|distance|. After matching
-    # this must land near 0.5; if it does not, the matching failed.
     one_arm = frame[frame["Model"] == sorted(frame["Model"].unique())[0]]
     stats = block_auc(
         one_arm["asm_label"].to_numpy(dtype=int),

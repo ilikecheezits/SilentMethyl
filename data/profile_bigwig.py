@@ -45,8 +45,6 @@ except ImportError as exc:
     raise SystemExit(f"STOP: {exc}. Run in an environment with pyBigWig "
                      f"(the silentmethyl or deeptools env).") from exc
 
-# Sampling windows spread across a few chromosomes, in gene-dense and gene-poor
-# territory, so the value distribution is not read off one unusual locus.
 SAMPLE_REGIONS = [
     ("chr1", 1_000_000, 1_400_000),
     ("chr1", 150_000_000, 150_400_000),
@@ -71,7 +69,6 @@ def profile(path: Path, blacklist: Path | None) -> dict:
             "nBasesCovered": hdr.get("nBasesCovered"),
         }
 
-        # --- bin size, from the intervals themselves ---------------------
         widths: Counter = Counter()
         for chrom, start, end in SAMPLE_REGIONS:
             if chrom not in chroms or chroms[chrom] < end:
@@ -80,15 +77,12 @@ def profile(path: Path, blacklist: Path | None) -> dict:
                 widths[iv[1] - iv[0]] += 1
         out["interval_widths"] = widths.most_common(5)
         out["bin_size"] = widths.most_common(1)[0][0] if widths else None
-        # A single dominant width means a binned track; a spread of widths means
-        # run-length encoded base-resolution signal.
         if widths:
             top = widths.most_common(1)[0][1]
             out["binned"] = top / sum(widths.values()) > 0.9
         else:
             out["binned"] = None
 
-        # --- integer vs float, i.e. normalised or not --------------------
         vals = []
         for chrom, start, end in SAMPLE_REGIONS:
             if chrom not in chroms or chroms[chrom] < end:
@@ -109,13 +103,10 @@ def profile(path: Path, blacklist: Path | None) -> dict:
                 out["nonzero_quantiles"] = {
                     f"p{q}": round(float(np.percentile(nz, q)), 4) for q in qs}
                 out["nonzero_mean"] = round(float(nz.mean()), 4)
-                # Smallest positive value: for raw counts this is 1; for CPM it
-                # is the per-read scale factor, which gives the library size.
                 out["min_positive"] = round(float(nz.min()), 6)
                 if not integral and nz.min() > 0:
                     out["implied_reads_if_cpm"] = int(round(1e6 / nz.min()))
 
-        # --- was an exclusion list applied? -------------------------------
         if blacklist and blacklist.is_file():
             inside, flank = [], []
             opener = gzip.open if blacklist.suffix == ".gz" else open

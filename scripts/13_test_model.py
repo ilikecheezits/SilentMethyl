@@ -57,10 +57,6 @@ from testing_common import (
 )
 
 
-# --------------------------------------------------------------------------
-# per-arm specification -- the only place the three models differ
-# --------------------------------------------------------------------------
-
 ARMS = {
     "epi": {
         "desc": "[TEST CONTEXT RC-AVERAGED]",

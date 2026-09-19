@@ -1,59 +1,4 @@
 #!/bin/bash
-# Context ablation: primary breast epithelium in place of MCF-10A.
-#
-# SINCE 11 SEP 2026 THIS IS THE PUBLISHED MODEL. Every epi and fusion checkpoint
-# behind a reported number is under checkpoints_ablation/breast_epithelium/. The
-# "published MCF-10A" wording below describes the question as it stood before.
-#
-# The question
-# ------------
-# The published model's context is MCF-10A, a clonal cell line, while the
-# methylation targets are bulk TCGA solid-tissue-normal breast. That domain
-# mismatch is a stated limitation. ENCODE also has primary breast epithelium,
-# profiled more fully: seven fold-change-over-control tracks from one biosample
-# through one pipeline, against MCF-10A's six Mint-ChIP tracks plus a locally
-# converted snATAC coverage track whose ATAC has blacklist artifact pileups.
-#
-# Seed 42 on the published split already answered it:
-#
-#     context-only   beta MAE 0.1396 -> 0.1022   AUC 0.9188 -> 0.9658
-#     fusion         beta MAE 0.0971 -> 0.0885   AUC 0.9699 -> 0.9765
-#
-# The fusion gain is 4.3 SD below the published three-seed mean (0.0993+-0.0025),
-# so it is not seed noise. This script now generalises that run to the other two
-# seeds and the other three chromosome folds, which is the full single-tissue
-# reprocessing the swap requires.
-#
-# Why only two stages
-# -------------------
-# The sequence tower never sees context -- it reads DNA only -- so it does not
-# need retraining and the matching published tower is reused verbatim. That is
-# ~32 of ~46 h saved per run, and it keeps the sequence-only baseline in the
-# paper untouched and still comparable.
-#
-# Retrained here: the epigenomic tower (which consumes the context) and the gate
-# (which weighs the two towers). Roughly 14 h.
-#
-# How to submit
-# -------------
-#   mkdir -p logs/ablation
-#
-#   # remaining seeds, published split
-#   sbatch --job-name=ctx-s43 --export=ALL,SEED=43 scripts/run_context_ablation.sbatch
-#   sbatch --job-name=ctx-s44 --export=ALL,SEED=44 scripts/run_context_ablation.sbatch
-#
-#   # chromosome folds, seed 42
-#   sbatch --job-name=ctx-f1 --export=ALL,FOLD=1 scripts/run_context_ablation.sbatch
-#   sbatch --job-name=ctx-f2 --export=ALL,FOLD=2 scripts/run_context_ablation.sbatch
-#   sbatch --job-name=ctx-f3 --export=ALL,FOLD=3 scripts/run_context_ablation.sbatch
-#
-# The mkdir is NOT optional. Slurm opens --output and --error before the script
-# body runs, so a missing logs/ablation/ makes every task die at ~5 s with the
-# batch step CANCELLED and no log to say why. The mkdir in the body runs too
-# late to help; it is there for reruns only.
-#
-# --export=ALL,VAR=x is required rather than plain VAR=x: without ALL, Slurm
-# drops the rest of the environment and the conda python is not found.
 #SBATCH --job-name=ctxabl
 #SBATCH --partition=GPU-shared
 #SBATCH --gpus=v100-32:1
@@ -62,17 +7,14 @@
 #SBATCH --time=30:00:00
 #SBATCH --output=logs/ablation/ctxabl_%j.out
 #SBATCH --error=logs/ablation/ctxabl_%j.err
+# Slurm job: retrain the epi and fusion arms on primary breast epithelium in place of MCF-10A; this is the published model since 11 Sep 2026.
+
 set -eo pipefail
 
 PY="${SILENTMETHYL_PY:-python}"
 SEED=${SEED:-42}
 FOLD=${FOLD:-0}
 
-# ---------------------------------------------------------------------------
-# Layout. FOLD=0 is the published chr8+chr9 split across seeds 42/43/44;
-# FOLD=1..3 are the repeated chromosome-blocked splits at seed 42 only, because
-# that is the only seed for which published fold sequence towers exist.
-# ---------------------------------------------------------------------------
 if [ "${FOLD}" = "0" ]; then
   TAG="seed${SEED}"
   DATA="data/datafiles_breast_epithelium"
@@ -89,9 +31,6 @@ else
   DATA="data/datafiles_breast_epithelium/splits/fold${FOLD}"
   PUBLISHED_SEQ="checkpoints_folds/fold${FOLD}/sequence_seed42/best_weights.pth"
   BASELINE="results/journal/folds/fold${FOLD}/fusion/metrics.json"
-  # The split the reused tower was actually trained on, read from its own
-  # run_config.json. Ours is data/datafiles/splits/foldN (same probes as the
-  # breast-epithelium folds); a fresh clone's is whatever run_folds.sbatch used.
   PUBLISHED_SPLIT=$(dirname "$("$PY" -c "import json,sys; print(json.load(open(sys.argv[1]))['train_path'])" "$(dirname "${PUBLISHED_SEQ}")/run_config.json")")
 fi
 
@@ -104,27 +43,17 @@ if [ -s "${OUT}/fusion/best_weights.pth" ] || [ -s "${OUT}/epi/best_weights.pth"
 fi
 mkdir -p logs/ablation "${OUT}"
 
-# Fail fast if the allocated node cannot do CUDA. Node v005 has returned error
-# 803 before, after which torch falls back to CPU silently at ~49x slower.
 if ! "$PY" -c "import torch, sys; sys.exit(0 if torch.cuda.is_available() else 1)"; then
   echo "STOP: CUDA unavailable on $(hostname). Nothing was run." >&2
   echo "Requeue with:  sbatch --exclude=$(hostname) $0" >&2
   exit 4
 fi
 
-# test.csv is checked here, not at the test step, because the test step is ~14 h
-# downstream. A missing split should cost five seconds, not most of a day.
 for f in "${DATA}/train.csv" "${DATA}/val.csv" "${DATA}/test.csv" \
          "${PUBLISHED_SEQ}"; do
   [ -s "$f" ] || { echo "STOP: missing or empty ${f}" >&2; exit 1; }
 done
 
-# ---------------------------------------------------------------------------
-# Split integrity. This is the guard that matters most: the whole saving in this
-# script comes from reusing a published sequence tower, and that reuse is only
-# valid if this split is the SAME split that tower was trained on. Get it wrong
-# and the run completes normally while testing on probes the tower trained on.
-# ---------------------------------------------------------------------------
 if [ "${FOLD}" = "0" ]; then
   "$PY" - "${DATA}/split_manifest.json" <<'PYEOF'
 import json, sys, pathlib
@@ -168,8 +97,6 @@ $PY -u scripts/11_train_epi.py \
     --save_dir "${OUT}/epi" --seed ${SEED}
 
 echo "--- 2/2 gated fusion ---"
-# 12_train_fusion.py takes the .pth FILE, not the save directory -- it sha256s
-# the path. Passing a directory cost three folds 32 h each once.
 EPI_W="${OUT}/epi/best_weights.pth"
 [ -s "${EPI_W}" ] || { echo "STOP: epi tower produced no weights" >&2; exit 1; }
 
@@ -186,9 +113,6 @@ $PY -u scripts/13_test_model.py \
     --weights_path "${OUT}/fusion/best_weights.pth" \
     --output_dir "${RES}/fusion"
 
-# The context arm is where the effect is largest (0.1396 -> 0.1022 on seed 42),
-# and it costs ten seconds on 26k loci, so it is measured here rather than left
-# as a manual follow-up that gets forgotten on four of the five runs.
 echo "--- test: context-only ---"
 $PY -u scripts/13_test_model.py \
     --model epi --seed ${SEED} \

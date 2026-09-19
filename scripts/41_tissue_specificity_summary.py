@@ -120,7 +120,6 @@ def power_diagnostic(frame, results, metric):
                        "max_n_per_arm": int(sub["matched"].max()),
                        "median_n_per_arm": float(sub["matched"].median())}
 
-    # Non-overlapping n ranges in EITHER order mean the call is set by power.
     separated, low_power_call = False, None
     if len(calls) == 2:
         s, p = calls["shared"], calls["specific"]
@@ -129,10 +128,6 @@ def power_diagnostic(frame, results, metric):
         elif p["max_n_per_arm"] < s["min_n_per_arm"]:
             separated, low_power_call = True, "specific"
 
-    # Sign of each arm. Negative means the model anti-predicts that class,
-    # which is the false-positive signature rather than a mechanism difference.
-    # Checked for BOTH arms: which one goes negative depends on which cohorts
-    # were underpowered, and that differs between models.
     lookup = {(r["discovery"], r["replication"]): r for r in results}
     arm_key = {"shared": f"{metric}_shared",
                "specific": f"{metric}_tissue_specific"}
@@ -149,7 +144,6 @@ def power_diagnostic(frame, results, metric):
             "cleanly_separated_by_n": bool(separated),
             "low_power_call": low_power_call,
             "directions_with_negative_arm": negative,
-            # retained so existing decision.json readers keep working
             "directions_with_negative_specific_arm": negative["specific"]}
 
 
@@ -161,7 +155,7 @@ def pair_concordance(frame):
         ab = frame[(frame["discovery"] == a) & (frame["replication"] == b)]
         ba = frame[(frame["discovery"] == b) & (frame["replication"] == a)]
         if ab.empty or ba.empty:
-            continue  # only one direction informative -> cannot satisfy the rule
+            continue
         va, vb = ab.iloc[0]["verdict"], ba.iloc[0]["verdict"]
         supports = (va == vb) and va in ("shared", "specific")
         out.append({"pair": f"{a} / {b}",
@@ -212,8 +206,6 @@ def main(argv=None) -> int:
             continue
         everything[metric] = frame
 
-        # A direction whose arms are not |Z|-balanced is not a controlled
-        # comparison; surface it rather than averaging it in silently.
         bad = frame[frame["z_ok"] == False]  # noqa: E712
         print(f"\n[{metric}]  difference = shared - specific")
         print("-" * 92)

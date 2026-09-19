@@ -159,7 +159,6 @@ def main(argv=None) -> int:
             f"STOP: {args.predictions} has no recognisable predicted-beta column. "
             f"Columns: {list(preds.columns)}")
 
-    # Map matrix columns (samples) to participants, then to ancestry.
     sample_to_participant = {c: to_participant(c) for c in matrix.columns}
     part_to_anc = dict(zip(labels[pcol], labels[acol]))
     cols_by_group: dict[str, list] = {}
@@ -211,7 +210,6 @@ def main(argv=None) -> int:
                 len(probes), len(preds))
     pred_by_probe = preds.set_index("probeID")[pred_col]
 
-    # Chromosome/position for the block bootstrap.
     test = pd.read_csv(args.test_csv, usecols=lambda c: c in
                        ("probeID", "chr", "chrom", "pos", "position", "CpG_beg"))
     chrom_col = next((c for c in ("chr", "chrom") if c in test.columns), None)

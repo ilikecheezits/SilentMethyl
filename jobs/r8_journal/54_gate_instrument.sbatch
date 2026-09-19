@@ -10,12 +10,8 @@
 #SBATCH --array=0-1
 #SBATCH --output=logs/r8_journal/gate_instr_%a_%A.out
 #SBATCH --error=logs/r8_journal/gate_instr_%a_%A.err
-#
-# Task A -- instrumented forward pass for the gate decomposition.
-#
-# Inference only, FP32, seed 42 only. One array task per cohort so the two run
-# in the time of one; each writes its own directory, so no write collision.
-#   sbatch jobs/r8_journal/54_gate_instrument.sbatch
+# Slurm array job: instrumented forward pass for the gate decomposition, one task per cohort, seed 42 (script 54).
+
 set -euo pipefail
 cd "${SILENTMETHYL_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 source jobs/r8_journal/_common.sh
@@ -32,9 +28,6 @@ require_cuda
 echo "[*] host $(hostname)  cohort ${C}  $(date -u +%FT%TZ)"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader || true
 
-# --split-template MUST point at the breast-epithelium build: it is where the
-# seven context features come from, and the default would feed MCF-10A context
-# to the new fusion weights.
 $PY -u scripts/54_gate_decomposition.py instrument \
     --cohort "${C}" \
     --seed 42 \

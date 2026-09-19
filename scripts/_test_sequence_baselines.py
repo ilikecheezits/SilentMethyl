@@ -184,7 +184,6 @@ def build_scoring_input(path: Path, test_frame: pd.DataFrame) -> dict:
                              se=0.05))
             expect["keep"] += 1
 
-        # target CpG itself -> must be excluded
         rows.append(dict(Variant_ID=f"v{probe}_cpg", Gene="NA", chr="chr8",
                          Position_1based=C_INDEX + 1, Ref=seq[C_INDEX], Alt="A",
                          probeID=probe, probe_split="test", distance_bp=0,
@@ -195,7 +194,6 @@ def build_scoring_input(path: Path, test_frame: pd.DataFrame) -> dict:
                          pvalue=1e-12, se=0.05))
         expect["target_cpg"] += 1
 
-        # REF that disagrees with the stored sequence -> must be excluded
         pos0 = C_INDEX + 100
         wrong = "A" if seq[pos0] != "A" else "T"
         rows.append(dict(Variant_ID=f"v{probe}_bad", Gene="NA", chr="chr8",
@@ -208,7 +206,6 @@ def build_scoring_input(path: Path, test_frame: pd.DataFrame) -> dict:
                          pvalue=1e-3, se=0.05))
         expect["ref_mismatch"] += 1
 
-        # beyond the 1,000-bp window -> must be excluded
         rows.append(dict(Variant_ID=f"v{probe}_far", Gene="NA", chr="chr8",
                          Position_1based=C_INDEX + 900 + 1, Ref=seq[C_INDEX + 900],
                          Alt="A", probeID=probe, probe_split="test",
@@ -284,7 +281,6 @@ def main() -> int:
     if missing:
         failures.append(f"score file is missing columns scripts/20 needs: {missing}")
 
-    # --- independent recomputation of the deltas ------------------------------
     sys.path.insert(0, str(ROOT / "_stubs"))
     sys.path.insert(0, str(ROOT / "scripts"))
     import importlib
@@ -308,8 +304,6 @@ def main() -> int:
         if int(np.abs(diff).sum()) == 0:
             failures.append("a scored variant changed no k-mer count at all")
             break
-        # sign/magnitude consistency: delta must be finite and the two windows
-        # must differ at exactly one position
         differing = [i for i, (a, b) in enumerate(zip(wt_w, mut_w)) if a != b]
         if differing != [499 + int(row.distance_bp)]:
             failures.append(f"window difference at {differing}, expected "
@@ -318,7 +312,6 @@ def main() -> int:
         worst = max(worst, abs(float(row.Predicted_Delta_M)))
     print(f"largest |predicted delta M| among the 25 rechecked: {worst:.4f}")
 
-    # --- RC invariance, independently --------------------------------------
     probe_seq = test["Healthy_5000bp_DNA"].iloc[0][2000:3000]
     rc = probe_seq.upper().translate(str.maketrans("ACGT", "TGCA"))[::-1]
     d = float(np.max(np.abs(enc.counts(probe_seq) - enc.counts(rc))))

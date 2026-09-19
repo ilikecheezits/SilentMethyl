@@ -44,21 +44,6 @@ from pathlib import Path
 JOURNAL = Path("results/journal")
 ABL = JOURNAL / "ablation_breast_epithelium"
 
-# ---------------------------------------------------------------------------
-# MCF-10A guard, shared with 90_build_supplement_package.py.
-#
-# The context changed from MCF-10A to primary breast epithelium on 11 Sep 2026.
-# Two independent checks stop a superseded product reaching a package:
-#
-#   1. TEXT MARKERS. No packaged file may name the MCF-10A context: the cell
-#      line in any spelling, the Mint-ChIP assay, or any accession of the seven
-#      MCF-10A tracks. PDFs are checked through pdftotext. PNGs cannot be read
-#      and are covered by check 2 only.
-#   2. PROVENANCE. A number carries no marker, so every packaged source must
-#      also resolve under a breast-epithelium or context-free path. Pre-swap
-#      results live directly under results/journal/<analysis>/ and are refused
-#      unless listed in CONTEXT_FREE_SOURCES.
-# ---------------------------------------------------------------------------
 MCF10A_MARKERS = re.compile(
     r"MCF[\s_-]*10\s*A|\bMCF\b|Mint[\s_-]*ChIP|"
     r"ENCFF548SFG|ENCFF282YCX|ENCFF274LWG|ENCFF423DKY|ENCFF634LDP|ENCFF714NIL|"
@@ -73,12 +58,10 @@ BREAST_EPITHELIUM_SOURCES = (
     "data/reference/BreastEpithelium/",
     "data/external/",
 )
-# Provenance records and dependency pins, which carry no model output.
 CONTEXT_FREE_SOURCES = (
     "reproducibility/",
     "requirements.txt",
 )
-# Individual context-free files outside those trees (none at present).
 CONTEXT_FREE_FILES: set[str] = set()
 
 

@@ -70,10 +70,6 @@ from scipy import stats
 HERE = Path(__file__).resolve().parent
 SCORER_PATH = HERE / "20_variant_scoring.py"
 
-# The tissue rungs read context columns straight off the per-tissue builds, so
-# they need the canonical feature order -- the same list the model was trained
-# on. Rungs 1/2 never touch it, which is why the omission only surfaced once
-# tissue_<Name> and xtissue_mean were added.
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 
@@ -89,20 +85,6 @@ LOGGER = logging.getLogger("silentmethyl.ctxperm")
 SCHEMES = ("identity", "shuffle", "median", "xtissue_mean",
            "tissue_ColonTransverse", "tissue_KidneyCortex", "tissue_Lung")
 
-# Task B's dose-response ladder. Rungs 1/2 reuse the original identity/shuffle
-# schemes; rungs 3/4 are new and need the per-tissue reference builds.
-#
-#   rung 1  identity        native context (control)
-#   rung 2  shuffle         a random OTHER probe's context, same tissue
-#   rung 3  tissue_<Name>   the SAME locus's context in a different tissue
-#   rung 4  xtissue_mean    the per-locus mean across all four tissues -- a
-#                           generic, tissue-agnostic context. This is what a
-#                           naively-pooled multi-tissue model effectively sees
-#                           at each locus, which is why it substitutes for the
-#                           trained pooled baseline at a fraction of the cost.
-#
-# `median` (the cohort-wide median vector, not locus-specific) is kept from the
-# original experiment as a floor: it destroys locus identity entirely.
 TISSUE_CONTEXT = {
     "BreastEpithelium": "data/datafiles_breast_epithelium/test.csv",
     "ColonTransverse": "data/datafiles_multitissue/ColonTransverse/test.csv",
@@ -217,8 +199,6 @@ def permute(tab: torch.Tensor, missing: torch.Tensor, scheme: str,
         if n < 2:
             raise SystemExit("STOP: shuffle needs at least 2 rows")
         order = rng.permutation(n)
-        # A derangement is not required, but a locus keeping its own context
-        # weakens the perturbation, so resample the fixed points once.
         fixed = np.flatnonzero(order == np.arange(n))
         if len(fixed) > 1:
             order[fixed] = order[rng.permutation(fixed)]
@@ -346,17 +326,11 @@ def main(argv=None) -> int:
         raise SystemExit("STOP: no pair survived construction")
     LOGGER.info("construction counters: %s", counters)
 
-    # Permute across the WHOLE cohort, not within chunks: a within-chunk shuffle
-    # would keep each locus near its genomic neighbours, whose chromatin is
-    # correlated, and would understate the perturbation.
     sizes = [t.shape[0] for _, _, _, t, _ in prepared]
     all_tab = torch.cat([t for _, _, _, t, _ in prepared], dim=0)
     all_missing = torch.cat([m for _, _, _, _, m in prepared], dim=0)
     LOGGER.info("context matrix: %s", tuple(all_tab.shape))
 
-    # Row-aligned probe IDs: the tissue rungs are per-locus lookups, so every
-    # row of all_tab must know which probe it belongs to. Built by concatenating
-    # the cohort frames in the SAME order the tensors were concatenated.
     probe_ids = pd.concat([c for c, _, _, _, _ in prepared],
                           ignore_index=True)["probeID"].astype(str).tolist()
     if len(probe_ids) != all_tab.shape[0]:
@@ -379,9 +353,6 @@ def main(argv=None) -> int:
         p_tab, p_missing = permute(all_tab, all_missing, scheme, rng,
                                    probe_ids=probe_ids, ctx=ctx)
         if scheme.startswith("tissue_") or scheme == "xtissue_mean":
-            # Conservation is not tissue-specific, so the two PhyloP columns must
-            # come back untouched. If they move, the swap has picked up the wrong
-            # columns and every rung below it is meaningless.
             pidx = [TABULAR_FEATURES.index(PHYLOP_1), TABULAR_FEATURES.index(PHYLOP_2)]
             shifted = float((p_tab[:, pidx] - all_tab[:, pidx]).abs().max())
             LOGGER.info("  PhyloP max shift under %s: %.3e (expected 0)", scheme, shifted)
@@ -424,11 +395,6 @@ def main(argv=None) -> int:
             stat.update({"scheme": scheme, "quantity": label, "column": col})
             rows.append(stat)
 
-    # --- Task B rung (a): methylation LEVEL accuracy against measured beta ----
-    # Scored at the REF allele and deduplicated to one row per probe, so this is
-    # an ordinary level prediction. It is the pair-probe subset of the held-out
-    # test set, not the whole test set -- stated explicitly because the two are
-    # easy to confuse and the subset is ~78% of it.
     truth = {}
     for split in ("test",):
         tp = Path(args.split_template.format(split=split))
@@ -481,21 +447,6 @@ def main(argv=None) -> int:
               f"{r.get('sign_agreement', float('nan')):>8.3f}")
     print("-" * 84)
 
-    # The verdict is decided on NORMALISED MAE, not Pearson.
-    #
-    # This banner used to test `deltas_pearson > levels_pearson`. That comparison
-    # is invalid here and section 1 R2 of LAB_NOTES had already documented why:
-    # methylation levels are bimodal with SD ~3.18 M-units, so a high Pearson on
-    # levels is cheap and is not comparable against the same statistic computed on
-    # deltas, whose SD is ~0.10. On the realistic rungs the two quantities also
-    # barely move at all (levels Spearman 0.9865 vs deltas 0.9856 under
-    # xtissue_mean), so every correlation-based statistic saturates and flips sign
-    # on noise. Dividing each quantity by its own SD puts them on one scale and
-    # keeps resolution in that regime.
-    #
-    # Both are reported. Pearson is kept visible precisely because it disagrees:
-    # a reviewer who recomputes it will find the disagreement, and the honest move
-    # is to show it rather than to select the metric that agrees with us.
     verdict = {}
     for scheme in args.schemes:
         if scheme == "identity":

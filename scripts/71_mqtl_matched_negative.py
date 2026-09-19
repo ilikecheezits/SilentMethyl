@@ -45,10 +45,6 @@ def find_project_root(start: str | Path) -> Path:
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = find_project_root(SCRIPT_DIR)
 
-# The eGTEx permutation/FDR table was moved under data/external/egtex_breast/
-# with the rest of the cohort. Prefer where it lives now, keep the old flat
-# data/ path as a fallback so an older checkout still resolves, and report the
-# current location when neither exists rather than the stale one.
 _PERM_FDR_CANDIDATES = (
     PROJECT_ROOT / "data" / "external" / "egtex_breast" / "BreastMammaryTissue.regular.perm.fdr.txt",
     PROJECT_ROOT / "data" / "BreastMammaryTissue.regular.perm.fdr.txt",

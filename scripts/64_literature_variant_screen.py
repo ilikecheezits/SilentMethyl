@@ -102,8 +102,6 @@ def parse_args() -> argparse.Namespace:
         default=Path("data/egtex_breast_mqtl_heldout_qc.csv"),
     )
     parser.add_argument(
-        # Moved under data/external/egtex_breast/ with the rest of the cohort;
-        # the flat data/ path stays as a fallback for older checkouts.
         "--raw-breast-mqtl", type=Path,
         default=next(
             (p for p in (
@@ -315,7 +313,6 @@ def clinvar_to_candidates(
         significance = str(classification.get("description", ""))
                                                                              
                                                                                
-                                                          
         if search_mode == "pathogenic" and "pathogenic" not in significance.lower():
             continue
         if search_mode == "breast" and any(

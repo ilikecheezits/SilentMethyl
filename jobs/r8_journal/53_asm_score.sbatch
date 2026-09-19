@@ -9,29 +9,12 @@
 #SBATCH --time=06:00:00
 #SBATCH --output=logs/r8_journal/asm_score_%A.out
 #SBATCH --error=logs/r8_journal/asm_score_%A.err
-#
-# Task E1 -- ASM validation. Score the SNV-CpG pairs built by 53_asm_build.py
-# with the frozen breast-epithelium fusion checkpoint and the tissue-agnostic
-# sequence checkpoint, then evaluate discrimination against distance-matched
-# negatives.
-#
-# Source catalogue: Rosenski et al., Nat Commun 16:2141 (2025), Supplementary
-# Table S3 (55,271 ASM SNP loci); underlying WGBS GEO GSE186458. Restricted to
-# chr8+chr9, which is the held-out split -- held-out-ness here is CHROMOSOMAL,
-# not array membership, which is the whole point of the analysis.
-#
-# Two contrasts are scored in one pass:
-#   positive_vs_bimodal_non_asm   controlled  -- lead with this
-#   positive_vs_background        weaker, less specific
-#
-# Inference only, FP32, seed 42 only. No gradient steps, no new weights.
-#   sbatch jobs/r8_journal/53_asm_score.sbatch
+# Slurm job: score and evaluate the Rosenski ASM SNV-CpG pairs with the frozen fusion and sequence checkpoints (scripts 53b, 53c).
+
 set -euo pipefail
 cd "${SILENTMETHYL_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 source jobs/r8_journal/_common.sh
 
-# --output-dir MUST be passed. Both scripts default under results/journal/, and
-# the 12 Sep incident was exactly a missing --output-dir.
 OUT=results/journal/asm_validation
 IN=data/external/asm_atlas/scoring
 
@@ -54,8 +37,6 @@ $PY -u scripts/53b_asm_score.py \
     --batch-size 32 \
     --output-dir "${OUT}"
 
-# CPU, seconds. Kept in the same job so the result lands with the scores rather
-# than waiting on a separate submission.
 $PY -u scripts/53c_asm_evaluate.py \
     --scores-csv "${OUT}/asm_pair_scores.csv" \
     --output-dir "${OUT}"

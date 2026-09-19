@@ -1,3 +1,5 @@
+"""Train the context-only MLP tower on the reference chromatin and conservation tracks."""
+
 from __future__ import annotations
 
 import argparse

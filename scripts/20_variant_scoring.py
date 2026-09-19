@@ -116,10 +116,6 @@ from matched_background_utils import (  # noqa: E402
 
 LOGGER = logging.getLogger("silentmethyl.genoa")
 
-# Which chromatin context a path carries. Checkpoint roots name the context the
-# weights were TRAINED on; split files name the context FED at scoring time.
-# Longest key wins, so "data/datafiles_breast_epithelium" is not read as
-# "data/datafiles".
 CONTEXT_BY_PATH = {
     "checkpoints_ablation/breast_epithelium": "breast_epithelium",
     "data/datafiles_breast_epithelium": "breast_epithelium",
@@ -160,9 +156,6 @@ def describe_tissue_caveat(model_type: str, weights_path: str,
             "tissue-agnostic and is the comparator that makes the fusion result "
             "interpretable.")
 
-# Index of the target CpG's C inside the 5,000-bp stored sequence. centered_crop()
-# takes seq[2000:3000] for a 1,000-bp window, mapping index 2499 -> 499, which is
-# CENTER_C_INDEX. Both constants are asserted at startup rather than trusted.
 FULL_TARGET_C_INDEX = 2499
 FULL_SEQUENCE_LENGTH = 5000
 MODEL_WINDOW_SIZE = 1000
@@ -172,12 +165,6 @@ REQUIRED_INPUT_COLUMNS = [
     "probeID", "probe_split", "distance_bp",
 ]
 
-# The cohort-effect column is resolved rather than hard-coded, so the same
-# scorer runs on GENOA (`beta_genoa_ref_to_alt`) and on eGTEx Breast Mammary
-# (`beta_ref_to_alt`). Whichever is found is copied to the canonical name so
-# every downstream script sees one column regardless of cohort. The REQUIREMENT
-# is not the name -- it is that the effect is already keyed REF->ALT, which is
-# what the GENOA sign bug taught us to state explicitly.
 CANONICAL_EFFECT = "beta_ref_to_alt"
 CANONICAL_PVALUE = "pvalue"
 EFFECT_COLUMN_CANDIDATES = ("beta_ref_to_alt", "beta_genoa_ref_to_alt")
@@ -382,9 +369,6 @@ def build_chunk(pairs: pd.DataFrame, records: dict, counters: dict):
             counters["alters_target_cpg"] += 1
             continue
 
-        # Loud check, not a silent skip. If `pos` in the split CSVs and
-        # `cpg_pos_hg38` in the harmonized pairs were off by one, essentially every
-        # pair would land here -- which is exactly the signal we want.
         if sequence[full_index] != str(row.Ref).upper():
             counters["reference_base_mismatch"] += 1
             continue
@@ -544,17 +528,11 @@ def score_chunk(model, model_type: str, tokenizer, cohort: pd.DataFrame,
     out["WT_Beta_RC_Avg"] = wt_beta
     out["MUT_Beta_RC_Avg"] = mut_beta
     out["Predicted_Delta_Beta"] = mut_beta - wt_beta
-    # The M-scale delta is the primary quantity. Absolute beta error and beta
-    # deltas are compressed near 0 and 1, which is what results/journal/
-    # rc_uncertainty_conditional_s50/ showed is enough to invert an estimator
-    # ranking. Report on M and say why.
     out["Predicted_Delta_M"] = mut_m - wt_m
     out["Absolute_Delta_Beta"] = np.abs(out["Predicted_Delta_Beta"])
     out["Absolute_Delta_M"] = np.abs(out["Predicted_Delta_M"])
     out["Delta_Beta_FWD"] = delta_fwd
     out["Delta_Beta_RC"] = delta_rc
-    # Free per-locus uncertainty: the forward/RC disagreement the averaging throws
-    # away. Retains ~75-83% of the 3-seed ensemble's incremental signal.
     out["Delta_Beta_RC_Absolute_Difference"] = np.abs(delta_fwd - delta_rc)
     out["Delta_Beta_RC_Sign_Agree"] = (np.sign(delta_fwd) == np.sign(delta_rc)).astype(int)
 
@@ -582,7 +560,6 @@ def main() -> int:
     args = parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 
-    # Assert the window geometry instead of trusting the constants above.
     probe_sequence = "N" * FULL_SEQUENCE_LENGTH
     if centered_crop(probe_sequence, MODEL_WINDOW_SIZE) != "N" * MODEL_WINDOW_SIZE:
         raise RuntimeError("centered_crop did not return a 1000-bp window")
@@ -664,18 +641,7 @@ def main() -> int:
             f"pairs, not bad data. Resolve it before scoring.")
     LOGGER.info("construction counters: %s", counters)
 
-    # Per-run tag. Pair scores are already separated by model/seed directory, but
-    # the summary is not -- and this script is meant to be run as a Slurm array with
-    # one task per model-seed. Without the tag, six concurrent tasks would each
-    # overwrite the same run_summary.json and only the last one to finish would be
-    # recorded.
     suffix = f"_shard{args.shard}" if args.num_shards > 1 else ""
-    # A --limit run is a smoke test and must never occupy the filename a real run
-    # writes to. Without this, `--limit 200` leaves a 200-row pair_scores.csv at
-    # the exact path the array job uses; if the array task then fails, the stale
-    # file survives and scripts/20 reads it as a complete result. It prints the
-    # row count, so the mistake is visible -- but nothing raises, and a silently
-    # 380x-undersized cohort is precisely the kind of error that reaches a figure.
     if args.limit > 0:
         suffix += f"_smoke{args.limit}"
     run_tag = "_".join(

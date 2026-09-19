@@ -224,8 +224,6 @@ def load_paired_predictions(
 
     long = pd.concat(rows, ignore_index=True)
 
-    # Truth must be identical across every seed/model file, or the pairing is
-    # comparing different targets.
     reference = (
         long[(long["Seed"] == seeds[0]) & (long["Model"] == models[0])]
         .sort_values("probeID")
@@ -344,8 +342,6 @@ def stratum_row(
             sequence_draws > 0, -delta_draws / sequence_draws, np.nan
         )
 
-    # AUROC is not a per-CpG mean, so each replicate is recomputed with the
-    # block multiplicities carried as sample weights.
     auc_draws = np.full(replicates, np.nan, dtype=float)
     for index in range(replicates):
         weight = multiplicity[index][codes]

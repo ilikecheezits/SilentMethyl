@@ -63,9 +63,6 @@ ENCODE = "https://www.encodeproject.org"
 XENA = "https://gdc-hub.s3.us-east-1.amazonaws.com/download/{project}.methylation450.tsv.gz"
 UA = {"Accept": "application/json", "User-Agent": "SilentMethyl-acquire"}
 
-# Seven tissue-specific features, matching TABULAR_FEATURES in
-# scripts/training_common.py. PhyloP is genomic conservation, identical in every
-# tissue, and is already present as data/reference/hg38.phyloP100way.bw.
 MARKS = [
     ("Ref_ATAC_Signal",     "ATAC-seq",         None,       "ATAC_seq.bw"),
     ("Ref_H3K4me3_Signal",  "Histone ChIP-seq", "H3K4me3",  "H3K4me3.bw"),
@@ -76,56 +73,10 @@ MARKS = [
     ("Ref_H3K4me1_Signal",  "Histone ChIP-seq", "H3K4me1",  "H3K4me1.bw"),
 ]
 
-# Mint-ChIP-seq is a distinct assay_title on the portal from Histone ChIP-seq,
-# and the breast tracks are Mint. Both are bulk histone ChIP producing the same
-# fold-change output, so either is acceptable -- but which one was used has to
-# be recorded, and mixing them within a tissue would not be.
 HISTONE_ASSAYS = ["Histone ChIP-seq", "Mint-ChIP-seq"]
 
 OUTPUT_TYPE = "fold change over control"
 
-# ---------------------------------------------------------------------------
-# snATAC -> bigWig conversion
-# ---------------------------------------------------------------------------
-# ENCODE publishes no fold-change bigWig for single-nucleus ATAC, so keeping
-# MCF-10A as the breast context means converting a BAM per tissue. The command
-# below is applied IDENTICALLY to every tissue, MCF-10A included, and is written
-# into the manifest with each track. That last part is the whole point: the
-# existing data/reference/ATAC_seq.bw was converted with parameters nobody
-# recorded, which is why it cannot be matched and has to be redone.
-#
-# These settings are chosen to MATCH the published breast track, so that
-# data/reference/ATAC_seq.bw can be reused unchanged as the joint model's breast
-# context rather than replaced by a re-conversion. data/profile_bigwig.py
-# recovered its parameters from the file itself:
-#
-#     bin size        50 bp
-#     normalisation   CPM -- its smallest positive value is 0.00273, which is
-#                     1e6/366M, exactly the per-read quantum of a CPM track
-#     exclusion list  NOT applied; signal inside ENCODE-excluded regions
-#                     averages 5.46 against 0.001 in the flanks
-#
-# Why each flag:
-#   --normalizeUsing CPM   depth differs between experiments, and without
-#                          normalisation a deeper-sequenced tissue simply gets
-#                          larger numbers -- a scale offset perfectly correlated
-#                          with tissue. Also what the published track used.
-#   --binSize 50           matches the published track. A finer 10 bp binning
-#                          was tried first and produced a track that could not
-#                          be reconciled with it.
-#   --ignoreDuplicates     10x libraries carry PCR duplicates.
-#   --minMappingQuality 30 drops multi-mapping reads, standard for ATAC.
-#
-# NO exclusion list by default. Applying one here would make these tracks
-# cleaner than the breast track they sit beside, and a filter applied to three
-# tissues out of four is a difference that tracks tissue identity -- the exact
-# confound this route exists to remove. Pass --blacklist to override, and only
-# if the published breast track is being regenerated to match.
-#
-# Duplicate handling, MAPQ and read extension are NOT recoverable from a bigWig,
-# so a re-conversion of MCF-10A would not reproduce the published file even with
-# these settings. Breast therefore REUSES the published file (mark 'atac_file')
-# rather than converting it.
 SNATAC_BAMCOVERAGE = [
     "bamCoverage",
     "--normalizeUsing", "CPM",
@@ -136,22 +87,11 @@ SNATAC_BAMCOVERAGE = [
     "--numberOfProcessors", "max",
 ]
 
-# deeptools renames and drops options between releases -- --ignoreDuplicates is
-# absent from recent builds, for instance. Silently dropping a filter would
-# change the output while the recorded command still claimed it, so any flag the
-# installed binary does not accept is swapped for a documented equivalent, or
-# the run stops. SAM flag 1024 is the PCR/optical duplicate bit, so excluding it
-# is exactly what --ignoreDuplicates did.
 FLAG_FALLBACKS = {
     "--ignoreDuplicates": ["--samFlagExclude", "1024"],
 }
-# ENCODE GRCh38 exclusion list (Amemiya et al. 2019), fetched if absent.
 BLACKLIST_ACCESSION = "ENCFF356LFX"
 
-# What data/reference/ATAC_seq.bw actually is, recovered by the checksum audit
-# and data/profile_bigwig.py. Needed because a reused file carries no ENCODE
-# metadata of its own, and describing it as "a reused file" made the
-# cross-tissue checks below see a biosample and an assay that do not exist.
 REUSED_ATAC = {
     "biosample": "MCF 10A",
     "assay_title": "snATAC-seq",
@@ -159,30 +99,13 @@ REUSED_ATAC = {
     "derived_from": "ENCFF021PIS",
 }
 
-# TCGA projects supply the targets; ENCODE biosample terms supply the context.
-# Donor counts from data/survey_tcga_normal_cohorts.py, 10 Sep 2026.
-#
-# Kidney is KIRC only. Pooling KIRP and KICH reaches 205 donors, but KICH is
-# chromophobe, which arises from the distal nephron and collecting duct rather
-# than the cortex, and the eGTEx tissue being matched is Kidney Cortex.
-# Anatomical match beats sample count here.
 TISSUES = {
-    # The ablation candidate: primary breast epithelium instead of the MCF-10A
-    # cell line. Same TCGA targets, different context, so a model built on this
-    # is directly comparable to the published one on the same split.
     "BreastEpithelium": {
         "projects": ["TCGA-BRCA"],
         "encode": ["breast epithelium"],
         "note": "primary-tissue alternative to MCF-10A; tests whether the "
                 "published context choice cost anything",
     },
-    # BreastMammaryTissue (the MCF-10A route) was REMOVED on 11 Sep 2026. It
-    # existed only to let the joint model reuse the published cell-line context,
-    # which required converting an snATAC BAM per tissue because ENCODE has no
-    # fold-change bigWig for single-nucleus ATAC. The context ablation replaced
-    # MCF-10A with primary breast epithelium everywhere (LAB_NOTES section 1.10),
-    # and breast epithelium has bulk ATAC, so every tissue can now use a
-    # ready-made fold-change bigWig. Do not reinstate it without rereading 1.10.
     "KidneyCortex": {
         "projects": ["TCGA-KIRC"],
         "encode": ["kidney", "kidney epithelial cell", "renal cortex interstitium"],
@@ -207,25 +130,11 @@ TISSUES = {
 }
 
 
-# Friendly names accepted in a picks file, mapped to the feature the model uses.
-# Anything not listed here is not part of the context vector: TABULAR_FEATURES in
-# scripts/training_common.py fixes it at seven tissue-specific inputs, so an
-# eighth mark would change the epigenomic tower's input dimension and stop being
-# the published architecture. H3K9ac is the usual near-miss -- ENCODE has it for
-# many tissues and it looks like it belongs, but the model was never built with
-# it.
 MARK_ALIASES = {
     "atac": "Ref_ATAC_Signal", "atac-seq": "Ref_ATAC_Signal",
     "atac_seq": "Ref_ATAC_Signal",
-    # snATAC accessibility, supplied as a BAM to convert locally. ENCODE
-    # publishes no fold-change bigWig for single-nucleus experiments, so every
-    # tissue on this route goes through the same conversion below.
     "atac_bam": "Ref_ATAC_Signal", "snatac": "Ref_ATAC_Signal",
     "snatac_bam": "Ref_ATAC_Signal",
-    # An existing local bigWig, copied in rather than downloaded or converted.
-    # Breast uses this so the joint model reads the SAME file as the published
-    # single-tissue model -- a re-conversion could not reproduce it, because
-    # duplicate/MAPQ/extension settings are not recoverable from a bigWig.
     "atac_file": "Ref_ATAC_Signal",
     "dnase": None,
     "h3k4me3": "Ref_H3K4me3_Signal",
@@ -249,16 +158,12 @@ def _json(url: str, timeout: int = 90):
         with urllib.request.urlopen(req, timeout=timeout) as fh:
             return json.load(fh)
     except urllib.error.HTTPError as exc:
-        if exc.code == 404:      # ENCODE says "no matches" with a 404
+        if exc.code == 404:
             return None
         raise Unreachable(f"HTTP {exc.code} from {url.split('?')[0]}") from exc
     except urllib.error.URLError as exc:
         raise Unreachable(f"cannot reach {url.split('?')[0]} ({exc.reason})") from exc
 
-
-# ---------------------------------------------------------------------------
-# ENCODE resolution
-# ---------------------------------------------------------------------------
 
 def _file_search(term: str, assay: str, target: str | None) -> list[dict]:
     params = [
@@ -335,10 +240,6 @@ def resolve_context(tissue: str, terms: list[str], verbose: bool = True) -> dict
     return best
 
 
-# ---------------------------------------------------------------------------
-# Targets
-# ---------------------------------------------------------------------------
-
 def read_picks(path: Path) -> dict[str, dict[str, str]]:
     """Parse a hand-written picks file into {tissue: {feature: accession}}.
 
@@ -395,7 +296,7 @@ def read_picks(path: Path) -> dict[str, dict[str, str]]:
                 "accession": None, "as_bam": False, "reuse_path": str(src)}
             continue
         as_bam = key in ("atac_bam", "snatac", "snatac_bam") or acc.endswith(".bam")
-        if "/files/" in acc:                     # a full download URL
+        if "/files/" in acc:
             acc = acc.split("/files/")[1].split("/")[0]
         if not acc.startswith("ENCFF"):
             raise SystemExit(f"STOP: {path}:{lineno}: {token!r} is not an ENCFF accession")
@@ -622,10 +523,6 @@ def check_xena(project: str) -> dict:
         raise Unreachable(f"cannot reach the Xena GDC hub ({exc.reason})") from exc
 
 
-# ---------------------------------------------------------------------------
-# Download
-# ---------------------------------------------------------------------------
-
 def download(url: str, dest: Path, expect_md5: str | None = None,
              retries: int = 4) -> dict:
     """Fetch one file, resuming a partial transfer rather than restarting it.
@@ -654,11 +551,10 @@ def download(url: str, dest: Path, expect_md5: str | None = None,
             with urllib.request.urlopen(req, timeout=300) as src:
                 resuming = src.status == 206
                 if have and not resuming:
-                    tmp.unlink(missing_ok=True)   # server ignored Range
+                    tmp.unlink(missing_ok=True)
                     have = 0
                 if have:
                     print(f"      resuming at {have / 1e6:.0f} MB")
-                # Content-Length is what remains, not the whole file, on a 206.
                 remaining = int(src.headers.get("Content-Length") or 0)
                 total = have + remaining if remaining else 0
                 mode = "ab" if have else "wb"
@@ -670,9 +566,6 @@ def download(url: str, dest: Path, expect_md5: str | None = None,
                             break
                         out.write(block)
                         done += len(block)
-                        # A 20 GB BAM with no output is indistinguishable from a
-                        # hang. Report every 15 s -- often enough to see life,
-                        # rare enough not to flood a nohup log.
                         now = time.time()
                         if now - last >= 15:
                             rate = (done - have) / max(now - started, 1e-9) / 1e6
@@ -815,10 +708,6 @@ def main(argv=None) -> int:
                     acc, as_bam = pick["accession"], pick["as_bam"]
                     if pick.get("reuse_path"):
                         src = Path(pick["reuse_path"])
-                        # Describe the reused file by what it actually IS, not by
-                        # the fact that it was reused. Leaving these blank made
-                        # the consistency checks below see a second biosample
-                        # and a second assay in this tissue that do not exist.
                         prof = {"reuse_path": str(src), "filename": MARK_FILENAME[feature],
                                 "bytes": src.stat().st_size, "ok": True,
                                 "biosample": REUSED_ATAC["biosample"],
@@ -846,10 +735,6 @@ def main(argv=None) -> int:
                         print(f"    {mark:<10}{acc:<14}REJECTED")
                         for p in rec["problems"]:
                             print(f"      - {p}")
-                        # A rejected file usually has an acceptable sibling in
-                        # the same experiment -- an hg19 file almost always does,
-                        # because ENCODE reprocessed against GRCh38 later. Say
-                        # where to look rather than leaving a portal search.
                         if rec.get("experiment"):
                             print(f"      the same experiment {rec['experiment']} "
                                   f"({rec.get('biosample')}) may have a usable file:")
@@ -902,15 +787,6 @@ def main(argv=None) -> int:
             f"STOP: {exc}.\nCompute nodes have no outbound HTTPS -- run this on "
             f"a login node or your laptop.") from exc
 
-    # Merge into any existing plan BEFORE the consistency check, not after.
-    # Running one tissue at a time with --tissues used to overwrite the file with
-    # just that tissue, silently discarding the record for every other one -- and
-    # this file is meant to BE the record of which ENCODE files the context is
-    # built from. The merge also has to come first because the check below is the
-    # only thing standing between a mixed-assay set and a trained model: when
-    # breast is pinned by a picks file and the other tissues resolve
-    # automatically, those are two separate invocations, and a check that saw
-    # only the current run would compare each set against itself and pass.
     args.plan.parent.mkdir(parents=True, exist_ok=True)
     carried: list[str] = []
     if args.plan.is_file():
@@ -927,15 +803,6 @@ def main(argv=None) -> int:
             print(f"  consistency is checked across all "
                   f"{len(plan['tissues'])} tissues, not just this run")
 
-    # Cross-tissue consistency. Checking each tissue on its own is not enough:
-    # if breast resolves to Mint-ChIP and lung to Histone ChIP-seq, the context
-    # differs between tissues by ASSAY rather than by biology, and a joint model
-    # can learn that difference as tissue identity. Same for output type. This
-    # is the failure the whole rebuild exists to avoid, so it is checked before
-    # anything is downloaded.
-    # Compare only values that are actually known. A missing field is not a
-    # second assay, and treating it as one produced a "differ" warning listing a
-    # single value -- which is nonsense and trains you to ignore the check.
     per_feature: dict[str, dict[str, set]] = {}
     for tissue, entry in plan["tissues"].items():
         for feature, f in entry.get("context", {}).get("files", {}).items():
@@ -1013,10 +880,6 @@ def main(argv=None) -> int:
         print("mismatch aborts rather than leaving an unverified track in place.")
         return 0
 
-    # The per-tissue directories and the superseded MCF-10A tracks at the root
-    # carry the same filenames, so writing either into
-    # the other's directory would silently swap one model's context for the
-    # other's, and nothing downstream would notice.
     for tissue in plan["tissues"]:
         target_dir = (args.reference_root / tissue).resolve()
         if target_dir == args.reference_root.resolve():
@@ -1025,9 +888,6 @@ def main(argv=None) -> int:
                 f"itself.\nThat directory holds the PUBLISHED single-tissue "
                 f"context and must not be overwritten.")
 
-    # Check the conversion tool BEFORE transferring anything. bamCoverage was
-    # previously checked at conversion time, which meant discovering it was
-    # missing after a 19.6 GB download had already finished.
     needs_conversion = any(
         f.get("convert_from_bam")
         for t in plan["tissues"].values()
@@ -1049,7 +909,6 @@ def main(argv=None) -> int:
 
     print("\ndownloading ...")
 
-    # One shared exclusion list, fetched once, used by every conversion.
     blacklist = None
     if needs_conversion and args.blacklist:
         blacklist = args.reference_root / f"{BLACKLIST_ACCESSION}.bed.gz"
@@ -1074,10 +933,6 @@ def main(argv=None) -> int:
         for feature, f in entry.get("context", {}).get("files", {}).items():
             dest = args.reference_root / tissue / f["filename"]
 
-            # "It exists" is not "it is the right file". Lung/ATAC_seq.bw once
-            # survived a switch from bulk ATAC to snATAC purely because the name
-            # was unchanged, leaving the plan and the marker file claiming a
-            # source the bytes did not come from. Check identity, not presence.
             if f.get("reuse_path"):
                 src = Path(f["reuse_path"])
                 if dest.exists() and hashlib.md5(dest.read_bytes()).hexdigest() == f["md5"]:
@@ -1128,9 +983,6 @@ def main(argv=None) -> int:
                     f["downloaded"] = download(f["url"], bam, f.get("md5"))
                 print(f"  converting {bam.name} -> {dest.name}")
                 f["conversion"] = convert_bam(bam, dest, blacklist)
-                # A converted track has no upstream md5 to check it against, so
-                # record what it came from next to it. This sidecar is what the
-                # skip check above reads on a later run.
                 dest.with_suffix(dest.suffix + ".source.json").write_text(
                     json.dumps({"accession": f["accession"],
                                 "experiment": f.get("experiment"),
@@ -1158,8 +1010,6 @@ def main(argv=None) -> int:
             print(f"  {m['project']}  ->  {dest}")
             m["downloaded"] = download(m["url"], dest, None)
 
-    # A marker in each directory, so the two breast track sets can be told
-    # apart by looking rather than by remembering.
     for tissue, entry in plan["tissues"].items():
         files = entry.get("context", {}).get("files", {})
         if not files:

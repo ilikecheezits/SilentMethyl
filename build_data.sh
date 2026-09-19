@@ -8,26 +8,7 @@
 #SBATCH --time=06:00:00
 #SBATCH --output=logs/data_build/build_data_%j.out
 #SBATCH --error=logs/data_build/build_data_%j.err
-#
-# Builds the processed cohort for the PUBLISHED model: TCGA-BRCA normal-breast
-# methylation targets on HM450 probes, with the seven primary breast-epithelium
-# context tracks (data/reference/BreastEpithelium) and phyloP, plus the somatic
-# synonymous candidate cohort and the four chromosome-blocked folds.
-#
-#   mkdir -p logs/data_build
-#   sbatch --export=ALL,OUT_DIR=data/datafiles_breast_epithelium build_data.sh
-#
-# Verify a rebuild against a build you already have, without touching it:
-#
-#   sbatch --export=ALL,OUT_DIR=repro_check/datafiles_breast_epithelium,VERIFY_AGAINST=data/datafiles_breast_epithelium build_data.sh
-#
-# OUT_DIR is required and is never defaulted: data/datafiles/ (the superseded
-# MCF-10A build) and data/datafiles_breast_epithelium/ are both published builds
-# that trained checkpoints depend on, and every builder below refuses to write
-# into a directory that already holds its outputs.
-#
-# REFERENCE_DIR defaults to the published context. Setting it to data/reference
-# rebuilds the superseded MCF-10A context (historical record only).
+# Build the published processed cohort: TCGA-BRCA normal-breast HM450 targets with the seven primary breast-epithelium context tracks.
 
 set -euo pipefail
 umask 027

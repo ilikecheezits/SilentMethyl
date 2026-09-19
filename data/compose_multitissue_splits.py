@@ -67,13 +67,6 @@ import pandas as pd
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 
-# Breast points at the single-tissue build rather than a fourth copy of it.
-# data/datafiles_breast_epithelium IS the BreastEpithelium context with TCGA-BRCA
-# targets -- the same rows the single-tissue reprocessing trained on. Reusing it
-# means the joint model's breast arm is demonstrably the same data, which is a
-# provenance statement a reviewer can check with md5sum. Rebuilding it into
-# datafiles_multitissue/ would be a byte-identical duplicate at best, and a
-# silent divergence at worst.
 DEFAULT_TISSUES = {
     "BreastEpithelium": SCRIPT_DIR / "datafiles_breast_epithelium",
     "KidneyCortex": SCRIPT_DIR / "datafiles_multitissue" / "KidneyCortex",
@@ -81,9 +74,6 @@ DEFAULT_TISSUES = {
     "ColonTransverse": SCRIPT_DIR / "datafiles_multitissue" / "ColonTransverse",
 }
 
-# The single-tissue training set size. Keeping the joint budget here makes a
-# joint epoch cost what a single-tissue epoch costs, so wall-clock estimates
-# carry over and the comparison is not confounded by training length.
 DEFAULT_BUDGET = 345_359
 
 
@@ -204,7 +194,6 @@ def main() -> None:
         print(f"held out entirely: {args.holdout}  "
               f"(test is this tissue alone, at its full probe set)")
 
-    # ---- training -----------------------------------------------------------
     train_frames = {n: load_split(tissues[n], "train") for n in training_names}
     for name, frame in train_frames.items():
         print(f"  {name:20s} {len(frame):>8,} train rows available")
@@ -224,8 +213,6 @@ def main() -> None:
 
     assignment = allocate(universe_array, training_names, args.budget, args.seed)
 
-    # Disjointness is guaranteed by construction above; assert it anyway,
-    # because the failure is silent and shows up as an inexplicably good result.
     pooled: set[str] = set()
     for name, probes in assignment.items():
         overlap = pooled.intersection(probes)
@@ -234,7 +221,6 @@ def main() -> None:
                              "another tissue; assignment is not disjoint.")
         pooled.update(probes)
 
-    # ---- validation ---------------------------------------------------------
     val_frames = {n: load_split(tissues[n], "val") for n in training_names}
     val_budget = args.val_budget or min(len(f) for f in val_frames.values())
     val_universe = None
@@ -244,10 +230,6 @@ def main() -> None:
     val_assignment = allocate(np.array(sorted(val_universe)), training_names,
                               val_budget, args.seed)
 
-    # ---- test ---------------------------------------------------------------
-    # Never subsampled. The joint model's test numbers have to sit beside the
-    # published single-tissue numbers on the same probes, or the comparison is
-    # between two different test sets wearing the same name.
     test_names = [args.holdout] if args.holdout else list(tissues)
     test_frames = {n: load_split(tissues[n], "test") for n in test_names}
 
@@ -271,12 +253,6 @@ def main() -> None:
         print("\nDRY RUN -- nothing written.")
         return
 
-    # ---- write --------------------------------------------------------------
-    # The Tissue column is added here rather than in the builder so that each
-    # per-tissue build keeps exactly the single-tissue schema and stays usable
-    # on its own. scripts/13_test_model.py ignores unknown columns, and
-    # data/split_predictions_by_tissue.py uses this one to report per-tissue
-    # metrics from a single joint predictions file.
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
     def write(split: str, parts: list[pd.DataFrame]) -> int:
@@ -304,9 +280,6 @@ def main() -> None:
         part["Tissue"] = name
         val_parts.append(part)
 
-    # Test is the one split where the same probe legitimately appears in several
-    # tissues -- that is what per-tissue evaluation means -- so probeID is made
-    # unique by tissue rather than checked for duplicates.
     test_parts = []
     for name in test_names:
         part = test_frames[name].copy()
@@ -338,9 +311,6 @@ def main() -> None:
     (args.out_dir / "composition_manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n")
 
-    # The assignment itself, so a rerun can be proved identical without
-    # re-deriving it from the seed and trusting that nothing about the universe
-    # changed in between.
     (args.out_dir / "probe_assignment.json").write_text(
         json.dumps({n: sorted(v.tolist()) for n, v in assignment.items()},
                    indent=2, sort_keys=True) + "\n")

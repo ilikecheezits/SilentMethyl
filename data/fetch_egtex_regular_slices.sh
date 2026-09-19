@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Download the eGTEx regular mQTL slices used by the harmonizer.
+
 set -uo pipefail
 BASE=https://storage.googleapis.com/egtex/methylation/epic-arrays/mQTLs
 OUT=data/external/egtex_multitissue/within600
@@ -8,7 +10,6 @@ AWK=$(command -v mawk || command -v gawk || command -v awk)
 if command -v pigz >/dev/null; then UNZ="pigz -dc -p 4"; else UNZ="gzip -dc"; fi
 echo "awk=$AWK  unzip=$UNZ"
 
-# byte-identical to AWK_PROGRAM in data/harmonize_egtex_mqtl.py
 PROG='
 BEGIN { OFS = "\t" }
 {

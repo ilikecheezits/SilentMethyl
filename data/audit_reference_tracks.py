@@ -73,8 +73,6 @@ except ImportError as exc:  # pragma: no cover
         f"has pyBigWig -- data/build_training_data.py imports it."
     ) from exc
 
-# Mirrors the mapping in data/build_training_data.py. Kept as a literal so this
-# script can be run without importing the builder and its heavy dependencies.
 TRACKS = {
     "Ref_ATAC_Signal":      "ATAC_seq.bw",
     "Ref_H3K4me3_Signal":   "H3K4me3.bw",
@@ -86,13 +84,9 @@ TRACKS = {
     "Target_Base_PhyloP_100way": "hg38.phyloP100way.bw",
 }
 
-# chr1 length is the cheapest unambiguous assembly discriminator.
 CHR1 = {249_250_621: "hg19/GRCh37", 248_956_422: "hg38/GRCh38",
         247_249_719: "hg18/NCBI36"}
 
-# A gene-dense hg38 window used to sanity-check that a track carries signal at
-# all. Chosen inside a housekeeping locus so every mark should be non-empty,
-# though the repressive marks will be low.
 PROBE_REGION = ("chr1", 1_000_000, 1_100_000)
 
 
@@ -259,9 +253,6 @@ def main(argv=None) -> int:
     records = {}
     for feature, name in TRACKS.items():
         rec = fingerprint(args.reference_dir / name)
-        # PhyloP is genome conservation, identical in every tissue, so it lives
-        # once at data/reference/ and is not copied into each tissue directory.
-        # Reporting it MISSING for a tissue is noise, not a finding.
         if not rec["present"] and "phyloP" in name:
             shared = Path("data/reference") / name
             if shared.is_file() and shared != args.reference_dir / name:
@@ -269,9 +260,6 @@ def main(argv=None) -> int:
                 rec["shared_across_tissues"] = True
         records[feature] = rec
 
-    # Recover provenance from the checksums. These were downloaded by hand from
-    # the ENCODE portal and renamed, so the accession is gone from the filename
-    # but not from the bytes.
     encode_error = None
     if not args.no_encode:
         print("matching checksums against the ENCODE portal ...")
@@ -280,10 +268,6 @@ def main(argv=None) -> int:
                 continue
             try:
                 r["encode"] = encode_lookup(r["md5"])
-                # A locally produced track has no matching checksum, but if we
-                # are told which ENCODE file it was made FROM, that file's real
-                # assay and output type can still be recovered -- and those are
-                # what decide whether the other tissues can be matched.
                 if not r["encode"] and feature in derived:
                     r["encode"] = encode_by_accession(derived[feature])
                     if r["encode"]:
@@ -369,11 +353,6 @@ def main(argv=None) -> int:
                 print("   feeds these values straight into its first Linear layer")
                 print("   with no per-feature standardisation, so the scales do")
                 print("   not wash out -- see scripts/training_common.py.")
-            # ATAC and histone ChIP are different assays by necessity -- one
-            # measures accessibility, the others measure marks -- so their
-            # co-occurrence is correct and must not be flagged. What matters is
-            # whether any track is SINGLE-CELL/NUCLEUS while the rest are bulk,
-            # which is how the breast context went wrong.
             single_cell = sorted(a for a in assays if a and
                                  ("single-nucleus" in a.lower()
                                   or "single-cell" in a.lower()
@@ -414,7 +393,6 @@ def main(argv=None) -> int:
                 print("  and the same choice has to be repeated for every tissue")
                 print("  added later, or the feature is not comparable across them.")
 
-        # Value scales, side by side. This is what actually reaches the model.
         scaled = {f: r for f, r in records.items()
                   if r.get("header", {}).get("maxVal") is not None}
         if scaled:
@@ -460,20 +438,12 @@ def main(argv=None) -> int:
         with args.manifest.open() as fh:
             manifest = json.load(fh)
 
-        # Keyed by TISSUE then feature. Keying by feature alone meant auditing
-        # data/reference/Lung silently overwrote the breast entries, because
-        # both directories hold a file called H3K27ac.bw. That destroyed the
-        # provenance recovered for the published model, which is the exact
-        # failure this script exists to prevent.
         root = manifest.setdefault("reference_tracks", {})
 
         def tissue_of(path: str) -> str:
             parent = Path(path).parent.name
             return "root" if parent == "reference" else parent
 
-        # Migrate any flat entries left by the earlier version. Each carries the
-        # path it was fingerprinted from, so it can be filed under the right
-        # tissue rather than guessed at or dropped.
         flat = {f: e for f, e in root.items()
                 if isinstance(e, dict) and "path" in e}
         if flat:
@@ -489,8 +459,6 @@ def main(argv=None) -> int:
             prior = block.get(feature, {})
             entry = dict(r)
             enc = r.get("encode") or {}
-            # Prefer what the checksum proved; fall back to anything a human
-            # already filled in; never overwrite a real value with a blank.
             for key, from_encode in (("accession", "accession"),
                                      ("biosample", "biosample"),
                                      ("url", "file_url"),
@@ -505,8 +473,6 @@ def main(argv=None) -> int:
             entry["derived_from_accession"] = (
                 enc.get("derived_from_accession")
                 or prior.get("derived_from_accession"))
-            # Only a human can say what tool and flags made the file; keep any
-            # note already there and leave the field visible when it is absent.
             entry["derivation_command"] = prior.get("derivation_command")
             entry["fingerprinted_utc"] = datetime.now(timezone.utc).isoformat(
                 timespec="seconds")

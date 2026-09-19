@@ -46,11 +46,6 @@ RC_TABLE = str.maketrans(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
-    # The context directory and the output directory were both derived from
-    # --data-dir, so building against a different context would have meant
-    # overwriting the published tracks in data/reference/ and the published
-    # splits in data/datafiles/. Both are separable now, so an alternative
-    # context can be built and compared without touching either.
     parser.add_argument(
         "--reference-dir", type=Path, required=True,
         help="Directory holding the seven context bigWigs. REQUIRED: the old "
@@ -66,14 +61,6 @@ def parse_args() -> argparse.Namespace:
              "published builds that trained checkpoints depend on.")
     parser.add_argument("--overwrite", action="store_true",
                         help="allow replacing an existing build in --out-dir")
-    # The methylation matrix was hardcoded to TCGA-BRCA. The joint multi-tissue
-    # model needs one build per tissue, and two of the four tissues pool two
-    # cohorts each (lung = LUAD + LUSC, colon = COAD + READ), so this takes a
-    # list. Pooling happens at the SAMPLE level, not by averaging two cohort
-    # medians: every solid-tissue-normal column from every listed matrix goes
-    # into one pool and a single median is taken across all of them, so a cohort
-    # with more donors carries proportionally more weight, which is what you
-    # want when one arm has 30 donors and the other 44.
     parser.add_argument(
         "--methylation", type=Path, nargs="+", default=None,
         help="One or more TCGA methylation450 matrices. Defaults to "
@@ -218,11 +205,6 @@ def pooled_normal_targets(meth_paths: list[Path],
     targets = pd.DataFrame({
         "probeID": probes,
         "Median_Beta": median.astype(np.float32),
-        # Precision of the M-value target. The published single-tissue build
-        # (data/datafiles_breast_epithelium, 11 Sep 2026, script sha256 89ee4ea4...)
-        # kept the float64 log2; the multi-tissue refactor that followed cast it to
-        # float32, and data/datafiles_multitissue/* were built that way. The two
-        # differ by < 5e-7 in M. The flag reproduces either build byte for byte.
         "M_Value_Target": np.log2(clipped / (1.0 - clipped)).astype(m_value_precision),
         "Binary_State_Target": (median > 0.5).astype(np.int8),
     })
@@ -336,7 +318,7 @@ def main() -> None:
     manifest_path = data_dir / "HM450.hg38.manifest.tsv.gz"
     meth_paths = ([p.resolve() for p in args.methylation] if args.methylation
                   else [data_dir / "TCGA-BRCA.methylation450.tsv.gz"])
-    meth_path = meth_paths[0]   # kept for the single-matrix manifest field
+    meth_path = meth_paths[0]
     published_ref = data_dir / "reference"
     base_ref = (args.reference_dir.resolve() if args.reference_dir
                 else published_ref)
@@ -348,9 +330,6 @@ def main() -> None:
         "Ref_H3K9me3_Signal": base_ref / "H3K9me3.bw",
         "Ref_H3K36me3_Signal": base_ref / "H3K36me3.bw",
         "Ref_H3K4me1_Signal": base_ref / "H3K4me1.bw",
-        # Conservation is a property of the genome, not of the tissue, so it is
-        # always read from the published reference directory even when the
-        # context tracks come from elsewhere.
         "Target_Base_PhyloP_100way_1": published_ref / "hg38.phyloP100way.bw",
         "Target_Base_PhyloP_100way_2": published_ref / "hg38.phyloP100way.bw",
     }
@@ -552,8 +531,6 @@ def main() -> None:
 
     input_records = {
         "manifest": file_record(manifest_path),
-        # Kept as a scalar for backward compatibility with manifests written
-        # before pooling existed; methylation_matrices is the authoritative list.
         "methylation_matrix": file_record(meth_path, hash_file=args.hash_large_inputs),
         "methylation_matrices": [file_record(p, hash_file=args.hash_large_inputs)
                                  for p in meth_paths],
@@ -572,10 +549,6 @@ def main() -> None:
             "rule": NORMAL_SAMPLE_RE.pattern,
             "selected_count": len(normal_columns),
             "sample_ids_file": normal_samples_path.name,
-            # Per-matrix counts and per-probe coverage. With two cohorts pooled,
-            # a single total hides that one arm may contribute most of the
-            # samples, and samples_per_probe_min catches a probe whose median
-            # rests on very few donors.
             "pooling": target_summary,
         },
         "sequence_filtering": {

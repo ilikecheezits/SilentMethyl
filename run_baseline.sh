@@ -8,21 +8,7 @@
 #SBATCH --time=30:00:00
 #SBATCH --output=logs/training/sequence_%j.out
 #SBATCH --error=logs/training/sequence_%j.err
-#
-# Sequence-only tower (DNABERT-2), published chr8+chr9 split. ~26 h on one V100-32.
-#
-#   mkdir -p logs/training
-#   sbatch --export=ALL,SEED=42,DATA=data/datafiles_breast_epithelium run_baseline.sh
-#
-# This tower reads DNA only. The published towers under checkpoints_journal/ were
-# trained on data/datafiles/, whose sequence, target and split columns are
-# byte-identical to data/datafiles_breast_epithelium/ -- the two builds differ
-# only in the seven context columns, which this model never reads. Either DATA
-# therefore reproduces the same tower; the breast-epithelium build is the one a
-# fresh clone has.
-#
-# Refuses to overwrite an existing tower: the published ones are reused verbatim
-# by every fusion model. Set SAVE_DIR to train somewhere else.
+# Slurm job: train the sequence-only DNABERT-2 tower on the published chr8+chr9 split.
 
 set -euo pipefail
 

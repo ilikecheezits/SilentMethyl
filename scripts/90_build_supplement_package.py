@@ -204,9 +204,6 @@ STATIC_ITEMS = (
     Item("S6", "data/datafiles_breast_epithelium/candidate_cohort_manifest.json",
          "Supplementary_Data_S6_Reproducibility/S6_candidate_cohort_manifest.json",
          "Somatic candidate-cohort construction manifest."),
-    # REPRODUCE.md is deliberately NOT packaged: it documents the superseded
-    # MCF-10A record, so it would (correctly) trip the MCF-10A guard. The package
-    # README points readers to it in the code repository instead.
     Item("S6", "requirements.txt",
          "Supplementary_Data_S6_Reproducibility/S6_python_requirements.txt",
          "Recorded Python dependencies."),

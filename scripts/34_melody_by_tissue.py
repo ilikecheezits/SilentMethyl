@@ -51,7 +51,6 @@ LOGGER = logging.getLogger("melody.by_tissue")
 
 KEY = ["probeID", "Variant_ID"]
 
-# GTEx tissue -> Loyfer cell-type tracks whose predicted effects are averaged.
 TISSUE_TRACKS = {
     "BreastMammaryTissue": ["GSM5652347_Breast-Luminal-Epithelial-Z000000V2",
                             "GSM5652350_Breast-Basal-Epithelial-Z000000V6"],
@@ -132,8 +131,6 @@ def main(argv=None) -> int:
 
         joined["Predicted_Delta_M"] = joined[cols].mean(axis=1)
         joined["Absolute_Delta_M"] = joined["Predicted_Delta_M"].abs()
-        # These describe SilentMethyl's run and would be actively misleading on
-        # a Melody row.
         for drop in ("Predicted_Delta_Beta", "Absolute_Delta_Beta",
                      "Delta_Beta_FWD", "Delta_Beta_RC",
                      "Delta_Beta_RC_Absolute_Difference",

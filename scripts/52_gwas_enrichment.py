@@ -49,10 +49,6 @@ import pandas as pd
 HERE = Path(__file__).resolve().parent
 EVALUATOR = HERE / "21_variant_evaluation.py"
 
-# Confounds declared before any result exists. Reported whatever they show.
-# Allele frequency is named differently per cohort: GENOA writes af_genoa,
-# eGTEx writes maf. Detected, never assumed -- a missing column silently
-# disables the matching that made the v1 run uninterpretable.
 AF_COLUMN_CANDIDATES = ("af_genoa", "maf", "af", "MAF", "allele_frequency")
 PRESPECIFIED_CONFOUNDS = ("abs_distance_bp", "__af__")
 
@@ -121,7 +117,6 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-# --------------------------------------------------------------- GWAS catalog
 def read_catalog(path: Path, trait_contains: str | None) -> pd.DataFrame:
     """rsid + hg38 chr/pos for every association, deduplicated."""
     opener = gzip.open if path.suffix == ".gz" else open
@@ -152,9 +147,6 @@ def read_catalog(path: Path, trait_contains: str | None) -> pd.DataFrame:
 def label_overlap(pairs: pd.DataFrame, catalog: pd.DataFrame,
                   window: int) -> pd.Series:
     """True where the scored variant is (or sits within `window` bp of) a hit."""
-    # Two identifier systems: GENOA carries rsIDs in Variant_ID, eGTEx carries a
-    # locus string. Match on BOTH rsID and exact coordinate so neither cohort
-    # silently matches nothing.
     by_rsid = set(catalog["rsid"])
     hit = pairs["Variant_ID"].astype(str).str.strip().str.lower().isin(by_rsid)
     coords = set(zip(catalog["chr"].astype(str), catalog["pos"].astype("int64")))
@@ -238,19 +230,14 @@ def tail_enrichment(frame: pd.DataFrame, fraction: float) -> float:
     dominated by noise.
     """
     n = max(1, int(round(len(frame) * fraction)))
-    # Below ~25 the share is too noisy to interpret: at a 1:1 matched cohort the
-    # standard error of a proportion at n=25 is already 0.10.
     if n < 25 or len(frame) < 50:
         return np.nan
-    # positional, not label-based: the block bootstrap resamples with
-    # replacement, so the index carries duplicates and .reindex() would fail
     magnitude = frame["Predicted_Delta_M"].abs().to_numpy(dtype=float)
     labels = frame["significant"].to_numpy(dtype=int)
     top = np.argsort(-magnitude, kind="stable")[:n]
     return float(labels[top].mean())
 
 
-# ------------------------------------------------------------------- cohorts
 def load_pairs(ev, args) -> pd.DataFrame:
     ns = SimpleNamespace(scores_dir=args.scores_dir, stratum=args.stratum,
                          models=[args.model], seeds=args.seeds,
@@ -298,7 +285,6 @@ def main() -> int:
     prereg_path = out / "preregistration.json"
     cohort_path = out / "labelled_pairs.csv"
 
-    # --------------------------------------------------------------- build
     if args.build:
         if args.gwas is None:
             print("STOP: --build needs --gwas pointing at the catalog file")
@@ -440,7 +426,6 @@ def main() -> int:
         print("\nInspect the pre-registration, then run --analyse.")
         return 0
 
-    # ------------------------------------------------------------- analyse
     if not prereg_path.is_file():
         print(f"STOP: {prereg_path} does not exist. Run --build first; the "
               f"statistics are fixed before any result is computed.")
@@ -454,7 +439,6 @@ def main() -> int:
         print("STOP: labelled_pairs.csv has no gwas_hit column")
         return 1
 
-    # build_matched_cohort keys off `significant`; reuse it unchanged
     pairs["significant"] = pairs["gwas_hit"].astype(int)
     n_hit = int(pairs["significant"].sum())
     if n_hit < 20:

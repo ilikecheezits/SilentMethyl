@@ -52,27 +52,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Iterable, Optional
 
-# --------------------------------------------------------------------------
-# Layout
-# --------------------------------------------------------------------------
 
 DEFAULT_ROOT = Path("data/external")
 MANIFEST_NAME = "external_manifest.json"
 USER_AGENT = "SilentMethyl-StageA/1.0 (academic use)"
-CHUNK = 1 << 20  # 1 MiB
+CHUNK = 1 << 20
 
-
-# --------------------------------------------------------------------------
-# Source registry
-# --------------------------------------------------------------------------
 
 @dataclasses.dataclass(frozen=True)
 class Source:
     key: str
     title: str
-    purpose: str                  # which plan requirement this serves
-    build: str                    # hg19 | hg38 | n/a
-    files: tuple                  # (relative_name, url_or_None) pairs
+    purpose: str
+    build: str
+    files: tuple
     manual_note: Optional[str] = None
     approx_size: str = "unknown"
     citation: str = ""
@@ -113,7 +106,7 @@ SOURCES: tuple = (
         key="godmc_mqtl",
         title="GoDMC mQTL meta-analysis (blood, n=32,851)",
         purpose="independent variant evaluation; European-ancestry arm",
-        build="hg19",  # VERIFY on first run against the released column spec
+        build="hg19",
         approx_size="large; depends on release tier",
         citation="Min et al., Nat Genet 2021; http://mqtldb.godmc.org.uk",
         files=(("godmc_mqtl_results.tsv.gz", None),),
@@ -224,10 +217,6 @@ SOURCES: tuple = (
 SOURCES_BY_KEY = {s.key: s for s in SOURCES}
 
 
-# --------------------------------------------------------------------------
-# Helpers
-# --------------------------------------------------------------------------
-
 def sha256_of(path: Path, chunk: int = CHUNK) -> str:
     h = hashlib.sha256()
     with path.open("rb") as fh:
@@ -261,7 +250,7 @@ def check_url(url: str, timeout: int = 30) -> tuple:
                 return True, resp.status, int(length) if length else None
         except urllib.error.HTTPError as exc:
             if method == "HEAD" and exc.code in (403, 405, 501):
-                continue  # some hosts refuse HEAD; retry with GET
+                continue
             return False, f"HTTP {exc.code}", None
         except Exception as exc:  # noqa: BLE001 - report anything, keep going
             if method == "HEAD":
@@ -320,10 +309,6 @@ def sniff_header(path: Path, n: int = 3) -> list:
         return [f"<unreadable: {exc}>"]
 
 
-# --------------------------------------------------------------------------
-# Liftover
-# --------------------------------------------------------------------------
-
 CHAIN_DEFAULT = Path("data/reference/hg19ToHg38.over.chain.gz")
 
 
@@ -365,10 +350,6 @@ def report_liftover_plan(sources: Iterable[Source], chain: Path) -> list:
     print("           checksum-verifiable against the source.")
     return notes
 
-
-# --------------------------------------------------------------------------
-# Manifest
-# --------------------------------------------------------------------------
 
 def build_manifest(root: Path, sources: Iterable[Source], chain: Path) -> dict:
     entries = {}
@@ -429,10 +410,6 @@ def write_manifest(root: Path, manifest: dict) -> Path:
         fh.write("\n")
     return path
 
-
-# --------------------------------------------------------------------------
-# Commands
-# --------------------------------------------------------------------------
 
 def cmd_check(sources: Iterable[Source]) -> int:
     print("Probing endpoints. Manual sources are listed but not probed.\n")

@@ -151,7 +151,6 @@ def fig_fusion_gain(path_csv: Path, out: Path) -> dict:
     ax.invert_yaxis()
     ax.set_xlabel("relative $\\beta$-MAE reduction (%)")
     ax.set_title("b  chromatin track, bottom vs top quartile", loc="left")
-    # Headroom so the legend never sits on top of a bar.
     ax.set_xlim(0, float(np.nanmax(hi.to_numpy())) * 100 * 1.30)
     ax.legend(frameon=False, loc="lower right")
     ax.grid(axis="x", alpha=0.25, linewidth=0.6)
@@ -235,7 +234,6 @@ def fig_transfer_vs_gain(transfer: Path, gain: Path, out: Path) -> dict:
     tracks["track"] = tracks["Grouping"].str.replace("_Stratum", "", regex=False)
     top_q = tracks[tracks["Stratum"] == "Q4 high"].set_index("track")
 
-    # The three strata Task D flagged, with its own effect size for each.
     flagged = [
         ("Shore", islands.loc["Shore"],
          top["cgi_class_enrichment"]["Shore"]["log2_enrichment"], "log2 enr."),
@@ -255,7 +253,6 @@ def fig_transfer_vs_gain(transfer: Path, gain: Path, out: Path) -> dict:
     labels = [f"{name}\n(D: {value:+.2f} {unit})"
               for name, _, value, unit in flagged]
 
-    # Panel a -- absolute gain. More negative = more error removed.
     ax = axes[0]
     vals = np.array([-float(row["Fusion_Minus_Sequence_Beta_MAE"]) for _, row, _, _ in flagged])
     err = np.vstack([
@@ -278,7 +275,6 @@ def fig_transfer_vs_gain(transfer: Path, gain: Path, out: Path) -> dict:
     ax.set_title("a  absolute gain - pairing holds for 2 of 3", loc="left")
     ax.grid(axis="y", alpha=0.25, linewidth=0.6); ax.set_axisbelow(True)
 
-    # Panel b -- relative gain, the measure that licenses cross-stratum comparison.
     ax = axes[1]
     vals = np.array([float(row["Relative_Beta_MAE_Reduction"]) * 100 for _, row, _, _ in flagged])
     err = np.vstack([

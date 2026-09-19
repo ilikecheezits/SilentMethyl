@@ -47,10 +47,8 @@ LABELS = Path("data/external/egtex_multitissue/scoring")
 OUT_ROOT = Path("results/journal/egtex_multitissue_scoring/by_tissue")
 
 KEY = ["probeID", "Variant_ID"]
-# Everything that is a property of the TISSUE rather than of the pair.
 LABEL_COLS = ["beta_ref_to_alt", "se", "pvalue", "maf", "ma_count", "ma_samples"]
 
-# Recorded when the cohorts were harmonised; the join must reproduce these exactly.
 EXPECTED = {
     "BreastMammaryTissue": 76893,
     "ColonTransverse": 76453,
@@ -113,7 +111,6 @@ def main(argv=None) -> int:
                 raise SystemExit(f"STOP: {src} lacks {missing}")
             logging.info("read %s (%d rows)", src, len(pred))
 
-            # Drop the placeholder labels and the misleading provenance column.
             base = pred.drop(columns=[c for c in LABEL_COLS + ["source_tissue"]
                                       if c in pred.columns])
 

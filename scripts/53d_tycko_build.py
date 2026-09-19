@@ -154,9 +154,6 @@ def load_table(xlsx: Path, cache: Path) -> tuple[pd.DataFrame, dict]:
     joined["dmr_end_hg19"] = pd.to_numeric(region[2], errors="coerce")
     joined = joined.dropna(subset=["dmr_start_hg19", "dmr_end_hg19"])
     counters["with_parsable_dmr"] = int(len(joined))
-    # Rename once. The published column names contain spaces, which itertuples
-    # mangles into positional _N attributes -- a reliable source of silent
-    # off-by-one column reads.
     joined = joined.rename(columns={
         EFFECT: "observed_diff", METH_REF: "meth_ref", METH_ALT: "meth_alt",
         "snp avg fdr": "fdr", "all asm tissues": "asm_tissues",
@@ -221,7 +218,7 @@ def build_pairs(frame: pd.DataFrame, sequences: dict[str, str],
     for row in frame.itertuples(index=False):
         chrom = str(row.chr)
         sequence = sequences[chrom]
-        snp0 = int(row.pos1) - 1                    # Ensembl start is 1-based
+        snp0 = int(row.pos1) - 1
         if not 0 <= snp0 < len(sequence):
             counters["snp_out_of_bounds"] += 1
             continue
@@ -234,8 +231,6 @@ def build_pairs(frame: pd.DataFrame, sequences: dict[str, str],
             ref, alt, signed = a1, a2, observed
             counters["ref_matches_hg38"] += 1
         elif genome_ref == a2:
-            # hg38 reference is what they called ALT: swap, and negate, because
-            # the published effect is keyed to THEIR ref.
             ref, alt, signed = a2, a1, -observed
             counters["alleles_swapped_sign_flipped"] += 1
         else:
@@ -334,8 +329,6 @@ def match_negatives(pairs: pd.DataFrame, tolerance: int, seed: int) -> pd.DataFr
         keep_pos.append(idx)
         keep_neg.append(pick)
 
-    # E2 needs EVERY positive, not only the matched ones, so positives are kept
-    # whole and a `matched_for_e1` flag marks the balanced E1 subset.
     out = pd.concat([positives, negatives.loc[keep_neg]]).reset_index(drop=True)
     matched = set(keep_pos) | set(keep_neg)
     out["matched_for_e1"] = 0

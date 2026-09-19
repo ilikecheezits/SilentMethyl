@@ -10,6 +10,8 @@
 #SBATCH --array=0-5
 #SBATCH --output=logs/egtex_mt_scoring/score_%a_%A.out
 #SBATCH --error=logs/egtex_mt_scoring/score_%a_%A.err
+# Score the eGTEx multi-tissue variant set; defaults reproduce the published nine-tissue run.
+
 set -euo pipefail
 command -v conda >/dev/null || module load anaconda3
 source "$(conda info --base)/etc/profile.d/conda.sh"
@@ -23,30 +25,9 @@ COMBINATIONS=("fusion:42" "fusion:43" "fusion:44" "sequence:42" "sequence:43" "s
 ENTRY="${COMBINATIONS[${SLURM_ARRAY_TASK_ID}]}"
 MODEL="${ENTRY%%:*}"; SEED="${ENTRY##*:}"
 
-# Overridable so the same script can score an alternative context without a
-# second copy. Defaults reproduce the published nine-tissue run exactly.
-#
-# SCORING A NON-PUBLISHED CHECKPOINT SET REQUIRES BOTH TEMPLATES. The weights
-# template alone pairs new weights with the OLD context columns, because the
-# seven context features are read out of the split CSVs -- that produces a
-# hybrid which is neither model and fails nothing. OUT_DIR must also move, or
-# the run overwrites the published MCF-10A scores.
-#
-#   mkdir -p logs/egtex_mt_scoring        # sbatch opens these BEFORE the body
-#   sbatch --array=0-2 --export=ALL,\
-#   INPUT_CSV=data/external/egtex_multitissue/scoring/Lung/egtex_scoring_input_heldout.csv,\
-#   OUT_DIR=results/journal/ablation_breast_epithelium/egtex_multitissue_scoring/Lung,\
-#   WEIGHTS_TEMPLATE='checkpoints_ablation/breast_epithelium/seed{seed}/{model}/best_weights.pth',\
-#   SPLIT_TEMPLATE='data/datafiles_breast_epithelium/{split}.csv' \
-#       scripts/run_egtex_multitissue_scoring.sh
-#
-# NOTE: --export splits on commas, so a value containing a comma is truncated.
-# None of these contain one; keep it that way.
 INPUT_CSV="${INPUT_CSV:-data/external/egtex_multitissue/scoring/union_scoring_input_heldout.csv}"
 OUT_DIR="${OUT_DIR:-results/journal/egtex_multitissue_scoring}"
 
-# if-blocks, not `[ ... ] && ...`: under `set -e` a false AND-list at top level
-# is itself a failing command and would kill the job before it starts.
 EXTRA=()
 if [ -n "${WEIGHTS_TEMPLATE:-}" ]; then
   EXTRA+=(--weights-template "${WEIGHTS_TEMPLATE}")

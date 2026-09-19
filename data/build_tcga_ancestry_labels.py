@@ -84,9 +84,6 @@ def find_columns(df: pd.DataFrame) -> dict:
         if hits > best_hits:
             best_hits, pid_col = hits, c
 
-    # Score candidate call columns. Self-reported ETHNICITY ("not hispanic or
-    # latino") is not genetic ancestry -- those columns are actively rejected,
-    # not merely deprioritised, because mixing them in produces nonsense strata.
     call_col, best_score = None, 0
     for c in df.columns:
         if c == pid_col:
@@ -104,7 +101,6 @@ def find_columns(df: pd.DataFrame) -> dict:
             score += 1
         if score == 0:
             continue
-        # Value-level guard: reject anything whose values read as ethnicity terms.
         vals = df[c].astype(str).str.lower().head(500)
         if vals.str.contains("hispanic|latino", regex=True, na=False).mean() > 0.05:
             continue
@@ -120,7 +116,6 @@ def find_columns(df: pd.DataFrame) -> dict:
 MISSING_TOKENS = {"", "nan", "none", "na", "n/a", "<na>", "null", "unknown",
                   "not reported", "not evaluated", "unavailable"}
 
-# Self-reported ethnicity values that must never become an ancestry stratum.
 ETHNICITY_TOKENS = {"hispanic or latino", "not hispanic or latino",
                     "hispanic", "latino", "non-hispanic"}
 
@@ -230,20 +225,13 @@ def cmd_run(args) -> int:
     if merged is None or merged.empty:
         raise SystemExit("no usable ancestry labels parsed. Run --inspect.")
 
-    # Consensus call: first usable value across sources, in file order.
-    # Built explicitly rather than with bfill -- the source columns were read with
-    # astype(str), so real NaNs arrive as the literal string "nan" and would
-    # otherwise be treated as valid labels.
     call_cols = [c for c in merged.columns if c.startswith("call_")]
     merged["ancestry_call"] = _consensus_call(merged, call_cols)
 
     target = out / "tcga_ancestry_labels.csv"
     merged.to_csv(target, index=False)
 
-    # ---- coverage against the cohorts we actually score
     normals = load_sample_participants(args.normal_ids)
-    # Build the lookup once. Every key is a string so the JSON summary can be
-    # written with sort_keys=True -- a NaN mixed in here breaks the sort.
     lookup = {p: _clean_call(c)
               for p, c in zip(merged["participant"], merged["ancestry_call"])}
     labelled = {p for p, c in lookup.items() if c is not None}

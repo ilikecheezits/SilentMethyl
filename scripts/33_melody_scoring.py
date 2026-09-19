@@ -84,8 +84,8 @@ LOGGER = logging.getLogger("melody_scoring")
 
 BASES = {"A": 0, "C": 1, "G": 2, "T": 3,
          "a": 0, "c": 1, "g": 2, "t": 3}
-HALF_WINDOW = 5000          # their half_model_input_len default
-REF_MISMATCH_ABORT = 0.05   # refuse to proceed past this rate
+HALF_WINDOW = 5000
+REF_MISMATCH_ABORT = 0.05
 
 
 def one_hot(seq: str) -> np.ndarray:
@@ -127,7 +127,6 @@ def normalise(frame: pd.DataFrame, fmt: str) -> pd.DataFrame:
         "CPG_region_end": frame["cpg_pos_hg38"].astype(int),
         "cpg_number": 1,
     })
-    # Carry identifiers through so the output joins back to our cohort.
     for col in ("probeID", "Variant_ID", "pvalue", "beta_ref_to_alt", "se",
                 "abs_distance_bp", "distance_bp", "probe_split"):
         if col in frame.columns:
@@ -154,8 +153,6 @@ def build_pairs(frame: pd.DataFrame, genome, counters: dict):
         fetch_start = max(0, center - HALF_WINDOW)
         fetch_end = center + HALF_WINDOW
         try:
-            # pyfaidx returns a plain str under as_raw=True and a Sequence
-            # object otherwise; str() is correct for both.
             piece = genome[str(row["chrom"])][fetch_start:fetch_end]
             seq = piece if isinstance(piece, str) else str(piece)
         except (KeyError, ValueError):
@@ -170,9 +167,6 @@ def build_pairs(frame: pd.DataFrame, genome, counters: dict):
             counters["variant_outside_window"] += 1
             continue
 
-        # They overwrite the reference base without checking. We do the same,
-        # but we count disagreements -- silently building a REF sequence that
-        # is not the genome is how a coordinate bug reaches a figure.
         if seq[mut_idx].upper() != ref.upper():
             counters["reference_base_mismatch"] += 1
 
@@ -233,20 +227,12 @@ def main(argv=None) -> int:
     import torch
     from pyfaidx import Fasta
     sys.path.insert(0, str(args.repo.resolve()))
-    # sigmoid_first matters: model(x)[0] is RAW LOGITS. Their predict.py applies
-    # sigmoid_first before reporting methylation, and differencing logits instead
-    # of probabilities is not the same ordering -- it cost ~0.15 Pearson r on
-    # their own Whole Blood benchmark before this was added.
     from stateless import load_ckpt, sigmoid_first   # noqa: E402
     from models import Melody                # noqa: E402
     from global_constants import track_39_names  # noqa: E402
 
     tracks = [t.strip() for t in args.tracks.split(",") if t.strip()]
 
-    # Name lookup is only valid against the 39-channel MT model. A single-track
-    # ST checkpoint has ONE output channel, so an index taken from the 39-name
-    # list would read past the end of the model's output -- or, worse, silently
-    # index a different channel and return numbers that look plausible.
     if args.n_track == 39 and args.track_index is None:
         unknown = [t for t in tracks if t not in track_39_names]
         if unknown:
@@ -300,9 +286,6 @@ def main(argv=None) -> int:
         LOGGER.warning("=" * 70)
     else:
         load_ckpt(model, str(ckpt))
-        # Record what was actually loaded. A path in a log proves nothing if the
-        # file behind it changed; the digest is what a reader can verify against
-        # the released Zenodo record.
         import hashlib
         h = hashlib.sha256()
         with open(ckpt, "rb") as fh:
@@ -332,7 +315,7 @@ def main(argv=None) -> int:
             pa = model(alt)
         pr = pr[0] if isinstance(pr, (list, tuple)) else pr
         pa = pa[0] if isinstance(pa, (list, tuple)) else pa
-        pr, pa = sigmoid_first(pr), sigmoid_first(pa)   # logits -> methylation
+        pr, pa = sigmoid_first(pr), sigmoid_first(pa)
         pred_len = pr.shape[-1]
         for j, (idx, _, _, cs, ce) in enumerate(batch):
             lo, hi = cs - args.margin, ce + args.margin

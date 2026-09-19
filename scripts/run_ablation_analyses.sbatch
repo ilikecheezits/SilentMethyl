@@ -1,84 +1,4 @@
 #!/bin/bash
-# Downstream analyses on the breast-epithelium context models.
-#
-# Why this exists
-# ---------------
-# The context swap changed the epigenomic tower and the gate on every seed and
-# every fold (LAB_NOTES 1.10: 6/6 runs favour breast epithelium, fusion
-# dMAE -0.0073 +- 0.0012). Every downstream result in the paper was computed
-# from the MCF-10A models and is now stale. This reruns them.
-#
-# Nothing here writes to a published path. Every output lands under
-# results/journal/ablation_breast_epithelium/, so the MCF-10A results survive
-# for the side-by-side comparison the paper needs.
-#
-# The two facts that set the design
-# ---------------------------------
-# 1. THE SEQUENCE TOWER IS UNCHANGED. The ablation reused
-#    checkpoints_journal/seed{N}/sequence/best_weights.pth verbatim -- it reads
-#    DNA only and never sees context. So sequence-arm scores and predictions are
-#    identical and are LINKED IN rather than recomputed, which halves the GPU
-#    cost. The link stage verifies this by md5 before trusting it; if the
-#    checkpoints ever diverge it refuses instead of silently reusing stale
-#    scores.
-#
-# 2. MOST OF THIS IS CPU WORK. Only variant scoring and the context permutation
-#    need a GPU. At 242 GPU SU against 3,996 RM SU, running a four-hour JASPAR
-#    scan on a v100 would be the single most wasteful thing in this pipeline.
-#    The analyse stage is submitted to RM-shared.
-#
-# Stages
-# ------
-#   link      seconds, CPU   verify + link the unchanged sequence arm
-#   score     ~3 h x 6, GPU  20_variant_scoring, fusion only, array 0-5
-#   ctxperm   ~8 h, GPU      23_context_permutation
-#   analyse   ~6 h, CPU      everything that reads CSVs
-#
-# How to submit
-# -------------
-#   mkdir -p logs/ablation_analyses
-#
-#   # 1. link runs in ~20 s and needs no allocation. Run it on the LOGIN NODE
-#   #    so a verification failure is visible immediately rather than buried in
-#   #    a log an hour later. It must succeed before the rest is submitted.
-#   STAGE=link bash scripts/run_ablation_analyses.sbatch
-#
-#   # 2. GPU work. Defaults in this file already suit GPU-shared.
-#   S=$(sbatch --parsable --array=0-5 \
-#       --export=ALL,STAGE=score scripts/run_ablation_analyses.sbatch)
-#
-#   sbatch --time=12:00:00 \
-#       --export=ALL,STAGE=ctxperm scripts/run_ablation_analyses.sbatch
-#
-#   # 3. CPU work, chained behind the whole array.
-#   sbatch --dependency=afterany:$S --partition=RM-shared \
-#       --gpus=0 --cpus-per-task=8 --mem=16000M --time=20:00:00 \
-#       --export=ALL,STAGE=analyse scripts/run_ablation_analyses.sbatch
-#
-# RM-shared caps memory at 2000 MB PER CORE. --mem=48G with 8 cores is 6 GB/core
-# and is rejected with "Allocation requested mem-per-core higher than maximum of
-# 2000M/core", which Slurm then reports as a permission error. 8 cores x 2000M =
-# 16000M is the ceiling for 8 cores; ask for more cores if more memory is
-# needed. --gpus=0 is required too, or the GPU directive in this file follows
-# the job onto a partition that has none.
-#
-# afterany, NOT afterok, on the analyse stage: if one scoring task fails the
-# other five results are still worth analysing, and every step below is
-# individually guarded. afterok would discard all of it over one task.
-#
-# --export=ALL,VAR=x, never plain VAR=x: without ALL, Slurm drops the
-# environment and the conda python is not found.
-#
-# What this does NOT run, and why
-# -------------------------------
-#   60/61/62 candidates, 22 context stratification, 63 known-variant,
-#   64 literature screen, 91 figures.
-# These form a chain: 22 and 91 hard-require the candidate CSVs that 60
-# produces, 60 and 62 are GPU jobs of their own, 63 loads 60 as a module, and 64
-# shells out to 63 WITHOUT forwarding a weights template -- so 64 would silently
-# score the OLD MCF-10A checkpoints and produce a result that looks fine and is
-# wrong. That needs a code change to 64, not a scheduling decision. Left out
-# deliberately; see the note at the end of this file.
 #SBATCH --job-name=ablana
 #SBATCH --partition=GPU-shared
 #SBATCH --gpus=v100-32:1
@@ -87,12 +7,13 @@
 #SBATCH --time=08:00:00
 #SBATCH --output=logs/ablation_analyses/%x_%A_%a.out
 #SBATCH --error=logs/ablation_analyses/%x_%A_%a.err
+# Slurm job: run the downstream analyses on the breast-epithelium context models.
+
 set -eo pipefail
 
 PY="${SILENTMETHYL_PY:-python}"
 STAGE=${STAGE:-link}
 
-# Everything the ablation produces lives under one root.
 ABL=results/journal/ablation_breast_epithelium
 PUB=results/journal
 SPLITS=data/datafiles_breast_epithelium/{split}.csv
@@ -122,13 +43,7 @@ fi
 echo "=== ablation analyses  stage ${STAGE}  $(date -u +%FT%TZ) ==="
 echo "host  $(hostname)"
 
-# ===========================================================================
 if [ "${STAGE}" = "link" ]; then
-# ===========================================================================
-# The sequence arm is reused, not recomputed. That is only sound if the weights
-# are literally the same file. Check it, then link. A silent reuse of scores
-# from a different tower would corrupt every paired fusion-vs-sequence
-# comparison downstream while looking completely normal.
 echo "--- verifying the sequence tower is unchanged ---"
 "$PY" - <<'PYEOF'
 import hashlib, pathlib, sys
@@ -148,8 +63,6 @@ for seed in (42, 43, 44):
     if not pub.is_file():
         bad.append(f"missing {pub}")
         continue
-    # The ablation never wrote a sequence tower; it pointed 12_train_fusion.py
-    # at the published one. Its run_config records which file it used.
     cfg = abl_root / f"seed{seed}" / "fusion" / "run_config.json"
     if not cfg.is_file():
         bad.append(f"missing {cfg} -- did the ablation fusion stage finish?")
@@ -183,7 +96,6 @@ for COHORT in genoa egtex; do
     fi
   done
 done
-# 16_paired_model_bootstrap and 22 read predictions.csv, not pair_scores.csv.
 for SEED in 42 43 44; do
   SRC="${PUB}/seed${SEED}/sequence"
   DST="${ABL}/seed${SEED}/sequence"
@@ -200,10 +112,7 @@ echo "=== link done $(date -u +%FT%TZ) ==="
 exit 0
 fi
 
-# ===========================================================================
 if [ "${STAGE}" = "score" ]; then
-# ===========================================================================
-# Fusion only. Six tasks: two cohorts x three seeds.
 COMBOS=("GENOA:42" "GENOA:43" "GENOA:44" "eGTEx:42" "eGTEx:43" "eGTEx:44")
 IDX=${SLURM_ARRAY_TASK_ID:-0}
 ENTRY="${COMBOS[$IDX]}"
@@ -216,20 +125,6 @@ else
   IN="${EGTEX_IN}"; OUT="${EGTEX_OUT}"
 fi
 
-# MODELS defaults to fusion because the sequence tower is unchanged. But
-# 20_variant_scoring.py started writing beta_ref_to_alt and pvalue INLINE some
-# time after 25 Aug 2026, while the older sequence pair_scores rely on
-# 21_variant_evaluation.py merging those columns from the input CSV. Mixing the
-# two schemas in one scoring directory made every per-model sequence metric come
-# back n/a on 12 Sep -- the paired fusion-minus-sequence numbers computed fine,
-# so nothing failed, it just silently produced no sequence arm.
-#
-# Rescoring sequence with the current script costs ~6 GPU-hours and removes the
-# mismatch, rather than teaching the evaluator to tolerate it. The predictions
-# are identical either way; only the column set changes.
-#
-#   sbatch --array=0-5 --export=ALL,STAGE=score,MODELS=sequence \
-#       scripts/run_ablation_analyses.sbatch
 MODELS=${MODELS:-fusion}
 case "${MODELS}" in
   fusion|sequence) ;;
@@ -238,8 +133,6 @@ case "${MODELS}" in
 esac
 
 W="checkpoints_ablation/breast_epithelium/seed${SEED}/${MODELS}/best_weights.pth"
-# The ablation never trained a sequence tower -- it reused the published one
-# verbatim. Point at that rather than a path that does not exist.
 if [ "${MODELS}" = "sequence" ]; then
   W="checkpoints_journal/seed${SEED}/sequence/best_weights.pth"
 fi
@@ -251,20 +144,12 @@ echo "cohort ${COHORT}  seed ${SEED}  model ${MODELS}"
 echo "weights ${W}"
 echo "splits  data/datafiles_breast_epithelium/{split}.csv"
 
-# The weights template has to resolve to ${W} for whichever model is being
-# scored, including the sequence case where the checkpoint root differs.
 if [ "${MODELS}" = "sequence" ]; then
   W_TEMPLATE='checkpoints_journal/seed{seed}/{model}/best_weights.pth'
 else
   W_TEMPLATE="${WEIGHTS}"
 fi
 
-# --split-template MUST point at the breast-epithelium build. It is where the
-# seven context features come from; leaving the default would score the new
-# fusion weights against MCF-10A context and produce a hybrid that is neither
-# model. It is passed for the sequence arm too: that tower ignores the context
-# columns, but the split files are also where the probe records and sequences
-# are read from, and mixing builds there would be its own inconsistency.
 $PY -u scripts/20_variant_scoring.py \
     --input-csv "${IN}" \
     --stratum heldout \
@@ -279,12 +164,7 @@ echo "=== score done $(date -u +%FT%TZ) ==="
 exit 0
 fi
 
-# ===========================================================================
 if [ "${STAGE}" = "ctxperm" ]; then
-# ===========================================================================
-# Context permutation is the direct test of allele invariance: shuffle or
-# median-replace the context and see whether variant effects move. It is fusion,
-# seed 42 only, by the script's design.
 $PY -u scripts/23_context_permutation.py \
     --input-csv "${EGTEX_IN}" \
     --stratum heldout \
@@ -298,11 +178,6 @@ echo "=== ctxperm done $(date -u +%FT%TZ) ==="
 exit 0
 fi
 
-# ===========================================================================
-# STAGE = analyse. CPU only. Each step is guarded so one failure does not
-# abandon the rest -- these are independent analyses and a missing input for
-# one is not a reason to skip the other eight.
-# ===========================================================================
 set +e
 FAILED=()
 run () {
@@ -341,7 +216,6 @@ if [ "${SCORED_OK}" -eq 0 ]; then
   echo "     This stage continues deliberately -- partial results beat none."
 fi
 
-# --- discrimination against the distance-matched null, both cohorts ----------
 run "21 variant evaluation (GENOA)" \
   $PY -u scripts/21_variant_evaluation.py \
       --scores-dir "${GENOA_OUT}" --cohort GENOA \
@@ -354,7 +228,6 @@ run "21 variant evaluation (eGTEx)" \
       --significance 1.483e-5 --n-boot 2000 \
       --output-dir "${ABL}/egtex_variant_evaluation"
 
-# --- pooled synthesis across cohorts ----------------------------------------
 run "30 transfer synthesis" \
   $PY -u scripts/30_transfer_synthesis.py \
       --cohort "GENOA:${GENOA_OUT}:5e-8" \
@@ -362,19 +235,6 @@ run "30 transfer synthesis" \
       --n-boot 500 \
       --output-dir "${ABL}/variant_effect_synthesis"
 
-# --- shared vs tissue-specific meQTLs (R4) ----------------------------------
-# 40 builds its score paths with "heldout" hardcoded, which matches what the
-# score stage wrote. chromatin reads the context features out of the
-# breast-epithelium splits, so --split-template matters here too.
-#
-# RUN THE TWO STAGES SEPARATELY. --stage all IGNORES --output-dir and writes to
-# 40's own stage defaults, which are the PUBLISHED paths
-# results/journal/{tissue_shared_meqtls,meqtl_class_chromatin}. On 12 Sep 2026
-# that silently overwrote four published MCF-10A result files with
-# breast-epithelium numbers while reporting success, and 41 then failed because
-# the ablation directory it was pointed at did not exist -- the only reason the
-# clobber was noticed at all. Same footgun as 51 --stage all, guarded below.
-# Per-stage, --output-dir IS honoured; verified 12 Sep.
 run "40 tissue specificity (matched)" \
   $PY -u scripts/40_meqtl_tissue_specificity.py \
       --stage matched \
@@ -393,8 +253,6 @@ run "40 tissue specificity (chromatin)" \
       --model fusion --seeds 42 43 44 --n-boot 1000 \
       --output-dir "${ABL}/meqtl_class_chromatin"
 
-# Nothing in this stage may write outside ${ABL}. Checked rather than trusted,
-# because the failure above was silent and only surfaced two steps later.
 for PUB_DIR in results/journal/tissue_shared_meqtls \
                results/journal/meqtl_class_chromatin; do
   if [ -d "${PUB_DIR}" ] && \
@@ -411,7 +269,6 @@ run "41 tissue specificity summary" \
       --out "${ABL}/tissue_shared_meqtls" \
       --label "SilentMethyl (breast-epithelium context)"
 
-# --- paired model comparison on held-out CpGs -------------------------------
 run "16 paired model bootstrap" \
   $PY -u scripts/16_paired_model_bootstrap.py \
       --seeds 42 43 44 --models epi sequence fusion \
@@ -419,10 +276,6 @@ run "16 paired model bootstrap" \
       --output-dir "${ABL}/paired_model_bootstrap" \
       --bootstrap-replicates 5000
 
-# --- reverse-complement uncertainty -----------------------------------------
-# Run base and conditional SEPARATELY. --stage all ignores --output-dir for the
-# conditional pass and writes to results/journal/rc_uncertainty_conditional,
-# which would overwrite the published MCF-10A result.
 run "51 rc uncertainty (base)" \
   $PY -u scripts/51_rc_uncertainty.py --stage base \
       --results-root "${ABL}" --seeds 42 43 44 --models sequence fusion epi \
@@ -433,7 +286,6 @@ run "51 rc uncertainty (conditional)" \
       --results-root "${ABL}" --seeds 42 43 44 --models sequence fusion epi \
       --strata 10 --output-dir "${ABL}/rc_uncertainty_conditional"
 
-# --- GWAS regulatory enrichment: build then analyse -------------------------
 GWAS=data/external/gwas_catalog/gwas-catalog-download-associations-alt-full.tsv
 if [ -s "${GWAS}" ]; then
   run "52 gwas enrichment (build)" \
@@ -449,10 +301,6 @@ else
   FAILED+=("52 gwas enrichment (input not found)")
 fi
 
-# --- motif disruption: the long one, deliberately last ----------------------
-# Full JASPAR vertebrate library against every scored pair. Hours. Placed last
-# so a failure here does not delay anything else, and so the cheap results are
-# already on disk if the wall is hit.
 run "50 motif disruption" \
   $PY -u scripts/50_motif_disruption.py \
       --scores-dir "${GENOA_OUT}" --model fusion --seeds 42 43 44 \
@@ -475,24 +323,3 @@ echo "outputs under ${ABL}/"
 echo "=== analyse done $(date -u +%FT%TZ) ==="
 echo "=============================================================="
 
-# ---------------------------------------------------------------------------
-# NOT RUN HERE, and what each needs first:
-#
-#   60_candidate_background.py   GPU. Produces the candidate CSVs that 22 and
-#                                91 hard-require. Needs --weights-template
-#                                pointing at the ablation checkpoints; check
-#                                whether it accepts one before scheduling.
-#   62_candidate_comparison.py   GPU. --sequence-weights-template takes {seed}
-#                                ONLY -- a {model} placeholder raises KeyError.
-#                                The sequence arm is unchanged, so this one can
-#                                legitimately keep the published template.
-#   22_context_stratification.py CPU, but blocked on 60's outputs.
-#   63_known_variant_application GPU, small. --weights-template takes {seed}
-#                                only; write "fusion" literally in the path.
-#   64_literature_variant_screen NEEDS A CODE CHANGE. It shells out to 63 and
-#                                does NOT forward --weights-template, so it
-#                                would score the OLD MCF-10A checkpoints and
-#                                report a result that looks correct. Fix 64 to
-#                                pass the template through before running it.
-#   91_build_manuscript_figures  CPU, seconds, but blocked on 60 and 22.
-# ---------------------------------------------------------------------------

@@ -75,17 +75,6 @@ from matched_background_utils import (  # noqa: E402
 )
 
 
-# A baseline exists to be an independent comparator, so it does not import the
-# model's dependency tree: `from training_common import centered_crop` would pull
-# in torch, transformers and huggingface_hub to obtain nine lines of arithmetic,
-# and would make the baseline unrunnable on a plain CPU node.
-#
-# Duplicating the two helpers instead risks silent drift, which would invalidate
-# the whole comparison. So they are duplicated AND checked: whenever
-# training_common is importable -- which on the cluster is always -- the copies
-# below are asserted identical to it at startup. Verified where it can be
-# verified; runnable where it cannot.
-
 def centered_crop(seq: str, window_size: int) -> str:
     seq = seq.upper()
     if window_size <= 0 or window_size > len(seq):
@@ -140,10 +129,6 @@ for _i, _b in enumerate("ACGT"):
 
 ALPHA_GRID = [1e-2, 1e-1, 1.0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6]
 
-
-# --------------------------------------------------------------------------
-# features
-# --------------------------------------------------------------------------
 
 class KmerEncoder:
     """RC-collapsed k-mer counts for k = 1..k_max.
@@ -243,10 +228,6 @@ class FeatureMap:
         return composition_features(seq)
 
 
-# --------------------------------------------------------------------------
-# streamed ridge
-# --------------------------------------------------------------------------
-
 class SufficientStats:
     """X'X, X'y, sum(X), sum(y), y'y, n -- everything ridge needs, in one pass."""
 
@@ -317,10 +298,6 @@ def mse_from_stats(w: np.ndarray, gram: np.ndarray, cross: np.ndarray,
     """Exact MSE of a linear fit from sufficient statistics -- no re-reading."""
     return float((w @ gram @ w - 2 * w @ cross + ss) / n)
 
-
-# --------------------------------------------------------------------------
-# task A: absolute methylation
-# --------------------------------------------------------------------------
 
 def train_baseline(name: str, args) -> dict:
     feature_map = FeatureMap(name, args.k_max)
@@ -409,10 +386,6 @@ def evaluate_absolute(model: dict, args) -> dict:
     return metrics
 
 
-# --------------------------------------------------------------------------
-# task B: variant effects
-# --------------------------------------------------------------------------
-
 def load_probe_windows(split_template: str, probe_ids: set) -> dict:
     """probeID -> 5,000-bp sequence, filtered on arrival."""
     records = {}
@@ -482,9 +455,6 @@ def score_variants(model: dict, pairs: pd.DataFrame, records: dict,
     wt_m = np.asarray(wt_m)
     mut_m = np.asarray(mut_m)
     out["Model"] = model["name"]
-    # One deterministic fit, so there is no seed ensemble to form. Labelling it
-    # -1 makes scripts/20 treat it as the ensemble row it already expects, and
-    # avoids implying three independent baseline fits exist.
     out["Seed"] = -1
     out["WT_M_RC_Avg"] = wt_m
     out["MUT_M_RC_Avg"] = mut_m
@@ -497,33 +467,23 @@ def score_variants(model: dict, pairs: pd.DataFrame, records: dict,
     return out
 
 
-# --------------------------------------------------------------------------
-# self-checks
-# --------------------------------------------------------------------------
-
 def run_self_checks(k_max: int) -> dict:
     """Three properties this script's conclusions depend on. Verified, not assumed."""
     rng = np.random.default_rng(0)
     seq = "".join(rng.choice(list("ACGT"), 4000))
     enc = KmerEncoder(k_max)
 
-    # 1. Window geometry agrees with scripts/19 and scripts/05.
     if centered_crop("N" * FULL_SEQUENCE_LENGTH, MODEL_WINDOW_SIZE) != "N" * MODEL_WINDOW_SIZE:
         raise RuntimeError("centered_crop did not return a 1000-bp window")
     if FULL_TARGET_C_INDEX - (FULL_SEQUENCE_LENGTH // 2 - MODEL_WINDOW_SIZE // 2) != CENTER_C_INDEX:
         raise RuntimeError("window geometry disagrees with scripts/19")
 
-    # 2. RC invariance. The neural models need RC-averaging; a strand-collapsed
-    #    k-mer map is exactly invariant, so averaging would change nothing. That
-    #    claim is worth checking rather than stating.
     fwd = enc.counts(seq)
     rev = enc.counts(reverse_complement(seq))
     rc_max_abs = float(np.max(np.abs(fwd - rev)))
     if rc_max_abs > 1e-9:
         raise RuntimeError(f"k-mer features are not RC-invariant (max {rc_max_abs})")
 
-    # 3. The composition baseline must also be RC-invariant, since GC and CpG
-    #    are strand-symmetric. A failure here would mean a coding error.
     comp_fwd = composition_features(seq)
     comp_rev = composition_features(reverse_complement(seq))
     comp_max_abs = float(np.max(np.abs(comp_fwd - comp_rev)))
@@ -547,8 +507,6 @@ def atomic_write(frame_or_payload, path: Path) -> None:
             fh.write("\n")
     os.replace(tmp, path)
 
-
-# --------------------------------------------------------------------------
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__,

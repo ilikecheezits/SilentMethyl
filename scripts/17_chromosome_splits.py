@@ -57,24 +57,12 @@ import pandas as pd
 
 LOGGER = logging.getLogger("splits")
 
-# Column names seen in Illumina manifests and in our own scoring inputs.
 CHROM_CANDIDATES = ("chr", "chrom", "CHR", "Chromosome", "chromosome",
                     "CpG_chrm", "cpg_chrom", "seqnames")
 
-# Fold 0 must BE the published split, not a guess at it. These are fallbacks
-# only: by default the chromosome sets are read from the source val.csv and
-# test.csv, because a hard-coded guess was wrong once already (the published
-# validation set is chr10 + chr11, not chr10 alone) and a wrong fold 0 silently
-# destroys the one control this whole analysis has.
 PUBLISHED_VAL = ["chr10", "chr11"]
 PUBLISHED_TEST = ["chr8", "chr9"]
 
-# Sex chromosomes are never used as held-out blocks. chrY is absent in female
-# donors and chrX carries X-inactivation, so a fold that holds either one out is
-# not measuring the same quantity as a fold that holds out autosomes -- the
-# folds would stop being comparable, which is the whole point of running them.
-# They stay in TRAINING for every fold, so no data is discarded and the training
-# composition is identical across folds.
 NON_EVAL_CHROMS = ("chrX", "chrY", "chrM", "chrMT")
 
 
@@ -156,15 +144,9 @@ def build_folds(counts: "pd.Series", n_folds: int) -> list[dict]:
             LOGGER.warning("ran out of unused chromosomes at fold %d; stopping "
                            "with %d folds", k, k)
             break
-        # Exhaustive search over subsets of 1-3 chromosomes for the sum closest
-        # to `target`. A greedy pass seeded on the largest chromosome overshoots
-        # badly (it picks chr1 alone, 54% over), which defeats the point of
-        # matching test size across folds. The pool is <= 24 chromosomes, so the
-        # exact search is trivial and removes the failure mode entirely.
         best, test = None, None
         for size in (1, 2, 3):
             for combo in itertools.combinations(pool, size):
-                # Leave at least one chromosome for validation.
                 if len(pool) - size < 1:
                     continue
                 gap = abs(int(counts[list(combo)].sum()) - target)
@@ -179,7 +161,6 @@ def build_folds(counts: "pd.Series", n_folds: int) -> list[dict]:
             LOGGER.warning("fold %d has no chromosome left for validation; "
                            "stopping with %d folds", k, k)
             break
-        # Validation gets the single chromosome closest to fold 0's val size.
         val_target = int(counts[PUBLISHED_VAL].sum())
         val = [min(leftover, key=lambda c: abs(counts[c] - val_target))]
         folds.append({"fold": k, "val": val, "test": test})
@@ -191,10 +172,6 @@ def build_folds(counts: "pd.Series", n_folds: int) -> list[dict]:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    # Both paths are REQUIRED. --out-root used to default to data/datafiles/splits
-    # independently of --datafiles, so pointing --datafiles at a new context build
-    # silently overwrote the published fold splits that checkpoints_folds/ were
-    # trained on. There is no safe default for either.
     ap.add_argument("--datafiles", type=Path, required=True,
                     help="context build to re-split, e.g. data/datafiles_breast_epithelium")
     ap.add_argument("--sources", default="train.csv,val.csv,test.csv",
@@ -284,7 +261,6 @@ def main(argv=None) -> int:
             lambda c: "test" if c in test_set else ("val" if c in val_set else "train"))
         parts = {arm: frame[assign == arm].copy() for arm in ("train", "val", "test")}
 
-        # The two guarantees, checked rather than trusted.
         ids = {arm: set(part["probeID"]) for arm, part in parts.items()}
         for a, b in (("train", "val"), ("train", "test"), ("val", "test")):
             shared = ids[a] & ids[b]
@@ -340,8 +316,6 @@ def main(argv=None) -> int:
             dst.mkdir(parents=True, exist_ok=True)
             for arm, part in parts.items():
                 out = part.drop(columns="_chrom").copy()
-                # training_common.validate_split_dataframe insists the Split
-                # column matches the file it was loaded as.
                 out["Split"] = arm
                 out.to_csv(dst / f"{arm}.csv", index=False)
 

@@ -9,23 +9,8 @@
 #SBATCH --time=04:00:00
 #SBATCH --output=logs/r8_journal/tycko_asm_%A.out
 #SBATCH --error=logs/r8_journal/tycko_asm_%A.err
-#
-# Tasks E1 + E2 -- ASM validation against Do & Tycko 2020 (Genome Biology 21:153),
-# the only ASM catalogue found that publishes a SIGNED allelic methylation
-# difference. That is what makes direction concordance and signed Spearman
-# possible; the Nat Commun 2025 atlas gives significance only and CanASM's server
-# has been dead throughout.
-#
-# 722 biallelic ASM index SNPs on chr8+chr9 (the held-out split), 9,822 ASM CpG
-# pairs plus distance-matched negatives. All 722 REF alleles agree with hg38, so
-# no sign flips were needed.
-#
-# Inference only, FP32, seed 42.
-#   sbatch jobs/r8_journal/53d_tycko_score.sbatch
-#
-# NOTE TO WHOEVER RUNS THIS: do not write anything under results/journal/ from
-# the login node while this is in flight. That is what failed 46096838 (and
-# 45997644 before it) on the clobber guard with the science already correct.
+# Slurm job: build, score and evaluate the signed Do-Tycko ASM catalogue (scripts 53d, 53e).
+
 set -euo pipefail
 cd "${SILENTMETHYL_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 source jobs/r8_journal/_common.sh

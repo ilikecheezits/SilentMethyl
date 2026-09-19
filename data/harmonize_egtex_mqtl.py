@@ -74,8 +74,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-# FastaReader lives in the GENOA builder; importing it rather than copying it
-# guarantees both cohorts resolve reference bases with identical semantics.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 try:
     from build_genoa_scoring_input import (  # noqa: E402
@@ -100,10 +98,6 @@ DEFAULT_OUT = Path("data/external/egtex_breast/scoring")
 EGTEX_COLUMNS = ["probeID", "variant_id", "dist_reported", "ma_samples",
                  "ma_count", "maf", "pval_nominal", "slope", "slope_se"]
 
-# The model window is imported, not restated. The 1,000-bp crop puts the target
-# C at index 499, so a variant at offset d is visible iff 0 <= 499 + d < 1000,
-# i.e. d in [-499, +500]. Importing the bounds from the GENOA builder means the
-# two cohorts cannot drift apart if that geometry is ever revised.
 WINDOW_LOW = MIN_SCOREABLE_OFFSET
 WINDOW_HIGH = MAX_SCOREABLE_OFFSET
 if (WINDOW_LOW, WINDOW_HIGH) != (-499, 500):
@@ -117,15 +111,6 @@ VALID_CHROMS = {f"chr{i}" for i in range(1, 23)} | {"chrX", "chrY"}
 EXPECTED_BUILD = "b38"
 
 
-# --------------------------------------------------------------------------
-# stage 1: stream the 45 GB file down to the cis-proximal rows
-# --------------------------------------------------------------------------
-
-# Test order matters here: this program sees ~4 billion lines, and the regex is
-# by far the most expensive clause. The numeric bounds are checked FIRST, so the
-# regex only runs on the ~0.06% of lines that are already candidates. A
-# non-numeric field coerces to 0 and slips past the bounds test, which is exactly
-# why the regex is still there -- it is a correctness guard, not a prefilter.
 AWK_PROGRAM = r"""
 BEGIN { OFS = "\t" }
 {
@@ -190,10 +175,6 @@ def run_prefilter(raw: Path, out: Path, half_window: int, force: bool) -> None:
     tmp.replace(out)
     logging.info("wrote %s (%.1f MB)", out, out.stat().st_size / 1e6)
 
-
-# --------------------------------------------------------------------------
-# parsing
-# --------------------------------------------------------------------------
 
 def parse_variant_ids(ids: pd.Series) -> pd.DataFrame:
     """chr1_13550_G_A_b38 -> chrom, pos1, ref, alt, build.
@@ -305,10 +286,6 @@ def flag_cpg_effects(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-# --------------------------------------------------------------------------
-# the sign check
-# --------------------------------------------------------------------------
-
 def verify_sign_convention(df: pd.DataFrame, p_threshold: float) -> dict:
     """Positive control for the effect-allele convention.
 
@@ -348,7 +325,6 @@ def verify_sign_convention(df: pd.DataFrame, p_threshold: float) -> dict:
         f"cpg_destroying_p_lt_{p_threshold:g}": summarize(strong),
     }
 
-    # Decide on the strong subset when it is powered, otherwise the full set.
     decisive = report[f"cpg_destroying_p_lt_{p_threshold:g}"]
     if decisive.get("n", 0) < 100:
         decisive = report["all_cpg_destroying"]
@@ -363,10 +339,6 @@ def verify_sign_convention(df: pd.DataFrame, p_threshold: float) -> dict:
         report["verdict"] = "inconclusive"
     return report
 
-
-# --------------------------------------------------------------------------
-# commands
-# --------------------------------------------------------------------------
 
 def cmd_inspect(args) -> int:
     raw = args.raw
@@ -399,8 +371,6 @@ def cmd_inspect(args) -> int:
     print(f"\nbuilds seen      : {sorted(parsed['build'].unique())}")
     print(f"chromosomes seen : {sorted(parsed['chr'].unique())[:5]}")
 
-    # Their distance convention, checked against itself: probe position implied
-    # by (variant pos - dist) must be constant for a given probe.
     frame["dist_reported"] = pd.to_numeric(frame["dist_reported"], errors="coerce")
     frame["implied_probe_pos"] = parsed["Position_1based"] - frame["dist_reported"]
     per_probe = frame.groupby("probeID")["implied_probe_pos"].nunique()
@@ -462,7 +432,6 @@ def cmd_run(args) -> int:
     stats["dropped_non_snv"] = before - len(df)
     logging.info("%d SNVs (%d indels/MNVs dropped)", len(df), stats["dropped_non_snv"])
 
-    # --- HM450 restriction -------------------------------------------------
     manifest = load_manifest(args.manifest)
     hm450_ids = set(manifest["probeID"])
     probes_seen = df["probeID"].nunique()
@@ -484,7 +453,6 @@ def cmd_run(args) -> int:
     df = df[df["chr"] == df["cpg_chr"]].reset_index(drop=True)
     stats["dropped_chromosome_mismatch"] = before - len(df)
 
-    # --- our distance, not theirs ------------------------------------------
     df["distance_bp"] = (df["Position_1based"] - 1 - df["cpg_pos_hg38"]).astype("int64")
     df["abs_distance_bp"] = df["distance_bp"].abs()
     offset = (df["dist_reported"] - df["distance_bp"]).round().astype("Int64")
@@ -498,7 +466,6 @@ def cmd_run(args) -> int:
                         "manifest by %s bp (modal). Using OUR recomputed "
                         "distance.", modal_offset)
 
-    # --- reference base check ----------------------------------------------
     df = resolve_reference_bases(df, args.fasta)
     before = len(df)
     df = df[df["hg38_context_3mer"].str.len() == 3].reset_index(drop=True)
@@ -518,7 +485,6 @@ def cmd_run(args) -> int:
 
     df = flag_cpg_effects(df)
 
-    # --- sign convention ----------------------------------------------------
     sign_report = verify_sign_convention(df, args.sign_check_p)
     logging.info("sign check verdict: %s", sign_report["verdict"])
     if sign_report["verdict"] == "REVERSED" and not args.ignore_sign_check:
@@ -532,13 +498,10 @@ def cmd_run(args) -> int:
             "Fix the sign in this script (negate `slope`) rather than passing "
             "--ignore-sign-check, which only silences the guard.")
 
-    # `slope` is keyed to ALT in the GTEx/tensorQTL convention, which is the same
-    # direction the model's REF->ALT delta measures. Verified above, not assumed.
     df["beta_ref_to_alt"] = df["slope"].astype(float)
     df["se"] = df["slope_se"].astype(float)
     df["pvalue"] = df["pval_nominal"].astype(float)
 
-    # --- the exact model window --------------------------------------------
     before = len(df)
     df = df[(df["distance_bp"] >= WINDOW_LOW)
             & (df["distance_bp"] <= WINDOW_HIGH)].reset_index(drop=True)
@@ -554,7 +517,6 @@ def cmd_run(args) -> int:
     if df.empty:
         raise SystemExit("no pairs survived filtering -- stop and inspect before rerunning")
 
-    # --- split labels -------------------------------------------------------
     labels = load_split_labels(args.split_dir)
     df["probe_split"] = df["probeID"].map(labels).fillna("unknown")
     before = len(df)
@@ -571,7 +533,6 @@ def cmd_run(args) -> int:
              "dist_reported"]
     out = df[lead + extra]
 
-    # --- write ---------------------------------------------------------------
     args.output_dir.mkdir(parents=True, exist_ok=True)
     written = {}
     for name, subset in (("heldout", out[out["probe_split"] == "test"]),

@@ -62,7 +62,6 @@ def main(argv=None) -> int:
     target = args.dir / "genoa_model_visible_pairs.csv.gz"
     result.to_csv(target, index=False, compression="gzip")
 
-    # combined counters + histogram
     counters: dict = {}
     hists: dict = {}
     for c in range(1, 23):

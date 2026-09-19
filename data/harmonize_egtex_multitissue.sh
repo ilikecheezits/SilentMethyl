@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
+# Harmonize the downloaded eGTEx multi-tissue mQTL slices into the scoring input format.
+
 set -uo pipefail
-# Probe split assignments and sequences are identical in every context build;
-# a fresh clone has data/datafiles_breast_epithelium.
 SPLIT_DIR="${SPLIT_DIR:?set SPLIT_DIR, e.g. SPLIT_DIR=data/datafiles_breast_epithelium}"
 SL=data/external/egtex_multitissue/within600
 BR=data/external/egtex_breast/egtex_breast_within600.tsv.gz
 
-run () {  # run <tissue> <slice>
+run () {
   local T="$1" slice="$2"
   local out="data/external/egtex_multitissue/scoring/$T"
   [ -s "$slice" ] || { echo "SKIP $T (no slice)"; return; }

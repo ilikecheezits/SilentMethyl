@@ -93,7 +93,7 @@ LOGGER = logging.getLogger("asm_build")
 WINDOW_SIZE = 5000
 CENTER_C_INDEX_FULL = 2499
 MODEL_WINDOW_SIZE = 1000
-CENTER_C_INDEX = 499          # index of the target C inside the 1,000-bp window
+CENTER_C_INDEX = 499
 PROTECTED_OFFSETS = frozenset({0, 1})
 MIN_OFFSET, MAX_OFFSET = -CENTER_C_INDEX, MODEL_WINDOW_SIZE - CENTER_C_INDEX - 1
 TEST_CHROMS = ("chr8", "chr9")
@@ -279,9 +279,6 @@ def build_pairs(asm: pd.DataFrame, sequences: dict[str, str],
             continue
         ref, alt = resolved
 
-        # Candidate CpGs whose 1,000-bp model window would contain this variant.
-        # variant offset d = snp - cpg_c, and d must lie in [-499, +500], so the
-        # CpG's C lies in [snp - 500, snp + 499].
         positions = cpgs[chrom]
         lo = bisect.bisect_left(positions, snp - MAX_OFFSET)
         hi = bisect.bisect_right(positions, snp - MIN_OFFSET)
@@ -303,8 +300,6 @@ def build_pairs(asm: pd.DataFrame, sequences: dict[str, str],
                 label, tier = 1, "positive"
                 counters["positive"] += 1
             elif in_any_region(chrom, cpg_c):
-                # Inside some OTHER ASM region: neither a clean positive for this
-                # variant nor a clean negative. Dropped rather than guessed at.
                 counters["other_asm_region_dropped"] += 1
                 continue
             elif in_bimodal(chrom, cpg_c):
@@ -471,8 +466,6 @@ def match_negatives(pairs: pd.DataFrame, tolerance: int, seed: int) -> pd.DataFr
         raise RuntimeError(
             f"cannot match: {len(positives)} positives, {len(negatives)} negatives")
 
-    # Bucket negatives by |distance| so a candidate lookup is a small scan over
-    # the tolerance band rather than a pass over the whole pool.
     by_variant: dict[tuple[str, int], list[int]] = {}
     by_chrom: dict[tuple[str, int], list[int]] = {}
     for idx, row in zip(negatives.index, negatives.itertuples(index=False)):

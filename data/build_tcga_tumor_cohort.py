@@ -56,8 +56,6 @@ DEFAULT_NORMAL_IDS = Path("data/datafiles/tcga_normal_sample_ids.json")
 DEFAULT_PROBES = Path("data/datafiles/test.csv")
 DEFAULT_OUT = Path("data/external/tcga_tumor")
 
-# Mirrors NORMAL_SAMPLE_RE in data/build_training_data.py, but for sample type 01
-# (primary solid tumour) instead of 11 (solid tissue normal).
 TUMOR_SAMPLE_RE = re.compile(
     r"^TCGA[-.][A-Z0-9]{2}[-.][A-Z0-9]{4}[-.]01[A-Z0-9](?:[-.]|$)",
     re.IGNORECASE,

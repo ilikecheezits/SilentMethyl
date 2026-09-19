@@ -7,6 +7,8 @@
 #SBATCH --time=02:00:00
 #SBATCH --output=logs/r7_ablation/91_%j.out
 #SBATCH --error=logs/r7_ablation/91_%j.err
+# Slurm job: build the manuscript figure set (script 91) into a dedicated staging directory.
+
 set -euo pipefail
 umask 027
 source "${SILENTMETHYL_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}"/jobs/r6_ablation/_common.sh

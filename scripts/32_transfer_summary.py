@@ -53,8 +53,6 @@ AUROC = "AUROC, distance-matched"
 RHO = "signed rho (significant)"
 AGREE = "direction agreement"
  
-# The matched null is built so distance alone cannot discriminate. If this drifts
-# the whole column is meaningless, so the tolerance is tight on purpose.
 MATCHING_TOL = 1e-6
  
  
@@ -168,7 +166,6 @@ def main(argv=None) -> int:
         raise SystemExit(f"STOP: no completed tissues under {args.root}")
  
     frame = attach_retention(pd.DataFrame(rows))
-    # Power order: the transfer question is partly "does this track cohort size".
     frame = frame.sort_values("significant", ascending=False).reset_index(drop=True)
  
     pct = int(round(args.fraction * 100_000)) / 1000
@@ -193,7 +190,6 @@ def main(argv=None) -> int:
     print("AUROC is on the distance-matched cohort, where distance alone gives "
           "exactly 0.5000 by construction.")
  
-    # ---- cohort retention -------------------------------------------------
     if frame["retention"].notna().any():
         print()
         print("COHORT RETENTION  (pairs 31 used / pairs the harmoniser produced)")

@@ -8,6 +8,8 @@
 #SBATCH --time=08:00:00
 #SBATCH --output=logs/r6_ablation/62_%j.out
 #SBATCH --error=logs/r6_ablation/62_%j.err
+# Slurm job: run the candidate cross-model comparison (script 62).
+
 set -euo pipefail
 umask 027
 source "${SILENTMETHYL_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}"/jobs/r6_ablation/_common.sh

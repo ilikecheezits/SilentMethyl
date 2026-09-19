@@ -68,11 +68,6 @@ from sklearn.metrics import roc_auc_score
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-# training_common imports transformers at module level, which walks the whole
-# transformers package tree on the shared filesystem and stalls for minutes on a
-# cold node. A CNN baseline has no business paying that cost for four small pure
-# functions, so they are duplicated here VERBATIM from training_common and
-# checked against it by --verify (the pattern scripts/23 already uses).
 
 def set_seed(seed: int) -> None:
     random.seed(seed)
@@ -145,7 +140,6 @@ M_COL, BIN_COL, BETA_COL = "M_Value_Target", "Binary_State_Target", "Median_Beta
 FAITHFULNESS_CHECK = {"deepcpg_trunk_params": 3_997_824}
 
 
-# ----------------------------------------------------------------------------- data
 class OneHotDataset(Dataset):
     """One-hot sequence + targets, using training_common's crop and RC logic."""
 
@@ -169,7 +163,7 @@ class OneHotDataset(Dataset):
         x = np.zeros((4, len(seq)), dtype=np.float32)
         for i, b in enumerate(seq):
             j = BASES.get(b)
-            if j is not None:          # N and other ambiguity codes stay all-zero
+            if j is not None:
                 x[j, i] = 1.0
         return x
 
@@ -184,7 +178,6 @@ class OneHotDataset(Dataset):
                 torch.tensor(float(row[BIN_COL]), dtype=torch.float32))
 
 
-# ----------------------------------------------------------------- architectures
 class MaxNorm:
     """Renormalise conv weights to a maximum norm, as CpGenie's W_constraint does."""
 
@@ -272,7 +265,6 @@ def build(arch: str, window: int, dropout: float) -> nn.Module:
     raise SystemExit(f"unknown arch {arch}")
 
 
-# ------------------------------------------------------------------------ metrics
 @torch.no_grad()
 def evaluate(model: nn.Module, loader: DataLoader, device) -> tuple[dict, pd.DataFrame]:
     """RC-averaged prediction, matching our own test protocol."""
@@ -281,7 +273,7 @@ def evaluate(model: nn.Module, loader: DataLoader, device) -> tuple[dict, pd.Dat
     for x, m, b in tqdm(loader, desc="eval", leave=False):
         x = x.to(device)
         mf, lf = model(x)
-        mr, lr = model(torch.flip(x, dims=[1, 2]))   # reverse complement
+        mr, lr = model(torch.flip(x, dims=[1, 2]))
         m_pred.append(((mf + mr) / 2).cpu().numpy())
         logit.append(((lf + lr) / 2).cpu().numpy())
         m_true.append(m.numpy())
@@ -348,14 +340,6 @@ def train_one(args, dropout: float, lr: float, seed: int,
     return {"dropout": dropout, "lr": lr, "seed": seed, "val_beta_mae": best}, model
 
 
-
-# --------------------------------------------------------- variant-effect mode
-# Mirrors scripts/23 score_variants() exactly -- same constants, same guards,
-# same emitted schema -- so scripts/20 evaluates these baselines through the
-# identical code path as the neural models: identical distance matching,
-# identical 1 Mb block bootstrap. CpGenie in particular was designed for this
-# task ("Predicting the impact of non-coding variants on DNA methylation"), so
-# this is the comparison on its home ground rather than on absolute prediction.
 FULL_TARGET_C_INDEX = 2499
 FULL_SEQUENCE_LENGTH = 5000
 MODEL_WINDOW_SIZE = 1000

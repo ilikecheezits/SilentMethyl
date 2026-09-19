@@ -8,22 +8,7 @@
 #SBATCH --array=1-22
 #SBATCH --output=logs/data_build/harmonize_genoa_chr%a_%A.out
 #SBATCH --error=logs/data_build/harmonize_genoa_chr%a_%A.err
-#
-# GENOA meQTL harmonization, one chromosome per array task.
-#
-# Each task is independent and modest: ~2-4 GB peak RAM, single-threaded, bounded
-# by gzip decompression of one file. Running them as an array means the whole job
-# finishes in roughly the time of chr1 (the largest) rather than the sum of all 22.
-#
-# Submit from the repository root:
-#     sbatch data/run_harmonize_genoa.sh
-#
-# Watch:
-#     squeue -u $USER
-#     tail -f logs/data_build/harmonize_genoa_chr1_*.out
-#
-# When every task has finished, merge the per-chromosome outputs:
-#     python -u data/merge_genoa_harmonized.py
+# Slurm array job: harmonize GENOA meQTL summary statistics, one chromosome per task.
 
 set -euo pipefail
 

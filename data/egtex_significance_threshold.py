@@ -158,7 +158,6 @@ def main() -> int:
     print(f"  for comparison, the GWAS constant we had been using is 5.0e-08 "
           f"({chosen_cutoff/5e-8:.0f}x stricter than the cohort's own calibration)")
 
-    # ---- how this lands on our scoring inputs -----------------------------
     sig_probes = set(perm.loc[perm["qval"] <= args.fdr, "probeID"])
     lead = perm.set_index("probeID")
 
@@ -191,9 +190,6 @@ def main() -> int:
         row["two_stage"]["mcpg_probe_and_calibrated_nominal"] = int(
             (on_sig_probe & (pairs["pvalue"] <= chosen_cutoff)).sum())
 
-        # Is the probe's own lead variant inside the model window? That subset is
-        # the cleanest "these are eGTEx's actual discoveries" set, and its size
-        # bounds how strong a lead-variant-only analysis could ever be.
         joined = pairs[on_sig_probe].join(
             lead[["variant_id"]], on="probeID", rsuffix="_lead")
         row["lead_variant_in_window"] = int(

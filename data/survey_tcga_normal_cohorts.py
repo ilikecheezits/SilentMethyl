@@ -62,10 +62,6 @@ GDC_FILES = "https://api.gdc.cancer.gov/files"
 ENCODE_SEARCH = "https://www.encodeproject.org/search/"
 UA = {"Accept": "application/json", "User-Agent": "SilentMethyl-cohort-survey"}
 
-# The seven tissue-specific context features. The remaining two inputs to the
-# epigenomic tower are PhyloP 100-way conservation, which is a property of the
-# genome rather than of the tissue and needs no per-tissue track.
-# Mirrors TABULAR_FEATURES in scripts/training_common.py.
 REQUIRED_TRACKS = [
     ("ATAC-seq", None),
     ("Histone ChIP-seq", "H3K4me3"),
@@ -76,18 +72,9 @@ REQUIRED_TRACKS = [
     ("Histone ChIP-seq", "H3K4me1"),
 ]
 
-# Candidate TCGA projects and ENCODE biosample terms per eGTEx tissue. A tissue
-# with no plausible project is listed with an empty tuple so the report says so
-# explicitly rather than quietly omitting it. Several ENCODE terms are tried per
-# tissue because primary-tissue naming is inconsistent, and the best-covered one
-# is reported.
-#
-# These are CANDIDATES. Attaching a real number to each is the whole point.
 TISSUES = {
     "BreastMammaryTissue": {
         "tcga": ("TCGA-BRCA",),
-        # ENCODE spells the cell line "MCF 10A"; the hyphenated form is how it
-        # appears everywhere else, so both are tried.
         "encode": ["MCF 10A", "MCF-10A", "breast epithelium",
                    "luminal epithelial cell of mammary gland"],
     },
@@ -159,10 +146,6 @@ def _fatal_network(msg: str) -> "SystemExit":
     )
 
 
-# ---------------------------------------------------------------------------
-# GDC: distinct donors with solid-tissue-normal HM450
-# ---------------------------------------------------------------------------
-
 def gdc_normal_donors(platform: str, sample_type: str, timeout: int = 90,
                       page: int = 1000) -> dict[str, set]:
     """Distinct case ids per project, counted from the files themselves.
@@ -208,7 +191,7 @@ def gdc_normal_donors(platform: str, sample_type: str, timeout: int = 90,
             for case in hit.get("cases", []):
                 types = {s.get("sample_type") for s in case.get("samples", [])}
                 if sample_type not in types:
-                    continue          # case-level join artefact, not our file
+                    continue
                 proj = case.get("project", {}).get("project_id")
                 cid = case.get("case_id")
                 if proj and cid:
@@ -219,10 +202,6 @@ def gdc_normal_donors(platform: str, sample_type: str, timeout: int = 90,
         time.sleep(0.2)
     return donors
 
-
-# ---------------------------------------------------------------------------
-# ENCODE: are all seven tracks available for this biosample?
-# ---------------------------------------------------------------------------
 
 def encode_has_track(term: str, assay: str, target: str | None,
                      timeout: int = 60) -> int:
@@ -291,9 +270,6 @@ def main(argv=None) -> int:
     except Unreachable as exc:
         raise _fatal_network(str(exc)) from exc
 
-    # ENCODE is the optional half. If the portal is unreachable, still print the
-    # donor table -- walking the GDC takes a while and throwing that away
-    # because a second host was down is how the first version of this failed.
     encode_down = None
 
     rows = []
@@ -366,9 +342,6 @@ def main(argv=None) -> int:
     print(f"dropped: {len(rows) - len(usable)}  "
           f"({', '.join(r['egtex_tissue'] for r in rows if not r['usable'])})")
 
-    # Training rows are probes x tissues, and the stated ceiling is one cohort's
-    # worth -- 418,486, the size of the breast probe set -- because that is what
-    # keeps a run near the ~46 h the single-tissue model already takes.
     BUDGET = 418_486
     if usable:
         per = BUDGET // len(usable)

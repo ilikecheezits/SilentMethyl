@@ -126,10 +126,6 @@ DEFAULT_OUT = {
     "chromatin": Path("results/journal/meqtl_class_chromatin"),
 }
 
-# Declared locally rather than imported from training_common, which pulls in
-# torch, transformers and huggingface_hub for one list of strings and makes a
-# CPU-only analysis unrunnable on a plain node. Duplicated AND verified: when
-# training_common imports, the two are asserted identical at startup.
 TABULAR_FEATURES = [
     "Ref_ATAC_Signal",
     "Ref_H3K4me3_Signal",
@@ -155,10 +151,6 @@ def verify_feature_list() -> dict:
             "Chromatin columns would be mislabelled -- fix before trusting output.")
     return {"checked": True}
 
-
-# =========================================================================
-# shared loading and statistics
-# =========================================================================
 
 def resolve(frame, aliases, what):
     for name in aliases:
@@ -203,7 +195,6 @@ def load(scores_dir: Path, model: str, seeds, threshold: float,
             raise SystemExit(f"{scores_dir}: pair_scores.csv lacks {col}; "
                              f"rescoring with the current scripts/19 is required")
 
-    # Seed ensemble: one prediction per pair.
     pred = long.groupby(KEY, sort=False)["Predicted_Delta_M"].mean()
     meta = long.drop_duplicates(subset=KEY).set_index(KEY)
     out = meta.drop(columns=["Predicted_Delta_M"]).join(pred).reset_index()
@@ -259,10 +250,6 @@ def signed_rho(f):
     return float(r) if np.isfinite(r) else np.nan
 
 
-# =========================================================================
-# stage: matched
-# =========================================================================
-
 def match_on_discovery_z(shared, specific, tolerance, rng):
     """One specific pair per shared pair, matched on |Z| in the discovery cohort.
 
@@ -312,15 +299,9 @@ def analyse(discovery, replication, disc_name, rep_name, args, rng, rows):
         return None
 
     sig["absZ_discovery"] = sig["Z_discovery"].abs()
-    # Replication: same sign AND nominally supported. A sign flip is not
-    # replication even at a small p-value.
     same_sign = np.sign(sig["effect_discovery"]) == np.sign(sig["effect_replication"])
     sig["replicates"] = same_sign & (sig["pvalue_replication"] < args.replication_p)
 
-    # Power screen: could the replication cohort have detected an effect as
-    # large as the one observed in discovery? Compared in Z units, which are
-    # scale-free. A pair the replication cohort could never have seen is not
-    # evidence of tissue specificity.
     z_needed = stats.norm.isf(args.replication_p / 2)
     sig["replication_powered"] = (
         sig["absZ_discovery"] * (sig["effect_se_discovery"]
@@ -349,9 +330,6 @@ def analyse(discovery, replication, disc_name, rep_name, args, rng, rows):
                 "matched": int(len(matched)),
                 "note": "matching failed; widen --z-tolerance"}
 
-    # |Z| balance is the whole point of matching, so check it rather than assume
-    # it. A gap this large means the pool could not cover the shared |Z| range
-    # and the comparison is not controlled -- report it instead of hiding it.
     z_gap = float(abs(shared_use["absZ_discovery"].median()
                       - matched["absZ_discovery"].median()))
     if z_gap > args.z_tolerance:
@@ -379,7 +357,6 @@ def analyse(discovery, replication, disc_name, rep_name, args, rng, rows):
             rows.append({"direction": f"{disc_name}->{rep_name}", "class": label,
                          "metric": name, "n": int(len(frame)),
                          "value": point, "ci_low": lo, "ci_high": hi})
-        # paired difference, bootstrapped over the same blocks
         diffs = []
         for _ in range(args.n_boot):
             blocks = np.unique(np.concatenate([shared_use["_block"],
@@ -472,10 +449,6 @@ def run_matched(args, loaded: dict) -> int:
     return 0
 
 
-# =========================================================================
-# stage: chromatin
-# =========================================================================
-
 def build_classes(discovery, replication, replication_p):
     m = discovery.merge(
         replication[KEY + ["effect", "effect_se", "pvalue"]],
@@ -523,9 +496,6 @@ def run_chromatin(args, loaded: dict) -> int:
     feats = probe_features(args.split_template, set(pairs["probeID"].astype(str)))
     pairs = pairs.merge(feats, on="probeID", how="left")
 
-    # ---- A. chromatin characterisation, model-independent -----------------
-    # One row per PROBE, not per pair: chromatin is a property of the locus, and
-    # counting a probe once per variant would inflate n by its variant count.
     probes = pairs.groupby("probeID").agg(
         shared=("shared", "max"), absZ=("absZ", "max"),
         _block=("_block", "first"),
@@ -545,7 +515,6 @@ def run_chromatin(args, loaded: dict) -> int:
             np.median(f.loc[~f["shared"], feature]))
         lo, hi = block_bootstrap(probes, diff, args.n_boot, rng)
         u = stats.mannwhitneyu(a, b, alternative="two-sided")
-        # rank-biserial: scale-free effect size, interpretable as a probability
         rb = 2 * u.statistic / (len(a) * len(b)) - 1
         rows.append({
             "feature": feature, "n_shared": len(a), "n_specific": len(b),
@@ -555,10 +524,6 @@ def run_chromatin(args, loaded: dict) -> int:
             "ci_low": lo, "ci_high": hi,
             "rank_biserial": float(rb), "mannwhitney_p": float(u.pvalue),
         })
-    # Every feature can be skipped above when a comparison has fewer than 20
-    # probes on either side -- which happens for the smaller tissue pairs. An
-    # empty frame has no columns, so sorting on one raised KeyError and took the
-    # whole stage down rather than reporting that the stage had nothing to say.
     COLS = ["feature", "n_shared", "n_specific", "median_shared",
             "median_specific", "median_difference", "ci_low", "ci_high",
             "rank_biserial", "mannwhitney_p"]
@@ -571,7 +536,6 @@ def run_chromatin(args, loaded: dict) -> int:
         chrom = pd.DataFrame(columns=COLS)
     chrom.to_csv(out_dir / "chromatin_by_class.csv", index=False)
 
-    # ---- B. regression-adjusted accuracy, no matching ----------------------
     pairs["correct"] = (np.sign(pairs["Predicted_Delta_M"])
                         == np.sign(pairs["effect_disc"])).astype(int)
     design = ["shared", "absZ", "abs_distance_bp"]
@@ -646,10 +610,6 @@ def run_chromatin(args, loaded: dict) -> int:
     return 0
 
 
-# =========================================================================
-# main
-# =========================================================================
-
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -672,9 +632,6 @@ def main(argv=None) -> int:
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 
-    # --stage all cannot honour one --output-dir for two stages, and used to drop
-    # it silently, writing both stages to their published default paths. On
-    # 12 Sep 2026 that overwrote four published results. Refuse instead.
     if args.stage == "all" and args.output_dir is not None:
         raise SystemExit("STOP: --stage all ignores --output-dir and would write to "
                          "the published default paths. Run --stage matched and "
@@ -685,9 +642,6 @@ def main(argv=None) -> int:
         raise SystemExit("at least two cohorts are required")
     loaded = load_all(cohorts, args.model, args.seeds)
 
-    # Each stage gets a FRESH generator seeded identically. The pre-merge scripts
-    # each created their own; sharing one across stages here would silently shift
-    # every bootstrap interval in whichever stage ran second.
     if args.stage in ("matched", "all"):
         rc = run_matched(argparse.Namespace(
             **{**vars(args), "output_dir": args.output_dir

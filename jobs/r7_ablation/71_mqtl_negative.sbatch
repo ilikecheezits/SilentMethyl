@@ -8,15 +8,14 @@
 #SBATCH --time=06:00:00
 #SBATCH --output=logs/r7_ablation/71_%j.out
 #SBATCH --error=logs/r7_ablation/71_%j.err
+# Slurm job: run the matched significant-versus-nonsignificant eGTEx lead control (script 71).
+
 set -euo pipefail
 umask 027
 source "${SILENTMETHYL_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}"/jobs/r6_ablation/_common.sh
 cd "$ROOT"
 STAMP=logs/r7_ablation/stamp_71_$SLURM_JOB_ID
 stamp_start "$STAMP"
-# The script default (data/BreastMammaryTissue.regular.perm.fdr.txt) is the path
-# the published run used; the file has since moved under data/external/egtex_breast/.
-# Verified byte-identical to the published input, sha256 604c34e4...03743da0.
 $PY scripts/71_mqtl_matched_negative.py \
   --lead-mqtl-file data/external/egtex_breast/BreastMammaryTissue.regular.perm.fdr.txt \
   --test-csv data/datafiles_breast_epithelium/test.csv \

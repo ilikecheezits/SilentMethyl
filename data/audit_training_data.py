@@ -104,7 +104,6 @@ def sketch_windows(windows: list[str], sketch_size: int) -> np.ndarray:
         valid &= good
         safe = np.where(good, col, 0).astype(np.uint64)
         fwd = fwd * np.uint64(4) + safe
-        # reverse complement, built in the opposite order at the same time
         rev = rev + (np.uint64(3) - safe) * (np.uint64(4) ** np.uint64(j))
 
     canonical = np.minimum(fwd, rev)
@@ -162,7 +161,6 @@ def nearest_train_jaccard(query: np.ndarray, reference: np.ndarray,
     ref_vals = ref_vals[order]
     ref_ids = ref_ids[order]
 
-    # drop over-represented hashes
     uniq, starts, counts = np.unique(ref_vals, return_index=True, return_counts=True)
     common = counts > max_postings
     if common.any():
@@ -258,7 +256,6 @@ def main() -> int:
         "splits": {s: int(len(m)) for s, (m, _) in data.items()},
     }
 
-    # ---- 1. leakage ------------------------------------------------------
     LOGGER.info("building inverted index over %d train probes", len(data["train"][0]))
     train_meta, train_sketch = data["train"]
     leak_rows = []
@@ -311,7 +308,6 @@ def main() -> int:
         }
     write_csv(flagged, args.output_dir / "cross_split_sequence_similarity.csv")
 
-    # ---- 2. probe QC consistency ------------------------------------------
     if args.manifest.is_file():
         head = pd.read_csv(args.manifest, sep="\t", nrows=0)
         probe_col = next((c for c in ("probeID", "IlmnID", "Name")
@@ -344,7 +340,6 @@ def main() -> int:
             "therefore trained on a probe population it is never evaluated on. "
             "Decide this deliberately before retraining rather than inheriting it.")
 
-    # ---- 3. split comparability -------------------------------------------
     comp_rows = []
     for split in SPLITS:
         meta, _ = data[split]
@@ -373,7 +368,6 @@ def main() -> int:
         json.dump(summary, fh, indent=2, sort_keys=True, default=str)
         fh.write("\n")
 
-    # ---- report -----------------------------------------------------------
     print()
     print("=" * 76)
     print("1. CROSS-SPLIT SEQUENCE SIMILARITY  (estimated Jaccard, 31-mers)")
