@@ -1,0 +1,8 @@
+panel,model,panel_label,developed_here,deterministic,n_test_cpgs,seeds,beta_mae_values,beta_mae_mean,roc_auc_values,roc_auc_mean,uncertainty
+2a/2b,composition,Composition,False,True,26570,single fit,0.195404,0.1954039771291446,0.874763,0.8747625702675966,point is the mean over the seeds listed; per-seed values are in beta_mae_values and roc_auc_values
+2a/2b,kmer_ridge,k-mer ridge,False,True,26570,single fit,0.156497,0.1564965373237317,0.918998,0.9189978898627932,point is the mean over the seeds listed; per-seed values are in beta_mae_values and roc_auc_values
+2a/2b,epi,Context,True,False,26570,42;43;44,0.102197;0.102219;0.102265,0.10222680607555086,0.965803;0.965804;0.965813,0.9658065943571471,point is the mean over the seeds listed; per-seed values are in beta_mae_values and roc_auc_values
+2a/2b,cpgenie,CpGenie,False,False,26570,42;43;44,0.129576;0.127541;0.127090,0.1280691458610025,0.940834;0.941069;0.940012,0.9406382423422673,point is the mean over the seeds listed; per-seed values are in beta_mae_values and roc_auc_values
+2a/2b,deepcpg,DeepCpG,False,False,26570,42;43;44,0.125831;0.124858;0.125151,0.12528000478932302,0.943502;0.942736;0.944938,0.9437252478350594,point is the mean over the seeds listed; per-seed values are in beta_mae_values and roc_auc_values
+2a/2b,sequence,Sequence,True,False,26570,42;43;44,0.108981;0.110317;0.110393,0.10989692603623959,0.957649;0.956756;0.956183,0.9568623107387042,point is the mean over the seeds listed; per-seed values are in beta_mae_values and roc_auc_values
+2a/2b,fusion,Fusion,True,False,26570,42;43;44,0.088539;0.090051;0.095623,0.09140466840904664,0.976516;0.975072;0.971670,0.9744194406589962,point is the mean over the seeds listed; per-seed values are in beta_mae_values and roc_auc_values

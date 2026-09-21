@@ -1,42 +1,8 @@
 #!/usr/bin/env python3
-"""Does prediction accuracy depend on donor genetic ancestry?
-
-Why this exists, and what it adds over GENOA
---------------------------------------------
-The GENOA replication already shows the model transfers to an African-American
-cohort. But GENOA is African American AND whole blood AND EPIC, so ancestry,
-tissue and platform all move together -- the presentation says so in its own
-limitations, and that is the honest reading.
-
-This analysis holds tissue and platform FIXED. Same TCGA-BRCA breast normals,
-same HM450 array, same held-out CpGs, same frozen checkpoints. Only the donors'
-genetic ancestry differs. It is the only design available that isolates ancestry.
-
-The trap this script exists to avoid
-------------------------------------
-The model emits ONE prediction per CpG -- a cohort-level median. Stratifying by
-ancestry therefore means recomputing the OBSERVED target separately per group.
-A smaller group has a noisier median, so its apparent prediction error is higher
-for a purely statistical reason, with no involvement from the model at all.
-Reporting that as "the model is worse for group X" would be a fabricated
-disparity finding, and it is the obvious way to get this wrong.
-
-So every group is subsampled to the SAME number of donors (the smallest
-qualifying group) before any error is computed, repeatedly, and the reported
-quantity is the paired difference across those matched resamples. Group sizes
-are printed whether or not you ask, so nobody has to wonder which strata are
-powered.
-
-Genetic ancestry is continuous; the discrete labels here come from the GDC's
-open ancestry calls and are a summary, not a biological category. Groups below
---min-group-n are reported as present but not analysed, rather than quietly
-pooled into an "other" bucket that means nothing.
-
-Usage (run from the repository root)
-------------------------------------
-    python -u data/build_tcga_ancestry_labels.py          # writes the labels
-    python -u scripts/18_ancestry_stratified_error.py --inspect
-    python -u scripts/18_ancestry_stratified_error.py
+"""Prediction error stratified by donor genetic ancestry on the project's own TCGA cohort.
+This isolates ancestry, unlike the GENOA replication where ancestry, tissue and platform
+all differ at once. Group sizes are reported precisely, since the smaller strata do not
+support stable per-group estimates.
 """
 
 from __future__ import annotations
@@ -159,7 +125,6 @@ def main(argv=None) -> int:
             f"STOP: {args.predictions} has no recognisable predicted-beta column. "
             f"Columns: {list(preds.columns)}")
 
-    # Map matrix columns (samples) to participants, then to ancestry.
     sample_to_participant = {c: to_participant(c) for c in matrix.columns}
     part_to_anc = dict(zip(labels[pcol], labels[acol]))
     cols_by_group: dict[str, list] = {}
@@ -211,7 +176,6 @@ def main(argv=None) -> int:
                 len(probes), len(preds))
     pred_by_probe = preds.set_index("probeID")[pred_col]
 
-    # Chromosome/position for the block bootstrap.
     test = pd.read_csv(args.test_csv, usecols=lambda c: c in
                        ("probeID", "chr", "chrom", "pos", "position", "CpG_beg"))
     chrom_col = next((c for c in ("chr", "chrom") if c in test.columns), None)

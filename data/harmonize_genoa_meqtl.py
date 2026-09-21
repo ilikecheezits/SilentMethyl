@@ -1,52 +1,11 @@
 #!/usr/bin/env python3
-"""
-Turn the raw GENOA meQTL release into a compact, model-visible scoring cohort.
-
-What this does, in one sentence
--------------------------------
-Takes 5.3 GB of genome-wide African-American meQTL summary statistics and keeps
-only the variant-CpG pairs SilentMethyl can actually score -- pairs whose CpG is a
-QC-passing HM450 probe and whose SNP sits inside the model's 1 kb window -- writing
-well under 200 MB.
-
-Which mentor requirements this serves
--------------------------------------
-  * Independent variant evaluation -- takes the external variant set from 81
-    associations to potentially hundreds of thousands.
-  * Ancestry analyses -- GENOA is African American; contrasting it with the
-    European-dominant eGTEx set is the cross-ancestry comparison.
-  * Multi-cohort testing -- GENOA is blood on EPIC, so it shifts tissue, platform
-    and ancestry all at once relative to TCGA-BRCA breast on HM450.
-
-Two design decisions worth knowing
------------------------------------
-1. **The CpG is never lifted over.** Probe IDs are platform-stable, so GENOA's
-   `CpG` column joins directly to the hg38 manifest and inherits hg38 coordinates.
-   Only the SNP position needs hg19 -> hg38. This halves the liftover work and
-   removes a whole class of coordinate error.
-
-2. **Raw files stay untouched.** This writes new files. The 5.3 GB release remains
-   byte-identical and checksum-verifiable against Zenodo 10.5281/zenodo.7697509
-   until you choose to delete it.
-
-Coordinate conventions (stated loudly because this is where silent bugs live)
-----------------------------------------------------------------------------
-  GENOA `ps`      : 1-based SNP position, hg19
-  manifest CpG_beg: 0-based CpG start, hg38
-Both are converted to 0-based hg38 before the distance is computed. The summary
-prints a distance histogram -- if the convention were wrong you would see a
-systematic offset rather than a clean peak at short distances.
-
-Usage (run from the repository root)
-------------------------------------
-    # See what columns were detected and how big things are. Reads headers only.
-    python -u data/harmonize_genoa_meqtl.py --inspect
-
-    # Try one chromosome first. chr22 is the smallest.
-    python -u data/harmonize_genoa_meqtl.py --chrom 22
-
-    # Then all 22.
-    python -u data/harmonize_genoa_meqtl.py --all
+"""Reduce the GENOA meQTL release to pairs the model can score: CpG a QC-passing HM450 probe,
+SNP inside the 1 kb model window. Probe IDs are platform-stable, so the CpG joins directly
+to the hg38 manifest and only the SNP position is lifted from hg19; raw files are never
+modified. GENOA ps is 1-based hg19 and the manifest CpG_beg is 0-based hg38, both converted
+to 0-based hg38 before distance is computed -- the printed distance histogram shows a wrong
+convention as a systematic offset rather than a clean short-distance peak. Run --inspect,
+then --chrom N or --all.
 """
 
 from __future__ import annotations
@@ -69,10 +28,8 @@ DEFAULT_CHAIN = Path("data/reference/hg19ToHg38.over.chain.gz")
 DEFAULT_OUT = Path("data/external/genoa_meqtl/harmonized")
 
 VALID_CHROMS = {f"chr{c}" for c in range(1, 23)}
-CHUNK = 2_000_000  # rows per read chunk
+CHUNK = 2_000_000
 
-
-# ---------------------------------------------------------------- helpers
 
 def norm_chrom(value) -> str:
     s = str(value).strip()
@@ -92,7 +49,7 @@ def detect_genoa_columns(path: Path) -> dict:
     """GENOA README: chr, CpG, cpgstart, cpgend, rs, ps, allele1, allele0, af, beta, se, p_wald"""
     with gzip.open(path, "rt") as fh:
         header = fh.readline().rstrip("\n").split("\t")
-    if len(header) == 1:  # maybe whitespace-delimited
+    if len(header) == 1:
         header = header[0].split()
     lower = {c.lower(): c for c in header}
 
@@ -171,8 +128,6 @@ def lift_positions(lifter, chrom: str, positions_hg19_0based: np.ndarray) -> dic
     return out
 
 
-# ------------------------------------------------------------ core routine
-
 def harmonize_chromosome(chrom_num: int, cols: dict, genoa_dir: Path,
                          probes: pd.DataFrame, lifter, half_window: int,
                          max_p: float | None, prefilter_margin: int,
@@ -204,16 +159,10 @@ def harmonize_chromosome(chrom_num: int, cols: dict, genoa_dir: Path,
             cols["af"]: "af_genoa", cols["beta"]: "beta_genoa",
             cols["se"]: "se_genoa", cols["p"]: "p_wald",
         })
-        # Filter 1 -- CpG must be a QC-passing HM450 probe. Cheap and removes most rows.
         chunk = chunk[chunk["probeID"].astype(str).isin(probe_ids)]
         stats[f"{chrom}_rows_probe_ok"] += len(chunk)
         if chunk.empty:
             continue
-        # Filter 2 -- approximate distance cut in hg19 space. This is the big one:
-        # GENOA's cis window is far wider than the 1 kb model window, so without it
-        # we would liftover millions of positions and discard nearly all of them.
-        # The margin absorbs hg19/hg38 indel differences; the exact cut happens
-        # later in hg38.
         if "cpg_pos_hg19" in chunk.columns:
             snp0 = pd.to_numeric(chunk["snp_pos_hg19"], errors="coerce") - 1
             cpg0 = pd.to_numeric(chunk["cpg_pos_hg19"], errors="coerce")
@@ -225,7 +174,6 @@ def harmonize_chromosome(chrom_num: int, cols: dict, genoa_dir: Path,
             if chunk.empty:
                 continue
 
-        # Filter 3 -- optional significance cut, applied before liftover to save work.
         if max_p is not None and "p_wald" in chunk.columns:
             chunk = chunk[pd.to_numeric(chunk["p_wald"], errors="coerce") <= max_p]
             stats[f"{chrom}_rows_p_ok"] += len(chunk)
@@ -242,11 +190,10 @@ def harmonize_chromosome(chrom_num: int, cols: dict, genoa_dir: Path,
     df = pd.concat(kept_chunks, ignore_index=True)
     del kept_chunks
 
-    # ---- liftover: unique positions only
     df["snp_pos_hg19"] = pd.to_numeric(df["snp_pos_hg19"], errors="coerce")
     df = df.dropna(subset=["snp_pos_hg19"])
     df["snp_pos_hg19"] = df["snp_pos_hg19"].astype("int64")
-    hg19_0 = (df["snp_pos_hg19"] - 1).to_numpy()  # 1-based -> 0-based
+    hg19_0 = (df["snp_pos_hg19"] - 1).to_numpy()
     uniq = np.unique(hg19_0)
     logging.info("[%s] lifting %d unique SNP positions (%d rows)",
                  chrom, len(uniq), len(df))
@@ -257,13 +204,11 @@ def harmonize_chromosome(chrom_num: int, cols: dict, genoa_dir: Path,
     stats[f"{chrom}_liftover_failed"] += n_before - len(df)
     df["snp_pos_hg38"] = df["snp_pos_hg38"].astype("int64")
 
-    # ---- attach CpG hg38 coordinates and compute distance
     df = df.merge(probe_index.reset_index(), on="probeID", how="inner")
     df = df[df["cpg_chr"] == chrom]
     df["distance_bp"] = (df["snp_pos_hg38"] - df["cpg_pos_hg38"]).astype("int64")
     df["abs_distance_bp"] = df["distance_bp"].abs()
 
-    # ---- Filter 4 -- exact hg38 window cut
     n_before = len(df)
     df = df[df["abs_distance_bp"] <= half_window]
     stats[f"{chrom}_rows_outside_window"] += n_before - len(df)
@@ -278,8 +223,6 @@ def harmonize_chromosome(chrom_num: int, cols: dict, genoa_dir: Path,
     logging.info("[%s] kept %d model-visible pairs", chrom, len(df))
     return df
 
-
-# --------------------------------------------------------------- commands
 
 def cmd_inspect(args) -> int:
     print("=== probe universe ===")
@@ -366,7 +309,6 @@ def cmd_run(args) -> int:
     target = out / f"genoa_model_visible_pairs{suffix}.csv.gz"
     result.to_csv(target, index=False, compression="gzip")
 
-    # ---- distance histogram: the sanity check on coordinate conventions
     hist_edges = [0, 1, 2, 5, 10, 25, 50, 100, 250, 500, 1000]
     hist = {}
     for lo, hi in zip(hist_edges[:-1], hist_edges[1:]):

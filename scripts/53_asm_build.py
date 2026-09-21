@@ -1,73 +1,11 @@
 #!/usr/bin/env python3
-"""
-Build the ASM validation scoring input (Task E1). CPU only, no GPU, no model.
-
-What this is
-------------
-Slot 53, reserved for allele-specific methylation since the R2 framework was
-written. Stage 1 of two: turn the published ASM catalogue into SNV-CpG pairs the
-frozen checkpoints can score, plus the context features every scored CpG needs.
-
-Source
-------
-Rosenski et al., "Atlas of imprinted and allele-specific DNA methylation in the
-human body", Nat Commun 16:2141 (2025), Supplementary Table `S3. ASM SNPs`:
-55,271 ASM SNP loci with their bimodal region, Fisher exact p per sample, and the
-sample names each call fired in. Underlying WGBS is GEO GSE186458 (Loyfer atlas).
-See data/external/asm_atlas_natcommun2025/SOURCE.txt.
-
-Why this script exists instead of 20_variant_scoring.py
---------------------------------------------------------
-Script 20 reads its target CpGs out of the prebuilt split CSVs and then requires
-every probeID to be present in the HM450 manifest. Both assumptions are exactly
-what this analysis is built to escape: ASM CpGs are arbitrary genomic CpGs, not
-array probes. Nothing in the model requires an array probe -- sequence, the seven
-context tracks and phyloP are all genome-wide, and held-out-ness is preserved by
-the CHROMOSOME split. So the target CpGs here are built from scratch, using the
-same conventions build_training_data.py uses, and script 20 is left untouched.
-
-Conventions replicated exactly from data/build_training_data.py
-----------------------------------------------------------------
-    pos                      0-based coordinate of the C in the target CpG
-    Healthy_5000bp_DNA       genome[chr][pos-2499 : pos+2501], seq[2499:2501]=="CG"
-    Ref_<mark>_Signal        bigWig mean over [pos-49, pos+51)   (100 bp)
-    Target_Base_PhyloP_1     phyloP over [pos,   pos+1)          (the C)
-    Target_Base_PhyloP_2     phyloP over [pos+1, pos+2)          (the G)
-    imputation               train-split medians from
-                             data/datafiles_breast_epithelium/feature_imputation.json
-
-Window arithmetic, which is easy to get wrong
-----------------------------------------------
-The model window is 1,000 bp taken as seq[2000:3000], so the target C sits at
-index 499 and a variant at signed offset `d` from the C lands at 499 + d. The
-variant is therefore scoreable only for **d in [-499, +500]** -- an asymmetric
-+/-500 bp window, NOT +/-1000. Offsets 0 and 1 are the target CpG itself and are
-excluded (PROTECTED_CPG_INDICES).
-
-Positives and two tiers of negative
-------------------------------------
-positive            CpG inside the ASM SNP's own ASM region
-negative/background CpG inside no bimodal region at all
-negative/bimodal    CpG inside a BIMODAL region that is not an ASM region
-
-Using the same variant on both sides is the tightest available control: variant
-identity, allele, MAF, local sequence and the whole 1,000-bp window are shared,
-and only the CpG's status differs. Matching on |offset| then removes the distance
-confound, the one the mQTL work showed matters most.
-
-**Why the second tier exists, and why it is the one to believe.** ASM regions are
-a subset of the atlas's bimodal methylation regions -- CpG-dense, intermediate-
-methylation, enhancer-like. Against plain background CpGs the model could
-separate them merely by recognising that regional character, with no
-allele-specific information involved, and a reviewer will say so. The
-bimodal-but-not-ASM tier holds that character fixed and asks the sharper
-question: among regions that all look like this, does the model pick out the ones
-where methylation is actually allele-specific? Report both; lead with the
-bimodal contrast.
-
-Usage
------
-    python -u scripts/53_asm_build.py --output-dir data/external/asm_atlas/scoring
+"""Build allele-specific methylation scoring input from the Rosenski atlas. ASM CpGs are
+arbitrary genomic CpGs rather than array probes, so target windows and context features
+are built from scratch using the same conventions as data/build_training_data.py, with
+held-out status preserved by the chromosome split. Positives are CpGs inside a SNP's own
+ASM region; negatives come in two tiers, plain background CpGs and bimodal-but-not-ASM
+CpGs, the second holding regional character fixed so the test cannot be passed by
+recognising enhancer-like sequence alone.
 """
 
 from __future__ import annotations
@@ -93,7 +31,7 @@ LOGGER = logging.getLogger("asm_build")
 WINDOW_SIZE = 5000
 CENTER_C_INDEX_FULL = 2499
 MODEL_WINDOW_SIZE = 1000
-CENTER_C_INDEX = 499          # index of the target C inside the 1,000-bp window
+CENTER_C_INDEX = 499
 PROTECTED_OFFSETS = frozenset({0, 1})
 MIN_OFFSET, MAX_OFFSET = -CENTER_C_INDEX, MODEL_WINDOW_SIZE - CENTER_C_INDEX - 1
 TEST_CHROMS = ("chr8", "chr9")
@@ -279,9 +217,6 @@ def build_pairs(asm: pd.DataFrame, sequences: dict[str, str],
             continue
         ref, alt = resolved
 
-        # Candidate CpGs whose 1,000-bp model window would contain this variant.
-        # variant offset d = snp - cpg_c, and d must lie in [-499, +500], so the
-        # CpG's C lies in [snp - 500, snp + 499].
         positions = cpgs[chrom]
         lo = bisect.bisect_left(positions, snp - MAX_OFFSET)
         hi = bisect.bisect_right(positions, snp - MIN_OFFSET)
@@ -303,8 +238,6 @@ def build_pairs(asm: pd.DataFrame, sequences: dict[str, str],
                 label, tier = 1, "positive"
                 counters["positive"] += 1
             elif in_any_region(chrom, cpg_c):
-                # Inside some OTHER ASM region: neither a clean positive for this
-                # variant nor a clean negative. Dropped rather than guessed at.
                 counters["other_asm_region_dropped"] += 1
                 continue
             elif in_bimodal(chrom, cpg_c):
@@ -471,8 +404,6 @@ def match_negatives(pairs: pd.DataFrame, tolerance: int, seed: int) -> pd.DataFr
         raise RuntimeError(
             f"cannot match: {len(positives)} positives, {len(negatives)} negatives")
 
-    # Bucket negatives by |distance| so a candidate lookup is a small scan over
-    # the tolerance band rather than a pass over the whole pool.
     by_variant: dict[tuple[str, int], list[int]] = {}
     by_chrom: dict[tuple[str, int], list[int]] = {}
     for idx, row in zip(negatives.index, negatives.itertuples(index=False)):

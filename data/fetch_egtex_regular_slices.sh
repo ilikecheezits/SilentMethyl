@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Download the eGTEx regular mQTL slices used by the harmonizer.
+
 set -uo pipefail
 BASE=https://storage.googleapis.com/egtex/methylation/epic-arrays/mQTLs
 OUT=data/external/egtex_multitissue/within600
@@ -8,7 +10,6 @@ AWK=$(command -v mawk || command -v gawk || command -v awk)
 if command -v pigz >/dev/null; then UNZ="pigz -dc -p 4"; else UNZ="gzip -dc"; fi
 echo "awk=$AWK  unzip=$UNZ"
 
-# byte-identical to AWK_PROGRAM in data/harmonize_egtex_mqtl.py
 PROG='
 BEGIN { OFS = "\t" }
 {
@@ -33,11 +34,15 @@ for T in WholeBlood Lung ColonTransverse Ovary Prostate KidneyCortex Testis Musc
     | LC_ALL=C $AWK -v W=600 -v LO=-600 "$PROG" \
     | gzip -1 -c > "${dst}.partial"
   st=("${PIPESTATUS[@]}")
-  if [ "${st[0]}" -eq 0 ] && [ "${st[1]}" -eq 0 ]; then
+  # Every stage must succeed: a failing awk or gzip would otherwise promote a
+  # truncated .partial to the final name and report it as ok.
+  failed=0
+  for s in "${st[@]}"; do [ "$s" -eq 0 ] || failed=1; done
+  if [ "$failed" -eq 0 ]; then
     mv "${dst}.partial" "$dst"
     echo "[$(date +%H:%M:%S)] $T ok rows=$(zcat "$dst" | wc -l) size=$(du -h "$dst" | cut -f1)"
   else
-    echo "[$(date +%H:%M:%S)] $T FAILED curl=${st[0]} unzip=${st[1]}"
+    echo "[$(date +%H:%M:%S)] $T FAILED (curl unzip awk gzip)=${st[*]}"
     rm -f "${dst}.partial"
   fi
 done

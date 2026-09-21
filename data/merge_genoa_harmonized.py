@@ -1,22 +1,9 @@
 #!/usr/bin/env python3
-"""
-Merge the 22 per-chromosome GENOA harmonization outputs into one scoring cohort.
-
-Run this after the array job finishes:
-    sbatch data/run_harmonize_genoa.sh     # 22 tasks
-    python -u data/merge_genoa_harmonized.py
-
-Produces
---------
-  genoa_model_visible_pairs.csv.gz   the cohort SilentMethyl will score
-  harmonization_summary.json         combined counts + the distance histogram
-  epic_only_probes.txt               GENOA probes absent from the HM450 universe
-
-That last file answers an open question: if it is empty or near-empty, every GENOA
-CpG is an HM450 probe whose context features already exist in
-data/datafiles/*.csv, and no new feature extraction is needed. If it is large,
-those probes need context features pulled from the reference bigwigs before they
-can be scored.
+"""Merge the 22 per-chromosome GENOA harmonization outputs into one cohort, after the array
+job in data/run_harmonize_genoa.sh finishes. Writes genoa_model_visible_pairs.csv.gz,
+harmonization_summary.json with the combined counts and distance histogram, and
+epic_only_probes.txt, which lists GENOA probes absent from the HM450 universe and
+therefore needing context features extracted before they can be scored.
 """
 
 from __future__ import annotations
@@ -62,7 +49,6 @@ def main(argv=None) -> int:
     target = args.dir / "genoa_model_visible_pairs.csv.gz"
     result.to_csv(target, index=False, compression="gzip")
 
-    # combined counters + histogram
     counters: dict = {}
     hists: dict = {}
     for c in range(1, 23):

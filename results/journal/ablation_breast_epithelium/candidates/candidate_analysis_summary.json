@@ -8,7 +8,7 @@
     {
       "seed": 42,
       "sha256": "8e8917433f25a6960788c6ff3a7bf1a915793e04eaec8c00cd16f59c1c97c0c3",
-      "weights_path": "checkpoints_ablation/breast_epithelium/seed42/fusion/best_weights.pth"
+      "weights_path": "checkpoints_journal/seed42/fusion/best_weights.pth"
     }
   ],
   "cross_seed_aggregation": "single available seed",

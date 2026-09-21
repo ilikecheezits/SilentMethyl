@@ -8,7 +8,7 @@
   },
   "cohort": "GENOA",
   "context_source": "none (composition, kmer_ridge are sequence-only models with no context tower)",
-  "generated_utc": "2026-09-12T23:51:20+00:00",
+  "generated_utc": "2026-09-19T13:07:44+00:00",
   "matching": {
     "negatives_per_positive": 1,
     "replacement": false,
@@ -26,7 +26,6 @@
     "equivalence": "fusion minus sequence, paired and bootstrapped. An interval spanning zero is the expected result: the context vector is identical for REF and ALT, so it cannot create a variant effect, only modulate one through the gate."
   },
   "purpose": "mentor requirement 6: independent variant evaluation",
-  "relabelled": "context_source and caveats.tissue rewritten in place 16 Sep 2026 with the derivation now in scripts/21_variant_evaluation.py (describe_context_source, describe_model_clause); the originals were stale. No number changed.",
   "seed_minus_one_means": "mean delta across seeds (ensemble)",
   "seeds": [
     -1

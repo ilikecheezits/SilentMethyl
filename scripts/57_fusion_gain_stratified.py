@@ -1,47 +1,8 @@
 #!/usr/bin/env python3
-"""
-Where does the fusion gain concentrate?
-
-The question
-------------
-Results 3.2 needs the converse of Task D. Task D (`56_transfer_failure.py`)
-localises where zero-shot cross-tissue transfer FAILS. This localises where
-adding epigenomic context HELPS, on the same held-out probes, so the two can be
-read against each other.
-
-`22_context_stratification.py` already produces a paired fusion-minus-sequence
-beta MAE for four strata (CpG-island class, genomic region, ATAC quartile,
-H3K27ac quartile). This script extends that in the two directions 3.2 needs:
-
-  1. all SEVEN reference tracks, not just ATAC and H3K27ac;
-  2. a paired AUROC difference alongside the paired beta MAE, block-bootstrapped
-     the same way.
-
-Absolute vs relative gain -- read this before quoting a number
---------------------------------------------------------------
-Absolute beta-MAE gain is bounded by how much error there is to remove, so a
-stratum with a high sequence-only error can show the largest absolute gain
-purely because it starts worst. Both are reported:
-
-    Fusion_Minus_Sequence_Beta_MAE      negative = fusion better (absolute)
-    Relative_Beta_MAE_Reduction         fraction of sequence error removed
-    Fusion_Minus_Sequence_ROC_AUC       positive = fusion better
-
-They do not rank the strata the same way, and the difference is the finding.
-Quote the relative reduction when comparing strata with different baselines.
-
-Zero GPU. Post hoc stratification of frozen held-out predictions -- not a
-training experiment and not a causal claim.
-
-Split discipline
-----------------
-Held-out TEST probes of the breast-epithelium context ablation, chr8 + chr9,
-26,570 probes. Same probe set as Task D.
-
-Usage
------
-    python -u scripts/57_fusion_gain_stratified.py \
-        --output-dir results/journal/ablation_breast_epithelium/fusion_gain_stratified
+"""Localise where adding epigenomic context helps, on the same held-out probes
+56_transfer_failure.py uses for where transfer fails, so the two can be read against
+each other. Stratifies the fusion-minus-sequence gain by genomic and chromatin context
+with block-bootstrap intervals.
 """
 
 from __future__ import annotations
@@ -224,8 +185,6 @@ def load_paired_predictions(
 
     long = pd.concat(rows, ignore_index=True)
 
-    # Truth must be identical across every seed/model file, or the pairing is
-    # comparing different targets.
     reference = (
         long[(long["Seed"] == seeds[0]) & (long["Model"] == models[0])]
         .sort_values("probeID")
@@ -344,8 +303,6 @@ def stratum_row(
             sequence_draws > 0, -delta_draws / sequence_draws, np.nan
         )
 
-    # AUROC is not a per-CpG mean, so each replicate is recomputed with the
-    # block multiplicities carried as sample weights.
     auc_draws = np.full(replicates, np.nan, dtype=float)
     for index in range(replicates):
         weight = multiplicity[index][codes]

@@ -1,37 +1,7 @@
 #!/usr/bin/env python3
-"""
-Build the R8 manuscript figures. CPU only, seconds, rerunnable.
-
-Why this is a separate script from 91_build_manuscript_figures.py
-------------------------------------------------------------------
-Script 91 builds the six published one-column figures and then calls
-`keep_manuscript_outputs()`, which DELETES everything in its output directory
-that is not on its hard-coded whitelist. Adding the R8 figures to it would mean
-editing that whitelist and re-running a frozen builder over published outputs.
-This writes to its own directory instead and leaves script 91 untouched.
-
-Figures
--------
-    fig_r8_1_fusion_gain_relative.png   Task F -- Results 3.2
-    fig_r8_2_context_ladder.png         Task B -- Results 3.3
-    fig_r8_3_transfer_vs_gain.png       Tasks D x F -- the pairing, honestly drawn
-    fig_r8_4_asm_discrimination.png     Task E1 -- Results 3.4 (skipped if absent)
-    fig_r8_5_gate_decomposition.png     Task A -- Results 3.3
-
-Two things these figures are deliberately drawn to avoid
---------------------------------------------------------
-1. **Absolute fusion gain is not plotted as the headline.** It is bounded by the
-   sequence-only error in each stratum, so strata that start worse look better.
-   Figure 1 plots the RELATIVE reduction, which is what licenses a comparison
-   across strata; the absolute values are kept as a muted second panel so the
-   reader can see both.
-2. **The D-F pairing is not forced.** Figure 3 marks the strata where transfer
-   failure and fusion gain agree AND the one where they invert (H3K27me3), rather
-   than showing only the agreeing two.
-
-Usage
------
-    python -u scripts/92_build_r8_figures.py
+"""Build the mechanism figures. Kept separate from 91_build_manuscript_figures.py because
+that script deletes every non-whitelisted file in its output directory, so these would
+not survive being written alongside it.
 """
 
 from __future__ import annotations
@@ -151,7 +121,6 @@ def fig_fusion_gain(path_csv: Path, out: Path) -> dict:
     ax.invert_yaxis()
     ax.set_xlabel("relative $\\beta$-MAE reduction (%)")
     ax.set_title("b  chromatin track, bottom vs top quartile", loc="left")
-    # Headroom so the legend never sits on top of a bar.
     ax.set_xlim(0, float(np.nanmax(hi.to_numpy())) * 100 * 1.30)
     ax.legend(frameon=False, loc="lower right")
     ax.grid(axis="x", alpha=0.25, linewidth=0.6)
@@ -235,7 +204,6 @@ def fig_transfer_vs_gain(transfer: Path, gain: Path, out: Path) -> dict:
     tracks["track"] = tracks["Grouping"].str.replace("_Stratum", "", regex=False)
     top_q = tracks[tracks["Stratum"] == "Q4 high"].set_index("track")
 
-    # The three strata Task D flagged, with its own effect size for each.
     flagged = [
         ("Shore", islands.loc["Shore"],
          top["cgi_class_enrichment"]["Shore"]["log2_enrichment"], "log2 enr."),
@@ -255,7 +223,6 @@ def fig_transfer_vs_gain(transfer: Path, gain: Path, out: Path) -> dict:
     labels = [f"{name}\n(D: {value:+.2f} {unit})"
               for name, _, value, unit in flagged]
 
-    # Panel a -- absolute gain. More negative = more error removed.
     ax = axes[0]
     vals = np.array([-float(row["Fusion_Minus_Sequence_Beta_MAE"]) for _, row, _, _ in flagged])
     err = np.vstack([
@@ -278,7 +245,6 @@ def fig_transfer_vs_gain(transfer: Path, gain: Path, out: Path) -> dict:
     ax.set_title("a  absolute gain - pairing holds for 2 of 3", loc="left")
     ax.grid(axis="y", alpha=0.25, linewidth=0.6); ax.set_axisbelow(True)
 
-    # Panel b -- relative gain, the measure that licenses cross-stratum comparison.
     ax = axes[1]
     vals = np.array([float(row["Relative_Beta_MAE_Reduction"]) * 100 for _, row, _, _ in flagged])
     err = np.vstack([

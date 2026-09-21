@@ -1,20 +1,8 @@
 #!/usr/bin/env python3
-"""Discover, audit, and score published non-synonymous breast-cancer SNVs.
-
-This script builds a broad candidate panel from two reproducible sources:
-
-1. a small curated list of experimentally characterized breast-cancer variants;
-2. live ClinVar searches for protein-altering SNVs in breast-cancer genes.
-
-Every candidate is normalized to a GRCh38 chromosome allele, compared against
-the project's existing TCGA candidate and eGTEx benchmark variants, screened
-for an HM450 CpG within SilentMethyl's trained 1,000-bp window, and then passed
-to scripts/63_known_variant_application.py.  It does not silently discard
-failures: the output audit records each exclusion reason.
-
-The model chooses neither the literature panel nor the target CpG.  The latter
-is determined by the existing application script's model-visibility and probe
-QC rules.  Model scores are used only after these prespecified filters.
+"""Build and score a panel of published protein-altering breast-cancer SNVs, drawn from a
+small curated list and from live ClinVar searches. Resolved variants are scored through
+63_known_variant_application.py; pass --weights-template explicitly so the frozen
+breast-epithelium weights are forwarded.
 """
 
 from __future__ import annotations
@@ -102,8 +90,6 @@ def parse_args() -> argparse.Namespace:
         default=Path("data/egtex_breast_mqtl_heldout_qc.csv"),
     )
     parser.add_argument(
-        # Moved under data/external/egtex_breast/ with the rest of the cohort;
-        # the flat data/ path stays as a fallback for older checkouts.
         "--raw-breast-mqtl", type=Path,
         default=next(
             (p for p in (
@@ -315,7 +301,6 @@ def clinvar_to_candidates(
         significance = str(classification.get("description", ""))
                                                                              
                                                                                
-                                                          
         if search_mode == "pathogenic" and "pathogenic" not in significance.lower():
             continue
         if search_mode == "breast" and any(

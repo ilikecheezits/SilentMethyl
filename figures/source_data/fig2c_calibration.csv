@@ -1,0 +1,2 @@
+panel,model,seed,n_test_cpgs,pearson_r,beta_mae,note,source
+2c,fusion,42,26570,0.9286485380211557,0.08853942150084283,log-scaled hexbin of observed vs predicted beta; dashed line is y=x,ABL/seed42/fusion/predictions.csv

@@ -16,5 +16,5 @@
   "n_test_loci": 26783,
   "split": "test",
   "test_path": "data/datafiles_breast_epithelium/splits/fold2/test.csv",
-  "weights_path": "checkpoints_ablation/breast_epithelium/fold2/epi/best_weights.pth"
+  "weights_path": "checkpoints_folds/fold2/epi_seed42/best_weights.pth"
 }

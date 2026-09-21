@@ -1,56 +1,10 @@
 #!/usr/bin/env python3
-"""
-Evaluate the GENOA variant scores: the analysis half of Stage B.1.
-
-Consumes the six pair_scores.csv files written by
-scripts/20_variant_scoring.py (2 models x 3 seeds, held-out stratum) and
-produces the numbers and figures for mentor requirement 6, independent variant
-evaluation.
-
-CPU only. Minutes, not hours.
-
-What the exploratory pass established, and what this script is built to survive
-------------------------------------------------------------------------------
-1. **The pooled correlation is diluted.** GENOA's summary statistics contain every
-   cis pair tested, not the meQTLs discovered: 71% of non-CpG-altering held-out
-   pairs have p > 0.05. Signed agreement rises monotonically as p falls and lands
-   exactly on chance in the null stratum -- a dose-response, which is the strongest
-   evidence available that the signal is real. That gradient is a primary figure.
-
-2. **Distance is a confound and it is a big one.** Significant meQTLs sit closer to
-   their CpG (median 191 bp vs 258 bp), the model's |delta| is larger for nearer
-   variants (rho = -0.29), and distance ALONE classifies significant vs null at
-   AUROC 0.595 -- as well as the model does marginally. So the marginal AUROC is
-   not reportable on its own. This script's primary discrimination metric is
-   computed against distance-matched negatives, and the distance-only baseline is
-   reported beside it every time.
-
-3. **Fusion and sequence perform identically on variant effects, by construction.**
-   The context vector is allele-invariant: it depends on the probe, not on REF vs
-   ALT. In the fusion difference
-
-       delta_fused = [dna_mut*g_mut - dna_wt*g_wt] + epi*[g_epi,mut - g_epi,wt]
-
-   the epigenomic term survives only through a gate shift that is itself driven by
-   the sequence change. Context can modulate a variant effect; it cannot create
-   one. The right claim is therefore EQUIVALENCE, tested with a paired interval,
-   not "sequence beat fusion" from a 0.008 AUROC gap on one seed. Section 5 then
-   asks the one question where context could legitimately help: does the fusion
-   advantage vary with the gate's DNA share?
-
-Inference is on the M scale throughout. results/journal/rc_uncertainty_conditional_s50/
-showed that bounded beta compresses exactly the signal of interest -- an estimator
-that looks fine on beta can be worthless on M, and the reverse.
-
-Every interval is a block bootstrap over 1 Mb genomic blocks, matching scripts
-16-17. These pairs are emphatically not independent: 39,657 variants in LD across
-19,081 probes. A naive interval would be far too narrow and would overstate every
-result in the file.
-
-Usage (run from the repository root)
-------------------------------------
-    python -u scripts/21_variant_evaluation.py
-    python -u scripts/21_variant_evaluation.py --n-boot 2000    # publication
+"""Evaluate scored variant-CpG pairs against measured mQTL effects. Reports signed
+Spearman, direction agreement, marginal AUROC, AUROC within distance bins and AUROC
+against a distance-matched negative set, each with a 1 Mb block-bootstrap interval, plus
+the distance-only baseline the model must beat. Also emits the paired fusion-minus-
+sequence differences, which are computed on fixed pairs and are far more stable than the
+marginal metrics.
 """
 
 from __future__ import annotations
@@ -76,16 +30,10 @@ from sklearn.metrics import roc_auc_score
 
 LOGGER = logging.getLogger("silentmethyl.genoa_eval")
 
-# Categorical palette carried over from scripts/51_rc_uncertainty.py, where it
-# passed the project's contrast checks. Colour is never the only channel: marker
-# and dash carry the same distinction so the figures survive greyscale printing.
 COLOURS = {"fusion": "#B03A2E", "sequence": "#1F6FB2", "baseline": "#B4761A"}
 MARKERS = {"fusion": "o", "sequence": "s", "baseline": "^"}
 DASHES = {"fusion": "-", "sequence": "--", "baseline": ":"}
 
-# Baseline models (scripts/23) come through this evaluator under their own names,
-# so styling must not assume the two original models. Unknown names cycle through
-# a spare palette instead of raising a KeyError halfway through figure drawing.
 _SPARE_COLOURS = ["#2E7D4F", "#6A4C93", "#8D6E63", "#00838F", "#AD1457"]
 _SPARE_MARKERS = ["D", "v", "P", "X", "*"]
 _SPARE_DASHES = ["-.", (0, (3, 1, 1, 1)), (0, (5, 2)), (0, (1, 1)), (0, (4, 1, 1, 1, 1, 1))]
@@ -110,25 +58,9 @@ SIGNIFICANCE_STRATA = [
 ]
 DISTANCE_BINS = [0, 50, 100, 200, 300, 400, 501]
 
-# Cohort-specific wording, so the same evaluator can run on the tissue-matched
-# eGTEx arm and the cross-tissue GENOA arm without either one inheriting the
-# other's caveats. The tissue caveat in particular is the whole reason the two
-# arms answer different questions.
 COHORTS = {
     "GENOA": {
         "label": "GENOA",
-        # The context source is NOT hardcoded here. It was -- this string said
-        # "MCF-10A breast" and kept saying so after the 11 Sep context swap,
-        # writing a false provenance claim into every run_summary.json the
-        # pipeline produced (LAB_NOTES 1.10). A caveat that can go stale without
-        # anything failing is worse than no caveat, so it is derived from the
-        # weights actually scored and filled in by summarise().
-        # The model clause is derived, not hardcoded, for the same reason the
-        # context source is: this string asserted "SilentMethyl is trained on
-        # breast" over every run, including the k-mer ridge and composition
-        # baseline evaluations, which are not SilentMethyl and have no context
-        # features. The cohort half of the caveat is true regardless; only the
-        # model half has to be filled in by summarise().
         "tissue_caveat": ("GENOA is peripheral blood; {model_clause}. "
                           "This is cross-tissue, cross-ancestry transfer, not "
                           "tissue-matched validation."),
@@ -148,40 +80,25 @@ COHORTS = {
 }
 BLOCK_BP = 1_000_000
 
-# Which chromatin tracks the scored checkpoints were built on. Recognised by the
-# checkpoint root, because that is the one thing 20_variant_scoring.py records
-# for every run and the one thing that actually determines the answer.
 CONTEXT_SOURCES = {
-    "checkpoints_ablation/breast_epithelium":
+    "checkpoints_journal":
         "primary breast epithelium (ENCODE, bulk ATAC-seq and six histone "
         "ChIP-seq tracks, all fold change over control, one biosample)",
-    "checkpoints_journal":
-        "MCF-10A (pre-11 Sep 2026 context, superseded; six Mint-ChIP tracks "
-        "plus a locally converted snATAC coverage track)",
     "checkpoints_folds":
-        "MCF-10A (pre-11 Sep 2026 context, superseded; six Mint-ChIP tracks "
-        "plus a locally converted snATAC coverage track)",
+        "primary breast epithelium (ENCODE, bulk ATAC-seq and six histone "
+        "ChIP-seq tracks, all fold change over control, one biosample)",
 }
 
-# Models that have no context tower at all. For these the honest answer is
-# "none", not "unrecorded": there is nothing to record. "unrecorded" reads as a
-# logging failure and sends a reader looking through the scoring run_summary for
-# a weights path that was never meant to exist -- which is what it did for the
-# kmer_ridge / composition baselines, whose run_summary.json claimed the context
-# features were "unrecorded (no weights path found ...)" when the correct
-# statement is that these models do not consume context features.
 CONTEXT_FREE_MODELS = {"sequence", "kmer_ridge", "composition", "cpgenie", "deepcpg"}
 
-# Of those, these are not SilentMethyl at all -- they are the published-baseline
-# arms, and no claim about SilentMethyl's training tissue applies to them.
 BASELINE_MODELS = {"kmer_ridge", "composition", "cpgenie", "deepcpg"}
 
 
 def describe_context_source(scores_dir: Path, models: Sequence[str] = ()) -> str:
     """Name the context the scored checkpoints used, from the scoring record.
 
-    This used to be a hardcoded string saying "MCF-10A breast". It kept saying
-    so after the context was swapped on 11 Sep 2026, writing a false provenance
+    This used to be a hardcoded string naming one context. It kept saying
+    so after the context changed on 11 Sep 2026, writing a false provenance
     claim into every run_summary.json without anything failing. A caveat that
     can silently go stale is worse than none, so it is derived rather than
     asserted -- and when it cannot be derived it says so instead of guessing.
@@ -212,13 +129,6 @@ def describe_context_source(scores_dir: Path, models: Sequence[str] = ()) -> str
             elif isinstance(node, str) and "best_weights.pth" in node:
                 weights.append(node)
     if not weights:
-        # 20_variant_scoring.py records the weights PATH as a column of
-        # pair_scores.csv and only the weights SHA in run_summary*.json, so the
-        # JSON scan above finds nothing even for a perfectly well-recorded run.
-        # That made this guard fail open on every real evaluation -- both
-        # ablation run_summary.json files say "unrecorded" while the scores
-        # beside them name checkpoints_ablation/breast_epithelium. Fall back to
-        # the column that actually carries the path.
         for scores in sorted(Path(scores_dir).rglob("pair_scores*.csv")):
             try:
                 column = pd.read_csv(scores, usecols=["Weights_Path"])
@@ -231,13 +141,6 @@ def describe_context_source(scores_dir: Path, models: Sequence[str] = ()) -> str
                 "check the scoring run_summary or the Weights_Path column of "
                 "pair_scores.csv before quoting this")
 
-    # A sequence-only arm keeps living under checkpoints_journal because it has
-    # no context tower and so was never retrained for the context swap. Reading
-    # its checkpoint root as a context source made the mixed-source alarm fire on
-    # every ablation evaluation -- fusion from checkpoints_ablation beside
-    # sequence from checkpoints_journal -- and declare a correct comparison
-    # "not comparable". Only weights that carry a context tower can name a
-    # context source.
     context_bearing = [w for w in weights
                        if not (CONTEXT_FREE_MODELS & set(Path(w).parts))]
     if weights and not context_bearing:
@@ -251,8 +154,6 @@ def describe_context_source(scores_dir: Path, models: Sequence[str] = ()) -> str
     if len(matched) == 1:
         return matched.pop()
     if len(matched) > 1:
-        # Two context sources in one scoring directory is not a caveat problem,
-        # it is a corrupted comparison -- say so loudly rather than picking one.
         return ("MIXED CONTEXT SOURCES in one scoring directory: "
                 + "; ".join(sorted(matched))
                 + " -- these results are not comparable to each other")
@@ -270,8 +171,6 @@ def describe_model_clause(models: Sequence[str], context_source: str) -> str:
     return ("SilentMethyl is trained on breast and its context features are "
             f"{context_source}")
 
-
-# --------------------------------------------------------------------------- io
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
@@ -327,9 +226,6 @@ def load_scores(args: argparse.Namespace) -> pd.DataFrame:
             LOGGER.info("%s seed %d: %d pairs", model, seed, len(frame))
     long = pd.concat(frames, ignore_index=True)
 
-    # Score files written before the eGTEx arm existed name the cohort effect
-    # `beta_genoa_ref_to_alt` and the p-value `p_wald`. Alias them so this script
-    # reads GENOA and eGTEx outputs identically without regenerating the former.
     for canonical, legacy in (("beta_ref_to_alt", "beta_genoa_ref_to_alt"),
                               ("pvalue", "p_wald")):
         if canonical not in long.columns and legacy in long.columns:
@@ -342,7 +238,6 @@ def load_scores(args: argparse.Namespace) -> pd.DataFrame:
     if absent:
         raise SystemExit(f"score files are missing {absent}; rerun script 19")
 
-    # Guard against a silent duplication: one row per pair per model per seed.
     counts = long.groupby(["Model", "Seed"])["Pair_UID"].agg(["size", "nunique"])
     duplicated = counts[counts["size"] != counts["nunique"]]
     if not duplicated.empty:
@@ -362,15 +257,11 @@ def add_seed_ensemble(long: pd.DataFrame) -> pd.DataFrame:
     Reported alongside the per-seed values rather than instead of them: the spread
     across seeds is the honest measure of how stable any of this is.
     """
-    # A single-seed input is ALREADY the ensemble. Without this guard, running
-    # with --seeds=-1 (deterministic baselines from scripts/23, which have no
-    # seeds to average) computes the mean of one value, labels it -1, and
-    # concatenates it onto rows that are already labelled -1 -- duplicating every
-    # Pair_UID. Point estimates survive that, but n doubles and the block
-    # bootstrap resamples duplicated rows, so the intervals come out too narrow.
-    # Relabel and return instead of appending.
     if long["Seed"].nunique() <= 1:
-        return long.assign(Seed=-1)
+        # One seed: the mean over seeds is that seed. Add the -1 row that callers
+        # expect, but keep the per-seed rows -- relabelling them in place erased
+        # the only real seed and presented a single fit as a seed ensemble.
+        return pd.concat([long, long.assign(Seed=-1)], ignore_index=True)
 
     keys = ["Model", "Pair_UID"]
     means = (long.groupby(keys, sort=False)["Predicted_Delta_M"]
@@ -386,8 +277,6 @@ def add_seed_ensemble(long: pd.DataFrame) -> pd.DataFrame:
         raise SystemExit(f"seed ensemble duplicated Pair_UIDs:\n{bad}")
     return out
 
-
-# ---------------------------------------------------------------------- metrics
 
 def signed_rho(frame: pd.DataFrame) -> float:
     if len(frame) < 20:
@@ -498,8 +387,6 @@ def build_matched_cohort(frame: pd.DataFrame, tolerance: int, ratio: int,
     return matched, balance
 
 
-# -------------------------------------------------------------- block bootstrap
-
 def block_bootstrap(frame: pd.DataFrame, metric, n_boot: int,
                     rng: np.random.Generator) -> tuple[float, float]:
     """Percentile CI resampling whole 1 Mb blocks, not rows.
@@ -528,9 +415,6 @@ def block_bootstrap(frame: pd.DataFrame, metric, n_boot: int,
     return tuple(float(v) for v in np.percentile(values, [2.5, 97.5]))
 
 
-# Only these columns are touched by any metric. Slicing a wide frame 500 times per
-# measurement dominates the runtime otherwise -- a bootstrap resample copies every
-# column it carries, and the score files have ~40 of them.
 METRIC_COLUMNS = [
     "Predicted_Delta_M", "Predicted_Delta_M_sequence", "beta_ref_to_alt",
     "significant", "abs_distance_bp", "_block",
@@ -547,8 +431,6 @@ def measure(frame: pd.DataFrame, metric, name: str, n_boot: int,
             "value": point, "ci_low": low, "ci_high": high}
 
 
-# ------------------------------------------------------------------- the report
-
 def main() -> int:
     args = parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
@@ -561,16 +443,8 @@ def main() -> int:
     LOGGER.info("non-CpG-altering pairs per model-seed: %d",
                 int(len(clean) / (len(args.models) * (len(args.seeds) + 1))))
 
-    # -1 is the cross-seed ensemble label, appended to whatever seeds were asked
-    # for. A run invoked with "--seeds -1" (the sequence/k-mer baselines do
-    # exactly that, having no per-seed arm) therefore got [-1, -1] and emitted
-    # every row of primary_metrics.csv and matched_negative_auroc.csv twice --
-    # identical point estimates, different CIs, because the shared rng advances
-    # between the two passes. Nothing published was wrong, but averaging the
-    # file gives garbage. Dedupe, order-preserving.
     seed_labels = list(dict.fromkeys([*args.seeds, -1]))
 
-    # ---- 1. headline metrics, per model, per seed, per CpG-altering stratum
     rows = []
     for model in args.models:
         for seed in seed_labels:
@@ -594,7 +468,6 @@ def main() -> int:
     primary = pd.DataFrame(rows)
     atomic_csv(primary, out / "primary_metrics.csv")
 
-    # ---- 2. distance-matched negatives: the reportable discrimination number
     matched_rows, balance_rows = [], []
     for model in args.models:
         for seed in seed_labels:
@@ -610,7 +483,6 @@ def main() -> int:
     atomic_csv(pd.DataFrame(matched_rows), out / "matched_negative_auroc.csv")
     atomic_csv(pd.DataFrame(balance_rows), out / "matching_balance.csv")
 
-    # ---- 3. the dilution gradient: signal vs association strength
     gradient = []
     for model in args.models:
         subset = clean[(clean["Model"] == model) & (clean["Seed"] == -1)]
@@ -625,13 +497,6 @@ def main() -> int:
     gradient = pd.DataFrame(gradient)
     atomic_csv(gradient, out / "significance_gradient.csv")
 
-    # ---- 4. fusion vs sequence: an EQUIVALENCE interval, not a winner
-    #
-    # Paired on Pair_UID and bootstrapped over the same blocks, so the interval is
-    # on the difference rather than on two independent estimates. A CI that spans
-    # zero here supports "the context tower adds nothing to variant-effect
-    # prediction", which is what the architecture predicts: the context vector is
-    # identical for REF and ALT.
     paired_rows = []
     if {"fusion", "sequence"} <= set(args.models):
         fusion = clean[(clean["Model"] == "fusion") & (clean["Seed"] == -1)]
@@ -661,13 +526,6 @@ def main() -> int:
                                        args.n_boot, rng))
     atomic_csv(pd.DataFrame(paired_rows), out / "fusion_vs_sequence_paired.csv")
 
-    # ---- 5. can the gate rescue the context tower anywhere?
-    #
-    # The one legitimate route by which allele-invariant context could shape a
-    # variant effect is the gate: if the DNA share shifts with chromatin state, the
-    # same sequence change could produce a larger delta in open chromatin. If the
-    # fusion advantage is flat across gate quartiles, that route is closed too, and
-    # the equivalence in section 4 is architectural rather than incidental.
     gate_rows = []
     gate_column = "WT_Gate_Avg_DNA_Share"
     if paired_rows and gate_column in merged.columns:
@@ -687,7 +545,6 @@ def main() -> int:
                                      args.n_boot, rng, **context))
     atomic_csv(pd.DataFrame(gate_rows), out / "gate_modulation.csv")
 
-    # ---- 6. distance bins, for the supplement
     distance_rows = []
     for model in args.models:
         subset = clean[(clean["Model"] == model) & (clean["Seed"] == -1)]
@@ -704,8 +561,6 @@ def main() -> int:
 
     make_figures(gradient, primary, pd.DataFrame(matched_rows), out, args)
 
-    # Derived once so the tissue caveat and the context_source field cannot drift
-    # apart -- they were two independent calls before.
     context_source = describe_context_source(args.scores_dir, args.models)
     model_clause = describe_model_clause(args.models, context_source)
 
@@ -714,7 +569,7 @@ def main() -> int:
             "analysis": (f"{COHORTS[args.cohort]['label']} variant evaluation "
                          f"on frozen SilentMethyl checkpoints"),
             "cohort": args.cohort,
-            "purpose": "mentor requirement 6: independent variant evaluation",
+            "purpose": "independent variant evaluation",
             "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "stratum": args.stratum,
             "models": args.models,
@@ -768,7 +623,6 @@ def make_figures(gradient: pd.DataFrame, primary: pd.DataFrame,
     plots = out / "plots"
     plots.mkdir(parents=True, exist_ok=True)
 
-    # Figure 1 -- the dilution gradient. The argument that the signal is real.
     fig, axes = plt.subplots(1, 2, figsize=(10.5, 4.2))
     labels = [label for _, _, label in SIGNIFICANCE_STRATA]
     for axis, metric, null, title in (
@@ -805,14 +659,11 @@ def make_figures(gradient: pd.DataFrame, primary: pd.DataFrame,
     fig.savefig(plots / "significance_gradient.pdf", bbox_inches="tight")
     plt.close(fig)
 
-    # Figure 2 -- discrimination, with the distance baseline in the same frame.
     fig, axis = plt.subplots(figsize=(7.4, 4.0))
     families = [
         ("auroc_marginal", "Marginal", "baseline"),
         ("auroc_within_distance_bin", "Within distance bin", "fusion"),
     ]
-    # 'style' here names a palette entry, not a model, and both entries are
-    # always present in COLOURS -- it is independent of --models.
     width = 0.32
     positions = np.arange(len(args.models))
     for index, (metric, label, style) in enumerate(families):

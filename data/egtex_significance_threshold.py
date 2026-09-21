@@ -1,57 +1,11 @@
 #!/usr/bin/env python3
-"""
-Derive eGTEx's own significance definition, instead of borrowing a GWAS constant.
-
-The problem this fixes
-----------------------
-The held-out eGTEx arm has 76,893 variant-CpG pairs but only **295** at
-p < 5e-8, which cannot support a direction claim: at n = 295, a direction
-agreement of 0.553 carries a 95% interval of [0.496, 0.610], covering chance.
-
-5e-8 is the *genome-wide* correction for a GWAS. eGTEx ran a *cis* scan on
-~50-100 donors, where the field standard -- and what the study itself used -- is
-per-phenotype permutation followed by FDR control. Applying a GWAS constant to a
-cis study is not conservative, it is the wrong test, and it is why 295 of 76,893
-survive. GENOA tolerated the same mistake only because ~1,000 donors made 5e-8
-reachable anyway.
-
-What this reads
----------------
-`BreastMammaryTissue.regular.perm.fdr.txt`, one row per probe (754,054 of them):
-
-    cpg_id  variant_id  maf  slope  slope_se  pval_nominal  pval_permuted  qval
-    cg09381666  chr16_88691431_C_T_b38  0.4388  1.1391  0.0540  4.09e-21  6.28e-16  2.43e-10
-
-`pval_nominal` and `slope` describe that probe's LEAD variant; `pval_permuted`
-and `qval` are the probe-level permutation result. So the file defines which
-probes have an mQTL, not which pairs are significant.
-
-The two-stage procedure
------------------------
-This is the standard FastQTL/GTEx construction:
-
-  Stage 1 (probe level).  A probe is an mCpG if `qval` <= --fdr.
-  Stage 2 (pair level).   Within those probes, a pair is significant if its
-                          nominal p is at or below a threshold calibrated from
-                          the permutation results.
-
-GTEx derives stage 2 per probe from the fitted beta distribution. Those shape
-parameters are not in this file, so the fallback used here is the standard one:
-the nominal p of the least-significant probe that still passes FDR, applied as a
-single cohort-wide cutoff. That is an approximation and is labelled as one.
-
-Guard against threshold shopping
---------------------------------
-Counts are reported at every FDR level and at several nominal cutoffs, whether
-or not they are used, so the choice is visible rather than selected after seeing
-which one flatters the result. **Declare the threshold before scoring, and report
-the significance gradient regardless** -- the gradient is threshold-free and
-remains the primary evidence that the signal is real.
-
-Usage (run from the repository root)
-------------------------------------
-    python -u data/egtex_significance_threshold.py
-    python -u data/egtex_significance_threshold.py --fdr 0.05 --write-probe-table
+"""Derive eGTEx's own significance threshold instead of applying the GWAS constant 5e-8, which
+is the genome-wide correction for a GWAS rather than a cis scan on 50-100 donors. Applies
+the study's own standard: a probe is an mCpG if its q-value passes --fdr, then within those
+probes a pair is significant if its nominal p is at or below a cutoff calibrated from the
+permutation results. The per-probe beta-distribution parameters are absent from the file, so
+a cohort-wide fallback is used and labelled as an approximation, and counts are reported at
+every FDR level so the choice is visible.
 """
 
 from __future__ import annotations
@@ -158,7 +112,6 @@ def main() -> int:
     print(f"  for comparison, the GWAS constant we had been using is 5.0e-08 "
           f"({chosen_cutoff/5e-8:.0f}x stricter than the cohort's own calibration)")
 
-    # ---- how this lands on our scoring inputs -----------------------------
     sig_probes = set(perm.loc[perm["qval"] <= args.fdr, "probeID"])
     lead = perm.set_index("probeID")
 
@@ -191,9 +144,6 @@ def main() -> int:
         row["two_stage"]["mcpg_probe_and_calibrated_nominal"] = int(
             (on_sig_probe & (pairs["pvalue"] <= chosen_cutoff)).sum())
 
-        # Is the probe's own lead variant inside the model window? That subset is
-        # the cleanest "these are eGTEx's actual discoveries" set, and its size
-        # bounds how strong a lead-variant-only analysis could ever be.
         joined = pairs[on_sig_probe].join(
             lead[["variant_id"]], on="probeID", rsuffix="_lead")
         row["lead_variant_in_window"] = int(

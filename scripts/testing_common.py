@@ -1,3 +1,5 @@
+"""Shared evaluation helpers: metric enrichment, JSON-safe metric export and standard diagnostic figures."""
+
 from __future__ import annotations
 
 import json

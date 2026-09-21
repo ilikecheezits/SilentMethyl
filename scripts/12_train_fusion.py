@@ -1,3 +1,5 @@
+"""Train the gated sequence/context fusion model on the frozen towers."""
+
 from __future__ import annotations
 
 import argparse

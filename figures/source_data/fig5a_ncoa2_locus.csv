@@ -1,0 +1,2 @@
+panel,variant_uid,gene,probe,genome_build,chrom,variant_pos_1based,cpg_pos,signed_offset_bp,abs_distance_bp,model_split,predicted_delta_beta,seed,seed_count,source,uncertainty
+5a,chr8_70148394_G_A__cg20699548__ENST00000452400_7,NCOA2,cg20699548,hg38,chr8,70148394,70148402,-9,9,test,-0.153916597366333,42,1,ABL/candidates/top_candidate_case_study.csv + candidate_matched_background_statistics.csv,single seed-42 value; no across-seed interval available

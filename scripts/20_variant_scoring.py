@@ -1,74 +1,9 @@
 #!/usr/bin/env python3
-"""
-Score GENOA meQTL variant-CpG pairs with the frozen SilentMethyl checkpoints.
-
-What this is
-------------
-Stage B.1. Pure inference on the nine existing checkpoints -- no gradient steps,
-no new weights, nothing on disk is modified. It takes the harmonized GENOA pairs
-emitted by data/build_genoa_scoring_input.py, reconstructs the WT and MUT 1,000-bp
-model windows, and writes the RC-averaged MUT-minus-WT delta for every pair.
-
-This is mentor requirement 6, independent variant evaluation, going from n=81 to
-n=39,692 unique variants over 66,557 held-out pairs.
-
-Why this is not scripts/63_known_variant_application.py
--------------------------------------------------------
-Script 14 is the right engine for a handful of published variants and the wrong
-one here, for three reasons that would each have surfaced as a failure:
-
-  1. It requires Variant_ID to be unique and raises otherwise. GENOA has 66,557
-     pairs over 39,692 variants -- most variants sit near more than one probe --
-     so script 14 aborts on the first line of validation.
-  2. It re-derives pairs, scoring every model-visible CpG within the window of
-     each variant. GENOA tested specific variant-probe pairs and reports an effect
-     size for each; re-deriving them breaks the join back to beta_genoa.
-  3. It loads all 418k rows of train/val/test including the 5,000-bp sequence
-     column. Here only the probes named in the input are needed -- 19,084 for the
-     held-out stratum -- so the read is filtered on arrival.
-
-Numerics are deliberately identical to scripts/60_candidate_background.py: FP32 by
-default, the same forward/RC averaging, and the same phyloP swap when building the
-reverse-complement context vector.
-
-Two conventions the analysis must respect
-------------------------------------------
-**Effect direction.** Compare the model delta against `beta_genoa_ref_to_alt`, not
-raw `beta_genoa`. GENOA is GEMMA output whose beta is keyed to the minor allele,
-while the model delta is keyed to hg38 REF->ALT. build_genoa_scoring_input.py
-re-signs it; this script carries the column through and refuses to run without it.
-
-**Effect scale.** GENOA effect sizes are on a normalized-phenotype scale, not on
-the beta or M scale the model predicts. Rank and sign comparisons -- Spearman rho,
-direction agreement, AUROC -- are meaningful. A Pearson correlation of raw
-magnitudes, or any claim of magnitude calibration against GENOA, is not.
-
-Tissue caveat to carry into the write-up
-----------------------------------------
-GENOA measured blood. The fusion model's context features are whatever
---split-template points at (published: primary breast epithelium, from
-data/datafiles_breast_epithelium). Scoring GENOA with the fusion model is
-therefore cross-tissue transfer, not tissue-matched validation. The sequence-only
-model reads no context and is the honest comparator -- which is why --models
-defaults to running both, and why the fusion-minus-sequence difference is the
-quantity worth reporting. The caveat written into run_summary*.json is derived
-from the weights and split paths actually used (describe_tissue_caveat), never
-hardcoded: a hardcoded "MCF-10A" string outlived the 11 Sep 2026 context swap
-and mislabelled every breast-epithelium scoring run.
-
-Usage (run from the repository root)
-------------------------------------
-    # smoke test on CPU or one GPU, 200 pairs, one seed, both models
-    python -u scripts/20_variant_scoring.py --limit 200 --seeds 42
-
-    # the real held-out run
-    python -u scripts/20_variant_scoring.py \
-        --input-csv data/external/genoa_meqtl/scoring/genoa_scoring_input_heldout.csv \
-        --stratum heldout --seeds 42 43 44 --models fusion sequence
-
-    # one shard of a Slurm array
-    python -u scripts/20_variant_scoring.py --shard "${SLURM_ARRAY_TASK_ID}" \
-        --num-shards 6 ...
+"""Score variant-CpG pairs with the frozen checkpoints: pure inference, no gradient steps,
+nothing on disk modified outside the output directory. Builds paired wild-type and
+mutant 1,000-bp windows, runs each model and seed, and writes per-pair predicted deltas
+with the provenance of the weights and split template used. Always pass --split-template
+explicitly; its default points at the superseded build.
 """
 
 from __future__ import annotations
@@ -116,21 +51,16 @@ from matched_background_utils import (  # noqa: E402
 
 LOGGER = logging.getLogger("silentmethyl.genoa")
 
-# Which chromatin context a path carries. Checkpoint roots name the context the
-# weights were TRAINED on; split files name the context FED at scoring time.
-# Longest key wins, so "data/datafiles_breast_epithelium" is not read as
-# "data/datafiles".
 CONTEXT_BY_PATH = {
-    "checkpoints_ablation/breast_epithelium": "breast_epithelium",
     "data/datafiles_breast_epithelium": "breast_epithelium",
-    "checkpoints_journal": "mcf10a",
-    "checkpoints_folds": "mcf10a",
-    "data/datafiles/": "mcf10a",
+    "checkpoints_journal": "breast_epithelium",
+    "checkpoints_folds": "breast_epithelium",
+    "data/datafiles/": "superseded",
 }
 CONTEXT_LABELS = {
     "breast_epithelium": ("primary breast epithelium (ENCODE; ATAC-seq and six "
                           "histone ChIP-seq tracks, fold change over control)"),
-    "mcf10a": "MCF-10A (the pre-11 Sep 2026 context, superseded)",
+    "superseded": "the pre-11 Sep 2026 context (superseded; reaches no published number)",
 }
 
 
@@ -160,9 +90,6 @@ def describe_tissue_caveat(model_type: str, weights_path: str,
             "tissue-agnostic and is the comparator that makes the fusion result "
             "interpretable.")
 
-# Index of the target CpG's C inside the 5,000-bp stored sequence. centered_crop()
-# takes seq[2000:3000] for a 1,000-bp window, mapping index 2499 -> 499, which is
-# CENTER_C_INDEX. Both constants are asserted at startup rather than trusted.
 FULL_TARGET_C_INDEX = 2499
 FULL_SEQUENCE_LENGTH = 5000
 MODEL_WINDOW_SIZE = 1000
@@ -172,12 +99,6 @@ REQUIRED_INPUT_COLUMNS = [
     "probeID", "probe_split", "distance_bp",
 ]
 
-# The cohort-effect column is resolved rather than hard-coded, so the same
-# scorer runs on GENOA (`beta_genoa_ref_to_alt`) and on eGTEx Breast Mammary
-# (`beta_ref_to_alt`). Whichever is found is copied to the canonical name so
-# every downstream script sees one column regardless of cohort. The REQUIREMENT
-# is not the name -- it is that the effect is already keyed REF->ALT, which is
-# what the GENOA sign bug taught us to state explicitly.
 CANONICAL_EFFECT = "beta_ref_to_alt"
 CANONICAL_PVALUE = "pvalue"
 EFFECT_COLUMN_CANDIDATES = ("beta_ref_to_alt", "beta_genoa_ref_to_alt")
@@ -382,9 +303,6 @@ def build_chunk(pairs: pd.DataFrame, records: dict, counters: dict):
             counters["alters_target_cpg"] += 1
             continue
 
-        # Loud check, not a silent skip. If `pos` in the split CSVs and
-        # `cpg_pos_hg38` in the harmonized pairs were off by one, essentially every
-        # pair would land here -- which is exactly the signal we want.
         if sequence[full_index] != str(row.Ref).upper():
             counters["reference_base_mismatch"] += 1
             continue
@@ -544,17 +462,11 @@ def score_chunk(model, model_type: str, tokenizer, cohort: pd.DataFrame,
     out["WT_Beta_RC_Avg"] = wt_beta
     out["MUT_Beta_RC_Avg"] = mut_beta
     out["Predicted_Delta_Beta"] = mut_beta - wt_beta
-    # The M-scale delta is the primary quantity. Absolute beta error and beta
-    # deltas are compressed near 0 and 1, which is what results/journal/
-    # rc_uncertainty_conditional_s50/ showed is enough to invert an estimator
-    # ranking. Report on M and say why.
     out["Predicted_Delta_M"] = mut_m - wt_m
     out["Absolute_Delta_Beta"] = np.abs(out["Predicted_Delta_Beta"])
     out["Absolute_Delta_M"] = np.abs(out["Predicted_Delta_M"])
     out["Delta_Beta_FWD"] = delta_fwd
     out["Delta_Beta_RC"] = delta_rc
-    # Free per-locus uncertainty: the forward/RC disagreement the averaging throws
-    # away. Retains ~75-83% of the 3-seed ensemble's incremental signal.
     out["Delta_Beta_RC_Absolute_Difference"] = np.abs(delta_fwd - delta_rc)
     out["Delta_Beta_RC_Sign_Agree"] = (np.sign(delta_fwd) == np.sign(delta_rc)).astype(int)
 
@@ -582,7 +494,6 @@ def main() -> int:
     args = parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 
-    # Assert the window geometry instead of trusting the constants above.
     probe_sequence = "N" * FULL_SEQUENCE_LENGTH
     if centered_crop(probe_sequence, MODEL_WINDOW_SIZE) != "N" * MODEL_WINDOW_SIZE:
         raise RuntimeError("centered_crop did not return a 1000-bp window")
@@ -664,18 +575,7 @@ def main() -> int:
             f"pairs, not bad data. Resolve it before scoring.")
     LOGGER.info("construction counters: %s", counters)
 
-    # Per-run tag. Pair scores are already separated by model/seed directory, but
-    # the summary is not -- and this script is meant to be run as a Slurm array with
-    # one task per model-seed. Without the tag, six concurrent tasks would each
-    # overwrite the same run_summary.json and only the last one to finish would be
-    # recorded.
     suffix = f"_shard{args.shard}" if args.num_shards > 1 else ""
-    # A --limit run is a smoke test and must never occupy the filename a real run
-    # writes to. Without this, `--limit 200` leaves a 200-row pair_scores.csv at
-    # the exact path the array job uses; if the array task then fails, the stale
-    # file survives and scripts/20 reads it as a complete result. It prints the
-    # row count, so the mistake is visible -- but nothing raises, and a silently
-    # 380x-undersized cohort is precisely the kind of error that reaches a figure.
     if args.limit > 0:
         suffix += f"_smoke{args.limit}"
     run_tag = "_".join(
@@ -717,7 +617,7 @@ def main() -> int:
     atomic_json(
         {
             "analysis": "GENOA meQTL variant scoring on frozen SilentMethyl checkpoints",
-            "purpose": "mentor requirement 6: independent variant evaluation",
+            "purpose": "independent variant evaluation",
             "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "stratum": args.stratum,
             "input_csv": str(args.input_csv),

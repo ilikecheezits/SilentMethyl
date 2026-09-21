@@ -1,38 +1,7 @@
 #!/usr/bin/env python3
-"""
-Score the ASM SNV-CpG pairs with the frozen checkpoints (Task E1, stage 2).
-
-Pure inference. No gradient steps, no new weights, nothing on disk is modified
-except this script's own output directory.
-
-What makes this different from 20_variant_scoring.py
------------------------------------------------------
-Script 20 reads its target CpGs from the prebuilt split CSVs and then hard-fails
-any probeID absent from the HM450 manifest. ASM CpGs are arbitrary genomic CpGs,
-so both checks would reject every row here. This script takes the CpG records
-built by `53_asm_build.py` instead -- same 5,000-bp sequence convention, same
-seven context tracks, same phyloP pair, same train-split imputation -- and
-reuses script 20's model construction and inference by path-loading it, the same
-idiom `23_context_permutation.py` uses. Script 20 itself is untouched, so every
-frozen analysis that depends on it is unaffected.
-
-Numerics are therefore identical to the GENOA/eGTEx runs: FP32 by default,
-forward/reverse-complement averaging, the phyloP swap when building the RC
-context vector, and the M-scale delta as the primary quantity.
-
-Arms
-----
-fusion    checkpoints_ablation/breast_epithelium/seed42/fusion/best_weights.pth
-sequence  checkpoints_journal/seed42/sequence/best_weights.pth
-
-The sequence arm is tissue-agnostic and shares the journal checkpoint, which is
-what `results/journal/ablation_breast_epithelium/seed42/sequence/metrics.json`
-records. Seed 42 only, per the standing single-seed directive.
-
-Usage
------
-    python -u scripts/53b_asm_score.py --limit 500        # smoke
-    python -u scripts/53b_asm_score.py                    # full run
+"""Score the ASM SNV-CpG pairs with the frozen checkpoints. Pure inference; unlike
+20_variant_scoring.py it takes its CpGs from a prebuilt records table rather than the
+split CSVs, because ASM CpGs are not array probes.
 """
 
 from __future__ import annotations
@@ -262,7 +231,7 @@ def parse_args() -> argparse.Namespace:
                    choices=["fusion", "sequence"])
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--fusion-weights",
-                   default="checkpoints_ablation/breast_epithelium/seed42/fusion/best_weights.pth")
+                   default="checkpoints_journal/seed42/fusion/best_weights.pth")
     p.add_argument("--sequence-weights",
                    default="checkpoints_journal/seed42/sequence/best_weights.pth")
     p.add_argument("--model-path", default="zhihan1996/DNABERT-2-117M")

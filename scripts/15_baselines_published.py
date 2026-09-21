@@ -1,55 +1,9 @@
 #!/usr/bin/env python
-"""CpGenie and DeepCpG architectures, reimplemented and trained on our splits.
-
-WHY REIMPLEMENT RATHER THAN RUN THE ORIGINAL CODE
-
-Both are 2017-era Keras/Theano/TF1 and do not install on current hardware. More
-importantly, the published CpGenie weights were trained on GM12878
-lymphoblastoid cells, not breast, so scoring them against our targets would hand
-them a cross-tissue handicap and produce a strawman comparison. Training their
-architectures on our data, our splits and our tissue is the fair test and the
-one the reviewer question actually asks.
-
-ARCHITECTURES, TAKEN FROM SOURCE, NOT FROM MEMORY
-
-CpGenie -- data/external/baselines/CpGenie/cnn/seq_128x3_5_5_2f_simple.template
-    The template's Convolution2D(128, 1, 5) over a (4, 1, L) input is a width-5
-    1-D convolution with the four bases as channels.
-        conv[128@5,same] -> maxpool[5,stride3]
-        conv[256@5,same] -> maxpool[5,stride3]
-        conv[512@5,same] -> maxpool[5,stride3]
-        flatten -> dense[64] -> dropout -> dense[64] -> dropout -> head
-    Max-norm 3 on the convolutional weights; RMSprop(rho=0.9, eps=1e-6).
-    Dropout and learning rate were tuned by the authors via hyperas over
-    dropout in {0.3, 0.5, 0.7} and lr in {0.01, 0.001, 0.0001}; we tune over the
-    same grid on our validation split rather than fixing an arbitrary value.
-
-DeepCpG -- data/external/baselines/deepcpg/deepcpg/models/dna.py, CnnL2h128
-        conv[128@11] -> maxpool[4] -> conv[256@3] -> maxpool[2]
-        -> flatten -> dense[128] -> dropout -> head
-    Base-class defaults: dropout 0.0, l1_decay 0.0, l2_decay 0.0,
-    glorot_uniform (models/utils.py:441). We additionally tune dropout on our
-    validation split, which can only help the baseline.
-    Faithfulness check: their docstring states 4,100,000 parameters; at our
-    1,000 bp input the trunk computes to 3,997,824 plus heads. FAITHFULNESS_CHECK
-    below asserts this, so a misreading of the layer spec fails loudly.
-
-DELIBERATE DEVIATIONS, ALL STATED IN THE MANUSCRIPT
-
-  * Output head. Both originals predict a binary methylation state. Our metrics
-    include beta MAE and M-value MAE, so each published trunk carries the same
-    dual head our models use (M-value regression + binary logit) and the same
-    losses (Huber delta=1.345 + BCEWithLogits). This isolates the architecture
-    rather than the output parameterisation, which is the comparison we want.
-  * Window. Trained at our 1,000 bp rather than their defaults, so the input is
-    identical across all models in the table.
-  * Reverse-complement handling. Same deterministic RC augmentation during
-    training and RC-averaged prediction at test time as our models, imported
-    from training_common rather than reimplemented.
-
-    python -u scripts/15_baselines_published.py \
-        --arch cpgenie --dropout 0.5 --lr 0.001 --seed 42
-    python -u scripts/15_baselines_published.py --arch cpgenie --grid
+"""CpGenie and DeepCpG architectures reimplemented and retrained on this project's splits
+and tissue. The original code is 2017-era Keras/Theano and does not install on current
+hardware, and the published CpGenie weights were fit on GM12878 rather than breast, so
+scoring them directly would impose a cross-tissue handicap. Architectures are taken from
+the published source, not from memory; DeepCpG is restricted to its DNA module.
 """
 
 from __future__ import annotations
@@ -68,11 +22,6 @@ from sklearn.metrics import roc_auc_score
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-# training_common imports transformers at module level, which walks the whole
-# transformers package tree on the shared filesystem and stalls for minutes on a
-# cold node. A CNN baseline has no business paying that cost for four small pure
-# functions, so they are duplicated here VERBATIM from training_common and
-# checked against it by --verify (the pattern scripts/23 already uses).
 
 def set_seed(seed: int) -> None:
     random.seed(seed)
@@ -145,7 +94,6 @@ M_COL, BIN_COL, BETA_COL = "M_Value_Target", "Binary_State_Target", "Median_Beta
 FAITHFULNESS_CHECK = {"deepcpg_trunk_params": 3_997_824}
 
 
-# ----------------------------------------------------------------------------- data
 class OneHotDataset(Dataset):
     """One-hot sequence + targets, using training_common's crop and RC logic."""
 
@@ -169,7 +117,7 @@ class OneHotDataset(Dataset):
         x = np.zeros((4, len(seq)), dtype=np.float32)
         for i, b in enumerate(seq):
             j = BASES.get(b)
-            if j is not None:          # N and other ambiguity codes stay all-zero
+            if j is not None:
                 x[j, i] = 1.0
         return x
 
@@ -184,7 +132,6 @@ class OneHotDataset(Dataset):
                 torch.tensor(float(row[BIN_COL]), dtype=torch.float32))
 
 
-# ----------------------------------------------------------------- architectures
 class MaxNorm:
     """Renormalise conv weights to a maximum norm, as CpGenie's W_constraint does."""
 
@@ -272,7 +219,6 @@ def build(arch: str, window: int, dropout: float) -> nn.Module:
     raise SystemExit(f"unknown arch {arch}")
 
 
-# ------------------------------------------------------------------------ metrics
 @torch.no_grad()
 def evaluate(model: nn.Module, loader: DataLoader, device) -> tuple[dict, pd.DataFrame]:
     """RC-averaged prediction, matching our own test protocol."""
@@ -281,7 +227,7 @@ def evaluate(model: nn.Module, loader: DataLoader, device) -> tuple[dict, pd.Dat
     for x, m, b in tqdm(loader, desc="eval", leave=False):
         x = x.to(device)
         mf, lf = model(x)
-        mr, lr = model(torch.flip(x, dims=[1, 2]))   # reverse complement
+        mr, lr = model(torch.flip(x, dims=[1, 2]))
         m_pred.append(((mf + mr) / 2).cpu().numpy())
         logit.append(((lf + lr) / 2).cpu().numpy())
         m_true.append(m.numpy())
@@ -348,14 +294,6 @@ def train_one(args, dropout: float, lr: float, seed: int,
     return {"dropout": dropout, "lr": lr, "seed": seed, "val_beta_mae": best}, model
 
 
-
-# --------------------------------------------------------- variant-effect mode
-# Mirrors scripts/23 score_variants() exactly -- same constants, same guards,
-# same emitted schema -- so scripts/20 evaluates these baselines through the
-# identical code path as the neural models: identical distance matching,
-# identical 1 Mb block bootstrap. CpGenie in particular was designed for this
-# task ("Predicting the impact of non-coding variants on DNA methylation"), so
-# this is the comparison on its home ground rather than on absolute prediction.
 FULL_TARGET_C_INDEX = 2499
 FULL_SEQUENCE_LENGTH = 5000
 MODEL_WINDOW_SIZE = 1000

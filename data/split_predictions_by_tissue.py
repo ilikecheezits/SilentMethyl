@@ -1,34 +1,12 @@
 #!/usr/bin/env python3
-"""Join per-tissue mQTL labels onto the union predictions.
-
-Why this exists
----------------
-The nine tissues were scored once, as a union of 80,919 variant-CpG pairs, because
-the model's prediction for a pair does not depend on which tissue's mQTL table the
-pair came from -- only the LABELS differ. That saved 54 GPU tasks. The cost is that
-`pair_scores.csv` carries label columns (pvalue, beta_ref_to_alt, se, maf,
-ma_count, ma_samples) inherited from whichever tissue sorted first, which is
-BreastMammaryTissue.
-
-Those columns are placeholders and must never be used. Running the downstream
-analyses on them would silently produce a breast-only result wearing a nine-tissue
-label -- the numbers would look plausible and be wrong.
-
-This script replaces them, per tissue, and writes into the directory layout
-scripts/31_transfer_discrimination.py and scripts/40_meqtl_tissue_specificity.py
-already expect:
-
-    results/journal/egtex_multitissue_scoring/by_tissue/<Tissue>/heldout/<model>/seed<N>/pair_scores.csv
-
-The join is an INNER join on (probeID, Variant_ID), so each tissue keeps only the
-pairs eGTEx actually tested there -- 70,218 for Prostate up to 77,421 for Lung,
-not all 80,919. Output row counts are asserted against the cohort sizes recorded
-when the cohorts were built, so a silent join failure cannot pass.
-
-Usage (run from the repository root)
-------------------------------------
-    python -u data/split_predictions_by_tissue.py
-    python -u data/split_predictions_by_tissue.py --dry-run
+"""Join per-tissue mQTL labels onto the union predictions. The nine tissues were scored
+once as a union of 80,919 variant-CpG pairs, since a prediction does not depend on which
+tissue's mQTL table the pair came from -- only the labels differ -- so pair_scores.csv
+carries label columns inherited from whichever tissue sorted first. Those are
+placeholders and must not be used: running the downstream analyses on them produces a
+breast-only result wearing a nine-tissue label. This replaces them per tissue with an
+inner join on (probeID, Variant_ID), so each tissue keeps only the pairs eGTEx tested
+there, and row counts are asserted against the recorded cohort sizes.
 """
 
 from __future__ import annotations
@@ -47,10 +25,8 @@ LABELS = Path("data/external/egtex_multitissue/scoring")
 OUT_ROOT = Path("results/journal/egtex_multitissue_scoring/by_tissue")
 
 KEY = ["probeID", "Variant_ID"]
-# Everything that is a property of the TISSUE rather than of the pair.
 LABEL_COLS = ["beta_ref_to_alt", "se", "pvalue", "maf", "ma_count", "ma_samples"]
 
-# Recorded when the cohorts were harmonised; the join must reproduce these exactly.
 EXPECTED = {
     "BreastMammaryTissue": 76893,
     "ColonTransverse": 76453,
@@ -113,7 +89,6 @@ def main(argv=None) -> int:
                 raise SystemExit(f"STOP: {src} lacks {missing}")
             logging.info("read %s (%d rows)", src, len(pred))
 
-            # Drop the placeholder labels and the misleading provenance column.
             base = pred.drop(columns=[c for c in LABEL_COLS + ["source_tissue"]
                                       if c in pred.columns])
 

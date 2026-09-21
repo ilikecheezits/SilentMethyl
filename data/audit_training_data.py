@@ -1,42 +1,11 @@
 #!/usr/bin/env python3
-"""
-Audit the training data before retraining. CPU only, reads nothing new.
-
-Three questions, in descending order of how much damage a bad answer does.
-
-1. SEQUENCE LEAKAGE ACROSS SPLITS  (the one nobody has checked)
-   Chromosome-blocked splits stop *positional* leakage. They do nothing about
-   *sequence-similarity* leakage: a probe in a segmental duplication on chr8
-   can sit in near-identical sequence to a probe on chr1, and paralogues,
-   repeat families and recent duplications are common in CpG-island promoters.
-   If that happens at scale, held-out performance is partly memorisation and
-   every headline number is soft. A reviewer will ask. We should know first.
-
-   Measured by MinHash over canonical 31-mers of each 1,000-bp model window:
-   estimated Jaccard between every test/val probe and its nearest train probe.
-   This is an estimate with a known error (~1/sqrt(sketch size)), reported as
-   such -- exact confirmation is available for the flagged pairs with --exact.
-
-2. PROBE QC CONSISTENCY
-   data/build_training_data.py does NOT filter on the HM450 manifest masks,
-   but scripts/05 and scripts/19 DO filter on MASK_general when scoring. The
-   model is therefore trained on a probe population it is never evaluated on.
-   That is not automatically wrong -- more training signal can be worth some
-   noise -- but it is currently an accident rather than a decision, and the
-   size of the discrepancy has never been reported.
-
-3. SPLIT COMPARABILITY
-   Chromosome-blocked splits are not random samples. If chr8-9 differ
-   systematically from the training chromosomes in CpG-island content or
-   methylation distribution, some of the train/test gap is composition rather
-   than generalisation. Reported so it can be stated, not discovered.
-
-Nothing here modifies data. It writes one JSON and three CSVs.
-
-Usage (run from the repository root)
-------------------------------------
-    python -u data/audit_training_data.py
-    python -u data/audit_training_data.py --sketch-size 256 --exact
+"""Check the built training tables for leakage, probe-QC drift and split imbalance.
+Chromosome-blocked splits prevent positional leakage but not sequence-similarity
+leakage, so this estimates the Jaccard similarity between every test and validation
+window and its nearest training window by MinHash over canonical 31-mers, with --exact
+confirming flagged pairs. It also reports how far the training probe population diverges
+from the HM450 manifest masks applied at scoring time, and compares CpG-island content
+and methylation distribution across splits. Reads only; writes one JSON and three CSVs.
 """
 
 from __future__ import annotations
@@ -104,7 +73,6 @@ def sketch_windows(windows: list[str], sketch_size: int) -> np.ndarray:
         valid &= good
         safe = np.where(good, col, 0).astype(np.uint64)
         fwd = fwd * np.uint64(4) + safe
-        # reverse complement, built in the opposite order at the same time
         rev = rev + (np.uint64(3) - safe) * (np.uint64(4) ** np.uint64(j))
 
     canonical = np.minimum(fwd, rev)
@@ -162,7 +130,6 @@ def nearest_train_jaccard(query: np.ndarray, reference: np.ndarray,
     ref_vals = ref_vals[order]
     ref_ids = ref_ids[order]
 
-    # drop over-represented hashes
     uniq, starts, counts = np.unique(ref_vals, return_index=True, return_counts=True)
     common = counts > max_postings
     if common.any():
@@ -258,7 +225,6 @@ def main() -> int:
         "splits": {s: int(len(m)) for s, (m, _) in data.items()},
     }
 
-    # ---- 1. leakage ------------------------------------------------------
     LOGGER.info("building inverted index over %d train probes", len(data["train"][0]))
     train_meta, train_sketch = data["train"]
     leak_rows = []
@@ -311,7 +277,6 @@ def main() -> int:
         }
     write_csv(flagged, args.output_dir / "cross_split_sequence_similarity.csv")
 
-    # ---- 2. probe QC consistency ------------------------------------------
     if args.manifest.is_file():
         head = pd.read_csv(args.manifest, sep="\t", nrows=0)
         probe_col = next((c for c in ("probeID", "IlmnID", "Name")
@@ -344,7 +309,6 @@ def main() -> int:
             "therefore trained on a probe population it is never evaluated on. "
             "Decide this deliberately before retraining rather than inheriting it.")
 
-    # ---- 3. split comparability -------------------------------------------
     comp_rows = []
     for split in SPLITS:
         meta, _ = data[split]
@@ -373,7 +337,6 @@ def main() -> int:
         json.dump(summary, fh, indent=2, sort_keys=True, default=str)
         fh.write("\n")
 
-    # ---- report -----------------------------------------------------------
     print()
     print("=" * 76)
     print("1. CROSS-SPLIT SEQUENCE SIMILARITY  (estimated Jaccard, 31-mers)")

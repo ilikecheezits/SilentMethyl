@@ -61,16 +61,10 @@ CODON_TABLE = {
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
-    # build_training_data.py gained --reference-dir/--out-dir for the context
-    # swap; this script did not, so the candidate cohort could only ever be
-    # built against the then-default MCF-10A tracks in <data-dir>/reference. That
-    # left 60_candidate_background.py with no breast-epithelium cohort to score,
-    # and pointing it at the published one would have paired new fusion weights
-    # with old context columns. Same two flags, same meanings.
     parser.add_argument(
         "--reference-dir", type=Path, required=True,
         help="Directory holding the seven context bigWigs. REQUIRED: the old "
-             "default, <data-dir>/reference, is the superseded MCF-10A track set. "
+             "default, <data-dir>/reference, is the superseded pre-11 Sep 2026 track set. "
              "The published model uses data/reference/BreastEpithelium. phyloP "
              "is always read from <data-dir>/reference, since conservation is "
              "not tissue-specific.")
@@ -588,7 +582,10 @@ def get_bw_signal(bw_obj: pyBigWig.pyBigWig, chrom: str, start: int, end: int) -
             return np.nan
         value = float(stat[0])
         return value if math.isfinite(value) else np.nan
-    except Exception:
+    except (RuntimeError, ValueError, OverflowError, OSError):
+        # pyBigWig raises these for out-of-range or unreadable intervals, which
+        # are genuinely missing data. Anything else is a bug and should surface
+        # rather than be imputed over.
         return np.nan
 
 
@@ -653,10 +650,6 @@ def main() -> None:
     gtf_path = data_dir / "reference" / "gencode.v44.annotation.gtf.gz"
     split_manifest_path = datafiles_dir / "split_manifest.json"
     imputation_path = datafiles_dir / "feature_imputation.json"
-    # The GDC response cache is a property of the query, not of the context, so
-    # it is always read from the published datafiles directory. Reusing it keeps
-    # the candidate variant set byte-identical across contexts, which is the
-    # whole point of the comparison.
     raw_gdc_path = published_datafiles / "gdc_tcga_brca_synonymous_raw.json.gz"
 
     published_ref = data_dir / "reference"
@@ -670,9 +663,6 @@ def main() -> None:
         "Ref_H3K9me3_Signal": base_ref / "H3K9me3.bw",
         "Ref_H3K36me3_Signal": base_ref / "H3K36me3.bw",
         "Ref_H3K4me1_Signal": base_ref / "H3K4me1.bw",
-        # Conservation is a property of the genome, not of the tissue, so it is
-        # always read from the published reference directory even when the
-        # context tracks come from elsewhere.
         "Target_Base_PhyloP_100way_1": published_ref / "hg38.phyloP100way.bw",
         "Target_Base_PhyloP_100way_2": published_ref / "hg38.phyloP100way.bw",
     }

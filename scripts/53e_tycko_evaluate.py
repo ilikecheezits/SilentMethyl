@@ -1,41 +1,7 @@
 #!/usr/bin/env python3
-"""
-Evaluate the ASM validation against Do & Tycko 2020 (Tasks E1 + E2). CPU only.
-
-Answers both questions from one catalogue
-------------------------------------------
-E2, the mentor's three named statistics, all on the SIGNED effect:
-
-    direction concordance   fraction of ASM SNPs where the predicted delta and
-                            the observed ALT-minus-REF difference share a sign,
-                            with a binomial interval against the 0.5 null
-    signed Spearman         rank correlation of predicted vs observed, signed
-    AUROC pos vs neg        can the predicted delta separate SNPs with a POSITIVE
-                            observed allelic difference from those with a
-                            NEGATIVE one -- literally "AUROC for positive versus
-                            negative methylation effects"
-
-E1, discrimination, on the distance-matched subset:
-
-    AUROC |delta|           ASM CpGs vs distance-matched CpGs outside every DMR
-
-Unit of analysis for E2
------------------------
-The published effect is per SNP, averaged over the CpGs in its ASM DMR. So the
-prediction is aggregated the same way: the mean predicted delta over that SNP's
-scored DMR CpGs. Comparing a single CpG's prediction against a DMR-wide
-measurement would be a unit mismatch.
-
-Scale
------
-Observed effects are percentage points of methylation; predicted deltas are on
-the model's M / beta scale. Magnitudes are NOT comparable and no claim of
-magnitude calibration is made -- exactly as for GENOA/eGTEx. Rank, sign and
-AUROC are the meaningful comparisons, which is why they are the ones reported.
-
-Usage
------
-    python -u scripts/53e_tycko_evaluate.py
+"""Evaluate the signed ASM test against Do & Tycko 2020: direction concordance against a
+0.5 null, signed Spearman, and directional AUROC, alongside the same discrimination
+measure as 53c. Intervals are 1 Mb block bootstraps over the index SNP's block.
 """
 
 from __future__ import annotations
@@ -154,9 +120,6 @@ def evaluate_snp_level(snps: pd.DataFrame, label: str, args, offset: int) -> lis
             "Signed_Spearman": rho,
             "Spearman_CI_Low": r_lo, "Spearman_CI_High": r_hi,
             "Spearman_P_LE_Zero": float(np.mean(r_draws <= 0)) if len(r_draws) else float("nan"),
-            # NOT case-vs-control: every SNP here is an ASM SNP. The two classes
-            # are the SIGN of the measured ALT-REF difference, so this ranks
-            # alleles within ASM sites. E1's AUROC_Detection ranks sites.
             "AUROC_Directional": auroc,
             "AUROC_Directional_CI_Low": a_lo, "AUROC_Directional_CI_High": a_hi,
             "AUROC_Directional_P_LE_Half": float(np.mean(a_draws <= 0.5)) if len(a_draws) else float("nan"),
@@ -209,8 +172,6 @@ def run(args: argparse.Namespace) -> int:
     scores["snp_pos0"] = scores["Position_1based"].astype(np.int64) - 1
     positives = scores[scores["asm_label"] == 1].copy()
 
-    # E2 unit: one row per SNP per arm, prediction averaged over its DMR CpGs,
-    # matching how the published effect was averaged over the DMR.
     snps = (positives.groupby(["Model", "Variant_ID"], as_index=False)
             .agg(**{
                 PRED: (PRED, "mean"),

@@ -1,0 +1,19 @@
+panel,model,seed,estimator,error_scale,n_predicted_beta_bins,within_bin_spearman_pooled,plotted_point,plotted_bar,source
+S3a,fusion,42,rc_disagreement,beta,10,0.1149079519248097,mean over seeds 42-44,range over seeds 42-44,ABL/rc_uncertainty_conditional/within_stratum_correlations.csv
+S3a,fusion,43,rc_disagreement,beta,10,0.1224080578307199,mean over seeds 42-44,range over seeds 42-44,ABL/rc_uncertainty_conditional/within_stratum_correlations.csv
+S3a,fusion,44,rc_disagreement,beta,10,0.120580859664841,mean over seeds 42-44,range over seeds 42-44,ABL/rc_uncertainty_conditional/within_stratum_correlations.csv
+S3a,fusion,42,rc_disagreement,M,10,0.1010144518361642,mean over seeds 42-44,range over seeds 42-44,ABL/rc_uncertainty_conditional/within_stratum_correlations.csv
+S3a,fusion,43,rc_disagreement,M,10,0.1116806343827462,mean over seeds 42-44,range over seeds 42-44,ABL/rc_uncertainty_conditional/within_stratum_correlations.csv
+S3a,fusion,44,rc_disagreement,M,10,0.1133987996642157,mean over seeds 42-44,range over seeds 42-44,ABL/rc_uncertainty_conditional/within_stratum_correlations.csv
+S3a,fusion,42,cross_seed_sd,beta,10,0.1594018231963772,mean over seeds 42-44,range over seeds 42-44,ABL/rc_uncertainty_conditional/within_stratum_correlations.csv
+S3a,fusion,43,cross_seed_sd,beta,10,0.1694867632251491,mean over seeds 42-44,range over seeds 42-44,ABL/rc_uncertainty_conditional/within_stratum_correlations.csv
+S3a,fusion,44,cross_seed_sd,beta,10,0.204821421632365,mean over seeds 42-44,range over seeds 42-44,ABL/rc_uncertainty_conditional/within_stratum_correlations.csv
+S3a,fusion,42,cross_seed_sd,M,10,0.1387861140466838,mean over seeds 42-44,range over seeds 42-44,ABL/rc_uncertainty_conditional/within_stratum_correlations.csv
+S3a,fusion,43,cross_seed_sd,M,10,0.1446494242082197,mean over seeds 42-44,range over seeds 42-44,ABL/rc_uncertainty_conditional/within_stratum_correlations.csv
+S3a,fusion,44,cross_seed_sd,M,10,0.1808905743206322,mean over seeds 42-44,range over seeds 42-44,ABL/rc_uncertainty_conditional/within_stratum_correlations.csv
+S3a,fusion,42,boundary_distance,beta,10,0.1628859034541421,mean over seeds 42-44,range over seeds 42-44,ABL/rc_uncertainty_conditional/within_stratum_correlations.csv
+S3a,fusion,43,boundary_distance,beta,10,0.1764770336548367,mean over seeds 42-44,range over seeds 42-44,ABL/rc_uncertainty_conditional/within_stratum_correlations.csv
+S3a,fusion,44,boundary_distance,beta,10,0.1695181070195918,mean over seeds 42-44,range over seeds 42-44,ABL/rc_uncertainty_conditional/within_stratum_correlations.csv
+S3a,fusion,42,boundary_distance,M,10,0.032010505524515,mean over seeds 42-44,range over seeds 42-44,ABL/rc_uncertainty_conditional/within_stratum_correlations.csv
+S3a,fusion,43,boundary_distance,M,10,0.0435547052414005,mean over seeds 42-44,range over seeds 42-44,ABL/rc_uncertainty_conditional/within_stratum_correlations.csv
+S3a,fusion,44,boundary_distance,M,10,0.0425950540369451,mean over seeds 42-44,range over seeds 42-44,ABL/rc_uncertainty_conditional/within_stratum_correlations.csv

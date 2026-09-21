@@ -1,71 +1,7 @@
 #!/usr/bin/env python3
-"""Score variant effects with Melody, mirroring the authors' own procedure.
-
-Why this exists
----------------
-A head-to-head against Melody is only meaningful if Melody is run the way its
-authors run it. This reimplements their `SNPEffectDataset` and
-`check_meqtl_batched_*` logic from `eqtl_pure_util.py` rather than inventing a
-scoring scheme, so any difference in the result is a difference in the models
-and not in how we drove them.
-
-Their procedure, copied deliberately
-------------------------------------
-1. The 10-kb window is centred on the MIDPOINT of the CpG and the SNP, not on
-   the CpG:            center = (CpG_start + SNP_start) // 2
-2. The variant index is `SNP_start - fetch_start - 1` (their coordinates are
-   1-based; the -1 converts).
-3. The reference base is OVERWRITTEN with the stated REF allele rather than
-   checked against the genome. We reproduce that, but we also count how often
-   the genome disagrees and refuse to continue past a set rate -- a silent
-   coordinate error would otherwise corrupt every prediction.
-4. The effect is the SUM of per-position (ALT - REF) predictions over
-   [CpG_start - margin, CpG_end + margin), divided by `cpg_number`.
-   Their CSVs have CpG_start == CpG_end, so margin must be >= 1.
-5. Pairs are skipped when the ALT allele is not a single base or when the SNP
-   start and end differ. Both are their filters.
-
-Two input conventions
----------------------
---format melody   their benchmark CSVs (meqtl/dataset/processed/GTEX/*.csv):
-                  chrom, SNP_region_start/end, SNP_ref, SNP_alt,
-                  CPG_region_start/end, effect_size
-                  Use this to VALIDATE: GTEX_WholeBlood should reproduce their
-                  published Pearson r of about 0.4158 over n = 1334.
-
---format ours     our scoring inputs (egtex_scoring_input_heldout.csv):
-                  chr, Position_1based, Ref, Alt, probeID, cpg_pos_hg38, ...
-                  Use this to COMPARE: identical pairs to SilentMethyl, so the
-                  output drops straight into scripts/31.
-
-Single-track (Melody-ST) checkpoints
-------------------------------------
-Melody-ST is trained on ONE cell type ("trained on one cell type at a time using
-a single bigWig track as supervision", Methods) and its final layer has a single
-output channel. Track NAMES cannot be resolved against the 39-track list in that
-case, so --n-track 1 requires an explicit --track-index 0:
-
-    python -u scripts/33_melody_scoring.py --format ours \
-        --checkpoint <path to the ST breast checkpoint> \
-        --n-track 1 --track-index 0 \
-        --tracks GSM5652347_Breast-Luminal-Epithelial-Z000000V2 \
-        --input-csv ... --output ...
-
-Output carries `Predicted_Delta_M` so that scripts/31_transfer_discrimination.py
-can consume it as another model without modification.
-
-Usage
------
-    # validate against their published number first
-    python -u scripts/33_melody_scoring.py --format melody \\
-        --input-csv data/external/melody/Melody_repo/meqtl/dataset/processed/GTEX/GTEX_WholeBlood.csv \\
-        --tracks GSM5652317_Blood-B-Z000000UB \\
-        --report-correlation
-
-    # then score our cohort
-    python -u scripts/33_melody_scoring.py --format ours \\
-        --input-csv data/external/egtex_multitissue/scoring/Lung/egtex_scoring_input_heldout.csv \\
-        --tracks GSM5652354_Lung-Alveolar-Epithelial-Z000000T1,GSM5652335_Lung-Bronchus-Epithelial-Z000000QD
+"""Score variant effects with Melody, mirroring the authors' own procedure so the
+comparison is fair. Reimplements their SNPEffectDataset and scoring convention rather
+than adapting this project's, and averages the per-track output channels.
 """
 
 from __future__ import annotations
@@ -84,8 +20,8 @@ LOGGER = logging.getLogger("melody_scoring")
 
 BASES = {"A": 0, "C": 1, "G": 2, "T": 3,
          "a": 0, "c": 1, "g": 2, "t": 3}
-HALF_WINDOW = 5000          # their half_model_input_len default
-REF_MISMATCH_ABORT = 0.05   # refuse to proceed past this rate
+HALF_WINDOW = 5000
+REF_MISMATCH_ABORT = 0.05
 
 
 def one_hot(seq: str) -> np.ndarray:
@@ -127,7 +63,6 @@ def normalise(frame: pd.DataFrame, fmt: str) -> pd.DataFrame:
         "CPG_region_end": frame["cpg_pos_hg38"].astype(int),
         "cpg_number": 1,
     })
-    # Carry identifiers through so the output joins back to our cohort.
     for col in ("probeID", "Variant_ID", "pvalue", "beta_ref_to_alt", "se",
                 "abs_distance_bp", "distance_bp", "probe_split"):
         if col in frame.columns:
@@ -154,8 +89,6 @@ def build_pairs(frame: pd.DataFrame, genome, counters: dict):
         fetch_start = max(0, center - HALF_WINDOW)
         fetch_end = center + HALF_WINDOW
         try:
-            # pyfaidx returns a plain str under as_raw=True and a Sequence
-            # object otherwise; str() is correct for both.
             piece = genome[str(row["chrom"])][fetch_start:fetch_end]
             seq = piece if isinstance(piece, str) else str(piece)
         except (KeyError, ValueError):
@@ -170,9 +103,6 @@ def build_pairs(frame: pd.DataFrame, genome, counters: dict):
             counters["variant_outside_window"] += 1
             continue
 
-        # They overwrite the reference base without checking. We do the same,
-        # but we count disagreements -- silently building a REF sequence that
-        # is not the genome is how a coordinate bug reaches a figure.
         if seq[mut_idx].upper() != ref.upper():
             counters["reference_base_mismatch"] += 1
 
@@ -233,20 +163,12 @@ def main(argv=None) -> int:
     import torch
     from pyfaidx import Fasta
     sys.path.insert(0, str(args.repo.resolve()))
-    # sigmoid_first matters: model(x)[0] is RAW LOGITS. Their predict.py applies
-    # sigmoid_first before reporting methylation, and differencing logits instead
-    # of probabilities is not the same ordering -- it cost ~0.15 Pearson r on
-    # their own Whole Blood benchmark before this was added.
     from stateless import load_ckpt, sigmoid_first   # noqa: E402
     from models import Melody                # noqa: E402
     from global_constants import track_39_names  # noqa: E402
 
     tracks = [t.strip() for t in args.tracks.split(",") if t.strip()]
 
-    # Name lookup is only valid against the 39-channel MT model. A single-track
-    # ST checkpoint has ONE output channel, so an index taken from the 39-name
-    # list would read past the end of the model's output -- or, worse, silently
-    # index a different channel and return numbers that look plausible.
     if args.n_track == 39 and args.track_index is None:
         unknown = [t for t in tracks if t not in track_39_names]
         if unknown:
@@ -300,9 +222,6 @@ def main(argv=None) -> int:
         LOGGER.warning("=" * 70)
     else:
         load_ckpt(model, str(ckpt))
-        # Record what was actually loaded. A path in a log proves nothing if the
-        # file behind it changed; the digest is what a reader can verify against
-        # the released Zenodo record.
         import hashlib
         h = hashlib.sha256()
         with open(ckpt, "rb") as fh:
@@ -332,7 +251,7 @@ def main(argv=None) -> int:
             pa = model(alt)
         pr = pr[0] if isinstance(pr, (list, tuple)) else pr
         pa = pa[0] if isinstance(pa, (list, tuple)) else pa
-        pr, pa = sigmoid_first(pr), sigmoid_first(pa)   # logits -> methylation
+        pr, pa = sigmoid_first(pr), sigmoid_first(pa)
         pred_len = pr.shape[-1]
         for j, (idx, _, _, cs, ce) in enumerate(batch):
             lo, hi = cs - args.margin, ce + args.margin

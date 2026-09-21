@@ -1,19 +1,7 @@
 #!/usr/bin/env python3
-"""Score a published SNV against every model-visible SilentMethyl CpG.
-
-The script is an illustrative application, not an external validation test. It
-starts from a minimal variant table (or a built-in MLH1 example), locates every
-unmasked HM450 CpG for which the SNV lies inside the trained 1,000-bp window,
-constructs WT and MUT sequences, reuses the frozen fusion scoring code, and
-reports the split membership of every target CpG.  The nearest eligible CpG is
-chosen before model scores are inspected and is marked as the primary display
-target.  If no CpG is model-visible, the visibility audit is still written and
-the script exits successfully without inventing an application result.
-
-Required custom-variant columns are:
-Variant_ID, Gene, chr, Position_1based, Ref, Alt. Optional descriptive columns
-are Citation_Key, Source_URL, ClinVar_URL, Transcript_Annotation,
-Gene_Function, Disease_Context, and Reported_Biological_Evidence.
+"""Score one published SNV against every model-visible CpG whose 1,000-bp window contains
+it. An illustrative application rather than a validation test: it builds the wild-type
+and mutant windows, reuses the frozen fusion scoring path, and ranks the affected CpGs.
 """
 
 from __future__ import annotations

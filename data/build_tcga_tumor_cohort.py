@@ -1,40 +1,11 @@
 #!/usr/bin/env python3
-"""
-Build a TCGA-BRCA tumour methylation cohort as an independent evaluation domain.
-
-Why this exists
----------------
-SilentMethyl was trained on the median of 97 solid-tissue-normal (sample-type-11)
-columns. The same matrix already on disk also holds ~780 primary-tumour
-(sample-type-01) columns that have never been used. Scoring those is a genuine
-domain shift -- same platform, same probes, different biological state -- at zero
-download cost.
-
-Serves the mentor's **multi-cohort testing** requirement.
-
-The confound this script handles for you
-----------------------------------------
-TCGA normal-adjacent samples are usually taken from the SAME participants as the
-tumours. So "tumour cohort" is not automatically an independent sample set: if the
-same person contributed both, the comparison is paired, not independent, and a
-reviewer will say so.
-
-This script therefore writes TWO cohorts and reports the overlap:
-
-  tcga_tumor_all.csv        every sample-type-01 column
-  tcga_tumor_unpaired.csv   only tumours from participants absent from the
-                            97-normal training set -- the genuinely independent one
-
-Report the unpaired cohort as the primary result and the full one as a supplement.
-
-Coordinate/target conventions match data/build_training_data.py exactly: median
-beta across available samples, beta clipped to [1e-4, 1-1e-4], M = log2(b/(1-b)),
-binary = beta > 0.5.
-
-Usage (run from the repository root)
-------------------------------------
-    python -u data/build_tcga_tumor_cohort.py --inspect
-    python -u data/build_tcga_tumor_cohort.py
+"""Build a TCGA-BRCA tumour cohort as an independent evaluation domain. The model is
+trained on the median of 97 solid-tissue-normal columns; the same matrix holds roughly
+780 primary-tumour columns, the same platform and probes in a different biological
+state. TCGA normal-adjacent samples usually come from the same participants as the
+tumours, so two cohorts are written and the overlap reported: tcga_tumor_all.csv, and
+tcga_tumor_unpaired.csv restricted to participants absent from the training normals.
+Target conventions match build_training_data.py exactly.
 """
 
 from __future__ import annotations
@@ -56,8 +27,6 @@ DEFAULT_NORMAL_IDS = Path("data/datafiles/tcga_normal_sample_ids.json")
 DEFAULT_PROBES = Path("data/datafiles/test.csv")
 DEFAULT_OUT = Path("data/external/tcga_tumor")
 
-# Mirrors NORMAL_SAMPLE_RE in data/build_training_data.py, but for sample type 01
-# (primary solid tumour) instead of 11 (solid tissue normal).
 TUMOR_SAMPLE_RE = re.compile(
     r"^TCGA[-.][A-Z0-9]{2}[-.][A-Z0-9]{4}[-.]01[A-Z0-9](?:[-.]|$)",
     re.IGNORECASE,
@@ -212,7 +181,7 @@ def cmd_run(args) -> int:
 
     summary = {
         "analysis": "TCGA-BRCA tumour cohort as an independent evaluation domain",
-        "purpose": "mentor requirement: multi-cohort testing",
+        "purpose": "multi-cohort testing: an independent evaluation domain",
         "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "matrix": str(args.matrix),
         "matrix_note": "public GDC/Xena open tier; no controlled access",

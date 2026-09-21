@@ -10,24 +10,10 @@
 #SBATCH --array=0-1
 #SBATCH --output=logs/baselines/grid_%a_%A.out
 #SBATCH --error=logs/baselines/grid_%a_%A.err
-#
-# PHASE 1: hyperparameter selection on the VALIDATION split only.
-#
-# The test set is never touched here. scripts/28 --grid trains each
-# configuration, records validation beta MAE, and writes selected_hyperparameters
-# .json. Looking at test during tuning would invalidate every number in Table 1.
-#
-# Task 0 = CpGenie, 9 configs (the authors' own hyperas grid:
-#          dropout {0.3,0.5,0.7} x lr {0.01,0.001,0.0001})
-# Task 1 = DeepCpG, 3 configs (dropout {0.0,0.3,0.5} at their default lr)
-#
-#     mkdir -p logs/baselines && sbatch scripts/run_baseline_grid.sh
+# Phase 1: hyperparameter selection for the published baselines on the validation split only.
 
 set -euo pipefail
 PY="${SILENTMETHYL_PY:-python}"
-# CpGenie and DeepCpG read DNA only, so either context build gives identical
-# inputs; DATA is explicit because a fresh clone has only the breast-epithelium
-# build. OUT_DIR defaults to the published location.
 : "${DATA:?set DATA, e.g. --export=ALL,DATA=data/datafiles_breast_epithelium}"
 OUT_DIR="${OUT_DIR:-results/journal/published_baselines}"
 mkdir -p logs/baselines

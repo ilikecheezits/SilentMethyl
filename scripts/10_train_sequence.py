@@ -1,3 +1,5 @@
+"""Train the sequence-only DNABERT-2 tower on 1,000-bp CpG-centred windows."""
+
 from __future__ import annotations
 
 import argparse

@@ -700,15 +700,8 @@ def plot_candidate(
     axis.set_ylim(0, peak * 1.22)
     right = max(float(comparator_values.max()), x) * 1.06
     axis.set_xlim(0, right)
-    # The label is read from the candidate outputs, never typed in. It was once
-    # the literal "NCOA2: -0.1798 +- 0.0198", the three-seed value from the
-    # superseded MCF-10A context, and it survived onto a breast-epithelium figure
-    # built from one seed. A mean +- SD is shown only when more than one seed
-    # exists; otherwise the single value is labelled with the seed it came from.
     n_seeds = int(seed_values.size)
     if n_seeds > 1:
-        # Predicted_Delta_Beta is the across-seed mean and _SD the population SD
-        # exported by 60_candidate_background.py; checked against the seed rows.
         if not np.isclose(float(seed_values.mean()), target_effect, atol=1e-6):
             raise ValueError(f"{candidate_path} mean for {uid} disagrees with {seed_path}")
         label = f"{gene}: ${target_effect:.4f} \\pm {exported_sd:.4f}$"

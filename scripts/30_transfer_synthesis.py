@@ -1,49 +1,7 @@
 #!/usr/bin/env python3
-"""
-Cross-cohort synthesis of SilentMethyl's variant-effect performance.
-
-Why this exists
----------------
-The variant-effect results have been reported as a list of separate, modest
-numbers. That undersells them. Three things the per-cohort analyses cannot show,
-all of which are legitimate strengths and none of which required new data:
-
-1. **Replication across cohorts is itself the result.** GENOA (peripheral blood,
-   African American, ~1,000 donors) and eGTEx Breast Mammary (breast, largely
-   European, ~50-100 donors) differ in tissue, ancestry, platform generation and
-   genotyping pipeline. An effect that holds across that gap is far stronger
-   evidence than either cohort alone. Reported as an inverse-variance
-   meta-analysis with Cochran's Q, so consistency is measured rather than
-   asserted.
-
-2. **Rank agreement understates a model that also gets the scale right.**
-   Everything so far is Spearman and sign agreement. The regression of measured
-   effect on predicted effect asks a harder question -- is the predicted
-   magnitude proportional to the truth? -- and a significantly positive slope is
-   a quantitative claim that rank statistics cannot make.
-
-3. **Direction agreement is bounded by measurement error in the TRUTH, not only
-   by the model.** A meQTL measured at |slope|/se = 2 has a poorly determined
-   sign; one at |slope|/se = 20 does not. If agreement rises with the precision
-   of the measurement, part of the apparent weakness is noise in the reference,
-   and the model's ceiling is higher than the pooled number suggests. If it stays
-   flat, the model is genuinely weak. Either answer is worth having, and nobody
-   has asked the question.
-
-The reporting discipline this enforces
---------------------------------------
-Every stratum is written out, not only the flattering ones. The precision
-analysis emits all deciles; the distance analysis emits all bins; the
-CpG-context split emits both arms. A stratified result is a legitimate finding
-ONLY when the whole stratification is shown -- otherwise it is the same number
-selected after the fact. This script makes showing everything the path of least
-resistance, because it writes the full tables whether you ask for them or not.
-
-Usage (run from the repository root)
-------------------------------------
-    python -u scripts/30_transfer_synthesis.py \
-        --cohort GENOA:results/journal/genoa_variant_scoring:5e-8 \
-        --cohort eGTEx:results/journal/egtex_variant_scoring:1.483e-5
+"""Combine the per-cohort variant-effect results into one cross-cohort synthesis, with a
+random-effects meta-analysis over independent LD blocks. Reports each cohort's estimate
+alongside the pooled one so replication is visible rather than implied.
 """
 
 from __future__ import annotations
@@ -68,10 +26,6 @@ PVALUE_ALIASES = ("pvalue", "p_wald", "pval_nominal")
 SE_ALIASES = ("se", "se_genoa", "slope_se")
 DISTANCE_BINS = [0, 50, 100, 200, 300, 400, 501]
 
-
-# --------------------------------------------------------------------------
-# io
-# --------------------------------------------------------------------------
 
 def resolve(frame: pd.DataFrame, aliases: tuple[str, ...], what: str) -> str:
     for name in aliases:
@@ -113,11 +67,6 @@ def load_cohort(name: str, scores_dir: Path, stratum: str, models: list[str],
                       + (long["cpg_pos_hg38"] // BLOCK_BP).astype(int).astype(str))
     long["cpg_altering_nearby"] = (long["creates_cpg"].astype(bool)
                                    | long["destroys_cpg"].astype(bool))
-    # Report both counts. The pre-filter number is what this function loaded;
-    # the primary stratum drops nearby-CpG-altering pairs to match scripts/20,
-    # so the analysis table below will show the smaller one. Printing only the
-    # larger figure here is how "4,037 vs 6,604" got into the project in the
-    # first place.
     n_seeds = max(len(frames), 1)
     sig_all = int(long["significant"].sum())
     sig_clean = int((long["significant"] & ~long["cpg_altering_nearby"]).sum())
@@ -140,10 +89,6 @@ def seed_ensemble(long: pd.DataFrame) -> pd.DataFrame:
     out["Seed"] = -1
     return out
 
-
-# --------------------------------------------------------------------------
-# statistics
-# --------------------------------------------------------------------------
 
 def block_bootstrap(frame: pd.DataFrame, metric, n_boot: int,
                     rng: np.random.Generator) -> tuple[float, float]:
@@ -217,10 +162,6 @@ def measure(frame: pd.DataFrame, name: str, n_boot: int,
             "value": point, "ci_low": low, "ci_high": high}
 
 
-# --------------------------------------------------------------------------
-# analyses
-# --------------------------------------------------------------------------
-
 def precision_strata(sig: pd.DataFrame, n_bins: int) -> pd.Series:
     """Bin by |effect| / se -- how precisely the TRUTH is measured.
 
@@ -255,8 +196,6 @@ def meta_analyse(rows: pd.DataFrame) -> list[dict]:
         if len(group) < 2:
             continue
         r = group["value"].to_numpy(dtype=float)
-        # Effective n from independent LD blocks, not pairs -- using the pair
-        # count here would understate the variance by an order of magnitude.
         n_eff = group["n_blocks"].to_numpy(dtype=float)
         z = np.arctanh(np.clip(r, -0.999999, 0.999999))
         var = 1.0 / np.maximum(n_eff - 3.0, 1.0)
@@ -293,8 +232,6 @@ def atomic(obj, path: Path) -> None:
             fh.write("\n")
     os.replace(tmp, path)
 
-
-# --------------------------------------------------------------------------
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
@@ -350,11 +287,6 @@ def main() -> int:
     rows = []
     for name, data in cohorts.items():
         for model, group in data.groupby("Model"):
-            # The primary stratum EXCLUDES pairs with a nearby CpG-altering
-            # variant, matching scripts/20. Without this the two scripts report
-            # different counts for "significant GENOA pairs" -- 4,037 there and
-            # 6,604 here -- and a reviewer who notices has found an inconsistency
-            # in the paper rather than a stratum definition.
             eligible = group if args.primary_includes_cpg_altering \
                 else group[~group["cpg_altering_nearby"]]
             sig = eligible[eligible["significant"] == 1]
@@ -365,14 +297,10 @@ def main() -> int:
             for metric in METRICS:
                 rows.append(measure(sig, metric, args.n_boot, rng,
                                     stratum="significant", **common))
-            # The null stratum is the internal negative control and is reported
-            # every time, unasked. A signed rho at zero here is what separates a
-            # real effect from a fitted one.
             for metric in ("signed_rho", "direction_agreement"):
                 rows.append(measure(null, metric, args.n_boot, rng,
                                     stratum="null_p_gt_0.5", **common))
 
-            # measurement-precision deciles of the TRUTH
             bins = precision_strata(sig, args.precision_bins)
             for label in [b for b in bins.dropna().unique()]:
                 part = sig[bins == label]
@@ -380,7 +308,6 @@ def main() -> int:
                     rows.append(measure(part, metric, args.n_boot, rng,
                                         stratum=f"precision_{label}", **common))
 
-            # distance bins
             for lo, hi in zip(DISTANCE_BINS[:-1], DISTANCE_BINS[1:]):
                 part = sig[(sig["abs_distance_bp"] >= lo)
                            & (sig["abs_distance_bp"] < hi)]
@@ -388,7 +315,6 @@ def main() -> int:
                     rows.append(measure(part, metric, args.n_boot, rng,
                                         stratum=f"distance_{lo}_{hi}", **common))
 
-            # nearby CpG-altering context, both arms
             for label, part in (("cpg_altering_nearby", sig[sig["cpg_altering_nearby"]]),
                                 ("no_cpg_altering_nearby", sig[~sig["cpg_altering_nearby"]])):
                 for metric in ("signed_rho", "direction_agreement"):
@@ -430,7 +356,6 @@ def main() -> int:
             "order of magnitude and manufacture significance."),
     }, args.output_dir / "run_summary.json")
 
-    # ---- report ----------------------------------------------------------
     def show(cohort, model, stratum, metric):
         r = table[(table["cohort"] == cohort) & (table["model"] == model)
                   & (table["stratum"] == stratum) & (table["metric"] == metric)]

@@ -1,38 +1,10 @@
 #!/usr/bin/env python3
-"""
-Attach genetic-ancestry labels to the TCGA-BRCA samples SilentMethyl uses.
-
-Why this exists
----------------
-The mentor asked for **ancestry analyses**. Two things deliver that:
-
-  1. Cross-cohort replication -- GENOA (African American) against eGTEx
-     (European-dominant). Handled by the GENOA harmonizer.
-  2. Ancestry-stratified prediction error on your OWN data. That needs a label
-     per TCGA participant, which is what this script produces.
-
-The labels come from the GDC's openly published ancestry calls
-(gdc.cancer.gov/about-data/publications/CCG-AIM-2020) -- derived from genotype,
-but released as open supplemental files. No controlled access.
-
-What it writes
---------------
-  tcga_ancestry_labels.csv   participant, ancestry_call, source, plus admixture
-                             proportions where available
-  ancestry_summary.json      group counts for the training normals and, if
-                             present, the tumour cohort
-
-Honest caveat this script prints for you
------------------------------------------
-Genetic ancestry is a continuous quantity summarised here as a discrete label.
-Small groups give unstable per-group error estimates. The summary reports group
-sizes precisely so you can say which strata are actually powered -- and so a
-reviewer does not have to ask.
-
-Usage (run from the repository root)
-------------------------------------
-    python -u data/build_tcga_ancestry_labels.py --inspect
-    python -u data/build_tcga_ancestry_labels.py
+"""Attach genetic-ancestry labels to the TCGA-BRCA samples used for training, from the
+GDC's openly published ancestry calls (gdc.cancer.gov/about-data/publications/CCG-
+AIM-2020), which are derived from genotype but released as open supplemental files.
+Writes tcga_ancestry_labels.csv and ancestry_summary.json. Genetic ancestry is
+continuous and is summarised here as a discrete label, so group sizes are reported
+precisely: the small strata do not support stable per-group error estimates.
 """
 
 from __future__ import annotations
@@ -84,9 +56,6 @@ def find_columns(df: pd.DataFrame) -> dict:
         if hits > best_hits:
             best_hits, pid_col = hits, c
 
-    # Score candidate call columns. Self-reported ETHNICITY ("not hispanic or
-    # latino") is not genetic ancestry -- those columns are actively rejected,
-    # not merely deprioritised, because mixing them in produces nonsense strata.
     call_col, best_score = None, 0
     for c in df.columns:
         if c == pid_col:
@@ -104,7 +73,6 @@ def find_columns(df: pd.DataFrame) -> dict:
             score += 1
         if score == 0:
             continue
-        # Value-level guard: reject anything whose values read as ethnicity terms.
         vals = df[c].astype(str).str.lower().head(500)
         if vals.str.contains("hispanic|latino", regex=True, na=False).mean() > 0.05:
             continue
@@ -120,7 +88,6 @@ def find_columns(df: pd.DataFrame) -> dict:
 MISSING_TOKENS = {"", "nan", "none", "na", "n/a", "<na>", "null", "unknown",
                   "not reported", "not evaluated", "unavailable"}
 
-# Self-reported ethnicity values that must never become an ancestry stratum.
 ETHNICITY_TOKENS = {"hispanic or latino", "not hispanic or latino",
                     "hispanic", "latino", "non-hispanic"}
 
@@ -230,20 +197,13 @@ def cmd_run(args) -> int:
     if merged is None or merged.empty:
         raise SystemExit("no usable ancestry labels parsed. Run --inspect.")
 
-    # Consensus call: first usable value across sources, in file order.
-    # Built explicitly rather than with bfill -- the source columns were read with
-    # astype(str), so real NaNs arrive as the literal string "nan" and would
-    # otherwise be treated as valid labels.
     call_cols = [c for c in merged.columns if c.startswith("call_")]
     merged["ancestry_call"] = _consensus_call(merged, call_cols)
 
     target = out / "tcga_ancestry_labels.csv"
     merged.to_csv(target, index=False)
 
-    # ---- coverage against the cohorts we actually score
     normals = load_sample_participants(args.normal_ids)
-    # Build the lookup once. Every key is a string so the JSON summary can be
-    # written with sort_keys=True -- a NaN mixed in here breaks the sort.
     lookup = {p: _clean_call(c)
               for p, c in zip(merged["participant"], merged["ancestry_call"])}
     labelled = {p for p, c in lookup.items() if c is not None}
@@ -252,7 +212,7 @@ def cmd_run(args) -> int:
 
     summary = {
         "analysis": "TCGA ancestry labels joined to SilentMethyl cohorts",
-        "purpose": "mentor requirement: ancestry analyses",
+        "purpose": "ancestry-stratified prediction error",
         "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "source": ("GDC open supplemental ancestry calls, "
                    "gdc.cancer.gov/about-data/publications/CCG-AIM-2020"),

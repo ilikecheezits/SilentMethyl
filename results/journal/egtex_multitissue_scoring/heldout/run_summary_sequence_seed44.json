@@ -34,5 +34,5 @@
   "shard": 0,
   "smoke_test_limit": 0,
   "stratum": "heldout",
-  "tissue_caveat": "GENOA measured blood; the fusion model's context features are MCF-10A breast tracks. Fusion results here are cross-tissue transfer, not tissue-matched validation. The sequence-only model is tissue-agnostic and is the comparator that makes the fusion result interpretable."
+  "tissue_caveat": "GENOA measured blood; the fusion model's context features are the superseded pre-11 Sep 2026 breast tracks. Fusion results here are cross-tissue transfer, not tissue-matched validation. The sequence-only model is tissue-agnostic and is the comparator that makes the fusion result interpretable."
 }

@@ -1,38 +1,7 @@
 #!/usr/bin/env python3
-"""Turn Melody's union scores into per-tissue cohorts that scripts/31 can read.
-
-Why it is built this way
-------------------------
-The obvious approach -- rebuild each tissue's cohort from Melody's own output --
-would silently produce a DIFFERENT cohort from the one SilentMethyl was
-evaluated on: different filtering, different Pair_UIDs, different block
-assignments. Any head-to-head on those cohorts would be comparing two things at
-once.
-
-So instead this takes SilentMethyl's existing per-tissue pair_scores.csv as the
-TEMPLATE, joins Melody's prediction onto it, and replaces only
-`Predicted_Delta_M` and `Absolute_Delta_M`. Every other column -- Pair_UID,
-significant, abs_distance_bp, the CpG-altering flags, the labels -- is byte
-identical to what SilentMethyl was scored on. The two models are then compared
-on literally the same rows.
-
-Tissue -> track mapping
------------------------
-Melody's 39 tracks are Loyfer atlas CELL TYPES, not GTEx tissues, so each GTEx
-tissue is mapped to its biologically related cell type(s) and their predicted
-effects are averaged. That mirrors the "related tracks" setting that their
-Figure 3C shows outperforms a single track.
-
-TESTIS IS EXCLUDED. There is no testis cell type among the 39, so any track we
-picked would be a proxy we invented. Melody scored GTEX_Testis somehow, but
-their mapping is not in the released code, and substituting a guess into a
-head-to-head against our own model is exactly the kind of unforced choice a
-reviewer should not have to take on trust. Excluded and reported as excluded.
-
-Usage (run from the repository root)
-------------------------------------
-    python -u scripts/34_melody_by_tissue.py
-    python -u scripts/34_melody_by_tissue.py --dry-run
+"""Split Melody-MT union scores into per-tissue cohorts that 31_transfer_discrimination.py
+can read. The cohorts are taken from the SilentMethyl scoring input rather than rebuilt
+from Melody's output, so both models are compared on identical rows.
 """
 
 from __future__ import annotations
@@ -51,7 +20,6 @@ LOGGER = logging.getLogger("melody.by_tissue")
 
 KEY = ["probeID", "Variant_ID"]
 
-# GTEx tissue -> Loyfer cell-type tracks whose predicted effects are averaged.
 TISSUE_TRACKS = {
     "BreastMammaryTissue": ["GSM5652347_Breast-Luminal-Epithelial-Z000000V2",
                             "GSM5652350_Breast-Basal-Epithelial-Z000000V6"],
@@ -132,8 +100,6 @@ def main(argv=None) -> int:
 
         joined["Predicted_Delta_M"] = joined[cols].mean(axis=1)
         joined["Absolute_Delta_M"] = joined["Predicted_Delta_M"].abs()
-        # These describe SilentMethyl's run and would be actively misleading on
-        # a Melody row.
         for drop in ("Predicted_Delta_Beta", "Absolute_Delta_Beta",
                      "Delta_Beta_FWD", "Delta_Beta_RC",
                      "Delta_Beta_RC_Absolute_Difference",

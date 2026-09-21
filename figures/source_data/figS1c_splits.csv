@@ -1,0 +1,4 @@
+panel,split,n_retained_cpgs,fraction_of_retained,denominator_total_retained_cpgs,n_samples,note
+S1c,training,345359,0.8252581926277104,418486,97,"split is by chromosome, not by participant"
+S1c,validation chr10-11,46557,0.1112510334873807,418486,97,"split is by chromosome, not by participant"
+S1c,test chr8-9,26570,0.06349077388490894,418486,97,"split is by chromosome, not by participant"

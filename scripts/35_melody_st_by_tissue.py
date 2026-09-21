@@ -1,41 +1,7 @@
 #!/usr/bin/env python3
-"""Turn Melody-ST scores into per-tissue cohorts that scripts/31 can read.
-
-Why a separate script from 34
------------------------------
-`34_melody_by_tissue.py` consumes the Melody-MT union file, which carries one
-`delta_<track>` column per output channel and needs them averaged. The ST runs
-are one CSV per (checkpoint, tissue) with `Predicted_Delta_M` already computed,
-so the join is simpler and the track-averaging logic does not apply. Same
-guarantee though: SilentMethyl's per-tissue `pair_scores.csv` is the TEMPLATE,
-and only `Predicted_Delta_M` / `Absolute_Delta_M` are replaced, so both models
-are evaluated on byte-identical rows.
-
-What the two arms are for
--------------------------
-BREAST -> all nine tissues. Melody-ST is genuinely single-tissue ("trained on
-one cell type at a time using a single bigWig track as supervision", Methods),
-which makes it the architecture-matched comparison for SilentMethyl. Melody's
-own Fig 3H is Melody-MT cross-TRACK validation -- one model trained on all 39
-cell types, reading a different output channel -- so it is head selection, not
-transfer. This arm is the transfer experiment their paper does not contain.
-
-LUNG -> Lung only. The tissue-matched arm. ST-Breast vs ST-Lung on the SAME Lung
-rows isolates what tissue-matching buys with architecture, training-data volume
-and scoring procedure all held constant. That is the cleanest measurement of
-tissue-matching available in either paper, and it is two numbers.
-
-Usage (run from the repository root)
-------------------------------------
-    python -u scripts/35_melody_st_by_tissue.py --dry-run
-    python -u scripts/35_melody_st_by_tissue.py
-
-Then, per tissue:
-
-    python -u scripts/31_transfer_discrimination.py \
-        --reference results/journal/egtex_multitissue_scoring/by_tissue/Lung::fusion::42,43,44 \
-        --compare   results/journal/melody_st/by_tissue/Lung::melody_st_breast::42 \
-        --output-dir results/journal/melody_st_head_to_head/Lung
+"""Split Melody-ST scores into per-tissue cohorts, as 34 does for Melody-MT. The single-
+track runs carry one delta column rather than the per-channel set the multi-track union
+needs averaged.
 """
 
 from __future__ import annotations
@@ -53,14 +19,10 @@ LOGGER = logging.getLogger("melody.st_by_tissue")
 
 KEY = ["probeID", "Variant_ID"]
 
-# Columns describing SilentMethyl's own run. Carrying them onto a Melody row
-# would be actively misleading -- a gate value has no meaning for a model with
-# no gate.
 DROP_PREFIXES = ("Predicted_Delta_Beta", "Absolute_Delta_Beta", "Delta_Beta_",
                  "WT_M_RC", "MUT_M_RC", "WT_Beta_RC", "MUT_Beta_RC",
                  "Weights_Path", "Weights_SHA256")
 
-# (arm label, filename stem, tissues it covers)
 ARMS = [
     ("melody_st_breast", "st_breast_{tissue}",
      ["BreastMammaryTissue", "ColonTransverse", "KidneyCortex", "Lung",

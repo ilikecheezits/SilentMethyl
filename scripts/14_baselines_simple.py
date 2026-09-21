@@ -1,54 +1,8 @@
 #!/usr/bin/env python3
-"""
-Classical sequence baselines on SilentMethyl's exact splits and exact evaluator.
-
-The question this exists to answer
-----------------------------------
-SilentMethyl reaches signed rho = 0.15 and 55% direction agreement on held-out
-meQTLs. Nobody -- us included -- currently knows whether that is good. Without a
-competing predictor scored on the *same pairs* by the *same machinery*, 0.15 has
-no referent, and every additional cohort leaves that unchanged. This script
-supplies the referent.
-
-It deliberately uses baselines that are old, simple and hard to argue with:
-
-  composition   GC fraction, CpG count, CpG observed/expected. Three numbers.
-  kmer_ridge    RC-collapsed k-mer counts, k = 1..K. Linear ridge regression.
-
-If a linear model over 6-mers matches a 117M-parameter genomic language model on
-variant effects, that is the headline result and it is a real contribution --
-it says sequence-only allelic methylation prediction is far harder than the
-literature implies. If DNABERT-2 wins clearly, the architecture is earning its
-keep and we can say so with evidence instead of assertion. Either outcome is
-publishable; not knowing is not.
-
-What makes the comparison fair
-------------------------------
-* Same splits. Trained on `train`, alpha selected on `val`, reported on `test`,
-  read from the same CSVs the neural models used. No re-splitting.
-* Same target. `M_Value_Target`, taken from the split files rather than
-  recomputed, so no clipping convention can drift.
-* Same window. `centered_crop(seq, 1000)`, asserted at startup to be identical
-  to scripts/training_common.py's version (see the note above the definition).
-* Same evaluator. Task B writes `pair_scores.csv` in scripts/19's schema, so
-  scripts/20 scores baselines and neural models through one code path --
-  identical distance matching, identical 1 Mb block bootstrap.
-* Same exclusions. Variants altering the target CpG are skipped exactly as
-  scripts/19 skips them.
-
-Why ridge is fitted from streamed sufficient statistics
-------------------------------------------------------
-The training split is 345,359 rows and a 6-mer design matrix would be ~3.8 GB.
-Instead each split is streamed once, accumulating X'X, X'y, sum(X) and y'y. The
-ridge solution and the validation MSE for every alpha follow exactly from those,
-with no approximation and no feature matrix ever held in memory.
-
-Usage (run from the repository root)
-------------------------------------
-    python -u scripts/14_baselines_simple.py --task absolute
-    python -u scripts/14_baselines_simple.py --task variant \
-        --input-csv data/external/egtex_breast/scoring/egtex_scoring_input_heldout.csv \
-        --output-dir results/journal/egtex_baseline_scoring
+"""Classical sequence baselines on the same splits and the same evaluator as the neural
+models, so their variant-effect numbers have a referent. Two models: composition (GC
+fraction, CpG count, CpG observed/expected) and a ridge regression on reverse-
+complement-collapsed k-mer counts for k = 1..K. Both are deterministic single fits.
 """
 
 from __future__ import annotations
@@ -74,17 +28,6 @@ from matched_background_utils import (  # noqa: E402
     reverse_complement,
 )
 
-
-# A baseline exists to be an independent comparator, so it does not import the
-# model's dependency tree: `from training_common import centered_crop` would pull
-# in torch, transformers and huggingface_hub to obtain nine lines of arithmetic,
-# and would make the baseline unrunnable on a plain CPU node.
-#
-# Duplicating the two helpers instead risks silent drift, which would invalidate
-# the whole comparison. So they are duplicated AND checked: whenever
-# training_common is importable -- which on the cluster is always -- the copies
-# below are asserted identical to it at startup. Verified where it can be
-# verified; runnable where it cannot.
 
 def centered_crop(seq: str, window_size: int) -> str:
     seq = seq.upper()
@@ -140,10 +83,6 @@ for _i, _b in enumerate("ACGT"):
 
 ALPHA_GRID = [1e-2, 1e-1, 1.0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6]
 
-
-# --------------------------------------------------------------------------
-# features
-# --------------------------------------------------------------------------
 
 class KmerEncoder:
     """RC-collapsed k-mer counts for k = 1..k_max.
@@ -243,10 +182,6 @@ class FeatureMap:
         return composition_features(seq)
 
 
-# --------------------------------------------------------------------------
-# streamed ridge
-# --------------------------------------------------------------------------
-
 class SufficientStats:
     """X'X, X'y, sum(X), sum(y), y'y, n -- everything ridge needs, in one pass."""
 
@@ -317,10 +252,6 @@ def mse_from_stats(w: np.ndarray, gram: np.ndarray, cross: np.ndarray,
     """Exact MSE of a linear fit from sufficient statistics -- no re-reading."""
     return float((w @ gram @ w - 2 * w @ cross + ss) / n)
 
-
-# --------------------------------------------------------------------------
-# task A: absolute methylation
-# --------------------------------------------------------------------------
 
 def train_baseline(name: str, args) -> dict:
     feature_map = FeatureMap(name, args.k_max)
@@ -409,10 +340,6 @@ def evaluate_absolute(model: dict, args) -> dict:
     return metrics
 
 
-# --------------------------------------------------------------------------
-# task B: variant effects
-# --------------------------------------------------------------------------
-
 def load_probe_windows(split_template: str, probe_ids: set) -> dict:
     """probeID -> 5,000-bp sequence, filtered on arrival."""
     records = {}
@@ -482,9 +409,6 @@ def score_variants(model: dict, pairs: pd.DataFrame, records: dict,
     wt_m = np.asarray(wt_m)
     mut_m = np.asarray(mut_m)
     out["Model"] = model["name"]
-    # One deterministic fit, so there is no seed ensemble to form. Labelling it
-    # -1 makes scripts/20 treat it as the ensemble row it already expects, and
-    # avoids implying three independent baseline fits exist.
     out["Seed"] = -1
     out["WT_M_RC_Avg"] = wt_m
     out["MUT_M_RC_Avg"] = mut_m
@@ -497,33 +421,23 @@ def score_variants(model: dict, pairs: pd.DataFrame, records: dict,
     return out
 
 
-# --------------------------------------------------------------------------
-# self-checks
-# --------------------------------------------------------------------------
-
 def run_self_checks(k_max: int) -> dict:
     """Three properties this script's conclusions depend on. Verified, not assumed."""
     rng = np.random.default_rng(0)
     seq = "".join(rng.choice(list("ACGT"), 4000))
     enc = KmerEncoder(k_max)
 
-    # 1. Window geometry agrees with scripts/19 and scripts/05.
     if centered_crop("N" * FULL_SEQUENCE_LENGTH, MODEL_WINDOW_SIZE) != "N" * MODEL_WINDOW_SIZE:
         raise RuntimeError("centered_crop did not return a 1000-bp window")
     if FULL_TARGET_C_INDEX - (FULL_SEQUENCE_LENGTH // 2 - MODEL_WINDOW_SIZE // 2) != CENTER_C_INDEX:
         raise RuntimeError("window geometry disagrees with scripts/19")
 
-    # 2. RC invariance. The neural models need RC-averaging; a strand-collapsed
-    #    k-mer map is exactly invariant, so averaging would change nothing. That
-    #    claim is worth checking rather than stating.
     fwd = enc.counts(seq)
     rev = enc.counts(reverse_complement(seq))
     rc_max_abs = float(np.max(np.abs(fwd - rev)))
     if rc_max_abs > 1e-9:
         raise RuntimeError(f"k-mer features are not RC-invariant (max {rc_max_abs})")
 
-    # 3. The composition baseline must also be RC-invariant, since GC and CpG
-    #    are strand-symmetric. A failure here would mean a coding error.
     comp_fwd = composition_features(seq)
     comp_rev = composition_features(reverse_complement(seq))
     comp_max_abs = float(np.max(np.abs(comp_fwd - comp_rev)))
@@ -547,8 +461,6 @@ def atomic_write(frame_or_payload, path: Path) -> None:
             fh.write("\n")
     os.replace(tmp, path)
 
-
-# --------------------------------------------------------------------------
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__,
@@ -644,8 +556,7 @@ def main() -> int:
     atomic_write(
         {
             "analysis": "classical sequence baselines on SilentMethyl splits",
-            "purpose": ("mentor requirement 3, and the referent for the "
-                        "requirement-6 variant-effect numbers"),
+            "purpose": "classical baselines: the referent for the variant-effect numbers",
             "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "models": args.models,
             "k_max": args.k_max,

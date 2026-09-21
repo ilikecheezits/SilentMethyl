@@ -1,0 +1,29 @@
+\begin{tikzpicture}[x=1cm,y=1cm,>=Latex,font=\sffamily\scriptsize,
+ box/.style={draw=black!25,rounded corners=2pt,align=center,inner sep=5pt},
+ seq/.style={box,draw=seqblue,fill=seqblue!6},ctx/.style={box,draw=ctxgreen,fill=ctxgreen!6},fus/.style={box,draw=fusionpurple,fill=fusionpurple!6},arr/.style={->,line width=.5pt,black!65}]
+\path[use as bounding box] (0,0) rectangle (17.5,7.25);
+\node[anchor=west,font=\sffamily\bfseries\small] at (0,7.0) {a\quad Targets and chromosome split};
+\node[box,text width=3.0cm] (target) at (1.65,5.9) {97 TCGA normal samples\\Median methylation per CpG};
+\node[box,text width=3.0cm] (split) at (5.3,5.9) {Train: 345,359\\Validation: 46,557\\Test: 26,570 CpGs};
+\draw[arr] (target)--(split);
+\node[anchor=west,font=\sffamily\bfseries\small] at (8.8,7.0) {b\quad Sequence and context fusion};
+\node[seq,text width=2.3cm] (seq) at (10.1,5.95) {1,000-bp DNA\\DNABERT-2 + pooling\\LayerNorm: 768};
+\node[ctx,text width=2.3cm] (ctx) at (10.1,4.45) {9 features + 9 masks\\Context MLP\\LayerNorm: 768};
+\node[fus,text width=1.6cm] (gate) at (13.1,5.2) {Concatenate\\Gate MLP\\$g_{\rm seq},g_{\rm ctx}$};
+\node[fus,text width=1.9cm] (sum) at (16,5.2) {Weighted sum\\Regression: $M$\\Classification: $p$};
+\draw[arr] (seq.east)--(gate.north west);\draw[arr] (ctx.east)--(gate.south west);
+\draw[arr] (gate)--node[above,font=\tiny]{weights}(sum);
+\draw[arr] (seq.north) -- ++(0,.42) -| (sum.north);\draw[arr] (ctx.south) -- ++(0,-.38) -| (sum.south);
+\node[anchor=west,align=left,text=black!65] at (0,4.25) {Train each tower separately; freeze both for fusion.\\Select checkpoints on validation CpGs only.};
+\draw[black!15] (0,3.65)--(17.4,3.65);
+\node[anchor=west,font=\sffamily\bfseries\small] at (0,3.15) {c\quad Paired allelic scoring};
+\node[seq,text width=2.0cm] (alleles) at (1.2,1.9) {REF / ALT DNA\\Both orientations};
+\node[fus,text width=2.2cm] (shared) at (4.15,1.9) {Same fitted model\\Same reference context};
+\node[box,text width=2.1cm] (delta) at (7.1,1.9) {Average orientations\\ALT minus REF\\$\Delta\widehat\beta$, $\Delta\widehat M$};
+\draw[arr] (alleles)--(shared);\draw[arr] (shared)--(delta);
+\node[anchor=west,font=\sffamily\bfseries\small] at (8.8,3.15) {d\quad Separate evaluation questions};
+\node[box,text width=2.2cm] at (10.05,1.9) {Methylation level\\Held-out CpGs\\MAE / ROC-AUC};
+\node[box,text width=2.2cm] at (12.95,1.9) {Allelic agreement\\mQTL + ASM\\Sign / rank / AUROC};
+\node[box,text width=2.0cm] at (15.85,1.9) {Prioritization\\NCOA2 / STK11\\Experimental hypotheses};
+\node[anchor=west,text=black!65] at (0,.6) {Fixed context embedding; sequence-dependent gates may change between alleles.};
+\end{tikzpicture}

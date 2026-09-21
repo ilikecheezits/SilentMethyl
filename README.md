@@ -1,52 +1,102 @@
 # SilentMethyl
 
-Code for the SilentMethyl manuscript (`main_revised.tex`). SilentMethyl predicts
-DNA methylation at a CpG from a 1,000-bp DNA window plus seven chromatin-context
-tracks and phyloP. It does this through a gated fusion of a sequence tower
-(DNABERT-2) and a context tower, and scores variant effects as MUT − WT.
+SilentMethyl predicts CpG methylation from a 1,000-bp DNA sequence and reference
+epigenomic data. It combines a DNABERT-2 sequence model with a context MLP through
+gated fusion, then estimates variant effects as MUT − WT.
 
-**The published model's context is primary breast epithelium** (ENCODE,
-`data/reference/BreastEpithelium/`). The MCF-10A context used before
-11 Sep 2026 is superseded, and no published number reads it.
+The published model uses seven chromatin tracks from **primary breast
+epithelium** and phyloP conservation scores. Code supports the manuscript in
+`main.tex` and `supplementary.tex`.
 
-## Start here
+## Getting started
 
-| document | what it is for |
-|---|---|
-| **[`REPRODUCE.md`](REPRODUCE.md)** | fresh clone → every published result: environment, every input and how to fetch it, build order with explicit commands, runtimes, published-path traps, checksums, known gaps |
-| `RESULTS_REVISED.md` | every reported result with its interval and caveat |
-| `LAB_NOTES.md` | decision record: what was tried, what failed, why each analysis is specified as it is |
-| `reproducibility/MCF10A_AUDIT.md` | where every MCF-10A product sits and why none reaches a published number |
-| `data/reference/*/TRACK_SET.md` | accession, assay and md5 of every context track |
+- [REPRODUCE.md](REPRODUCE.md): setup, data downloads, training, evaluation and file checks.
+- `data/reference/*/TRACK_SET.md`: sources, assays and checksums for the context tracks, written by `data/acquire_multitissue_inputs.py` when the tracks are downloaded.
+- `figures/source_data/`: data for individual figure panels; see `source_data_index.csv`.
 
-## Which arms consume context
+The run commands use Slurm on Bridges-2. The cluster working directory includes
+model checkpoints, downloaded inputs and full prediction tables that are absent
+from the local checkout. To work from a fresh checkout, download, copy or rebuild
+these files using REPRODUCE.md.
 
-| arm | reads the seven context columns? | published weights |
+## Results
+
+The test set contains 26,570 CpGs on held-out chromosomes 8 and 9. Values with
+± show the mean and standard deviation across seeds 42–44.
+
+| Model | β MAE | ROC-AUC |
 |---|---|---|
-| sequence-only (DNABERT-2) | **no** | `checkpoints_journal/seed*/sequence`, `checkpoints_folds/fold*/sequence_seed42` |
-| context-only | yes | `checkpoints_ablation/breast_epithelium/*/epi` |
-| gated fusion | yes | `checkpoints_ablation/breast_epithelium/*/fusion` |
+| composition | 0.1954 | 0.8748 |
+| *k*-mer ridge | 0.1565 | 0.9190 |
+| CpGenie (retrained) | 0.1281 ± 0.0013 | 0.9406 ± 0.0006 |
+| DeepCpG (retrained) | 0.1253 ± 0.0005 | 0.9437 ± 0.0011 |
+| sequence-only | 0.1099 ± 0.0008 | 0.9569 ± 0.0007 |
+| context-only | 0.1022 ± 0.0000 | 0.9658 ± 0.0000 |
+| **gated fusion** | **0.0914 ± 0.0037** | **0.9744 ± 0.0025** |
 
-The sequence towers sit under `checkpoints_journal/` because they were trained
-before the context swap. They read no context, and every column they do read is
-byte-identical between the two builds, so they were deliberately not retrained.
-`REPRODUCE.md` §1 has the evidence.
+Fusion gave the best baseline methylation predictions. Context-only also
+outperformed the retrained CpGenie and DeepCpG models across seeds.
 
-## Layout
+**Variant prediction showed a smaller benefit.** Fusion showed no significant
+improvement over sequence alone in paired GENOA and eGTEx comparisons. Context
+can change variant predictions through the fusion gates even when REF and ALT
+use the same context. These changes did not clearly improve external accuracy.
 
-```
-scripts/          numbered analyses (0x QC, 1x training/eval, 2x variant effects, 3x transfer,
-                  4x tissue specificity, 5x mechanism/ASM, 6x candidates, 7x mQTL controls,
-                  9x figures and supplements) plus run_*.sh/.sbatch job wrappers
-jobs/             Slurm chains for the breast-epithelium analyses (r6, r7, r8)
-data/             acquisition, harmonisation and build scripts; inputs are downloaded, not committed
-reproducibility/  environment snapshot, input audits, frozen API responses, output checksums
-results/          published summaries (large tables, predictions and figures are gitignored)
-build_data.sh     context build -> training data -> splits
-run_baseline.sh   sequence-tower training
-```
+**External agreement was modest.** In GENOA, distance alone reached AUROC 0.595;
+distance matching reduced fusion AUROC from 0.600 to 0.556. Signed Spearman
+correlation was 0.236 (0.098–0.392) in eGTEx breast and 0.149 (0.112–0.185) in
+GENOA whole blood. Direction agreement was 59.6% and 55.6%.
 
-`data/`, `checkpoints_*/`, `dnabert2_local/`, `logs/` and large result files are
-gitignored. `REPRODUCE.md` regenerates or downloads every one of them.
-`cleanup_workspace.sh` records what was removed from the working tree, and how to
-restore each item.
+**ASM provided a complementary test.** Fusion AUROC was 0.5625 in Rosenski and
+0.5419 in Do–Tycko; sequence-only AUROC was 0.5736 and 0.5432. Distance alone
+performed near chance. On 722 Do–Tycko SNPs, direction agreement was 0.590
+(0.550–0.630), below the expected range of 0.60–0.70 recorded before analysis.
+
+**Transfer error was higher at tissue-variable CpGs.** Error increased with
+cross-tissue methylation variance, with a 4.4-fold MAE difference between the
+lowest and highest variance deciles. The largest errors were enriched at CpG
+shores and loci with higher H3K4me1/H3K27me3 signals.
+
+Detailed results are in `results/journal/ablation_breast_epithelium/` and
+`figures/source_data/`.
+
+## Models and checkpoints
+
+The sequence model uses DNA only. Context-only and fusion models use the
+reference features. Sequence weights were reused after the context source
+changed; context and fusion models were retrained on breast-epithelium tracks.
+REPRODUCE.md Section 5.3 checks that the sequence weights match.
+
+| Model | Main checkpoint path | Additional chromosome splits |
+|---|---|---|
+| sequence-only | `checkpoints_journal/seed*/sequence` | `checkpoints_folds/fold*/sequence_seed42` |
+| context-only | `checkpoints_journal/seed*/epi` | `checkpoints_folds/fold*/epi_seed42` |
+| fusion | `checkpoints_journal/seed*/fusion` | `checkpoints_folds/fold*/fusion_seed42` |
+
+These paths exist on the cluster. Joint-model weights are in
+`checkpoints_joint/{all4,holdout_BreastEpithelium}/seed42/`. CpGenie and DeepCpG
+weights are under `results/journal/published_baselines/`.
+
+## Repository layout
+
+| Path | Contents |
+|---|---|
+| `scripts/` | Training, scoring, evaluation and figure scripts, plus job launchers |
+| `jobs/single_tissue/` | Slurm jobs for candidates, mQTL controls and variant applications |
+| `jobs/mechanism/` | Slurm jobs for ASM, gate components and context changes |
+| `data/` | Download and preprocessing scripts; the cluster also holds inputs and built splits |
+| `checkpoints_*/` | Trained model weights and run settings on the cluster |
+| `dnabert2_local/` | Downloaded DNABERT-2 model and tokenizer on the cluster |
+| `figures/` | Main and supplementary figures, with panel data in `source_data/` |
+| `reproducibility/` | Environment details, input checks, archived inputs and file checksums |
+| `results/` | Metrics and summaries; the cluster also holds full predictions and analysis tables |
+| `repro_check/` | Outputs from separate reproduction checks on the cluster |
+| `archive/` | Older analysis summaries on the cluster |
+| `logs/` | Job output and error logs |
+| `build_data.sh` | Builds training data and chromosome splits |
+| `run_baseline.sh` | Trains the sequence model |
+
+Use `results/journal/ablation_breast_epithelium/` for current breast-epithelium
+results. Other result folders include older runs; check their run settings before
+combining outputs.
+

@@ -1,0 +1,4 @@
+panel,variant_id,probe,predicted_delta_beta,seed,status,source
+5c,rs2145420809,cg16601904,0.089030643304189,42-44 mean,training probe,ABL/literature_variant_screen/stk11_case_study_figure_values.csv
+5c,rs148928808,cg08681293,-0.0520454049110412,42-44 mean,training probe,ABL/literature_variant_screen/stk11_case_study_figure_values.csv
+5c,background pool,,,42-44 mean,321 scored nonsynonymous variant-CpG pairs,ABL/literature_variant_screen/literature_variant_predictions_ranked.csv

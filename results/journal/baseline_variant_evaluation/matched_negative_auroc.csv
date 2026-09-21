@@ -1,0 +1,3 @@
+model,seed,metric,n,n_blocks,value,ci_low,ci_high
+kmer_ridge,-1,auroc_distance_matched,8074,244,0.5062556109516818,0.49303537121133517,0.5190938633089649
+composition,-1,auroc_distance_matched,8074,243,0.45823298226848763,0.4428161557290868,0.4734293614524833

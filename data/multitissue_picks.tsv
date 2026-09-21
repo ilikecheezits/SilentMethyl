@@ -8,9 +8,9 @@
 # ROUTE A, adopted 11 Sep 2026. Every tissue uses a ready-made bulk
 # fold-change-over-control bigWig on GRCh38 -- no BAMs, no local conversion, no
 # unrecorded parameters. Route B (snATAC BAMs converted with a fixed
-# bamCoverage command) is dead: it existed only to keep MCF-10A as the breast
-# context, and the context ablation replaced MCF-10A with primary breast
-# epithelium, which HAS bulk ATAC. See LAB_NOTES section 1.10.
+# bamCoverage command) is dead: it existed only to keep the original cell-line
+# context, which the context ablation replaced with primary breast epithelium,
+# and that HAS bulk ATAC.
 #
 # ALL FOUR TISSUES ARE PINNED.
 # ----------------------------
@@ -52,12 +52,12 @@
 # training rows each gets under a ~345k budget with disjoint probe sets:
 #
 #   BreastEpithelium   TCGA-BRCA              97 donors    ~86k probes
-#   KidneyCortex       TCGA-KIRC             205 donors    ~86k probes
+#   KidneyCortex       TCGA-KIRC             160 donors    ~86k probes
 #   Lung               TCGA-LUAD + LUSC       74 donors    ~86k probes
-#   ColonTransverse    TCGA-COAD + READ       45 donors    ~86k probes
+#   ColonTransverse    TCGA-COAD              38 donors    ~86k probes
 #
-# Colon is the weakest arm: a target median over 45 donors is a noisier label
-# than one over 205. Disclose it, and consider donor-weighting rather than an
+# Colon is the weakest arm: a target median over 38 donors is a noisier label
+# than one over 160. Disclose it, and consider donor-weighting rather than an
 # even split.
 
 BreastEpithelium:
@@ -102,6 +102,6 @@ ColonTransverse:
   h3k27me3  ENCFF865CYJ
   h3k9me3   ENCFF834GGD
 
-# BreastMammaryTissue (MCF-10A) was removed entirely on 11 Sep 2026. Its six
-# Mint-ChIP accessions and the locally converted snATAC track are recorded in
-# LAB_NOTES section 8 (reference-track provenance) if they are ever needed.
+# The original BreastMammaryTissue pick was removed entirely on 11 Sep 2026. Its
+# six Mint-ChIP accessions and the locally converted snATAC track are recoverable
+# from git history if they are ever needed.

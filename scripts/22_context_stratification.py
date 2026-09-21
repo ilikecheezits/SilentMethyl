@@ -795,14 +795,14 @@ def genomic_region_audit(
 def context_label(test_path: Path) -> str:
     """Name the context build a test CSV came from, for panel titles.
 
-    The titles used to say "MCF-10A" unconditionally, which outlived the
-    11 Sep 2026 context swap and mislabelled the breast-epithelium plots.
+    The titles used to name one context unconditionally, which outlived the
+    11 Sep 2026 context change and mislabelled the breast-epithelium plots.
     """
     text = Path(test_path).as_posix()
     if "datafiles_breast_epithelium" in text:
         return "Breast-epithelium"
     if "datafiles/" in text or text.startswith("datafiles"):
-        return "MCF-10A"
+        return "Superseded context"
     return "Context"
 
 

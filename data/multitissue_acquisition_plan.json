@@ -181,7 +181,7 @@
           "breast epithelium"
         ]
       },
-      "note": "primary-tissue alternative to MCF-10A; tests whether the published context choice cost anything",
+      "note": "primary-tissue alternative to the earlier cell-line context; tests whether the published context choice cost anything",
       "targets": [
         {
           "available": true,
@@ -409,7 +409,7 @@
           "transverse colon"
         ]
       },
-      "note": "COAD and READ normals pooled; transverse colon preferred to match the eGTEx tissue",
+      "note": "COAD normals only; transverse colon preferred to match the eGTEx tissue",
       "targets": [
         {
           "available": true,
@@ -423,19 +423,6 @@
           "etag": "f1e7d3e4659ea507e2abba65c90ce270-141",
           "project": "TCGA-COAD",
           "url": "https://gdc-hub.s3.us-east-1.amazonaws.com/download/TCGA-COAD.methylation450.tsv.gz"
-        },
-        {
-          "available": true,
-          "bytes": 363163184,
-          "downloaded": {
-            "bytes": 363163184,
-            "md5": "66af30a5224ecdfa5ab93e26133c424f",
-            "path": "data/targets/TCGA-READ.methylation450.tsv.gz",
-            "verified": false
-          },
-          "etag": "612c62810f3982afc7034222b8519fe4-44",
-          "project": "TCGA-READ",
-          "url": "https://gdc-hub.s3.us-east-1.amazonaws.com/download/TCGA-READ.methylation450.tsv.gz"
         }
       ]
     },

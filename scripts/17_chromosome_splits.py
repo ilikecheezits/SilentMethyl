@@ -1,46 +1,8 @@
 #!/usr/bin/env python3
-"""Generate repeated chromosome-blocked train/val/test splits.
-
-Why this exists
----------------
-The published model uses ONE split: chr10 validation, chr8+chr9 test. A single
-split cannot separate "this architecture generalises" from "this architecture
-happens to suit chr8 and chr9". The mentor asked for repeated chromosome-blocked
-evaluation, and this produces the folds it needs.
-
-Two guarantees, both asserted rather than assumed
--------------------------------------------------
-1. **No chromosome appears in two arms of the same fold.** Blocking by whole
-   chromosomes is what makes the split honest: neighbouring CpGs are correlated
-   over hundreds of kilobases, so a random probe-level split leaks.
-2. **No probeID appears in two arms of the same fold**, and every probe in the
-   source data lands in exactly one arm. This is the mentor's "same CpG must not
-   appear in both training and testing" condition, checked directly rather than
-   inferred from the chromosome rule.
-
-Fold 0 IS the published split -- its chromosome sets are read out of the source
-val.csv and test.csv rather than assumed -- so the already-trained seeds serve as
-fold 0 and it does not need retraining. The probe-level check still runs and will
-say so explicitly. (The published split is val chr10 + chr11, test chr8 + chr9;
-an earlier version of this script hard-coded val as chr10 alone and was wrong.)
-
-Folds 1..K-1 are chosen to hold out a probe count as close as possible to fold
-0's, so performance is comparable across folds rather than confounded with how
-much data each fold happens to test on. Chromosomes are never split.
-
-Usage (run from the repository root)
-------------------------------------
-    python -u scripts/17_chromosome_splits.py --dry-run \
-        --datafiles data/datafiles_breast_epithelium \
-        --out-root data/datafiles_breast_epithelium/splits
-    python -u scripts/17_chromosome_splits.py --folds 4 \
-        --datafiles data/datafiles_breast_epithelium \
-        --out-root data/datafiles_breast_epithelium/splits
-
-If the source CSVs carry no chromosome column, supply a mapping:
-
-    python -u scripts/17_chromosome_splits.py --datafiles <build> --out-root <build>/splits \
-        --manifest <build>/probe_chrom_map.csv
+"""Generate repeated chromosome-blocked train/val/test folds. The published model uses one
+split (chr10 validation, chr8+chr9 test), which cannot separate a general result from
+one that happens to suit those chromosomes. Requires both --datafiles and --out-root,
+and refuses an --out-root that already holds folds unless --overwrite.
 """
 
 from __future__ import annotations
@@ -57,24 +19,12 @@ import pandas as pd
 
 LOGGER = logging.getLogger("splits")
 
-# Column names seen in Illumina manifests and in our own scoring inputs.
 CHROM_CANDIDATES = ("chr", "chrom", "CHR", "Chromosome", "chromosome",
                     "CpG_chrm", "cpg_chrom", "seqnames")
 
-# Fold 0 must BE the published split, not a guess at it. These are fallbacks
-# only: by default the chromosome sets are read from the source val.csv and
-# test.csv, because a hard-coded guess was wrong once already (the published
-# validation set is chr10 + chr11, not chr10 alone) and a wrong fold 0 silently
-# destroys the one control this whole analysis has.
 PUBLISHED_VAL = ["chr10", "chr11"]
 PUBLISHED_TEST = ["chr8", "chr9"]
 
-# Sex chromosomes are never used as held-out blocks. chrY is absent in female
-# donors and chrX carries X-inactivation, so a fold that holds either one out is
-# not measuring the same quantity as a fold that holds out autosomes -- the
-# folds would stop being comparable, which is the whole point of running them.
-# They stay in TRAINING for every fold, so no data is discarded and the training
-# composition is identical across folds.
 NON_EVAL_CHROMS = ("chrX", "chrY", "chrM", "chrMT")
 
 
@@ -156,15 +106,9 @@ def build_folds(counts: "pd.Series", n_folds: int) -> list[dict]:
             LOGGER.warning("ran out of unused chromosomes at fold %d; stopping "
                            "with %d folds", k, k)
             break
-        # Exhaustive search over subsets of 1-3 chromosomes for the sum closest
-        # to `target`. A greedy pass seeded on the largest chromosome overshoots
-        # badly (it picks chr1 alone, 54% over), which defeats the point of
-        # matching test size across folds. The pool is <= 24 chromosomes, so the
-        # exact search is trivial and removes the failure mode entirely.
         best, test = None, None
         for size in (1, 2, 3):
             for combo in itertools.combinations(pool, size):
-                # Leave at least one chromosome for validation.
                 if len(pool) - size < 1:
                     continue
                 gap = abs(int(counts[list(combo)].sum()) - target)
@@ -179,7 +123,6 @@ def build_folds(counts: "pd.Series", n_folds: int) -> list[dict]:
             LOGGER.warning("fold %d has no chromosome left for validation; "
                            "stopping with %d folds", k, k)
             break
-        # Validation gets the single chromosome closest to fold 0's val size.
         val_target = int(counts[PUBLISHED_VAL].sum())
         val = [min(leftover, key=lambda c: abs(counts[c] - val_target))]
         folds.append({"fold": k, "val": val, "test": test})
@@ -191,10 +134,6 @@ def build_folds(counts: "pd.Series", n_folds: int) -> list[dict]:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    # Both paths are REQUIRED. --out-root used to default to data/datafiles/splits
-    # independently of --datafiles, so pointing --datafiles at a new context build
-    # silently overwrote the published fold splits that checkpoints_folds/ were
-    # trained on. There is no safe default for either.
     ap.add_argument("--datafiles", type=Path, required=True,
                     help="context build to re-split, e.g. data/datafiles_breast_epithelium")
     ap.add_argument("--sources", default="train.csv,val.csv,test.csv",
@@ -284,7 +223,6 @@ def main(argv=None) -> int:
             lambda c: "test" if c in test_set else ("val" if c in val_set else "train"))
         parts = {arm: frame[assign == arm].copy() for arm in ("train", "val", "test")}
 
-        # The two guarantees, checked rather than trusted.
         ids = {arm: set(part["probeID"]) for arm, part in parts.items()}
         for a, b in (("train", "val"), ("train", "test"), ("val", "test")):
             shared = ids[a] & ids[b]
@@ -340,8 +278,6 @@ def main(argv=None) -> int:
             dst.mkdir(parents=True, exist_ok=True)
             for arm, part in parts.items():
                 out = part.drop(columns="_chrom").copy()
-                # training_common.validate_split_dataframe insists the Split
-                # column matches the file it was loaded as.
                 out["Split"] = arm
                 out.to_csv(dst / f"{arm}.csv", index=False)
 

@@ -1,73 +1,12 @@
 #!/usr/bin/env python3
-"""
-Regulatory enrichment: does SilentMethyl's variant signal run through TF motifs?
-
-Mentor requirement 7. This is also the analysis that decides venue, because it is
-the only remaining place a *novel* computational finding can come from -- and
-recovering CTCF and NRF1 as methylation-sensitive is confirmatory, not novel.
-
-The three questions, in increasing order of interest
------------------------------------------------------
-Q1 (confirmatory). Does the SIZE of the motif disruption a variant causes predict
-    the size of its predicted methylation shift? Asked two ways: a continuous rank
-    correlation over all pairs, and a top-quartile-versus-bottom-quartile contrast
-    matched on variant-CpG distance and local GC content. Distance and GC each
-    drive |delta| on their own, so an unmatched comparison answers yes for the
-    wrong reason.
-
-    NOTE: a binary inside-a-motif / outside-a-motif split does not work here. With
-    the full JASPAR library scanned, ~100% of variants fall inside SOME occurrence
-    at the conventional 0.80 relative-score cutoff, so there is no background left
-    to compare against. Ranking by disruption magnitude keeps both groups populated
-    by construction.
-
-Q2 (mechanistic). Per transcription factor, does the change in motif match score
-    caused by the variant predict the direction and size of the methylation
-    shift? A factor whose binding protects from methylation should show motif
-    weakening accompanied by predicted hypermethylation -- a negative coupling --
-    and the reverse for factors associated with demethylation. The sign is
-    interpretable, which makes this a mechanistic claim rather than an
-    association.
-
-Q3 (novel, if it holds). Is the model's ability to identify *real* meQTLs
-    concentrated at strongly motif-disrupting variants? Requirement 6 showed the
-    model separates genuine GENOA meQTLs from tested-but-null pairs at
-    distance-matched AUROC 0.570. If that discrimination is markedly higher
-    among strong disruptors than weak ones, then what the model has learned is
-    specifically transcription-factor-binding disruption, and the claim becomes
-    a computationally derived mechanism rather than a black-box performance
-    number. If it is flat, say so -- a flat result here is informative and
-    honest, and it is the difference between a Nature Communications submission
-    and a Genome Medicine one.
-
-Method notes that matter
-------------------------
-* Both strands are scanned. Motifs are strand-specific; scanning only the forward
-  strand would miss roughly half of all occurrences.
-* The best-scoring (offset, strand) is chosen on the WILD-TYPE sequence and the
-  mutant is then evaluated at that same position. Choosing the best position
-  separately for each allele would let the "disruption" be an artifact of the
-  motif sliding to a different site.
-* Relative scores are used (observed minus worst possible, over best minus worst)
-  so a threshold means the same thing for motifs of different lengths and
-  information content. 0.80 is the conventional JASPAR cutoff.
-* Backgrounds are matched on exact variant-CpG distance and on local GC quintile,
-  sampled without replacement. Motifs cluster in GC-rich sequence and GC-rich
-  sequence sits nearer CpG islands, so both variables must be held fixed.
-* All intervals are 1 Mb block bootstraps, as in scripts 16-17, 20 and 21.
-* Per-factor tests are corrected with Benjamini-Hochberg across factors.
-
-Inputs
-------
-  results/journal/genoa_variant_scoring/heldout/<model>/seed*/pair_scores.csv
-  data/external/jaspar/JASPAR_CORE_vertebrates_non-redundant_pfms_jaspar.txt
-  data/datafiles/{train,val,test}.csv   (for the 5,000-bp reference windows)
-
-Usage (run from the repository root; CPU only)
-----------------------------------------------
-    python -u scripts/50_motif_disruption.py --limit 2000   # smoke test
-    python -u scripts/50_motif_disruption.py
-    python -u scripts/50_motif_disruption.py --n-boot 2000  # publication
+"""Test whether the model's variant signal runs through transcription-factor motifs. Scans
+JASPAR motifs on both strands, picks the best position on the wild-type sequence and
+evaluates the mutant at that same position, then asks whether disruption magnitude
+predicts predicted methylation shift, whether per-factor coupling is signed and
+interpretable, and whether mQTL discrimination concentrates among strong disruptors.
+Backgrounds are matched on exact variant-CpG distance and local GC quintile, since both
+drive the effect on their own; intervals are 1 Mb block bootstraps and per-factor tests
+are Benjamini-Hochberg corrected.
 """
 
 from __future__ import annotations
@@ -94,15 +33,12 @@ LOGGER = logging.getLogger("silentmethyl.motifs")
 
 COLOURS = {"motif": "#B03A2E", "background": "#1F6FB2", "accent": "#B4761A"}
 BLOCK_BP = 1_000_000
-FLANK = 35                      # bp either side of the variant that we keep
-MAX_MOTIF_LENGTH = 30           # must satisfy MAX_MOTIF_LENGTH <= FLANK + 1
-FULL_TARGET_C_INDEX = 2499      # target CpG C inside the stored 5,000-bp sequence
+FLANK = 35
+MAX_MOTIF_LENGTH = 30
+FULL_TARGET_C_INDEX = 2499
 BASES = "ACGT"
 BASE_CODE = {b: i for i, b in enumerate(BASES)}
 
-# Factors with published methylation-sensitive binding. Recovering these is a
-# sanity check, not a discovery -- they are flagged in the output so the
-# distinction stays visible in the results table.
 KNOWN_METHYL_SENSITIVE = {
     "CTCF", "NRF1", "CEBPB", "ZBTB33", "BANP", "E2F1", "E2F4", "SP1", "USF1",
     "USF2", "YY1", "EGR1", "ETS1", "ELK1", "MYC", "MAX", "NFYA", "NFYB", "KLF4",
@@ -115,11 +51,6 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--scores-dir", type=Path,
                    default=Path("results/journal/genoa_variant_scoring"))
     p.add_argument("--stratum", default="heldout", choices=("heldout", "model_visible"))
-    # No `choices` here: baseline models from scripts/23 come through this same
-    # analysis under their own names, and the k-mer baseline in particular is
-    # the control that decides whether the ETS coupling is learned grammar or
-    # sequence composition. Restricting to the two neural models would rule out
-    # the one comparison that can answer it.
     p.add_argument("--model", default="fusion",
                    help="Model name as it appears in the scores directory layout "
                         "(fusion, sequence, kmer_ridge, composition, ...).")
@@ -169,8 +100,6 @@ def atomic_json(payload: dict, path: Path) -> None:
     os.replace(tmp, path)
 
 
-# ------------------------------------------------------------------ motifs
-
 def parse_jaspar(path: Path) -> list[dict]:
     """Parse the JASPAR raw PFM format into log-odds PWMs.
 
@@ -218,11 +147,10 @@ def parse_jaspar(path: Path) -> list[dict]:
         length = lengths.pop()
         if not 4 <= length <= MAX_MOTIF_LENGTH:
             continue
-        matrix = np.array([motif["counts"][b] for b in BASES], dtype=float).T  # (L, 4)
+        matrix = np.array([motif["counts"][b] for b in BASES], dtype=float).T
         totals = matrix.sum(axis=1, keepdims=True)
         if np.any(totals <= 0):
             continue
-        # Laplace pseudocount, then log-odds against a uniform background.
         frequencies = (matrix + 0.25) / (totals + 1.0)
         pwm = np.log2(frequencies / 0.25).astype(np.float32)
         consensus = "".join(BASES[i] for i in frequencies.argmax(axis=1))
@@ -231,23 +159,17 @@ def parse_jaspar(path: Path) -> list[dict]:
             "name": motif["name"].upper(),
             "length": int(length),
             "consensus": consensus,
-            # Expected GC of the motif, and whether its consensus contains a CpG.
-            # ETS-family and other GC-rich motifs concentrate in CpG islands, so
-            # composition has to be carried through to the results table or a
-            # factor-specific claim cannot be separated from a neighbourhood one.
             "gc_content": float(frequencies[:, [1, 2]].sum(axis=1).mean()),
             "consensus_cpg_count": int(sum(
                 consensus[i:i + 2] == "CG" for i in range(len(consensus) - 1))),
             "pwm": pwm,
-            "pwm_rc": pwm[::-1, ::-1].copy(),      # reverse columns and complement
+            "pwm_rc": pwm[::-1, ::-1].copy(),
             "min_score": float(pwm.min(axis=1).sum()),
             "max_score": float(pwm.max(axis=1).sum()),
         })
     LOGGER.info("parsed %d usable motifs from %s", len(prepared), path.name)
     return prepared
 
-
-# ------------------------------------------------------------------- data
 
 def load_pair_scores(args: argparse.Namespace) -> pd.DataFrame:
     frames = []
@@ -272,9 +194,6 @@ def load_pair_scores(args: argparse.Namespace) -> pd.DataFrame:
     metadata = metadata.drop(columns=["Predicted_Delta_M"]).drop_duplicates("Pair_UID")
     pairs = metadata.merge(ensemble, on="Pair_UID", how="inner", validate="one_to_one")
 
-    # CpG-creating and CpG-destroying variants have a near-deterministic direction
-    # that requires no model and no motif; including them would let a trivial
-    # mechanism masquerade as motif disruption.
     before = len(pairs)
     pairs = pairs[~(pairs["creates_cpg"].astype(bool)
                     | pairs["destroys_cpg"].astype(bool))].reset_index(drop=True)
@@ -303,7 +222,7 @@ def extract_windows(pairs: pd.DataFrame, split_template: str) -> tuple:
     LOGGER.info("materialised %d reference windows", len(sequences))
 
     width = 2 * FLANK + 1
-    encoded = np.full((len(pairs), width), 4, dtype=np.int8)   # 4 == N / unusable
+    encoded = np.full((len(pairs), width), 4, dtype=np.int8)
     alt_codes = np.full(len(pairs), 4, dtype=np.int8)
     keep = np.zeros(len(pairs), dtype=bool)
     gc = np.full(len(pairs), np.nan)
@@ -318,13 +237,13 @@ def extract_windows(pairs: pd.DataFrame, split_template: str) -> tuple:
             continue
         window = sequence[start:stop]
         if window[FLANK] != str(row.Ref).upper():
-            continue                      # reference disagreement; already counted in 19
+            continue
         codes = np.frombuffer(window.encode("ascii"), dtype=np.uint8)
         mapped = np.full(width, 4, dtype=np.int8)
         for base, code in BASE_CODE.items():
             mapped[codes == ord(base)] = code
         if np.any(mapped == 4):
-            continue                      # ambiguous base inside the scan window
+            continue
         encoded[row_index] = mapped
         alt_codes[row_index] = BASE_CODE.get(str(row.Alt).upper(), 4)
         gc[row_index] = float(np.mean((mapped == 1) | (mapped == 2)))
@@ -334,8 +253,6 @@ def extract_windows(pairs: pd.DataFrame, split_template: str) -> tuple:
     return encoded[keep], alt_codes[keep], gc[keep], pairs[keep].reset_index(drop=True)
 
 
-# ---------------------------------------------------------------- scanning
-
 def scan_motif(wt: np.ndarray, mut: np.ndarray, motif: dict) -> tuple:
     """Best WT hit covering the variant, and the mutant score at that same site.
 
@@ -344,7 +261,7 @@ def scan_motif(wt: np.ndarray, mut: np.ndarray, motif: dict) -> tuple:
     an artifact of the motif relocating to a different site.
     """
     length = motif["length"]
-    offsets = np.arange(FLANK - length + 1, FLANK + 1)     # windows covering FLANK
+    offsets = np.arange(FLANK - length + 1, FLANK + 1)
     offsets = offsets[(offsets >= 0) & (offsets + length <= wt.shape[1])]
     if len(offsets) == 0:
         return None, None
@@ -362,7 +279,6 @@ def scan_motif(wt: np.ndarray, mut: np.ndarray, motif: dict) -> tuple:
             best_offset = np.where(better, offset, best_offset)
             best_strand = np.where(better, strand, best_strand)
 
-    # Mutant score at the winning site only.
     mutant = np.empty_like(best)
     for strand, pwm in ((0, motif["pwm"]), (1, motif["pwm_rc"])):
         mask = best_strand == strand
@@ -378,8 +294,6 @@ def scan_motif(wt: np.ndarray, mut: np.ndarray, motif: dict) -> tuple:
     delta = (mutant - best) / span
     return relative.astype(np.float32), delta.astype(np.float32)
 
-
-# -------------------------------------------------------------- statistics
 
 def block_bootstrap(frame: pd.DataFrame, metric, n_boot: int,
                     rng: np.random.Generator) -> tuple[float, float]:
@@ -477,8 +391,6 @@ def matched_background(frame: pd.DataFrame, positive: np.ndarray,
     return np.array(chosen, dtype=int)
 
 
-# ------------------------------------------------------------------- main
-
 def main() -> int:
     args = parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
@@ -495,9 +407,6 @@ def main() -> int:
 
     pairs = load_pair_scores(args)
     if args.limit > 0:
-        # Sample rather than take the head. The merged pair file is sorted by
-        # genomic position, so a head slice lands inside a handful of 1 Mb blocks
-        # and every block bootstrap in the run returns an empty interval.
         pairs = (pairs.sample(n=min(args.limit, len(pairs)),
                               random_state=args.random_seed)
                  .sort_index().reset_index(drop=True))
@@ -514,15 +423,6 @@ def main() -> int:
     pairs["abs_delta_m"] = pairs["Predicted_Delta_M"].abs()
     quintiles = pairs["gc_quintile"].to_numpy()
 
-    # Canonical substitution class (pyrimidine reference, 6 classes), one-hot.
-    #
-    # This is the confound that would otherwise sink the per-factor result. Many
-    # motif families are compositionally biased -- ETS cores are purine-rich, for
-    # instance -- so weakening such a motif usually means a specific kind of base
-    # change. If the model's predicted shift responds to the base change itself
-    # (C/T-rich sequence is generally more methylated), a factor-specific coupling
-    # appears with no transcription-factor biology behind it. Controlling for
-    # substitution class separates the two.
     complement = {"A": "T", "C": "G", "G": "C", "T": "A"}
     reference = pairs["Ref"].astype(str).str.upper()
     alternate = pairs["Alt"].astype(str).str.upper()
@@ -538,7 +438,6 @@ def main() -> int:
     LOGGER.info("substitution classes: %s",
                 dict(substitution.value_counts().head(6)))
 
-    # ---- scan every motif
     LOGGER.info("scanning %d motifs over %d pairs", len(motifs), len(pairs))
     hit_any = np.zeros(len(pairs), dtype=bool)
     covered_sets: dict[str, np.ndarray] = {}
@@ -554,7 +453,6 @@ def main() -> int:
         n_covered = int(covered.sum())
         hit_any |= covered
 
-        # Track, per pair, the largest score change over any motif it sits inside.
         magnitude = np.where(covered, np.abs(delta_score), 0.0)
         improved = magnitude > best_disruption
         best_disruption = np.where(improved, magnitude, best_disruption)
@@ -609,19 +507,6 @@ def main() -> int:
     atomic_csv(per_motif, out / "per_motif_coupling.csv")
     LOGGER.info("%d motifs met the coverage threshold", len(per_motif))
 
-    # ---- Is any individual factor actually special?
-    #
-    # Two ways a striking per-factor result can be an artifact, both tested here:
-    #
-    #   a global offset  if disrupting ANY motif tends to shift predicted
-    #                    methylation one way, every factor shows the same sign and
-    #                    the "top" factors are just noise on a displaced null. The
-    #                    median coupling across all tested motifs is the anchor.
-    #
-    #   composition      GC-rich motifs concentrate in CpG islands, which have their
-    #                    own methylation behaviour. If coupling tracks motif GC
-    #                    across the whole library, the finding is about sequence
-    #                    neighbourhood, not about the factor.
     null_summary = {}
     if not per_motif.empty:
         values = per_motif["coupling_spearman"].to_numpy(dtype=float)
@@ -649,11 +534,6 @@ def main() -> int:
                     .to_series().median()) + 1
                 if per_motif["known_methylation_sensitive"].any() else None),
         }
-        # How independent are the top hits really? Motif families share a core
-        # (ETS factors all read GGAA/GGAT), so a dozen "factors" at the top of the
-        # table can be one motif counted twelve times. Jaccard overlap of the
-        # covered-variant sets measures that directly, without needing a curated
-        # family annotation.
         top_names = per_motif.head(15)["factor"].tolist()
         overlaps, rows_overlap = [], []
         for i, first in enumerate(top_names):
@@ -681,19 +561,6 @@ def main() -> int:
                 "relative score >= %.2f", int(hit_any.sum()), len(pairs),
                 100 * hit_any.mean(), args.relative_threshold)
 
-    # ---- Q1: strongly-disrupting vs weakly-disrupting, matched on distance and GC
-    #
-    # A quantile contrast, not a binary in/out split. With the full JASPAR library
-    # scanned, near enough every variant sits inside SOME motif occurrence, so
-    # "inside a motif" has no background left to compare against. Ranking variants
-    # by how much they actually change the best motif score, then contrasting the
-    # tails, keeps the two groups balanced by construction and asks a sharper
-    # question: does the SIZE of the disruption matter?
-    # Quantiles are taken over pairs that sit inside at least one occurrence.
-    # Including the uncovered pairs would put a large mass at exactly zero, which
-    # collapses both cut points onto 0.0 and makes "strong" match every row.
-    # On the full JASPAR library nearly every pair is covered, so this restriction
-    # changes nothing there -- it is what keeps a reduced motif set honest.
     covered_values = best_disruption[hit_any]
     if covered_values.size < 200:
         raise SystemExit(
@@ -715,8 +582,6 @@ def main() -> int:
                 "weak <= %.4f (n=%d)", int(hit_any.sum()), high_cut,
                 int(strong.sum()), low_cut, int(weak.sum()))
 
-    # Continuous version, which needs no grouping at all and is the primary Q1 test.
-    # Restricted to covered pairs for the same reason as the quantile cuts.
     continuous = pairs.loc[hit_any, ["max_motif_disruption", "abs_delta_m", "_block"]]
     coupling_point = float(spearmanr(continuous["max_motif_disruption"],
                                      continuous["abs_delta_m"]).statistic)
@@ -759,7 +624,6 @@ def main() -> int:
         })
     atomic_csv(pd.DataFrame(global_rows), out / "motif_vs_background.csv")
 
-    # ---- Q3: is meQTL discrimination concentrated inside motifs?
     discrimination_rows = []
 
     def discrimination(frame: pd.DataFrame) -> float:
@@ -785,7 +649,7 @@ def main() -> int:
     atomic_json(
         {
             "analysis": "TF motif disruption and SilentMethyl variant effects",
-            "purpose": "mentor requirement 7: regulatory enrichment",
+            "purpose": "regulatory enrichment: do variant effects run through TF motifs?",
             "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "stratum": args.stratum,
             "model": args.model,

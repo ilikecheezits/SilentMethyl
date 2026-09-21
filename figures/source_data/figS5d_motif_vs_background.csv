@@ -1,0 +1,4 @@
+panel,group,n,median_abs_delta_m,ci_low,ci_high,median_abs_distance_bp,mean_gc,uncertainty
+7d,strong_disruption,11525,0.0161662098333333,0.0153426075108333,0.0169778208026666,257.0,0.4857181265466989,1 Mb block bootstrap
+7d,matched_weak_disruption,9881,0.0167096454333333,0.01553113992625,0.0178504929325,251.0,0.5057223209716757,1 Mb block bootstrap
+7d-note,continuous_coupling,42866,-0.010346614757851,-0.0220094624533998,0.0018851805155762,,,"1 Mb block bootstrap; this row is a Spearman correlation between disruption magnitude and |delta M|, not a median, and is reported in the footnote rather than plotted"

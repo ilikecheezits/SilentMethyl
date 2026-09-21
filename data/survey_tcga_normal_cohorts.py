@@ -1,49 +1,12 @@
 #!/usr/bin/env python3
-"""Which tissues can actually support a joint multi-tissue SilentMethyl?
-
-Why this exists
----------------
-The multi-tissue plan is to reuse the BRCA recipe -- TCGA solid-tissue-normal
-HM450 targets plus a matched ENCODE reference context -- for a handful of other
-tissues, each chosen so that an eGTEx mQTL cohort we already score against also
-exists for it. A tissue is only usable if BOTH halves are there, and either half
-can be missing:
-
-  targets   TCGA must have banked enough adjacent normal tissue AND run HM450
-            on it. Counts differ by an order of magnitude between projects --
-            some have hundreds of normal donors, TCGA-OV has almost none.
-
-  context   ENCODE must have all seven tissue-specific tracks the epigenomic
-            tower consumes. Six histone marks plus ATAC is a demanding set for
-            primary tissue; ATAC in particular is patchy outside cell lines,
-            because older primary-tissue data used DNase instead.
-
-Guessing either half is expensive: a tissue that turns out to have 12 normal
-donors, or five of seven marks, is a wasted track assembly and a wasted training
-run. Both numbers also move as GDC and ENCODE release data, so neither belongs
-in a comment. This asks both APIs directly.
-
-Only open-access metadata is queried. No controlled-access request is made and
-nothing is downloaded; the output is a table of counts.
-
-Two things this script is careful about
----------------------------------------
-1. It counts PATIENTS, not files. The GDC facet on /files returns a file count,
-   and a donor can contribute several methylation files, so faceting would
-   overstate every cohort. This pages through the matching files and counts
-   distinct case ids, verifying each record's own sample type rather than
-   trusting the filter's case-level join.
-
-2. It requires the ENCODE experiment to have released GRCh38 signal, not merely
-   to exist. An experiment in progress, or one only processed against hg19, is
-   not a track you can put in a feature vector.
-
-Usage (run from the repository root, on a machine with outbound HTTPS)
-----------------------------------------------------------------------
-    python -u data/survey_tcga_normal_cohorts.py
-    python -u data/survey_tcga_normal_cohorts.py --min-normals 30
-    python -u data/survey_tcga_normal_cohorts.py --skip-encode
-    python -u data/survey_tcga_normal_cohorts.py --out data/tcga_normal_cohort_survey.json
+"""Survey which tissues can support a joint multi-tissue model. A tissue is usable only if
+TCGA has banked enough adjacent normal tissue with HM450 run on it and ENCODE has all
+seven tracks the context tower consumes; both halves vary by an order of magnitude
+across projects and both move as the archives release data, so this queries the GDC and
+ENCODE APIs directly, requesting only open-access metadata and downloading nothing. Two
+details affect the counts: patients are counted rather than files, since a donor can
+contribute several methylation files and faceting would overstate every cohort, and an
+ENCODE experiment must have released GRCh38 signal, not merely exist.
 """
 
 from __future__ import annotations
@@ -62,10 +25,6 @@ GDC_FILES = "https://api.gdc.cancer.gov/files"
 ENCODE_SEARCH = "https://www.encodeproject.org/search/"
 UA = {"Accept": "application/json", "User-Agent": "SilentMethyl-cohort-survey"}
 
-# The seven tissue-specific context features. The remaining two inputs to the
-# epigenomic tower are PhyloP 100-way conservation, which is a property of the
-# genome rather than of the tissue and needs no per-tissue track.
-# Mirrors TABULAR_FEATURES in scripts/training_common.py.
 REQUIRED_TRACKS = [
     ("ATAC-seq", None),
     ("Histone ChIP-seq", "H3K4me3"),
@@ -76,19 +35,10 @@ REQUIRED_TRACKS = [
     ("Histone ChIP-seq", "H3K4me1"),
 ]
 
-# Candidate TCGA projects and ENCODE biosample terms per eGTEx tissue. A tissue
-# with no plausible project is listed with an empty tuple so the report says so
-# explicitly rather than quietly omitting it. Several ENCODE terms are tried per
-# tissue because primary-tissue naming is inconsistent, and the best-covered one
-# is reported.
-#
-# These are CANDIDATES. Attaching a real number to each is the whole point.
 TISSUES = {
     "BreastMammaryTissue": {
         "tcga": ("TCGA-BRCA",),
-        # ENCODE spells the cell line "MCF 10A"; the hyphenated form is how it
-        # appears everywhere else, so both are tried.
-        "encode": ["MCF 10A", "MCF-10A", "breast epithelium",
+        "encode": ["breast epithelium",
                    "luminal epithelial cell of mammary gland"],
     },
     "ColonTransverse": {
@@ -159,10 +109,6 @@ def _fatal_network(msg: str) -> "SystemExit":
     )
 
 
-# ---------------------------------------------------------------------------
-# GDC: distinct donors with solid-tissue-normal HM450
-# ---------------------------------------------------------------------------
-
 def gdc_normal_donors(platform: str, sample_type: str, timeout: int = 90,
                       page: int = 1000) -> dict[str, set]:
     """Distinct case ids per project, counted from the files themselves.
@@ -208,7 +154,7 @@ def gdc_normal_donors(platform: str, sample_type: str, timeout: int = 90,
             for case in hit.get("cases", []):
                 types = {s.get("sample_type") for s in case.get("samples", [])}
                 if sample_type not in types:
-                    continue          # case-level join artefact, not our file
+                    continue
                 proj = case.get("project", {}).get("project_id")
                 cid = case.get("case_id")
                 if proj and cid:
@@ -219,10 +165,6 @@ def gdc_normal_donors(platform: str, sample_type: str, timeout: int = 90,
         time.sleep(0.2)
     return donors
 
-
-# ---------------------------------------------------------------------------
-# ENCODE: are all seven tracks available for this biosample?
-# ---------------------------------------------------------------------------
 
 def encode_has_track(term: str, assay: str, target: str | None,
                      timeout: int = 60) -> int:
@@ -291,9 +233,6 @@ def main(argv=None) -> int:
     except Unreachable as exc:
         raise _fatal_network(str(exc)) from exc
 
-    # ENCODE is the optional half. If the portal is unreachable, still print the
-    # donor table -- walking the GDC takes a while and throwing that away
-    # because a second host was down is how the first version of this failed.
     encode_down = None
 
     rows = []
@@ -366,9 +305,6 @@ def main(argv=None) -> int:
     print(f"dropped: {len(rows) - len(usable)}  "
           f"({', '.join(r['egtex_tissue'] for r in rows if not r['usable'])})")
 
-    # Training rows are probes x tissues, and the stated ceiling is one cohort's
-    # worth -- 418,486, the size of the breast probe set -- because that is what
-    # keeps a run near the ~46 h the single-tissue model already takes.
     BUDGET = 418_486
     if usable:
         per = BUDGET // len(usable)

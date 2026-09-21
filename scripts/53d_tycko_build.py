@@ -1,58 +1,7 @@
 #!/usr/bin/env python3
-"""
-Build the ASM scoring input from Do & Tycko 2020 (Tasks E1 + E2). CPU only.
-
-Why this replaces the Nat Commun atlas build
----------------------------------------------
-`53_asm_build.py` used the Rosenski/Loyfer atlas, which publishes ASM
-significance but NOT a signed allelic methylation difference. That capped the
-analysis at discrimination (E1) and made direction concordance and signed
-Spearman -- the two statistics the mentor named first -- impossible.
-
-Do & Tycko (Genome Biology 21:153, 2020) publish, per ASM index SNP:
-
-    snp avg avg meth read ref    % methylation on REF-allele reads
-    snp avg avg meth read alt    % methylation on ALT-allele reads
-    snp avg diff alt ref         signed ALT - REF, percentage points
-
-keyed REF->ALT, the same convention as the model's MUT-minus-WT delta. So this
-one catalogue answers BOTH questions and is used as the sole ASM source.
-
-Coordinates, which are mixed builds -- read this before trusting a position
---------------------------------------------------------------------------
-    `dmr` column             hg19, needs liftOver
-    SNP position             NOT in the table; rsID only, resolved through
-                             Ensembl REST, which returns GRCh38 already
-
-Verified on rs67165842: its DMR reads 1:100015940 while GRCh38 is 99550369.
-Getting this backwards would silently mis-place every variant.
-
-The REF allele is re-derived from hg38 rather than trusted
------------------------------------------------------------
-Their REF/ALT assignment comes from their own pipeline. If a site's alleles are
-swapped relative to hg38, the sign of `diff alt ref` must flip with them, and a
-silent error there inverts the entire direction-concordance result -- the one
-failure this analysis cannot survive. So hg38's base is read directly and:
-
-    hg38 REF == their REF   -> keep the sign
-    hg38 REF == their ALT   -> swap alleles AND negate the observed effect
-    neither matches         -> drop, counted
-
-Multi-allelic sites are excluded. Ensembl gives REF plus several ALTs and the
-table does not say which ALT its methylation refers to; guessing would score a
-different substitution than the one measured.
-
-Two labelled sets are emitted
------------------------------
-    asm_label 1   CpG inside the SNP's own ASM DMR      (E1 positive, E2 unit)
-    asm_label 0   CpG outside every ASM DMR, distance-matched   (E1 negative)
-
-E2 uses the positives only: per SNP, the mean predicted delta over its DMR CpGs
-is compared against that SNP's observed signed effect.
-
-Usage
------
-    python -u scripts/53d_tycko_build.py --output-dir data/external/asm_tycko_gb2020/scoring
+"""Build ASM scoring input from the Do & Tycko 2020 catalogue, which unlike the Rosenski
+atlas publishes a signed per-allele methylation difference. That signed value makes
+direction concordance and signed Spearman possible, not just discrimination.
 """
 
 from __future__ import annotations
@@ -154,9 +103,6 @@ def load_table(xlsx: Path, cache: Path) -> tuple[pd.DataFrame, dict]:
     joined["dmr_end_hg19"] = pd.to_numeric(region[2], errors="coerce")
     joined = joined.dropna(subset=["dmr_start_hg19", "dmr_end_hg19"])
     counters["with_parsable_dmr"] = int(len(joined))
-    # Rename once. The published column names contain spaces, which itertuples
-    # mangles into positional _N attributes -- a reliable source of silent
-    # off-by-one column reads.
     joined = joined.rename(columns={
         EFFECT: "observed_diff", METH_REF: "meth_ref", METH_ALT: "meth_alt",
         "snp avg fdr": "fdr", "all asm tissues": "asm_tissues",
@@ -221,7 +167,7 @@ def build_pairs(frame: pd.DataFrame, sequences: dict[str, str],
     for row in frame.itertuples(index=False):
         chrom = str(row.chr)
         sequence = sequences[chrom]
-        snp0 = int(row.pos1) - 1                    # Ensembl start is 1-based
+        snp0 = int(row.pos1) - 1
         if not 0 <= snp0 < len(sequence):
             counters["snp_out_of_bounds"] += 1
             continue
@@ -234,8 +180,6 @@ def build_pairs(frame: pd.DataFrame, sequences: dict[str, str],
             ref, alt, signed = a1, a2, observed
             counters["ref_matches_hg38"] += 1
         elif genome_ref == a2:
-            # hg38 reference is what they called ALT: swap, and negate, because
-            # the published effect is keyed to THEIR ref.
             ref, alt, signed = a2, a1, -observed
             counters["alleles_swapped_sign_flipped"] += 1
         else:
@@ -334,8 +278,6 @@ def match_negatives(pairs: pd.DataFrame, tolerance: int, seed: int) -> pd.DataFr
         keep_pos.append(idx)
         keep_neg.append(pick)
 
-    # E2 needs EVERY positive, not only the matched ones, so positives are kept
-    # whole and a `matched_for_e1` flag marks the balanced E1 subset.
     out = pd.concat([positives, negatives.loc[keep_neg]]).reset_index(drop=True)
     matched = set(keep_pos) | set(keep_neg)
     out["matched_for_e1"] = 0

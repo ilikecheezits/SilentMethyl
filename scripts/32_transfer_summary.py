@@ -1,39 +1,7 @@
 #!/usr/bin/env python3
-"""Aggregate the per-tissue transfer results into the single R3 table.
- 
-Why this exists
----------------
-scripts/31_transfer_discrimination.py runs ONE tissue at a time and writes
- 
-    results/journal/transfer_discrimination/<Tissue>/
-        run_summary.json                cohort sizes and the matching audit
-        per_model_on_shared_cohort.csv  marginal metrics with block-bootstrap CIs
-        tail_enrichment.csv             model vs distance, paired CIs
- 
-Nine directories is not a Results section. This reads all of them and emits one
-table answering the R3 question directly: does a model trained only on breast
-tissue prioritise variants above a distance-matched null in each tissue, and how
-does that track the tissue's statistical power.
- 
-Nothing is recomputed. Every value is read from what 31 already wrote, so this
-cannot disagree with the per-tissue outputs.
- 
-Two audits run automatically, because both are silent failure modes:
- 
-1. **Matching integrity.** `distance_only_auroc_after_matching` must be 0.5.
-   Anything else means the distance-matched cohort is not distance-matched, and
-   every AUROC in the column is confounded. Aborts.
- 
-2. **Cohort retention.** The pairs 31 actually used are compared against the
-   harmonised cohort recorded in split_summary.json. A large or uneven drop is
-   not necessarily wrong -- but it must be explained in Methods rather than
-   noticed by a reviewer, so it is printed as its own column.
- 
-Usage (run from the repository root)
-------------------------------------
-    python -u scripts/32_transfer_summary.py
-    python -u scripts/32_transfer_summary.py --model sequence
-    python -u scripts/32_transfer_summary.py --fraction 0.005
+"""Aggregate the per-tissue outputs of 31_transfer_discrimination.py into one cross-tissue
+table. Reads each tissue's run_summary.json and per-model metrics and reports them side
+by side with their intervals.
 """
  
 from __future__ import annotations
@@ -53,8 +21,6 @@ AUROC = "AUROC, distance-matched"
 RHO = "signed rho (significant)"
 AGREE = "direction agreement"
  
-# The matched null is built so distance alone cannot discriminate. If this drifts
-# the whole column is meaningless, so the tolerance is tight on purpose.
 MATCHING_TOL = 1e-6
  
  
@@ -168,7 +134,6 @@ def main(argv=None) -> int:
         raise SystemExit(f"STOP: no completed tissues under {args.root}")
  
     frame = attach_retention(pd.DataFrame(rows))
-    # Power order: the transfer question is partly "does this track cohort size".
     frame = frame.sort_values("significant", ascending=False).reset_index(drop=True)
  
     pct = int(round(args.fraction * 100_000)) / 1000
@@ -193,7 +158,6 @@ def main(argv=None) -> int:
     print("AUROC is on the distance-matched cohort, where distance alone gives "
           "exactly 0.5000 by construction.")
  
-    # ---- cohort retention -------------------------------------------------
     if frame["retention"].notna().any():
         print()
         print("COHORT RETENTION  (pairs 31 used / pairs the harmoniser produced)")

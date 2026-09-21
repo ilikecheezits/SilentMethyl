@@ -1,0 +1,16 @@
+panel,model,seed,estimator,aurc_beta_mae,beta_mae_full_coverage,beta_mae_50pct,scale,uncertainty
+6a,fusion,42,rc_disagreement,0.0588640533604716,0.0885394215008427,0.0530934928437588,beta,deterministic summary; no interval exported
+6a,fusion,42,cross_seed_sd,0.0524212854600349,0.0885394215008428,0.046682570711245,beta,deterministic summary; no interval exported
+6a,fusion,42,boundary_distance,0.0484625065535004,0.0885394215008428,0.0403146531979322,beta,deterministic summary; no interval exported
+6a,fusion,42,combined,0.0514507161928082,0.0885394215008428,0.0458251510990736,beta,deterministic summary; no interval exported
+6a,fusion,42,random,0.0888703396718566,0.0885394215008427,0.0892244688598358,beta,deterministic summary; no interval exported
+6a,sequence,42,rc_disagreement,0.0716806275949099,0.1089810050078441,0.0647738535780533,beta,deterministic summary; no interval exported
+6a,sequence,42,cross_seed_sd,0.0642705446906002,0.1089810050078441,0.0570255339590465,beta,deterministic summary; no interval exported
+6a,sequence,42,boundary_distance,0.0633309688610165,0.1089810050078441,0.0546370899223777,beta,deterministic summary; no interval exported
+6a,sequence,42,combined,0.0631454997763226,0.1089810050078441,0.0559648883744224,beta,deterministic summary; no interval exported
+6a,sequence,42,random,0.1088650556174464,0.1089810050078441,0.1089153972179563,beta,deterministic summary; no interval exported
+6a,epi,42,rc_disagreement,0.0803876397711031,0.102197164613077,0.0729494170863412,beta,deterministic summary; no interval exported
+6a,epi,42,cross_seed_sd,0.066354946491501,0.102197164613077,0.0620693256250257,beta,deterministic summary; no interval exported
+6a,epi,42,boundary_distance,0.0596217841323108,0.102197164613077,0.0542034138429041,beta,deterministic summary; no interval exported
+6a,epi,42,combined,0.0666817079507134,0.102197164613077,0.0645153544372452,beta,deterministic summary; no interval exported
+6a,epi,42,random,0.1025780375196801,0.102197164613077,0.1029237351547134,beta,deterministic summary; no interval exported

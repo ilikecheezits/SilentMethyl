@@ -1,0 +1,86 @@
+{
+  "folds": [
+    {
+      "fold": 0,
+      "n_test": 26570,
+      "n_train": 345359,
+      "n_val": 46557,
+      "reproduces_published": true,
+      "test_chroms": "chr8,chr9",
+      "val_chroms": "chr10,chr11"
+    },
+    {
+      "fold": 1,
+      "n_test": 26748,
+      "n_train": 350897,
+      "n_val": 40841,
+      "reproduces_published": NaN,
+      "test_chroms": "chr12,chr18",
+      "val_chroms": "chr1"
+    },
+    {
+      "fold": 2,
+      "n_test": 26783,
+      "n_train": 360669,
+      "n_val": 31034,
+      "reproduces_published": NaN,
+      "test_chroms": "chr20,chr4",
+      "val_chroms": "chr6"
+    },
+    {
+      "fold": 3,
+      "n_test": 26806,
+      "n_train": 361397,
+      "n_val": 30283,
+      "reproduces_published": NaN,
+      "test_chroms": "chr13,chr15,chr21",
+      "val_chroms": "chr2"
+    }
+  ],
+  "generated_utc": "2026-09-05T23:29:58+00:00",
+  "guarantees_checked": [
+    "no chromosome appears in two arms of a fold",
+    "no probeID appears in two arms of a fold",
+    "every pooled probe is assigned to exactly one arm"
+  ],
+  "manifest": null,
+  "note": "fold 0 reproduces the published split; later folds hold out a probe count as close as possible to fold 0's so that folds are comparable",
+  "per_chromosome": {
+    "chr1": 40841,
+    "chr10": 21052,
+    "chr11": 25505,
+    "chr12": 21495,
+    "chr13": 10444,
+    "chr14": 13121,
+    "chr15": 13017,
+    "chr16": 18537,
+    "chr17": 24255,
+    "chr18": 5253,
+    "chr19": 21922,
+    "chr2": 30283,
+    "chr20": 9277,
+    "chr21": 3345,
+    "chr22": 7179,
+    "chr3": 22180,
+    "chr4": 17506,
+    "chr5": 21136,
+    "chr6": 31034,
+    "chr7": 24878,
+    "chr8": 18058,
+    "chr9": 8512,
+    "chrX": 9646,
+    "chrY": 10
+  },
+  "probes_total": 418486,
+  "published_split": {
+    "test": [
+      "chr8",
+      "chr9"
+    ],
+    "val": [
+      "chr10",
+      "chr11"
+    ]
+  },
+  "sources": "train.csv,val.csv,test.csv"
+}

@@ -1,33 +1,11 @@
 #!/usr/bin/env python3
-"""Infer how a bigWig was made, and compare tracks side by side.
-
-Why
----
-The published breast accessibility track, data/reference/ATAC_seq.bw, was
-converted from a BAM with parameters nobody recorded. That matters because the
-joint multi-tissue model needs one accessibility recipe across every tissue, and
-"match the existing file" is impossible without knowing what it was.
-
-Some of the recipe IS recoverable from the file itself:
-
-  bin size        a binned track has fixed-width intervals; the modal width is
-                  the bin size directly.
-  normalisation   raw coverage is integer-valued. Any normalisation -- CPM, BPM,
-                  RPGC -- produces floats. If every value is a whole number the
-                  track was almost certainly written with --normalizeUsing None.
-  exclusion list  blacklisted regions are empty in a filtered track while their
-                  flanks carry signal. Sampling a few known regions shows
-                  whether a blacklist was applied.
-
-Some is NOT recoverable: duplicate handling, MAPQ threshold, read extension.
-Two tracks can therefore agree on everything this script measures and still
-differ systematically. Treat a match here as necessary, not sufficient.
-
-Usage (run from the repository root, in an environment with pyBigWig)
----------------------------------------------------------------------
-    python -u data/profile_bigwig.py data/reference/ATAC_seq.bw
-    python -u data/profile_bigwig.py data/reference/ATAC_seq.bw \\
-                                     data/reference/Lung/ATAC_seq.bw
+"""Infer how a bigWig was made, and compare tracks side by side. Recovers what the file
+itself reveals: bin size from the modal interval width, whether values are raw integer
+coverage or normalised floats, and whether an exclusion list was applied, by sampling
+known blacklisted regions against their flanks. Duplicate handling, MAPQ threshold and
+read extension are not recoverable, so two tracks can agree on everything measured here
+and still differ systematically -- treat a match as necessary, not sufficient. Requires
+pyBigWig.
 """
 
 from __future__ import annotations
@@ -45,8 +23,6 @@ except ImportError as exc:
     raise SystemExit(f"STOP: {exc}. Run in an environment with pyBigWig "
                      f"(the silentmethyl or deeptools env).") from exc
 
-# Sampling windows spread across a few chromosomes, in gene-dense and gene-poor
-# territory, so the value distribution is not read off one unusual locus.
 SAMPLE_REGIONS = [
     ("chr1", 1_000_000, 1_400_000),
     ("chr1", 150_000_000, 150_400_000),
@@ -71,7 +47,6 @@ def profile(path: Path, blacklist: Path | None) -> dict:
             "nBasesCovered": hdr.get("nBasesCovered"),
         }
 
-        # --- bin size, from the intervals themselves ---------------------
         widths: Counter = Counter()
         for chrom, start, end in SAMPLE_REGIONS:
             if chrom not in chroms or chroms[chrom] < end:
@@ -80,15 +55,12 @@ def profile(path: Path, blacklist: Path | None) -> dict:
                 widths[iv[1] - iv[0]] += 1
         out["interval_widths"] = widths.most_common(5)
         out["bin_size"] = widths.most_common(1)[0][0] if widths else None
-        # A single dominant width means a binned track; a spread of widths means
-        # run-length encoded base-resolution signal.
         if widths:
             top = widths.most_common(1)[0][1]
             out["binned"] = top / sum(widths.values()) > 0.9
         else:
             out["binned"] = None
 
-        # --- integer vs float, i.e. normalised or not --------------------
         vals = []
         for chrom, start, end in SAMPLE_REGIONS:
             if chrom not in chroms or chroms[chrom] < end:
@@ -109,13 +81,10 @@ def profile(path: Path, blacklist: Path | None) -> dict:
                 out["nonzero_quantiles"] = {
                     f"p{q}": round(float(np.percentile(nz, q)), 4) for q in qs}
                 out["nonzero_mean"] = round(float(nz.mean()), 4)
-                # Smallest positive value: for raw counts this is 1; for CPM it
-                # is the per-read scale factor, which gives the library size.
                 out["min_positive"] = round(float(nz.min()), 6)
                 if not integral and nz.min() > 0:
                     out["implied_reads_if_cpm"] = int(round(1e6 / nz.min()))
 
-        # --- was an exclusion list applied? -------------------------------
         if blacklist and blacklist.is_file():
             inside, flank = [], []
             opener = gzip.open if blacklist.suffix == ".gz" else open

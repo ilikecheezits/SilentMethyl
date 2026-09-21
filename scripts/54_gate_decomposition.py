@@ -1,62 +1,9 @@
 #!/usr/bin/env python3
-"""
-Gate decomposition of the fusion model's variant effect.
-
-What this measures
-------------------
-The allele-invariance claim in this paper has so far been an *argument*: the
-context vector is identical for REF and ALT, so it cannot carry an allele
-effect. This script turns it into a measured decomposition.
-
-The gated fusion forward pass is
-
-    dna  = LayerNorm(SequenceEncoder(window))          <- depends on the allele
-    epi  = LayerNorm(EpigeneticEncoder(tab, missing))  <- does NOT depend on it
-    g    = GateNet([dna, epi])                          <- depends on the allele,
-                                                           through `dna` only
-    m    = RegressionHead(g_dna * dna + g_epi * epi)
-
-so there are exactly two channels by which an allele can move the prediction:
-
-  1. the DNA channel   -- `dna` itself changes, gate held at its REF value;
-  2. the gate channel  -- `g` changes, `dna` held at its REF value.
-
-`epi` is bit-identical across alleles by construction. Its *contribution to the
-fused vector*, `g_epi * epi`, is NOT, because `g_epi` reads `dna`. That is the
-only route by which context can influence a variant effect at all, and its size
-is the number this script exists to report.
-
-Two subcommands
----------------
-`instrument`  GPU. Re-scores a cohort's variant pairs and saves, per pair and
-              per strand, the per-allele gates and four counterfactual
-              predictions that make the channel decomposition exact:
-
-                  m_ref        = head(g(R)_d * dna_R + g(R)_e * epi)
-                  m_alt        = head(g(A)_d * dna_A + g(A)_e * epi)
-                  m_alt_gateR  = head(g(R)_d * dna_A + g(R)_e * epi)   DNA only
-                  m_ref_gateA  = head(g(A)_d * dna_R + g(A)_e * epi)   gate only
-
-              m_ref and m_alt reproduce the ordinary scoring path exactly; they
-              are asserted against scripts/20_variant_scoring.py output when
-              that file is available.
-
-`analyse`     CPU. The regression and the distributions. Runs on instrumented
-              output when present, and falls back to the WT_/MUT_Gate_Avg
-              columns already in scripts/20 pair_scores.csv, which carry the
-              per-allele gates (fwd/RC averaged) but not the counterfactuals.
-
-Usage
------
-    python -u scripts/54_gate_decomposition.py instrument \
-        --input-csv data/external/egtex_breast/scoring/egtex_scoring_input_heldout.csv \
-        --cohort egtex --seed 42 --device cuda \
-        --weights-template 'checkpoints_ablation/breast_epithelium/seed{seed}/fusion/best_weights.pth' \
-        --split-template 'data/datafiles_breast_epithelium/{split}.csv' \
-        --output-dir results/journal/ablation_breast_epithelium/gate_decomposition
-
-    python -u scripts/54_gate_decomposition.py analyse \
-        --output-dir results/journal/ablation_breast_epithelium/gate_decomposition
+"""Decompose the fusion model's predicted variant effect into its sequence and gate
+channels by instrumenting the forward pass. The context embedding is identical for both
+alleles, but its gated contribution is not, so this measures how much of the predicted
+effect's variance that channel carries. Takes a subcommand: instrument to run the
+forward pass per cohort, then combine.
 """
 
 from __future__ import annotations
@@ -82,8 +29,6 @@ if str(SCRIPT_DIR) not in sys.path:
 
 LOGGER = logging.getLogger("silentmethyl.gatedecomp")
 
-# Cohort -> (default scoring input, default scripts/20 pair_scores location under
-# the ablation tree). Both are overridable; these are what the R6/R7 chain used.
 COHORTS = {
     "genoa": (
         "data/external/genoa_meqtl/scoring/genoa_scoring_input_heldout.csv",
@@ -105,10 +50,6 @@ def _load_scoring_module():
     spec.loader.exec_module(module)
     return module
 
-
-# ---------------------------------------------------------------------------
-# instrument
-# ---------------------------------------------------------------------------
 
 def run_instrument(args: argparse.Namespace) -> int:
     import torch
@@ -234,11 +175,6 @@ def run_instrument(args: argparse.Namespace) -> int:
             dna_r, epi_r = branch_pass(wt_s, t, mss, f"REF {strand}")
             dna_a, epi_a = branch_pass(mut_s, t, mss, f"ALT {strand}")
 
-            # The epigenetic branch takes only (tab, missing), which are identical
-            # for the two alleles, so `epi` must be bit-identical. Measured, not
-            # assumed: a future refactor that let the context see the sequence
-            # would invalidate the entire allele-invariance argument, and this is
-            # where that would surface.
             epi_bit_identical = torch.equal(epi_r, epi_a)
             epi_max_abs_diff = float((epi_r - epi_a).abs().max())
 
@@ -247,15 +183,8 @@ def run_instrument(args: argparse.Namespace) -> int:
 
             fused_ref = dna_r * g_r[:, 0:1] + epi_r * g_r[:, 1:2]
             fused_alt = dna_a * g_a[:, 0:1] + epi_a * g_a[:, 1:2]
-            # DNA channel only: the allele changes `dna`, the gate is pinned at REF.
             fused_alt_gateR = dna_a * g_r[:, 0:1] + epi_r * g_r[:, 1:2]
-            # Gate channel only: `dna` is pinned at REF, the gate takes its ALT value.
             fused_ref_gateA = dna_r * g_a[:, 0:1] + epi_r * g_a[:, 1:2]
-            # Splits the GATE channel in two. Here g_dna has moved to its ALT
-            # value but g_epi is still at REF, so the step from fused_alt_gateR
-            # to this is pure sequence self-rescaling, and the step from this to
-            # fused_alt is the context-content term (g_epi re-weighting a FIXED
-            # epi vector). The two sum to the gate channel exactly.
             fused_alt_gateEpiR = dna_a * g_a[:, 0:1] + epi_r * g_r[:, 1:2]
 
             m_ref = head_of(fused_ref)
@@ -265,8 +194,6 @@ def run_instrument(args: argparse.Namespace) -> int:
             m_alt_gateEpiR = head_of(fused_alt_gateEpiR)
             strand_m[strand] = (m_ref, m_alt)
 
-            # The epi branch's contribution to the fused vector. Allele-invariant
-            # only to the extent that g_epi is.
             contrib_r = epi_r * g_r[:, 1:2]
             contrib_a = epi_a * g_a[:, 1:2]
             contrib_identical = (contrib_r == contrib_a).all(dim=1).numpy()
@@ -292,12 +219,10 @@ def run_instrument(args: argparse.Namespace) -> int:
             out[f"Delta_M_Gate_Channel_{p}"] = (m_alt - m_alt_gateR).numpy()
             out[f"Delta_M_Gate_Channel_AtREF_{p}"] = (m_ref_gateA - m_ref).numpy()
             out[f"M_ALT_GateEpiREF_{p}"] = m_alt_gateEpiR.numpy()
-            # gate channel = g_dna sub-channel + g_epi sub-channel, exactly.
             out[f"Delta_M_Gate_gdna_{p}"] = (m_alt_gateEpiR - m_alt_gateR).numpy()
             out[f"Delta_M_Gate_gepi_{p}"] = (m_alt - m_alt_gateEpiR).numpy()
             out[f"DNA_L2_Diff_{p}"] = (dna_a - dna_r).norm(dim=1).numpy()
 
-        # RC-averaged quantities, matching the convention scripts/20 reports on.
         m_ref_avg = (strand_m["FWD"][0] + strand_m["RC"][0]) / 2.0
         m_alt_avg = (strand_m["FWD"][1] + strand_m["RC"][1]) / 2.0
         out["WT_M_RC_Avg"] = m_ref_avg.numpy()
@@ -316,9 +241,6 @@ def run_instrument(args: argparse.Namespace) -> int:
 
     scored = pd.concat(frames, ignore_index=True)
 
-    # Reproduction check against the ordinary scorer. The instrumented path
-    # rebuilds the forward pass by hand; if it has drifted from FusionModel.forward
-    # every number below is measuring the wrong model.
     reproduction = None
     if args.reference_pair_scores:
         ref_path = Path(args.reference_pair_scores)
@@ -378,10 +300,6 @@ def run_instrument(args: argparse.Namespace) -> int:
     LOGGER.info("wrote %s (%d rows)", target, len(scored))
     return 0
 
-
-# ---------------------------------------------------------------------------
-# analyse
-# ---------------------------------------------------------------------------
 
 def _ols_r2(x: np.ndarray, y: np.ndarray, fit_intercept: bool = True) -> dict:
     """Univariate OLS of y on x. R^2 is 1 - SSres/SStot about the mean of y."""
@@ -482,12 +400,8 @@ def analyse_cohort(cohort: str, args: argparse.Namespace) -> dict:
     }
 
     models = {
-        # The claim: the fusion variant effect is the sequence variant effect
-        # rescaled by the learned DNA gate.
         "delta_fusion ~ delta_sequence * gate_dna(REF)": delta_seq * gate_ref,
         "delta_fusion ~ delta_sequence * gate_dna(mean of REF,ALT)": delta_seq * gate_mid,
-        # Reference points. The first says how much the gate rescaling adds over
-        # the raw sequence delta; the second is the null of no sequence signal.
         "delta_fusion ~ delta_sequence (no gate)": delta_seq,
     }
     for name, predictor in models.items():
@@ -513,7 +427,6 @@ def analyse_cohort(cohort: str, args: argparse.Namespace) -> dict:
                  "instrumented run reports them per strand as well."),
     }
 
-    # Instrumented output, when it exists: the exact channel decomposition.
     inst_path = args.output_dir / cohort / f"seed{args.seed}" / "instrumented_pairs.csv"
     if inst_path.is_file():
         inst = pd.read_csv(inst_path)
@@ -547,9 +460,6 @@ def analyse_cohort(cohort: str, args: argparse.Namespace) -> dict:
                 stats.spearmanr(gate_ch, dna_ch).statistic),
         }
 
-        # The gate channel split into sequence self-rescaling (g_dna) and the
-        # context-content term (g_epi re-weighting a fixed epi vector). Present
-        # only in runs from the extended instrument path.
         if "Delta_M_Gate_gdna_RC_Avg" in inst.columns:
             gd = inst["Delta_M_Gate_gdna_RC_Avg"].to_numpy(float)
             ge = inst["Delta_M_Gate_gepi_RC_Avg"].to_numpy(float)
@@ -568,10 +478,6 @@ def analyse_cohort(cohort: str, args: argparse.Namespace) -> dict:
                          "the variant effect."),
             }
 
-        # Does the gate channel carry signal about the MEASURED effect that the
-        # DNA channel does not already carry? Marginal correlation cannot answer
-        # this -- the channels are strongly rank-correlated -- so the partial is
-        # the test, and it is the number the allele-invariance claim turns on.
         eff_col = next((c for c in ("beta_genoa_ref_to_alt", "beta_ref_to_alt")
                         if c in inst.columns and inst[c].notna().sum() > 1000), None)
         if eff_col:
@@ -683,7 +589,7 @@ def parse_args() -> argparse.Namespace:
     i.add_argument("--input-csv", type=Path, default=None)
     i.add_argument("--seed", type=int, default=42)
     i.add_argument("--weights-template",
-                   default="checkpoints_ablation/breast_epithelium/seed{seed}/fusion/best_weights.pth")
+                   default="checkpoints_journal/seed{seed}/fusion/best_weights.pth")
     i.add_argument("--split-template",
                    default="data/datafiles_breast_epithelium/{split}.csv")
     i.add_argument("--hm450-manifest", type=Path,

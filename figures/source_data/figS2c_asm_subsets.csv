@@ -1,0 +1,5 @@
+panel,stratum,arm,n_snps,n_blocks,direction_concordance,ci_low,ci_high,signed_spearman,prespecified,note,uncertainty
+S2c,mammary,fusion,53,33,0.5660377358490566,0.4426229508196721,0.6939219165927238,0.1289308176100629,True,tissue subset,"2,000 block resamples"
+S2c,mammary,sequence,53,33,0.5660377358490566,0.4259259259259259,0.7059077079107504,0.1103047895500725,True,tissue subset,"2,000 block resamples"
+S2c,|effect| >= 20.0pp,fusion,578,161,0.6055363321799307,0.5569948425624321,0.652494839631629,0.2575029761526534,False,post-hoc effect-size restriction,"2,000 block resamples"
+S2c,|effect| >= 20.0pp,sequence,578,161,0.6124567474048442,0.565527780842684,0.6552317717708708,0.2670439406687853,False,post-hoc effect-size restriction,"2,000 block resamples"

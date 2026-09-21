@@ -1,24 +1,7 @@
 #!/usr/bin/env python3
-"""
-Evaluate a frozen journal checkpoint on the untouched chromosome-held-out test
-split. Merges what were scripts 02_test_epi / 02_test_sequence / 02_test_fusion.
-
-    python -u scripts/13_test_model.py --model fusion
-    python -u scripts/13_test_model.py --model sequence --seed 43
-    python -u scripts/13_test_model.py --model epi
-
-The three arms differ only in which towers the model has, and therefore in what
-the forward pass takes and returns. Everything after the forward pass -- the RC
-average, the metrics, the predictions frame, the figures -- was already
-identical across the three files and is now written once.
-
-Defaults for weights path, output directory and batch size follow `--model`;
-pass the flag explicitly to override. Nothing about the arms' behaviour changed
-in the merge: the gate block runs only for fusion, the phyloP-swap note stays on
-the context-only arm, and each arm keeps its own `model_type` string, figure
-title and log line.
-
-Results section R1 (absolute prediction) and R2 (gate telemetry).
+"""Evaluate a frozen checkpoint on the untouched chromosome-held-out test split. Takes
+--model {fusion,sequence,epi} and --seed, and writes metrics.json plus per-probe
+predictions.
 """
 
 from __future__ import annotations
@@ -56,10 +39,6 @@ from testing_common import (
     save_standard_figures,
 )
 
-
-# --------------------------------------------------------------------------
-# per-arm specification -- the only place the three models differ
-# --------------------------------------------------------------------------
 
 ARMS = {
     "epi": {

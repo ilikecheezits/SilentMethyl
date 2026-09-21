@@ -6,19 +6,19 @@
     {
       "model": "fusion",
       "seed": 42,
-      "weights_path": "checkpoints_ablation/breast_epithelium/seed42/fusion/best_weights.pth",
+      "weights_path": "checkpoints_journal/seed42/fusion/best_weights.pth",
       "weights_sha256": "8e8917433f25a6960788c6ff3a7bf1a915793e04eaec8c00cd16f59c1c97c0c3"
     },
     {
       "model": "fusion",
       "seed": 43,
-      "weights_path": "checkpoints_ablation/breast_epithelium/seed43/fusion/best_weights.pth",
+      "weights_path": "checkpoints_journal/seed43/fusion/best_weights.pth",
       "weights_sha256": "3147158b5aa9b4a4b2eaf2ad297dad34415092a80e6ab82202469211ef433982"
     },
     {
       "model": "fusion",
       "seed": 44,
-      "weights_path": "checkpoints_ablation/breast_epithelium/seed44/fusion/best_weights.pth",
+      "weights_path": "checkpoints_journal/seed44/fusion/best_weights.pth",
       "weights_sha256": "a24824882605ff39c03bad7469873a9392031d4815c94c528698fd563fac903d"
     },
     {

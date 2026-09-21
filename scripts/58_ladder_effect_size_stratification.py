@@ -1,47 +1,8 @@
 #!/usr/bin/env python3
-"""
-Does the context-ladder dissociation survive stratification by effect size?
-
-The question
-------------
-`23_context_permutation.py` (job 46007255) prints a verdict banner claiming the
-allele-invariance argument fails empirically. That banner is computed on
-**Pearson**, which §1 R2 of LAB_NOTES already documents as the wrong comparison:
-methylation levels are bimodal with SD ~3.18 M-units, so a high Pearson on levels
-is cheap and not comparable against the same statistic on deltas.
-
-Pooled over all 76,893 pairs the metrics disagree -- normalised MAE favours the
-deltas at every rung, while Spearman/sign/Pearson favour them only under
-`shuffle`. This script settles the disagreement by stratifying on effect size.
-
-Why the stratifier is the whole methodology
---------------------------------------------
-Binning on the model's own |Predicted_Delta_M| from the identity run is
-**invalid** and it produces a dramatic false reversal: selecting pairs whose
-identity delta landed near zero guarantees the comparison rung's delta sits
-relatively further away, by regression to the mean alone. That artefact is
-reproduced here under `--stratifier predicted` precisely so it is on the record
-as an artefact and nobody rediscovers it and believes it.
-
-The valid stratifier is the **observed** effect size `beta_ref_to_alt`, which is
-measured, not predicted, and therefore independent of every rung. Under it the
-dissociation holds at every quintile of every rung and strengthens monotonically
-with effect size.
-
-Normalisation
--------------
-Both quantities are normalised by their own WITHIN-BIN standard deviation, so
-levels (M-units, SD ~3.18) and deltas (SD ~0.10) are compared on equal footing
-inside each stratum. Normalising by a global SD instead inflates the small-effect
-bins and is what makes the pooled table ambiguous.
-
-    ratio = normMAE_levels / normMAE_deltas      > 1 means deltas moved LESS
-
-Zero GPU. Reads the frozen `46007255` outputs; computes nothing new from models.
-
-Usage
------
-    python -u scripts/58_ladder_effect_size_stratification.py
+"""Check whether the context-ladder dissociation survives stratification by effect size.
+Stratify on the observed effect (beta_ref_to_alt), which is model-independent; binning
+on the model's own predicted delta manufactures a reversal through regression to the
+mean, and is reproduced under --stratifier predicted only to document that artefact.
 """
 
 from __future__ import annotations

@@ -1,55 +1,8 @@
 #!/usr/bin/env python3
-"""
-Evaluate the ASM validation (Task E1). CPU only, seconds to run, rerunnable.
-
-The question
-------------
-Does SilentMethyl assign larger predicted variant effects to SNV-CpG pairs that
-actually show allele-specific methylation than to distance-matched pairs that do
-not? The model has never seen an ASM measurement, and every CpG scored here is an
-arbitrary genomic CpG rather than an array probe, so this is a genuinely external
-test of whether the learned sequence->methylation response transfers.
-
-What is and is not being measured
-----------------------------------
-The published atlas tables give significance and sample membership but **no
-signed allelic methylation difference and no per-allele beta**. So:
-
-    AUROC vs distance-matched negatives      measured here
-    direction concordance                    NOT possible from these tables
-    signed Spearman                          NOT possible from these tables
-
-That is a property of the source data, not a choice. Getting the signed
-statistics needs per-allele methylation -- either CanASM (server down since at
-least 15 Sep 2026) or a build on GSE186458's read-level data. Report the
-limitation; do not quietly substitute |delta| agreement for direction agreement.
-
-Two contrasts, and which one to believe
-----------------------------------------
-positive_vs_bimodal_non_asm   the controlled test -- LEAD WITH THIS
-positive_vs_background        the weaker, less specific test
-
-ASM regions are a subset of the atlas's bimodal methylation regions, which are
-CpG-dense, intermediate-methylation and enhancer-like. Against plain background
-CpGs the model could separate them by recognising that regional character alone,
-with nothing allele-specific involved. The bimodal-but-not-ASM contrast holds
-that character fixed. If the background contrast separates and the bimodal one
-does not, the honest conclusion is that the model recognises the region class,
-not allele-specific methylation.
-
-Protocol, matched to the GENOA/eGTEx work
-------------------------------------------
-- positives and negatives matched on |variant-to-CpG distance|, 10 bp tolerance
-- 1 Mb block bootstrap over genomic blocks, 2,000 replicates
-- distance-only baseline reported alongside; matching should pin it near 0.5,
-  and if it does not, the matching failed and the headline AUROC is not
-  interpretable
-- fusion and sequence arms both reported; the sequence arm is the tissue-agnostic
-  comparator
-
-Usage
------
-    python -u scripts/53c_asm_evaluate.py
+"""Evaluate the ASM discrimination test: do pairs showing allele-specific methylation
+receive larger predicted effects than distance-matched pairs that do not? The atlas
+publishes significance but no signed allelic difference, so this reports discrimination
+only, with AUROC and a 1 Mb block-bootstrap interval against both negative tiers.
 """
 
 from __future__ import annotations
@@ -144,9 +97,6 @@ def evaluate(frame: pd.DataFrame, label: str, args: argparse.Namespace,
         rows.append({"Stratum": label, "Score": arm, "N_Pairs": int(len(sub)),
                      "N_Positive": int((sub["asm_label"] == 1).sum()), **stats})
 
-    # Distance-only baseline. Shorter variant-to-CpG distance is the naive
-    # predictor of a larger effect, so the score is -|distance|. After matching
-    # this must land near 0.5; if it does not, the matching failed.
     one_arm = frame[frame["Model"] == sorted(frame["Model"].unique())[0]]
     stats = block_auc(
         one_arm["asm_label"].to_numpy(dtype=int),

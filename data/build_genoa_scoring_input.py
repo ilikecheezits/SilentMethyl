@@ -1,49 +1,12 @@
 #!/usr/bin/env python3
-"""
-Turn harmonized GENOA pairs into scoring input SilentMethyl can actually run.
-
-The gap this closes
--------------------
-Harmonization gives you variant-CpG pairs with hg38 coordinates, but GENOA reports
-`allele1`/`allele0` (minor/major) -- NOT reference/alternate. SilentMethyl's
-paired WT/MUT scoring needs REF and ALT. This script resolves REF from hg38.fa at
-each position, assigns ALT as the other allele, and writes the
-`Variant_ID, Gene, chr, Position_1based, Ref, Alt` lead columns that
-scripts/20_variant_scoring.py consumes.
-
-Four things it does that matter for the analysis
--------------------------------------------------
-1. **Splits by what the model has seen.** Pairs are labelled by the split their
-   probe belongs to (read from your actual train/val/test CSVs, not assumed from
-   chromosome numbers). Scoring a variant at a probe the model trained on is not
-   independent validation. Two files are written and only the held-out one
-   supports the external-validation claim -- mirroring the heldout /
-   model_visible distinction you already use for eGTEx.
-
-2. **Flags CpG-altering variants.** A variant that creates or destroys a CG
-   dinucleotide has a near-deterministic methylation direction that needs no
-   model. Without this flag, direction-agreement numbers have an untested trivial
-   explanation. Columns: `alters_target_cpg`, `creates_cpg`, `destroys_cpg`.
-
-3. **Reports allele mismatches instead of hiding them.** If neither GENOA allele
-   matches the hg38 reference base, the pair is dropped and counted. A high
-   mismatch rate means the liftover or the strand convention is wrong, and you
-   want that surfaced, not silently absorbed.
-
-4. **Aligns the effect allele.** GENOA's `beta` is the effect of the MINOR allele
-   (GEMMA convention). The model's delta is the effect of ALT over hg38 REF. Those
-   agree only when ALT happens to be the minor allele. `beta_genoa_ref_to_alt`
-   re-signs the published effect into the REF->ALT direction; compare against that
-   column, never raw `beta_genoa`. Mixing the two conventions does not raise -- it
-   just quietly deflates signed correlation and direction agreement, which are the
-   two headline numbers for independent variant evaluation.
-
-Reads hg38.fa directly through its .fai index -- no pyfaidx dependency.
-
-Usage (run from the repository root)
-------------------------------------
-    python -u data/build_genoa_scoring_input.py --inspect
-    python -u data/build_genoa_scoring_input.py
+"""Turn harmonized GENOA pairs into paired REF/ALT scoring input. GENOA reports
+allele1/allele0 (minor/major) rather than reference/alternate, so REF is resolved from
+hg38.fa at each position and ALT assigned as the other allele. Pairs are labelled by the
+split their probe belongs to, read from the actual split CSVs, and written as separate
+held-out and model-visible files; only the held-out file supports an external-validation
+claim. Variants creating or destroying a CpG are flagged, allele mismatches are dropped
+and counted, and beta_genoa_ref_to_alt re-signs the published effect into the REF->ALT
+direction -- compare against that column, never raw beta_genoa.
 """
 
 from __future__ import annotations
@@ -66,14 +29,6 @@ DEFAULT_OUT = Path("data/external/genoa_meqtl/scoring")
 
 COMPLEMENT = str.maketrans("ACGTNacgtn", "TGCANtgcan")
 
-# Geometry of the trained model window, mirrored from
-# scripts/matched_background_utils.py (CENTER_C_INDEX / CENTER_G_INDEX) and
-# scripts/63_known_variant_application.py (MODEL_TARGET_C_INDEX).
-# The 1,000-bp crop places the target CpG's C at index 499 and its G at 500, so a
-# variant is visible to the model only when its offset from the C lies in
-# [-499, +500]. Offsets 0 and +1 hit the target CpG itself and are unscoreable:
-# the architecture's whole premise is a CpG at 499:501, and annotate_variant()
-# rejects any mutant sequence that breaks it.
 MODEL_TARGET_C_INDEX = 499
 MODEL_WINDOW_SIZE = 1000
 MIN_SCOREABLE_OFFSET = -MODEL_TARGET_C_INDEX
@@ -129,7 +84,11 @@ def load_split_labels(split_dir: Path) -> dict:
             logging.warning("%s not found -- split labelling will be incomplete", path)
             continue
         head = pd.read_csv(path, nrows=0)
-        col = "probeID" if "probeID" in head.columns else head.columns[0]
+        if "probeID" not in head.columns:
+            raise SystemExit(
+                f"STOP: {path} has no probeID column (found {list(head.columns)[:5]}). "
+                "Guessing the first column would label splits from the wrong field.")
+        col = "probeID"
         ids = pd.read_csv(path, usecols=[col])[col].astype(str)
         for p in ids:
             labels[p] = name
@@ -149,7 +108,6 @@ def annotate(df: pd.DataFrame, fasta: FastaReader, stats: Counter) -> pd.DataFra
     for row in df.itertuples(index=False):
         pos0 = int(row.snp_pos_hg38)
         chrom = str(row.snp_chr)
-        # 3-mer centred on the SNP: enough to detect CG creation/destruction
         ctx = fasta.fetch(chrom, pos0 - 1, pos0 + 2)
         if len(ctx) < 3:
             stats["dropped_no_reference_sequence"] += 1
@@ -162,17 +120,11 @@ def annotate(df: pd.DataFrame, fasta: FastaReader, stats: Counter) -> pd.DataFra
         a1 = str(row.allele_minor).strip().upper()
         a0 = str(row.allele_major).strip().upper()
 
-        # ALT is whichever GENOA allele is NOT the hg38 reference base. That is the
-        # right definition for building a mutant sequence, but it does NOT always
-        # make ALT the minor allele -- and `beta_genoa` is keyed to the minor
-        # allele. Record which case we are in so the effect size can be re-signed.
         if ref_base == a0:
-            alt_base, alt_minor = a1, True     # ref = major, alt = minor
+            alt_base, alt_minor = a1, True
         elif ref_base == a1:
-            alt_base, alt_minor = a0, False    # ref = minor, alt = major
+            alt_base, alt_minor = a0, False
         else:
-            # Neither allele matches hg38. Counted, not hidden -- a high rate here
-            # means the liftover or strand convention is wrong.
             stats["dropped_allele_mismatch"] += 1
             keep.append(False); refs.append(ref_base); alts.append("")
             alters.append(False); creates.append(False); destroys.append(False)
@@ -210,19 +162,6 @@ def annotate(df: pd.DataFrame, fasta: FastaReader, stats: Counter) -> pd.DataFra
     df["_keep"] = keep
     df = df[df["_keep"]].drop(columns="_keep").reset_index(drop=True)
 
-    # ---- Effect-allele alignment. This is the column downstream analysis must use.
-    #
-    # GENOA is GEMMA output (`allele1`, `allele0`, `af`, `beta`, `se`, `p_wald`), and
-    # GEMMA reports `beta` as the effect per copy of allele1 -- the minor allele.
-    # SilentMethyl's prediction is MUT minus WT, i.e. the effect of substituting ALT
-    # for the hg38 REF. Those two directions agree only when ALT is the minor allele.
-    # When the reference base happens to BE the minor allele, ALT is the major allele
-    # and the model delta runs opposite to beta_genoa.
-    #
-    # Correlating raw beta_genoa against the model delta would therefore mix two sign
-    # conventions and silently depress both signed correlation and direction
-    # agreement -- the two headline numbers for independent variant evaluation. It
-    # would not raise, and it would not look obviously wrong.
     if "beta_genoa" in df.columns:
         sign = np.where(df["alt_is_minor_allele"].to_numpy(dtype=bool), 1.0, -1.0)
         df["beta_genoa_ref_to_alt"] = (
@@ -289,21 +228,6 @@ def cmd_run(args) -> int:
     fasta.close()
     logging.info("%d pairs with resolved alleles", len(df))
 
-    # ---- Keep only pairs the model can actually score.
-    #
-    # Two classes are removed here rather than downstream, so the counts are stated
-    # once in the summary instead of surfacing later as an unexplained shortfall:
-    #
-    #   outside the window  the harmonizer's +/-500 bp cut is one base wider on the
-    #                       left than the model crop, so an offset of exactly -500
-    #                       lands at index -1. Such a variant is invisible to the
-    #                       model, which would return a delta of exactly 0.0 and
-    #                       quietly drag every aggregate metric toward the null.
-    #
-    #   alters target CpG   offsets 0 and +1 hit the target C or G. The model is
-    #                       built around a CpG at indices 499:501; a variant that
-    #                       destroys it has no defined prediction, and the array
-    #                       probe reading is itself a known SNP-under-probe artifact.
     offset = pd.to_numeric(df["distance_bp"], errors="coerce")
     in_window = offset.between(MIN_SCOREABLE_OFFSET, MAX_SCOREABLE_OFFSET)
     hits_cpg = df["alters_target_cpg"].astype(bool)
@@ -327,9 +251,6 @@ def cmd_run(args) -> int:
                          "p_wald") if c in df.columns]
     df = df[lead_cols + extra]
 
-    # Only the two strata are written. A concatenated "all" file was removed: it is
-    # byte-for-byte the two below, and any script that globs this directory would
-    # score every pair twice and pool two populations that must never be pooled.
     written = {}
     for name, subset in (("heldout", df[df["probe_split"] == "test"]),
                          ("model_visible", df[df["probe_split"].isin(["train", "val"])])):
@@ -347,15 +268,21 @@ def cmd_run(args) -> int:
             "bytes": int(target.stat().st_size),
         }
 
-    total = sum(stats.values())
+    # Rows annotate() actually classified. These four are mutually exclusive and
+    # exhaustive; the other counters (ref_is_minor_allele_effect_resigned, and the
+    # window/CpG drops added below) are subsets of `kept`, so summing every value
+    # would inflate the denominator and understate the mismatch rate.
+    seen = (stats["kept"] + stats["dropped_allele_mismatch"]
+            + stats["dropped_non_snv"] + stats["dropped_no_reference_sequence"])
     summary = {
         "analysis": "GENOA harmonized pairs -> SilentMethyl scoring input",
-        "purpose": "mentor requirements: independent variant evaluation, ancestry, multi-cohort",
+        "purpose": "independent variant evaluation, cross-ancestry and cross-cohort",
         "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "input_pairs": str(args.pairs),
         "reference": str(args.fasta),
         "allele_resolution": dict(stats),
-        "allele_mismatch_rate": (stats["dropped_allele_mismatch"] / total) if total else 0.0,
+        "allele_mismatch_rate": (stats["dropped_allele_mismatch"] / seen) if seen else 0.0,
+        "allele_resolution_rows_seen": int(seen),
         "strata": written,
         "split_labelling": ("probe_split read from data/datafiles/{train,val,test}.csv, "
                             "not inferred from chromosome number"),

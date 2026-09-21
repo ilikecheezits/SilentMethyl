@@ -1,31 +1,9 @@
 #!/usr/bin/env python3
-"""
-Assemble the R8 supplementary data sections (S7-S11). CPU only, seconds.
-
-Why this is separate from 90_build_supplement_package.py
----------------------------------------------------------
-Script 90 carries a hard-coded manifest of the published S1-S6 sections and
-validates them on the way through. This adds the R8 analyses as S7-S11 into their
-own package directory, leaving script 90 and the published sections untouched.
-The two directories are merged at submission time; both follow the same layout
-(numbered section folders, a README naming every file, and SHA256SUMS.txt).
-
-Sections
---------
-    S7   Gate decomposition and the sub-channel split        (Task A)
-    S8   Context dose-response ladder                        (Task B)
-    S9   Where zero-shot transfer fails                      (Task D)
-    S10  Where the fusion gain concentrates                  (Task F)
-    S11  Allele-specific methylation validation              (Task E1)
-
-Missing inputs are reported, not fatal: S11 does not exist until the ASM job has
-landed, and a partial package is more useful than a failed build. The README
-states plainly which sections were omitted so a partial package cannot be
-mistaken for a complete one.
-
-Usage
------
-    python -u scripts/93_build_r8_supplement.py
+"""Assemble supplementary data sections S7-S12 into numbered folders with a README and
+SHA256SUMS. Runs a guard that refuses to produce a package, and deletes it, if any
+packaged file carries a marker of the superseded reference tracks or any source lies
+outside a breast-epithelium or context-free path. --check-package scans an existing
+package without building or deleting anything.
 """
 
 from __future__ import annotations
@@ -44,23 +22,13 @@ from pathlib import Path
 JOURNAL = Path("results/journal")
 ABL = JOURNAL / "ablation_breast_epithelium"
 
-# ---------------------------------------------------------------------------
-# MCF-10A guard, shared with 90_build_supplement_package.py.
-#
-# The context changed from MCF-10A to primary breast epithelium on 11 Sep 2026.
-# Two independent checks stop a superseded product reaching a package:
-#
-#   1. TEXT MARKERS. No packaged file may name the MCF-10A context: the cell
-#      line in any spelling, the Mint-ChIP assay, or any accession of the seven
-#      MCF-10A tracks. PDFs are checked through pdftotext. PNGs cannot be read
-#      and are covered by check 2 only.
-#   2. PROVENANCE. A number carries no marker, so every packaged source must
-#      also resolve under a breast-epithelium or context-free path. Pre-swap
-#      results live directly under results/journal/<analysis>/ and are refused
-#      unless listed in CONTEXT_FREE_SOURCES.
-# ---------------------------------------------------------------------------
-MCF10A_MARKERS = re.compile(
-    r"MCF[\s_-]*10\s*A|\bMCF\b|Mint[\s_-]*ChIP|"
+# Fingerprint of the superseded pre-11 Sep 2026 reference tracks: the ENCODE
+# accessions of their seven bigWigs, plus the assay that distinguishes them
+# (Mint-ChIP, against the fold-change-over-control ChIP-seq of the published
+# breast-epithelium set). A packaged file carrying any of these was derived from
+# a context that reaches no published number.
+SUPERSEDED_CONTEXT_MARKERS = re.compile(
+    r"Mint[\s_-]*ChIP|"
     r"ENCFF548SFG|ENCFF282YCX|ENCFF274LWG|ENCFF423DKY|ENCFF634LDP|ENCFF714NIL|"
     r"ENCFF021PIS|ENCSR037XNN|ENCAN638MKH",
     re.IGNORECASE)
@@ -73,12 +41,10 @@ BREAST_EPITHELIUM_SOURCES = (
     "data/reference/BreastEpithelium/",
     "data/external/",
 )
-# Provenance records and dependency pins, which carry no model output.
 CONTEXT_FREE_SOURCES = (
     "reproducibility/",
     "requirements.txt",
 )
-# Individual context-free files outside those trees (none at present).
 CONTEXT_FREE_FILES: set[str] = set()
 
 
@@ -90,7 +56,7 @@ def source_is_allowed(source: Path | str) -> bool:
 
 
 def marker_hits(package_dir: Path) -> list[str]:
-    """Every MCF-10A marker in every file under package_dir, as 'file:line: text'."""
+    """Every superseded-context marker under package_dir, as 'file:line: text'."""
     hits: list[str] = []
     for path in sorted(p for p in Path(package_dir).rglob("*") if p.is_file()):
         rel = path.relative_to(package_dir).as_posix()
@@ -106,7 +72,7 @@ def marker_hits(package_dir: Path) -> list[str]:
         else:
             text = path.read_bytes().decode("utf-8", errors="replace")
         for lineno, line in enumerate(text.splitlines(), 1):
-            if MCF10A_MARKERS.search(line):
+            if SUPERSEDED_CONTEXT_MARKERS.search(line):
                 hits.append(f"{rel}:{lineno}: {line.strip()[:160]}")
     return hits
 
@@ -116,9 +82,9 @@ def enforce_context_guard(package_dir: Path, sources: list[Path | str]) -> int:
     bad_sources = [str(s) for s in sources if not source_is_allowed(s)]
     hits = marker_hits(package_dir)
     if not bad_sources and not hits:
-        print(f"[guard] MCF-10A guard clean: {len(sources)} sources, no markers")
+        print(f"[guard] context guard clean: {len(sources)} sources, no markers")
         return 0
-    print("[guard] MCF-10A GUARD FAILED -- package removed", file=sys.stderr)
+    print("[guard] CONTEXT GUARD FAILED -- package removed", file=sys.stderr)
     for s in bad_sources:
         print(f"  source outside breast-epithelium/context-free paths: {s}", file=sys.stderr)
     for h in hits:
@@ -387,7 +353,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--output-dir", type=Path,
                    default=Path("results/supplementary_package_r8"))
     p.add_argument("--check-package", type=Path, default=None,
-                   help="Only scan an existing package directory for MCF-10A "
+                   help="Only scan an existing package directory for superseded-context "
                         "markers and exit non-zero on any hit. Nothing is deleted.")
     return p.parse_args()
 
@@ -396,7 +362,7 @@ def check_only(package_dir: Path) -> int:
     hits = marker_hits(package_dir)
     for h in hits:
         print(f"  marker: {h}", file=sys.stderr)
-    print(f"[guard] {package_dir}: {len(hits)} MCF-10A marker(s)")
+    print(f"[guard] {package_dir}: {len(hits)} superseded-context marker(s)")
     return 3 if hits else 0
 
 

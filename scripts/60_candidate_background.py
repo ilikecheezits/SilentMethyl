@@ -652,11 +652,6 @@ def main() -> None:
     if not input_path.exists():
         raise FileNotFoundError(input_path)
     raw_df = pd.read_csv(input_path)
-    # Provenance on the record, not in someone's head: which cohort file this is,
-    # when it was built, and the context columns actually carried in it. The
-    # published cohort and the breast-epithelium rebuild differ ONLY in these
-    # seven columns, so a run that silently picked up the wrong one is otherwise
-    # invisible in the outputs.
     LOGGER.info("candidate cohort: %s", input_path.resolve())
     LOGGER.info("candidate cohort mtime: %s",
                 datetime.fromtimestamp(input_path.stat().st_mtime).isoformat(timespec="seconds"))

@@ -1,55 +1,11 @@
 #!/usr/bin/env python3
-"""Integrity audit across the per-tissue builds, before any joint training.
-
-Run this after building every tissue and before composing or training. It is
-cheap (a few minutes) and it checks the failures that are silent -- the ones
-that produce a model which trains fine, scores well, and means nothing.
-
-The five things that can go wrong here
---------------------------------------
-1. WRONG CONTEXT. A build pointed at the wrong --reference-dir produces a tissue
-   whose chromatin belongs to a different tissue. Nothing downstream notices:
-   the columns are named the same and the values are plausible.
-
-2. WRONG TARGETS. A build pointed at the wrong matrix, or at a matrix whose
-   normals were misdetected, produces targets for the wrong cohort. Again
-   silent, and again the model trains happily.
-
-   Both show up the same way: two tissues that should differ turn out identical,
-   or a tissue is identical to one it should not be. Checked by comparing target
-   and feature vectors on shared probes.
-
-3. SCALE AS A TISSUE LABEL. This is the important one and it is specific to this
-   architecture. The epigenomic tower applies NO per-feature standardization --
-   raw bigWig values go straight into nn.Linear, with LayerNorm only after the
-   first linear. If kidney's ATAC averages 5 and lung's averages 0.5, then the
-   magnitude of one feature identifies the tissue, and a joint model can route
-   on it without learning any biology. Tissue-specific prediction then becomes
-   trivially confounded: the model looks like it knows tissues apart because it
-   does, from a scale offset, not from chromatin.
-
-   This is not hypothetical. The context ablation (LAB_NOTES 1.10) found the
-   MCF-10A ATAC track sitting on a different scale from its own histone tracks,
-   with blacklist artifacts averaging 5.46 inside excluded regions against 0.001
-   in the flanks, and replacing it moved the context arm by 27%.
-
-4. MISSINGNESS AS A TISSUE LABEL. Same mechanism, different column. If one
-   tissue's tracks have systematically more uncovered positions, its _Missing
-   indicators are systematically hotter, and those are model inputs too.
-
-5. SPLIT DISAGREEMENT. If the tissues do not hold out the same chromosomes, a
-   probe that is test in one is train in another and the joint test set is
-   contaminated. compose_multitissue_splits.py refuses in that case; this
-   reports it earlier, while rebuilding is still cheap.
-
-Exit code is 0 only if no hard failure fired. Warnings do not fail the run --
-they are judgement calls, and the report says which is which.
-
-Usage
------
-    python -u data/audit_multitissue_builds.py
-    python -u data/audit_multitissue_builds.py --tissue Lung=some/other/dir
-    python -u data/audit_multitissue_builds.py --sample 40000 --json audit.json
+"""Check the per-tissue builds for consistency before joint training. Catches failures that
+are silent downstream: a build pointed at the wrong reference or target matrix, detected
+as two tissues that should differ coming out identical; per-tissue scale or missingness
+offsets a joint model could use as a tissue label; and tissues that do not hold out the
+same chromosomes. The scale check matters because the context tower applies no per-
+feature standardisation, so raw bigWig magnitude reaches the first linear layer
+directly. Exit code is 0 only if no hard failure fired; warnings do not fail.
 """
 
 from __future__ import annotations
@@ -77,16 +33,9 @@ CONTEXT_FEATURES = [
 ]
 PHYLOP_FEATURES = ["Target_Base_PhyloP_100way_1", "Target_Base_PhyloP_100way_2"]
 
-# A feature whose across-tissue mean ratio exceeds this is flagged. 3x is
-# deliberately loose: real biology moves a histone mark severalfold between
-# tissues. It is meant to catch a track on a different unit or normalisation,
-# not to enforce that tissues look alike.
 SCALE_RATIO_WARN = 3.0
 SCALE_RATIO_FAIL = 10.0
 
-# Correlation above this between two tissues' target vectors means they are
-# probably the same data. Real tissues correlate around 0.85-0.95 on HM450
-# medians, because most probes are constitutively methylated everywhere.
 IDENTITY_CORR = 0.999
 
 
@@ -135,7 +84,6 @@ def main() -> None:
     rep = Report()
     summary: dict = {"tissues": {}, "checks": {}}
 
-    # ---------------------------------------------------------------- present
     print("\n[1] builds present and complete")
     for name, d in tissues.items():
         missing = [f for f in ("train.csv", "val.csv", "test.csv",
@@ -149,9 +97,6 @@ def main() -> None:
     if rep.failures:
         raise SystemExit("\nSTOP: finish the builds before auditing.")
 
-    # ------------------------------------------------------------ provenance
-    # Each build records the bigWigs it read. A build pointed at the wrong
-    # reference directory is invisible in the data but obvious here.
     print("\n[2] each tissue read its own reference directory")
     for name, d in tissues.items():
         man = json.loads((d / "training_data_manifest.json").read_text())
@@ -175,7 +120,6 @@ def main() -> None:
         if phylo != {"hg38.phyloP100way.bw"}:
             rep.fail(f"{name}: phyloP is not the shared genome track: {phylo}")
 
-    # ----------------------------------------------------------------- splits
     print("\n[3] held-out chromosomes agree across tissues")
     blocks = {}
     for name, d in tissues.items():
@@ -192,7 +136,6 @@ def main() -> None:
         rep.fail("tissues do not share held-out chromosomes -- a probe held out "
                  "in one is trained on in another, contaminating the joint test set")
 
-    # ------------------------------------------------------------------ load
     print("\n[4] loading train splits")
     frames: dict[str, pd.DataFrame] = {}
     for name, d in tissues.items():
@@ -217,7 +160,6 @@ def main() -> None:
     if len(present) != len(CONTEXT_FEATURES):
         rep.fail(f"expected 7 context features, found {len(present)}: {present}")
 
-    # ------------------------------------------------- no intra-tissue leakage
     print("\n[6] no probe appears in two splits of the same tissue")
     for name, d in tissues.items():
         ids = {}
@@ -233,7 +175,6 @@ def main() -> None:
             rep.ok(f"{name}: splits are disjoint "
                    f"({len(ids['train']):,}/{len(ids['val']):,}/{len(ids['test']):,})")
 
-    # ------------------------------------------------------- shared universe
     print("\n[7] shared probe universe")
     universe = None
     for f in frames.values():
@@ -259,7 +200,6 @@ def main() -> None:
     aligned = {n: f.set_index(f["probeID"].astype(str)).reindex(probes)
                for n, f in frames.items()}
 
-    # ------------------------------------------------- sequences must match
     print("\n[8] the same probe has the same DNA in every tissue")
     seq_col = "Healthy_100bp_DNA"
     if seq_col in next(iter(aligned.values())).columns:
@@ -277,7 +217,6 @@ def main() -> None:
     else:
         rep.warn(f"{seq_col} not in the CSVs; skipped")
 
-    # ------------------------------------------ targets differ between tissues
     print("\n[9] targets differ between tissues (not the same matrix twice)")
     names = list(aligned)
     tgt_corr = {}
@@ -298,7 +237,6 @@ def main() -> None:
         rep.ok(f"every pair differs; r ranges "
                f"{min(tgt_corr.values()):.3f}-{max(tgt_corr.values()):.3f}")
 
-    # ----------------------------------------- context differs between tissues
     print("\n[10] context differs between tissues (not the same tracks twice)")
     for i, a in enumerate(names):
         for b in names[i + 1:]:
@@ -312,7 +250,6 @@ def main() -> None:
     if not any("identical values" in x for x in rep.failures):
         rep.ok("no feature is bit-identical between any two tissues")
 
-    # ------------------------------------------------------------- scale check
     print("\n[11] feature SCALE is comparable across tissues")
     print("     The context tower has no per-feature standardization, so a "
           "feature on a\n     different scale in one tissue is a label the "
@@ -334,7 +271,7 @@ def main() -> None:
     print()
     for feat, rec in scale.items():
         if feat in PHYLOP_FEATURES:
-            continue   # checked for exact identity below, not for scale
+            continue
         if rec["ratio"] >= SCALE_RATIO_FAIL:
             rep.fail(f"{feat}: {rec['ratio']:.1f}x between tissues -- large "
                      "enough that magnitude alone identifies the tissue")
@@ -345,7 +282,6 @@ def main() -> None:
                if f not in PHYLOP_FEATURES):
         rep.ok(f"every context feature is within {SCALE_RATIO_WARN:g}x across tissues")
 
-    # -------------------------------------------------------- phyloP identity
     print("\n[11b] phyloP is the SAME value per probe in every tissue")
     print("     Conservation is a property of the genome, not the tissue, so "
           "every build\n     reads one shared track. Comparing means would be "
@@ -375,7 +311,6 @@ def main() -> None:
             rep.ok(f"{feat}: identical across tissues on "
                    f"{int(usable.sum()):,} non-imputed probes")
 
-    # --------------------------------------------------------- missingness
     print("\n[12] missingness is comparable across tissues")
     print("     _Missing indicators are model inputs. A tissue with "
           "systematically more\n     uncovered positions carries its identity "
@@ -404,7 +339,6 @@ def main() -> None:
     elif not any(max(r.values()) - min(r.values()) > 0.01 for r in miss.values()):
         rep.ok("every feature's missing rate is within 1 point across tissues")
 
-    # ------------------------------------------------------------ non-finite
     print("\n[13] no NaN or infinity in model inputs")
     for n in names:
         cols = present + [f for f in PHYLOP_FEATURES if f in frames[n].columns]
@@ -416,7 +350,6 @@ def main() -> None:
         else:
             rep.ok(f"{n}: all context features finite")
 
-    # ------------------------------------------------------------- verdict
     print("\n" + "=" * 74)
     if rep.failures:
         print(f"{len(rep.failures)} FAILURE(S) -- do not train on this data")

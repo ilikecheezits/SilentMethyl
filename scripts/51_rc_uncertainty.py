@@ -1,70 +1,9 @@
 #!/usr/bin/env python3
-"""
-Stage B.3 -- Uncertainty calibration for SilentMethyl, in three stages.
-
-This file merges what were scripts 16, 17 and 18. They were always one analysis
-split across three files; the split cost a duplicated loader, a duplicated
-Spearman, and a duplicated cross-seed-SD merge, and it made the argument hard to
-follow because the punchline of each stage is the motivation for the next.
-
-    --stage base          Is FWD/RC disagreement a free uncertainty estimate?
-    --stage conditional   Does ANY estimator beat the |beta_hat - 0.5| heuristic?
-    --stage figure        Consolidate into the paper figure and table.
-    --stage all           base, then conditional at 10/20/50 strata, then figure.
-
-The argument, in order
-----------------------
-BASE. SilentMethyl reports RC-averaged predictions, beta_hat = 1/2[f(x)+f(RC(x))],
-which is exactly RC-invariant -- so the reported output has no strand
-inconsistency. But the average discards the per-locus disagreement
-|f(x) - f(RC(x))|, already written to predictions.csv. Hypothesis: that discarded
-quantity measures how well the model internalised RC symmetry at that locus, and
-so predicts local error -- uncertainty from a SINGLE model, where the usual route
-is an ensemble. Estimators compared:
-
-    rc_disagreement   |pred_beta_fwd - pred_beta_rc|      single model, free
-    cross_seed_sd     SD of pred_beta_rc_avg over seeds   needs N models
-    boundary_distance -|pred_beta_rc_avg - 0.5|           naive control
-    combined          rank-average of the first two       complementarity
-    random            null
-
-CONDITIONAL. The base stage finds that `boundary_distance`, a zero-parameter
-heuristic, beats both real estimators at selective prediction. Two explanations
-must be separated before that goes in a manuscript:
-
-  (a) REAL      intermediate-methylation probes are genuinely harder, and
-                distance from 0.5 is a legitimate difficulty signal.
-  (b) ARTIFACT  absolute beta error is mechanically bounded near the extremes --
-                at beta_hat = 0.02 there is almost no room to be wrong, at 0.5
-                there is +/- 0.5. The heuristic may measure HEADROOM.
-
-If (b) dominates, the calibration section would be reporting the shape of the
-target distribution rather than anything about the model. Five tests: partial
-Spearman given the heuristic; within-stratum Spearman; stratified selective
-prediction (decisive); incremental AURC on top of the heuristic; and all of it
-repeated on M-value error, which is unbounded.
-
-FIGURE. The answer is (b). Within predicted-beta strata the heuristic decays as
-stratification tightens and is near-zero on the M scale, while both real
-estimators hold on both scales. Scale-stability is what separates a genuine
-uncertainty signal from a metric artifact -- and the consequence generalises past
-SilentMethyl, because the field routinely reports beta MAE.
-
-Everything here is CPU-only and reads files that already exist. No GPU, no
-re-inference, no retraining.
-
-Usage
------
-    python -u scripts/51_rc_uncertainty.py --stage all
-
-    # or one stage at a time, reproducing the original three scripts exactly
-    python -u scripts/51_rc_uncertainty.py --stage base
-    python -u scripts/51_rc_uncertainty.py --stage conditional --strata 50 \
-        --output-dir results/journal/rc_uncertainty_conditional_s50
-    python -u scripts/51_rc_uncertainty.py --stage figure \
-        --runs 10:results/journal/rc_uncertainty_conditional \
-               20:results/journal/rc_uncertainty_conditional_s20 \
-               50:results/journal/rc_uncertainty_conditional_s50
+"""Uncertainty calibration in three stages, selected with --stage. Compares
+forward/reverse-complement disagreement against cross-seed variability, a boundary score
+and a random control, using error correlations and risk-coverage curves, and repeats the
+comparison on the M scale and within predicted-beta strata. Combining --stage all with
+--output-dir is refused, since the all path writes to published defaults.
 """
 
 from __future__ import annotations
@@ -84,9 +23,8 @@ except ImportError:  # pragma: no cover
     sps = None
 
 REQUIRED = ("pred_beta_fwd", "pred_beta_rc", "pred_beta_rc_avg", "true_beta")
-BLOCK_BP = 1_000_000  # matches scripts/08 and scripts/12
+BLOCK_BP = 1_000_000
 
-# numpy renamed trapz -> trapezoid in 2.0; the cluster env may predate that.
 _trapz = getattr(np, "trapezoid", None) or np.trapz
 
 DEFAULT_OUT = {
@@ -95,10 +33,6 @@ DEFAULT_OUT = {
     "figure": Path("results/journal/rc_uncertainty_figure"),
 }
 
-
-# =========================================================================
-# shared utilities
-# =========================================================================
 
 def _rank(x: np.ndarray) -> np.ndarray:
     return pd.Series(x).rank().to_numpy()
@@ -238,10 +172,6 @@ def load_model_frames(root: Path, seeds, model: str):
     return add_cross_seed_sd(frames) if frames else None
 
 
-# =========================================================================
-# stage: base
-# =========================================================================
-
 def correlation_table(df: pd.DataFrame, n_boot: int, rng) -> dict:
     d = df["rc_disagreement"].to_numpy(float)
     e = df["beta_absolute_error"].to_numpy(float)
@@ -316,7 +246,7 @@ def selective_curves(df: pd.DataFrame, estimators: dict, coverages) -> pd.DataFr
 
     rows = []
     for name, u in estimators.items():
-        order = np.argsort(np.where(np.isfinite(u), u, np.inf))  # most confident first
+        order = np.argsort(np.where(np.isfinite(u), u, np.inf))
         for cov in coverages:
             k = max(1, int(round(cov * len(df))))
             keep = order[:k]
@@ -536,10 +466,6 @@ def run_base(args) -> int:
     return 0
 
 
-# =========================================================================
-# stage: conditional
-# =========================================================================
-
 def estimators_for(df: pd.DataFrame) -> dict:
     """Higher = less confident. No `combined`/`random` here: the conditional
     stage compares against the heuristic, not against a null."""
@@ -583,7 +509,6 @@ def conditional_tests(df: pd.DataFrame, model: str, seed: int, n_bins: int,
         base_strat = stratified_aurc(boundary)
 
         for ename, u in est.items():
-            # A -- partial rank information beyond the heuristic
             pr = (float("nan") if ename == "boundary_distance"
                   else partial_spearman(u, err, boundary))
             partial_rows.append({
@@ -594,7 +519,6 @@ def conditional_tests(df: pd.DataFrame, model: str, seed: int, n_bins: int,
                 "boundary_marginal_spearman": base_marginal,
             })
 
-            # B -- within-stratum correlation
             per_bin, sizes = [], []
             for b in range(n_bins):
                 sel = bins == b
@@ -612,7 +536,6 @@ def conditional_tests(df: pd.DataFrame, model: str, seed: int, n_bins: int,
                 "within_bin_spearman_max": float(np.nanmax(per_bin)) if per_bin else float("nan"),
             })
 
-            # C -- stratified selective prediction (the decisive test)
             sa = stratified_aurc(u)
             strat_rows.append({
                 "model": model, "seed": seed, "error_target": tname,
@@ -624,7 +547,6 @@ def conditional_tests(df: pd.DataFrame, model: str, seed: int, n_bins: int,
                 if np.isfinite(sa) and np.isfinite(base_strat) else None,
             })
 
-            # D -- incremental value on top of the free heuristic
             if ename != "boundary_distance":
                 combo = (pd.Series(boundary).rank(pct=True).to_numpy()
                          + pd.Series(u).rank(pct=True).to_numpy()) / 2.0
@@ -756,18 +678,11 @@ def run_conditional(args) -> int:
     return 0
 
 
-# =========================================================================
-# stage: figure
-# =========================================================================
-
-# Validated categorical palette (six checks pass, light surface).
-# Assigned by role, fixed order, never cycled.
 COLORS = {
-    "boundary_distance": "#B03A2E",   # the control / artifact
-    "cross_seed_sd":     "#1F6FB2",   # the ensemble reference
-    "rc_disagreement":   "#B4761A",   # the cheap single-model estimator
+    "boundary_distance": "#B03A2E",
+    "cross_seed_sd":     "#1F6FB2",
+    "rc_disagreement":   "#B4761A",
 }
-# Identity is never colour alone -- journals print in greyscale.
 MARKERS = {"boundary_distance": "s", "cross_seed_sd": "o", "rc_disagreement": "^"}
 STYLES = {"boundary_distance": (0, (4, 2)), "cross_seed_sd": "-", "rc_disagreement": (0, (1, 1.4))}
 LABELS = {
@@ -852,7 +767,6 @@ def make_figure(within: pd.DataFrame, out: Path):
     axes[0].set_ylabel("within-stratum Spearman ρ\n(estimator vs |error|)",
                        fontsize=9, color=MUTED)
 
-    # Legend once, below -- identity is colour + marker + dash, never colour alone.
     handles = [axes[0].plot([], [], color=COLORS[e], marker=MARKERS[e],
                             linestyle=STYLES[e], linewidth=2.0, markersize=6,
                             label=LABELS[e])[0] for e in ORDER]
@@ -953,10 +867,6 @@ def run_figure(args) -> int:
     return 0
 
 
-# =========================================================================
-# main
-# =========================================================================
-
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -967,23 +877,18 @@ def main(argv=None) -> int:
     ap.add_argument("--models", nargs="+", default=["sequence", "fusion", "epi"])
     ap.add_argument("--output-dir", type=Path, default=None,
                     help="stage-specific default if omitted")
-    # base
     ap.add_argument("--bootstrap-replicates", type=int, default=2000)
     ap.add_argument("--random-seed", type=int, default=20260824)
-    # conditional
     ap.add_argument("--strata", type=int, default=10,
                     help="number of predicted-beta strata (default 10)")
     ap.add_argument("--all-strata", type=int, nargs="+", default=[10, 20, 50],
                     help="strata swept by --stage all")
-    # figure
     ap.add_argument("--runs", nargs="+", metavar="STRATA:PATH",
                     help="required for --stage figure; auto-built by --stage all")
     args = ap.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 
-    # --stage all writes every stage to its published default path and used to
-    # ignore --output-dir without saying so. Refuse the combination.
     if args.stage == "all" and args.output_dir is not None:
         raise SystemExit("STOP: --stage all ignores --output-dir and would write to "
                          "the published default paths. Run --stage base, "
@@ -1000,9 +905,6 @@ def main(argv=None) -> int:
             raise SystemExit("--stage figure requires --runs STRATA:PATH ...")
         return run_figure(args)
 
-    # ---- stage: all ------------------------------------------------------
-    # Reproduces the historical sequence: base, then conditional at each strata
-    # count into its own directory, then the figure over all of them.
     rc = run_base(argparse.Namespace(**{**vars(args), "output_dir": None}))
     if rc:
         return rc

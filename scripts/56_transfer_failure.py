@@ -1,45 +1,7 @@
 #!/usr/bin/env python3
-"""
-Where does zero-shot cross-tissue transfer fail?
-
-The question
-------------
-The held-out-BreastEpithelium joint model never saw a breast probe in training.
-Its sequence arm still transfers almost perfectly (+0.0013 beta MAE). The
-hypothesis is that the sequence->methylation mapping is tissue-invariant EXCEPT
-where methylation is itself tissue-plastic, and that those loci have identifiable
-regulatory character.
-
-This localises the error against (a) measured cross-tissue methylation variance
-and (b) genomic and chromatin annotation.
-
-Split discipline -- read this before comparing to Task C
---------------------------------------------------------
-Task C (`55_gate_plasticity.py`) computes cross-tissue variance on the joint
-**validation** probes, chr10 + chr11. This script works on the held-out
-**test** probes, chr8 + chr9. The two probe sets are DISJOINT -- zero overlap --
-so the variance here is recomputed from the four tissues' own `test.csv`, by the
-same method. Both are legitimate; they are not the same analysis and must not be
-described as one.
-
-Coverage: 26,558 of the 26,570 held-out breast test probes are measured in all
-four tissues (99.95%).
-
-Annotation
-----------
-CpG-island class comes from the HM450 hg38 CGI manifest (`CGIposition`:
-Island / N_Shore / S_Shore / N_Shelf / S_Shelf, with missing = OpenSea).
-
-"Promoter" is operationalised as high H3K4me3 rather than as gene overlap. The
-manifest's `gene` column marks any probe inside a gene body, which is far too
-coarse to mean promoter, whereas H3K4me3 is the canonical promoter mark and is
-already one of the seven reference tracks the model consumes. Using the model's
-own input tracks also keeps the annotation on the same footing as the features.
-
-Usage
------
-    python -u scripts/56_transfer_failure.py \
-        --output-dir results/journal/joint/transfer_failure
+"""Localise where zero-shot cross-tissue transfer fails. Scores the held-out-tissue joint
+model on that tissue's probes and relates its error to measured cross-tissue methylation
+variance, then characterises the worst decile by CpG-island and chromatin context.
 """
 
 from __future__ import annotations
@@ -103,8 +65,6 @@ def load(args) -> pd.DataFrame:
         base = base.merge(d[["probeID", f"pred_{arm}", f"abserr_{arm}"]],
                           on="probeID", how="left")
 
-    # Cross-tissue variance on THESE probes (chr8/9), recomputed -- Task C's file
-    # is chr10/11 and shares no probe with this set.
     betas = []
     for tissue, path in TISSUE_TEST.items():
         d = pd.read_csv(path, usecols=["probeID", "Median_Beta"])
@@ -141,7 +101,6 @@ def run(args) -> int:
     arms = [a for a in ("sequence", "fusion", "epi") if f"abserr_{a}" in df.columns]
     primary = "sequence" if "sequence" in arms else arms[0]
 
-    # 1. Error as a function of cross-tissue variance.
     df["var_decile"] = pd.qcut(df["cross_tissue_var"], 10, labels=False, duplicates="drop")
     by_var = []
     for d, sub in df.groupby("var_decile"):
@@ -157,8 +116,6 @@ def run(args) -> int:
         by_var.append(row)
 
     rho_var = stats.spearmanr(df[f"abserr_{primary}"], df["cross_tissue_var"])
-    # Methylation level is the standing confounder: error and variance are both
-    # compressed at beta~0 and beta~1.
     def _rank(a): return stats.rankdata(np.asarray(a, float))
     def _resid(y, x):
         A = np.column_stack([x, np.ones_like(x)])
@@ -167,7 +124,6 @@ def run(args) -> int:
     partial_var = float(np.corrcoef(_resid(_rank(df[f"abserr_{primary}"]), rl),
                                     _resid(_rank(df["cross_tissue_var"]), rl))[0, 1])
 
-    # 2. Top decile of error: what is it made of?
     thresh = float(df[f"abserr_{primary}"].quantile(0.9))
     df["top_decile_error"] = df[f"abserr_{primary}"] >= thresh
     top, rest = df[df.top_decile_error], df[~df.top_decile_error]

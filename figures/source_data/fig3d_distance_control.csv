@@ -1,0 +1,11 @@
+panel,cohort,model,comparison,seed,n,n_blocks,value,ci_low,ci_high,source,uncertainty
+3d,GENOA,fusion,unmatched,ensemble (seed -1),42866,251.0,0.6001969420961645,0.5861818826847872,0.6150198735212399,ABL/genoa_variant_evaluation,"2,000 draws over 1 Mb blocks; intervals in Source Data"
+3d,GENOA,fusion,distance-matched,ensemble (seed -1),8074,244.0,0.5558680361228858,0.539217108859493,0.5720475971985083,ABL/genoa_variant_evaluation,"2,000 draws over 1 Mb blocks; intervals in Source Data"
+3d,GENOA,sequence,unmatched,ensemble (seed -1),42866,251.0,0.6025531252025285,0.5882977452817635,0.6171854964996474,ABL/genoa_variant_evaluation,"2,000 draws over 1 Mb blocks; intervals in Source Data"
+3d,GENOA,sequence,distance-matched,ensemble (seed -1),8074,243.0,0.5628501753872052,0.5473319823171706,0.5784252201457871,ABL/genoa_variant_evaluation,"2,000 draws over 1 Mb blocks; intervals in Source Data"
+3d,GENOA,kmer_ridge,unmatched,ensemble (seed -1),42866,251.0,0.5097507300561313,0.4980307926221129,0.521860020690353,baseline_variant_evaluation,"2,000 draws over 1 Mb blocks; intervals in Source Data"
+3d,GENOA,kmer_ridge,distance-matched,ensemble (seed -1),8074,244.0,0.5062556109516818,0.4930353712113351,0.5190938633089649,baseline_variant_evaluation,"2,000 draws over 1 Mb blocks; intervals in Source Data"
+3d,GENOA,composition,unmatched,ensemble (seed -1),42866,251.0,0.4621458927210765,0.4495939734481336,0.4739087340277231,baseline_variant_evaluation,"2,000 draws over 1 Mb blocks; intervals in Source Data"
+3d,GENOA,composition,distance-matched,ensemble (seed -1),8074,243.0,0.4582329822684876,0.4428161557290868,0.4734293614524833,baseline_variant_evaluation,"2,000 draws over 1 Mb blocks; intervals in Source Data"
+3d,GENOA,distance_only,unmatched,ensemble (seed -1),42866,251.0,0.5952795745945589,0.5822077300802939,0.6098721588496232,ABL/genoa_variant_evaluation/primary_metrics.csv,"2,000 draws over 1 Mb blocks"
+3d,GENOA,distance_only,realized after matching,ensemble (seed -1),4037,,0.5,,,ABL/genoa_variant_evaluation/matching_balance.csv,realized balance statistic

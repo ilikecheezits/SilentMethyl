@@ -1,36 +1,8 @@
 #!/usr/bin/env python
-"""Paired, LD-aware intervals on the DIFFERENCE between two models' variant-effect
-performance.
-
-scripts/20 reports each model separately, and each model's distance-matched
-cohort is drawn from its own call to `build_matched_cohort`. Two consequences:
-
-  1. The reported intervals are marginal. Overlapping marginal intervals do NOT
-     mean the difference is not significant -- the two estimates are computed on
-     the same variants and are strongly positively correlated, so the interval on
-     the difference is much narrower than either marginal interval suggests.
-  2. Two models' matched AUROCs are not even measured against the same negative
-     pairs, so part of any gap between them is matching noise.
-
-This script fixes both. It builds ONE distance-matched cohort (matching depends
-only on `significant` and `abs_distance_bp`, which are properties of the variant,
-not of the model), scores every model on that identical cohort, and block
-bootstraps the DIFFERENCE -- resampling the same 1-Mb blocks for both models
-inside each resample, so the pairing is preserved.
-
-Every definition is imported from scripts/20 rather than re-implemented, so these
-numbers cannot drift from the ones the paper already quotes.
-
-    python -u scripts/31_transfer_discrimination.py \
-        --reference results/journal/genoa_variant_scoring::fusion::42,43,44 \
-        --compare   results/journal/published_baselines/variant_scoring::deepcpg::42,43,44 \
-        --compare   results/journal/published_baselines/variant_scoring::cpgenie::42,43,44 \
-        --output-dir results/journal/paired_model_comparison_genoa
-
-A spec is DIR::MODEL::SEEDS. Use SEEDS=-1 for the deterministic scripts/23
-baselines, which have no seeds to average.
-
-Exit codes:  0 ran   1 could not run
+"""Paired, LD-aware intervals on the difference between two models' variant-effect
+performance. Script 20 reports each model separately and draws each one's distance-
+matched cohort independently, so marginal differences move between runs of identical
+data; this holds the cohort fixed and bootstraps the paired difference instead.
 """
 
 from __future__ import annotations
@@ -114,9 +86,6 @@ def ensemble_frame(ev, directory: Path, model: str, seeds: list[int],
     frame = long[long["Seed"] == -1]
     if frame.empty:
         raise SystemExit(f"STOP: no ensemble rows for {model} in {directory}")
-    # Non-CpG-altering only -- the same restriction scripts/20 applies before any
-    # headline number. A variant that creates or destroys the target CpG is not a
-    # regulatory-effect prediction and is excluded there too.
     frame = frame[~frame["cpg_altering"].astype(bool)]
     if frame["Pair_UID"].duplicated().any():
         raise SystemExit(f"STOP: duplicate Pair_UIDs for {model}")
@@ -219,7 +188,6 @@ def main() -> int:
         print(f"{model:<10} {len(frames[model]):>7,} non-CpG-altering pairs "
               f"from {directory}")
 
-    # ---- one shared cohort. Every model is scored on exactly the same rows.
     common = set.intersection(*(set(f["Pair_UID"]) for f in frames.values()))
     if not common:
         print("STOP: the models share no Pair_UIDs -- different cohorts or "
@@ -265,15 +233,11 @@ def main() -> int:
 
     significant_only = wide[wide["significant"] == 1]
 
-    # (metric function, frame it is computed on, human label)
     plan = [
         (ev.marginal_auroc, matched, "AUROC, distance-matched"),
         (ev.signed_rho, significant_only, "signed rho (significant)"),
         (ev.direction_agreement, significant_only, "direction agreement"),
     ]
-    # Tail enrichment on the UNMATCHED cohort, which is where the comparison
-    # against distance is meaningful: matching neutralises distance by design,
-    # so the model-versus-ruler question can only be asked before matching.
     for frac in TAIL_FRACTIONS:
         plan.append((tail_enrichment(frac), wide,
                      f"tail enrichment, top {frac*100:g}%"))
@@ -299,10 +263,6 @@ def main() -> int:
                 "interval_excludes_zero": excludes_zero,
             })
 
-    # ---- distance baseline: the number the model must beat ----------------
-    # Reported per tail fraction, with the model-minus-distance difference
-    # bootstrapped over the SAME blocks so the interval is paired rather than
-    # two marginal intervals a reader has to eyeball against each other.
     tails = []
     for frac in TAIL_FRACTIONS:
         d_fn = distance_tail(frac)

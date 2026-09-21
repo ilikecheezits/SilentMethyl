@@ -1,47 +1,9 @@
 #!/usr/bin/env python3
-"""
-Is the learned fusion gate an unsupervised tissue-plasticity detector?
-
-The question
-------------
-The all4 joint fusion model learns, per locus, a scalar weighting between the
-sequence branch and the context branch. Nothing in training ever told it which
-loci are tissue-variable. If the learned DNA/context share nevertheless tracks
-*measured* cross-tissue methylation variance, the gate is an interpretable
-readout of tissue plasticity that came for free.
-
-Data
-----
-Gates come from `checkpoints_joint/all4/seed42/fusion/best_validation_gates.csv`
--- the joint model's validation loci (chr10/chr11), one row per probe.
-
-Cross-tissue variance is measured, not modelled: each of the four tissue builds
-carries its own `val.csv` on the same two chromosomes, so `Median_Beta` for the
-same probe in all four tissues is a direct join. Variance is the population
-variance across those four values.
-
-Note on the joint build: `all4` assigns each probe to exactly ONE tissue for
-training ("disjoint training probes, one tissue per probe"), so the gate for a
-probe was learned against that tissue's target. The stratified section below
-repeats the correlation within each assigned tissue, because a pooled
-correlation could otherwise be produced by between-tissue composition alone.
-
-Attenuation
------------
-Per-locus gate share is noisy: forward and RC strands of the SAME locus
-disagree by an MAE this script measures directly. That noise attenuates any
-correlation toward zero, so every number here is a LOWER BOUND on the true
-association. Reported raw. Deliberately not disattenuated -- the correction
-needs a reliability estimate this design does not support, and an inflated
-correlation is worse than an honest floor.
-
-Per LAB_NOTES: gate statements stay at the distribution level. Nothing here
-quotes a gate share for an individual locus.
-
-Usage
------
-    python -u scripts/55_gate_plasticity.py \
-        --output-dir results/journal/joint/gate_plasticity
+"""Test whether the learned fusion gate tracks measured cross-tissue methylation variance.
+Nothing in training identifies tissue-variable loci, so a correlation would make the
+gate an unsupervised readout of tissue plasticity. Reports the association before and
+after partialling out methylation level, and keeps every statement at the distribution
+level.
 """
 
 from __future__ import annotations
@@ -117,7 +79,6 @@ def load_frame(args) -> pd.DataFrame:
     beta = pd.concat(betas, axis=1, join="inner").reset_index()
     LOGGER.info("probes measured in all four tissues: %d", len(beta))
 
-    # Which tissue this probe was trained against in the joint build.
     assign = pd.read_csv(args.joint_val_csv, usecols=["probeID", "Tissue"])
     df = gates.merge(beta, on="probeID", how="inner", validate="one_to_one")
     df = df.merge(assign, on="probeID", how="left", validate="one_to_one")
@@ -140,8 +101,6 @@ def run(args) -> int:
     blocks = df["block"].to_numpy()
     var = df["cross_tissue_var"].to_numpy(float)
 
-    # Measurement noise in the gate itself: the same locus scored on the two
-    # strands. This is the attenuation floor, quoted but never corrected for.
     share_mae = float(np.mean(np.abs(df["gate_dna_share_fwd"] - df["gate_dna_share_rc"])))
     share_q = np.quantile(df["gate_dna_share_avg"], [0.10, 0.90])
     noise = {
@@ -184,9 +143,6 @@ def run(args) -> int:
         entry = {"description": desc, "spearman_rho": rho, "p_value": p,
                  "n": int(np.isfinite(x).sum())}
         entry.update(_block_bootstrap_spearman(x, var, blocks, rng, args.bootstrap_draws))
-        # Same correlation against SD and range, as scale checks. Spearman is
-        # rank-based so these are identical by construction for monotone
-        # transforms; reported to make that explicit rather than to add evidence.
         entry["spearman_rho_vs_sd"] = _spearman(x, df["cross_tissue_sd"].to_numpy(float))[0]
         entry["spearman_rho_vs_range"] = _spearman(x, df["cross_tissue_range"].to_numpy(float))[0]
         entry["spearman_rho_vs_mean_beta"] = _spearman(
@@ -196,8 +152,6 @@ def run(args) -> int:
         LOGGER.info("%-20s rho=%+.4f  p=%.3g  CI=%s", col, rho, p,
                     entry.get("block_bootstrap_95ci"))
 
-    # Stratified by the tissue the probe was trained against, to rule out the
-    # pooled correlation being a between-tissue composition effect.
     stratified = {}
     for tissue, sub in df.groupby("Tissue"):
         x = sub["gate_dna_share_avg"].to_numpy(float)
@@ -209,8 +163,6 @@ def run(args) -> int:
         stratified[str(tissue)] = entry
         LOGGER.info("  [%s] n=%d rho=%+.4f", tissue, len(sub), rho)
 
-    # Decile table: a monotone trend across deciles is the readable form of the
-    # rank correlation, and shows whether any association is driven by a tail.
     df["share_decile"] = pd.qcut(df["gate_dna_share_avg"], 10,
                                   labels=False, duplicates="drop")
     decile = (df.groupby("share_decile")
@@ -222,11 +174,8 @@ def run(args) -> int:
                      mean_beta_median=("cross_tissue_mean_beta", "median"))
                 .reset_index())
 
-    # Methylation level is the obvious confounder: cross-tissue variance is
-    # mechanically small at beta~0 and beta~1, and the gate may track level.
     rho_level, _ = _spearman(df["gate_dna_share_avg"].to_numpy(float),
                              df["cross_tissue_mean_beta"].to_numpy(float))
-    # Partial Spearman: rank-residualise both on mean beta, then correlate.
     partial_rho = _partial_vs_var_given_level(df["gate_dna_share_avg"])
 
     payload = {

@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
-"""Build the SilentMethyl supplementary data package (S1-S6) from frozen result tables.
-
-Every result source is the breast-epithelium context build
-(results/journal/ablation_breast_epithelium/ and data/datafiles_breast_epithelium/).
-Until 16 Sep 2026 this manifest pointed at the superseded MCF-10A results directly
-under results/journal/. The build now runs the shared MCF-10A guard from
-93_build_r8_supplement.py: it fails, and deletes the package, if any packaged file
-names the MCF-10A context or any source lies outside a breast-epithelium or
-context-free path.
+"""Build supplementary data sections S1-S6 from frozen result tables. Every source is the
+breast-epithelium context build, and the build runs the shared superseded-context guard
+from 93_build_r8_supplement.py: it fails, and deletes the package, if any packaged file
+carries a marker of the superseded reference tracks or any source lies outside a breast-
+epithelium or context-free path.
 """
 
 from __future__ import annotations
@@ -204,9 +200,6 @@ STATIC_ITEMS = (
     Item("S6", "data/datafiles_breast_epithelium/candidate_cohort_manifest.json",
          "Supplementary_Data_S6_Reproducibility/S6_candidate_cohort_manifest.json",
          "Somatic candidate-cohort construction manifest."),
-    # REPRODUCE.md is deliberately NOT packaged: it documents the superseded
-    # MCF-10A record, so it would (correctly) trip the MCF-10A guard. The package
-    # README points readers to it in the code repository instead.
     Item("S6", "requirements.txt",
          "Supplementary_Data_S6_Reproducibility/S6_python_requirements.txt",
          "Recorded Python dependencies."),

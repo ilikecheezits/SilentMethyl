@@ -1,95 +1,11 @@
 #!/usr/bin/env python3
-"""
-Are tissue-SHARED meQTLs different from tissue-SPECIFIC ones -- to the model, and
-in the genome?
-
-This file merges what were scripts 25 and 26. They were one argument split in
-two: script 25 asked whether the model predicts shared meQTLs better, found a
-small effect, and honestly flagged it as fragile; script 26 then asked whether
-that split is a real biological partition (chromatin, no model involved) and
-whether the model difference survives without matching. The second only makes
-sense as a response to the first, so they belong together.
-
-    --stage matched     model accuracy, shared vs specific, matched on |Z|
-    --stage chromatin   chromatin characterisation + regression-adjusted accuracy
-    --stage all         both
-
-The hypothesis
---------------
-SilentMethyl's variant-effect pathway is sequence-only. That is established, not
-assumed: fusion and sequence-only models are statistically equivalent on every
-variant-effect metric in both external cohorts, because the context vector is
-identical for reference and alternate alleles and can enter a paired contrast
-only through a gate shift.
-
-A sequence-only predictor should therefore succeed on meQTLs whose mechanism is
-sequence-intrinsic and fail on those mediated by tissue-specific chromatin. Those
-classes are separable empirically: an effect present in two tissues is more
-likely sequence-intrinsic; one present in only one is more likely
-chromatin-mediated. If the model is more accurate on shared meQTLs at MATCHED
-discovery effect size, it is not merely predicting meQTLs -- it is separating
-them by mechanism.
-
-The confound that would fake this, and how it is removed
---------------------------------------------------------
-Cohorts differ enormously in power (GENOA ~1,000 donors, eGTEx Breast ~50-100).
-A pair significant in one and not the other is by default far more likely to be
-*underpowered* in the second than *absent* there. Three safeguards:
-
-1. **Matched discovery effect size.** Pairs are compared only against pairs with
-   the same |Z| in the discovery cohort (Z = effect / SE, scale-free and so
-   comparable across cohorts with different phenotype normalisations). Without
-   this, "shared" would simply mean "larger effect", and larger effects are
-   easier to predict.
-2. **An explicit power screen.** A pair is called tissue-specific only when the
-   replication cohort had the precision to detect an effect of the observed
-   magnitude. Pairs failing the screen are counted and dropped, never pooled.
-3. **Both directions.** A finding that appears in only one direction is a cohort
-   artifact, not a tissue effect.
-
-The chromatin stage, which never touches the model
----------------------------------------------------
-Every probe carries seven breast chromatin tracks (whichever context build
---split-template points at; published: primary breast epithelium) and two
-phyloP scores.
-A meQTL discovered in blood that does NOT replicate in breast should, if the
-tissue interpretation is right, sit in sequence that is chromatin-INACTIVE in
-breast. If blood-specific meQTLs are depleted for breast ATAC and H3K27ac
-relative to shared ones at matched effect size, the split is a real biological
-partition rather than a relabelling of model error -- and it explains *why* the
-model does worse on them: it learned a breast sequence-to-methylation function
-and those loci are not breast-active.
-
-The same stage replaces matching with regression. Matching on |Z| discarded pairs
-that found no partner and left the arms imbalanced anyway. Logistic regression
-controls |Z| continuously, uses every pair, and is what the matched comparison was
-approximating:
-
-    P(model gets the direction right) ~ shared + |Z| + |distance|
-
-If matching and regression disagree, the matched result was an artifact of which
-pairs happened to find partners.
-
-Cohorts
--------
-`--cohort NAME:PATH:THRESHOLD`, repeatable. The default is the historical
-GENOA/eGTEx pair. Supplying more cohorts runs every ordered pair, which is how
-this extends to the nine-tissue eGTEx panel without changing any logic.
-
-Usage (run from the repository root)
-------------------------------------
-    python -u scripts/40_meqtl_tissue_specificity.py --stage all
-
-    # nine-tissue panel. NOTE the `/by_tissue/<Tissue>` suffix: the parent
-    # directory holds the UNION scoring run, whose label columns (pvalue, beta,
-    # se) are BreastMammaryTissue placeholders. Pointing at it gives nine
-    # identical breast cohorts and a plausible, wrong table. Always use
-    # by_tissue, which data/split_predictions_by_tissue.py writes.
-    # Threshold 5e-8 matches scripts/31, so R3 and R4 partition the same
-    # significant set.
-    python -u scripts/40_meqtl_tissue_specificity.py --stage matched \\
-        --cohort Lung:results/journal/egtex_multitissue_scoring/by_tissue/Lung:5e-8 \\
-        --cohort ColonTransverse:results/journal/egtex_multitissue_scoring/by_tissue/ColonTransverse:5e-8
+"""Ask whether tissue-shared meQTLs differ from tissue-specific ones, both to the model and
+in chromatin. --stage matched compares model accuracy on the two classes at matched
+discovery effect size (|Z|), with a power screen so that 'specific' cannot just mean
+'underpowered in the replication cohort'; --stage chromatin characterises the two
+classes by chromatin and repeats the accuracy comparison with |Z| controlled by
+regression rather than matching. Run the stages separately: combining --stage all with
+--output-dir is refused.
 """
 
 from __future__ import annotations
@@ -126,10 +42,6 @@ DEFAULT_OUT = {
     "chromatin": Path("results/journal/meqtl_class_chromatin"),
 }
 
-# Declared locally rather than imported from training_common, which pulls in
-# torch, transformers and huggingface_hub for one list of strings and makes a
-# CPU-only analysis unrunnable on a plain node. Duplicated AND verified: when
-# training_common imports, the two are asserted identical at startup.
 TABULAR_FEATURES = [
     "Ref_ATAC_Signal",
     "Ref_H3K4me3_Signal",
@@ -155,10 +67,6 @@ def verify_feature_list() -> dict:
             "Chromatin columns would be mislabelled -- fix before trusting output.")
     return {"checked": True}
 
-
-# =========================================================================
-# shared loading and statistics
-# =========================================================================
 
 def resolve(frame, aliases, what):
     for name in aliases:
@@ -203,7 +111,6 @@ def load(scores_dir: Path, model: str, seeds, threshold: float,
             raise SystemExit(f"{scores_dir}: pair_scores.csv lacks {col}; "
                              f"rescoring with the current scripts/19 is required")
 
-    # Seed ensemble: one prediction per pair.
     pred = long.groupby(KEY, sort=False)["Predicted_Delta_M"].mean()
     meta = long.drop_duplicates(subset=KEY).set_index(KEY)
     out = meta.drop(columns=["Predicted_Delta_M"]).join(pred).reset_index()
@@ -259,10 +166,6 @@ def signed_rho(f):
     return float(r) if np.isfinite(r) else np.nan
 
 
-# =========================================================================
-# stage: matched
-# =========================================================================
-
 def match_on_discovery_z(shared, specific, tolerance, rng):
     """One specific pair per shared pair, matched on |Z| in the discovery cohort.
 
@@ -312,15 +215,9 @@ def analyse(discovery, replication, disc_name, rep_name, args, rng, rows):
         return None
 
     sig["absZ_discovery"] = sig["Z_discovery"].abs()
-    # Replication: same sign AND nominally supported. A sign flip is not
-    # replication even at a small p-value.
     same_sign = np.sign(sig["effect_discovery"]) == np.sign(sig["effect_replication"])
     sig["replicates"] = same_sign & (sig["pvalue_replication"] < args.replication_p)
 
-    # Power screen: could the replication cohort have detected an effect as
-    # large as the one observed in discovery? Compared in Z units, which are
-    # scale-free. A pair the replication cohort could never have seen is not
-    # evidence of tissue specificity.
     z_needed = stats.norm.isf(args.replication_p / 2)
     sig["replication_powered"] = (
         sig["absZ_discovery"] * (sig["effect_se_discovery"]
@@ -349,9 +246,6 @@ def analyse(discovery, replication, disc_name, rep_name, args, rng, rows):
                 "matched": int(len(matched)),
                 "note": "matching failed; widen --z-tolerance"}
 
-    # |Z| balance is the whole point of matching, so check it rather than assume
-    # it. A gap this large means the pool could not cover the shared |Z| range
-    # and the comparison is not controlled -- report it instead of hiding it.
     z_gap = float(abs(shared_use["absZ_discovery"].median()
                       - matched["absZ_discovery"].median()))
     if z_gap > args.z_tolerance:
@@ -379,7 +273,6 @@ def analyse(discovery, replication, disc_name, rep_name, args, rng, rows):
             rows.append({"direction": f"{disc_name}->{rep_name}", "class": label,
                          "metric": name, "n": int(len(frame)),
                          "value": point, "ci_low": lo, "ci_high": hi})
-        # paired difference, bootstrapped over the same blocks
         diffs = []
         for _ in range(args.n_boot):
             blocks = np.unique(np.concatenate([shared_use["_block"],
@@ -472,10 +365,6 @@ def run_matched(args, loaded: dict) -> int:
     return 0
 
 
-# =========================================================================
-# stage: chromatin
-# =========================================================================
-
 def build_classes(discovery, replication, replication_p):
     m = discovery.merge(
         replication[KEY + ["effect", "effect_se", "pvalue"]],
@@ -523,9 +412,6 @@ def run_chromatin(args, loaded: dict) -> int:
     feats = probe_features(args.split_template, set(pairs["probeID"].astype(str)))
     pairs = pairs.merge(feats, on="probeID", how="left")
 
-    # ---- A. chromatin characterisation, model-independent -----------------
-    # One row per PROBE, not per pair: chromatin is a property of the locus, and
-    # counting a probe once per variant would inflate n by its variant count.
     probes = pairs.groupby("probeID").agg(
         shared=("shared", "max"), absZ=("absZ", "max"),
         _block=("_block", "first"),
@@ -545,7 +431,6 @@ def run_chromatin(args, loaded: dict) -> int:
             np.median(f.loc[~f["shared"], feature]))
         lo, hi = block_bootstrap(probes, diff, args.n_boot, rng)
         u = stats.mannwhitneyu(a, b, alternative="two-sided")
-        # rank-biserial: scale-free effect size, interpretable as a probability
         rb = 2 * u.statistic / (len(a) * len(b)) - 1
         rows.append({
             "feature": feature, "n_shared": len(a), "n_specific": len(b),
@@ -555,10 +440,6 @@ def run_chromatin(args, loaded: dict) -> int:
             "ci_low": lo, "ci_high": hi,
             "rank_biserial": float(rb), "mannwhitney_p": float(u.pvalue),
         })
-    # Every feature can be skipped above when a comparison has fewer than 20
-    # probes on either side -- which happens for the smaller tissue pairs. An
-    # empty frame has no columns, so sorting on one raised KeyError and took the
-    # whole stage down rather than reporting that the stage had nothing to say.
     COLS = ["feature", "n_shared", "n_specific", "median_shared",
             "median_specific", "median_difference", "ci_low", "ci_high",
             "rank_biserial", "mannwhitney_p"]
@@ -571,7 +452,6 @@ def run_chromatin(args, loaded: dict) -> int:
         chrom = pd.DataFrame(columns=COLS)
     chrom.to_csv(out_dir / "chromatin_by_class.csv", index=False)
 
-    # ---- B. regression-adjusted accuracy, no matching ----------------------
     pairs["correct"] = (np.sign(pairs["Predicted_Delta_M"])
                         == np.sign(pairs["effect_disc"])).astype(int)
     design = ["shared", "absZ", "abs_distance_bp"]
@@ -646,10 +526,6 @@ def run_chromatin(args, loaded: dict) -> int:
     return 0
 
 
-# =========================================================================
-# main
-# =========================================================================
-
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -672,9 +548,6 @@ def main(argv=None) -> int:
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 
-    # --stage all cannot honour one --output-dir for two stages, and used to drop
-    # it silently, writing both stages to their published default paths. On
-    # 12 Sep 2026 that overwrote four published results. Refuse instead.
     if args.stage == "all" and args.output_dir is not None:
         raise SystemExit("STOP: --stage all ignores --output-dir and would write to "
                          "the published default paths. Run --stage matched and "
@@ -685,9 +558,6 @@ def main(argv=None) -> int:
         raise SystemExit("at least two cohorts are required")
     loaded = load_all(cohorts, args.model, args.seeds)
 
-    # Each stage gets a FRESH generator seeded identically. The pre-merge scripts
-    # each created their own; sharing one across stages here would silently shift
-    # every bootstrap interval in whichever stage ran second.
     if args.stage in ("matched", "all"):
         rc = run_matched(argparse.Namespace(
             **{**vars(args), "output_dir": args.output_dir
